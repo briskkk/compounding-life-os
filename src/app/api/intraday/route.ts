@@ -1,0 +1,84 @@
+import { type NextRequest } from 'next/server'
+import { intradaySeriesBatch, type IntradaySeries } from '@/lib/market/intraday'
+import { fundEstimate, fundEstimateMinuteSeries } from '@/lib/market/fund-engine'
+import { shouldUseOfficialNav } from '@/lib/market/eastmoney-fund'
+import { latestNav } from '@/lib/market/fund-holdings'
+import { getSession } from '@/lib/session'
+import { prisma } from '@/lib/db'
+import { scopedDb } from '@/lib/scoped'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+/** 基金估值落库：同一分钟内去重 */
+async function persistFundEstimates(fundSymbols: string[], series: Map<string, IntradaySeries>) {
+  const now = new Date()
+  for (const symbol of fundSymbols) {
+    const s = series.get(symbol)
+    const est = await fundEstimate(symbol)
+    if (!s || !est || s.points.length === 0) continue
+    const minuteMs = Math.floor(now.getTime() / 60000) * 60000
+    const last = await prisma.fundEstimate.findFirst({ where: { symbol }, orderBy: { createdAt: 'desc' } })
+    if (last && last.createdAt.getTime() >= minuteMs) continue
+    const lastPoint = s.points[s.points.length - 1]
+    await prisma.fundEstimate.create({
+      data: {
+        symbol,
+        estimateReturn: est.estimate.estimateReturnPct / 100,
+        estimatedNav: lastPoint.price,
+        confidence: est.estimate.confidencePct / 100,
+        detail: JSON.stringify(est.estimate.contributions),
+      },
+    })
+  }
+}
+
+export async function GET(req: NextRequest) {
+  const symbols = (req.nextUrl.searchParams.get('symbols') ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 30)
+
+  // cls === 'FUND' 的资产走内部估值分钟序列，其余走行情分钟线
+  const fundSymbols: string[] = []
+  const ctx = await getSession()
+  if (ctx) {
+    const db = scopedDb(prisma, ctx)
+    const rows = await db.asset.findMany({ where: { symbol: { in: symbols }, cls: 'FUND' } })
+    fundSymbols.push(...rows.map((r) => r.symbol))
+  }
+  const fundSet = new Set(fundSymbols)
+  const marketSymbols = symbols.filter((s) => !fundSet.has(s))
+
+  // 基金分时序列仅在「交易时段且今日净值未公布」时产出；
+  // 非交易时段 / 净值已出 → 不产出估值序列，前端回落到官方净值报价
+  const estimableFunds: string[] = []
+  await Promise.all(
+    fundSymbols.map(async (s) => {
+      try {
+        const nav = await latestNav(s)
+        if (!shouldUseOfficialNav(nav.date, new Date())) estimableFunds.push(s)
+      } catch {
+        /* 净值取不到时保守估值 */
+        estimableFunds.push(s)
+      }
+    }),
+  )
+
+  const map = await intradaySeriesBatch(marketSymbols)
+  await Promise.all(
+    estimableFunds.map(async (s) => {
+      const { points, prevClose } = await fundEstimateMinuteSeries(s)
+      if (points.length > 0) {
+        map.set(s, { symbol: s, currency: 'CNY', points, prevClose, source: 'FUND-ENGINE' })
+      }
+    }),
+  )
+  await persistFundEstimates(estimableFunds, map)
+
+  return Response.json({
+    asOf: new Date().toISOString(),
+    series: Object.fromEntries(map),
+  })
+}

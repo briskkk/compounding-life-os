@@ -1,0 +1,21 @@
+# 便捷启动（非必需，根 Dockerfile 可独立运行）
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      # 行情源：simulated（默认，离线可用）/ tencent（A 股实时）
+      MARKET_PROVIDER: ${MARKET_PROVIDER:-simulated}
+      # 首次启动是否灌入演示数据：1 是 / 0 否
+      SEED_DEMO: ${SEED_DEMO:-1}
+      # 可选 LLM 洞察叙事
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+    volumes:
+      - fwos-data:/app/prisma
+    restart: unless-stopped
+
+volumes:
+  fwos-data:

@@ -1,0 +1,10 @@
+node_modules
+.next
+prisma/dev.db
+prisma/dev.db-journal
+prisma/test.db
+prisma/schema.test.prisma
+prisma/generated
+backups
+*.tsbuildinfo
+next-env.d.ts

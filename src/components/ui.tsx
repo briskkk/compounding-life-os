@@ -1,0 +1,127 @@
+// 终端 UI 原语（server-safe）
+import type { ReactNode } from 'react'
+import { cx, fmtCNY, fmtPct, toneOf } from '@/lib/format'
+
+export function Panel({
+  title,
+  en,
+  right,
+  className,
+  bodyClassName,
+  children,
+}: {
+  title: string
+  en?: string
+  right?: ReactNode
+  className?: string
+  bodyClassName?: string
+  children: ReactNode
+}) {
+  return (
+    <section className={cx('rounded-lg border border-line bg-panel', className)}>
+      <header className="flex h-10 items-center justify-between border-b border-line px-3.5">
+        <div className="flex items-baseline gap-2.5">
+          <h2 className="text-[13px] font-medium text-ink-dim">{title}</h2>
+          {en && <span className="text-[10px] tracking-[0.22em] text-ink-faint">{en}</span>}
+        </div>
+        {right}
+      </header>
+      <div className={cx('p-3.5', bodyClassName)}>{children}</div>
+    </section>
+  )
+}
+
+export function Stat({
+  label,
+  en,
+  value,
+  sub,
+  hint,
+}: {
+  label: string
+  en?: string
+  value: ReactNode
+  sub?: ReactNode
+  hint?: ReactNode
+}) {
+  return (
+    <div className="rounded-lg border border-line bg-panel p-3.5">
+      <div className="flex items-baseline justify-between">
+        <span className="text-xs text-ink-faint">{label}</span>
+        {en && <span className="text-[9px] tracking-[0.2em] text-ink-faint">{en}</span>}
+      </div>
+      <div className="num mt-2 text-[24px] leading-none font-medium tracking-tight">{value}</div>
+      {sub && <div className="mt-1.5 text-xs">{sub}</div>}
+      {hint && <div className="mt-1 text-[11px] text-ink-faint">{hint}</div>}
+    </div>
+  )
+}
+
+/** 中式涨跌着色：正=红 负=绿 */
+export function Delta({
+  value,
+  pct,
+  prefix,
+}: {
+  value: number | null
+  pct?: number | null
+  prefix?: string
+}) {
+  if (value == null) return <span className="text-ink-faint">—</span>
+  const tone = toneOf(value)
+  const color = tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : 'text-ink-dim'
+  return (
+    <span className={cx('num', color)}>
+      {prefix}
+      {fmtCNY(value, { sign: true })}
+      {pct != null && <span className="ml-1.5 text-[11px] opacity-80">({fmtPct(pct, { sign: true })})</span>}
+    </span>
+  )
+}
+
+type Tone = 'up' | 'down' | 'gold' | 'info' | 'dim' | 'violet' | 'amber'
+
+const TONE_CLS: Record<Tone, string> = {
+  up: 'text-up border-up/30 bg-up/10',
+  down: 'text-down border-down/30 bg-down/10',
+  gold: 'text-gold border-gold/30 bg-gold/10',
+  info: 'text-info border-info/30 bg-info/10',
+  dim: 'text-ink-dim border-line bg-panel2',
+  violet: 'text-violet border-violet/30 bg-violet/10',
+  amber: 'text-amber border-amber/30 bg-amber/10',
+}
+
+export function Tag({ tone = 'dim', children }: { tone?: Tone; children: ReactNode }) {
+  return (
+    <span className={cx('inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] leading-none', TONE_CLS[tone])}>
+      {children}
+    </span>
+  )
+}
+
+export function Bar({ ratio, className }: { ratio: number; className?: string }) {
+  return (
+    <div className="h-1 w-full overflow-hidden rounded-full bg-panel2">
+      <div
+        className={cx('h-full rounded-full bg-gold transition-all', className)}
+        style={{ width: `${Math.min(100, Math.max(0, ratio * 100))}%` }}
+      />
+    </div>
+  )
+}
+
+export function Empty({ children }: { children: ReactNode }) {
+  return <div className="flex h-24 items-center justify-center text-xs text-ink-faint">{children}</div>
+}
+
+export function SetupScreen() {
+  return (
+    <div className="mx-auto mt-24 max-w-md rounded-lg border border-line bg-panel p-8 text-center">
+      <div className="num text-xl text-gold">FW·OS</div>
+      <p className="mt-4 text-sm text-ink-dim">家庭空间尚未初始化</p>
+      <p className="mt-2 text-xs text-ink-faint">
+        运行 <code className="rounded bg-panel2 px-1.5 py-0.5 text-gold">npm run db:seed</code> 生成演示数据后刷新
+      </p>
+    </div>
+  )
+}

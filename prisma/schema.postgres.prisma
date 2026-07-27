@@ -1,0 +1,302 @@
+// PostgreSQL 版 schema（生产迁移用）
+// 用法：
+//   export DATABASE_URL="postgresql://user:pass@host:5432/familywealth"
+//   npx prisma generate --schema prisma/schema.postgres.prisma   （生成 PG 客户端到 prisma/generated/pg）
+//   npx prisma db push --schema prisma/schema.postgres.prisma    （建表）
+//   psql $DATABASE_URL -f prisma/rls.sql                          （启用原生 RLS）
+//   tsx scripts/migrate-to-postgres.ts                            （搬迁 SQLite 数据）
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/pg"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- 家庭空间与成员 ----------
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model FamilySpace {
+  id               String           @id @default(cuid())
+  name             String
+  baseCurrency     String           @default("CNY")
+  createdAt        DateTime         @default(now())
+  members          Member[]
+  prefs            FamilyPrefs?
+  accounts         Account[]
+  assets           Asset[]
+  transactions     Transaction[]
+  liabilities      Liability[]
+  liabilityEntries LiabilityEntry[]
+  goals            Goal[]
+  snapshots        Snapshot[]
+  insights         Insight[]
+  auditLogs        AuditLog[]
+}
+
+model Member {
+  id        String      @id @default(cuid())
+  familyId  String
+  family    FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name      String
+  role      Role        @default(MEMBER)
+  createdAt DateTime    @default(now())
+
+  @@index([familyId])
+}
+
+// ---------- 账户与资产 ----------
+
+enum AccountType {
+  BROKERAGE
+  BANK
+  FUND
+  PROPERTY
+  OTHER
+}
+
+model Account {
+  id           String        @id @default(cuid())
+  familyId     String
+  family       FamilySpace   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name         String
+  type         AccountType   @default(OTHER)
+  institution  String?
+  currency     String        @default("CNY")
+  note         String?
+  createdAt    DateTime      @default(now())
+  transactions Transaction[]
+
+  @@unique([familyId, name])
+  @@index([familyId])
+}
+
+enum AssetClass {
+  STOCK
+  FUND
+  ETF
+  CASH
+  GOLD
+  REAL_ESTATE
+  RSU
+}
+
+model Asset {
+  id           String        @id @default(cuid())
+  familyId     String
+  family       FamilySpace   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  symbol       String
+  name         String
+  cls          AssetClass
+  manual       Boolean       @default(false)
+  currency     String        @default("CNY")
+  note         String?
+  createdAt    DateTime      @default(now())
+  transactions Transaction[]
+
+  @@unique([familyId, symbol])
+  @@index([familyId])
+}
+
+// ---------- 唯一事实源：交易流水 ----------
+
+enum TxType {
+  BUY
+  SELL
+  DIVIDEND
+  INTEREST
+  FEE
+  DEPOSIT
+  WITHDRAW
+  TRANSFER_IN
+  TRANSFER_OUT
+  VALUATION
+  VEST
+  REVERSAL
+}
+
+model Transaction {
+  id           String      @id @default(cuid())
+  familyId     String
+  family       FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  accountId    String
+  account      Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  assetId      String
+  asset        Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  type         TxType
+  quantity     Decimal?
+  price        Decimal?
+  amount       Decimal     @default(0)
+  fee          Decimal     @default(0)
+  occurredAt   DateTime
+  note         String?
+  internal     Boolean     @default(false)
+  voidedAt     DateTime?
+  reversalOfId String?
+  settleOfId   String?
+  createdAt    DateTime    @default(now())
+
+  @@index([familyId, occurredAt])
+  @@index([familyId, assetId])
+}
+
+// ---------- 负债 ----------
+
+enum LiabilityType {
+  MORTGAGE
+  CAR_LOAN
+  CONSUMER
+  OTHER
+}
+
+model Liability {
+  id        String           @id @default(cuid())
+  familyId  String
+  family    FamilySpace      @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name      String
+  type      LiabilityType    @default(MORTGAGE)
+  rate      Float?
+  note      String?
+  createdAt DateTime         @default(now())
+  entries   LiabilityEntry[]
+
+  @@index([familyId])
+}
+
+enum LiabilityEntryType {
+  DRAW
+  REPAY
+  ADJUST
+}
+
+model LiabilityEntry {
+  id          String             @id @default(cuid())
+  familyId    String
+  family      FamilySpace        @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  liabilityId String
+  liability   Liability          @relation(fields: [liabilityId], references: [id], onDelete: Cascade)
+  type        LiabilityEntryType
+  amount      Decimal
+  occurredAt  DateTime
+  note        String?
+  createdAt   DateTime           @default(now())
+
+  @@index([familyId, occurredAt])
+}
+
+// ---------- 目标 / 阈值 / 快照 / 洞察 / 审计 ----------
+
+enum GoalMetric {
+  NET_WORTH
+  INVESTABLE
+}
+
+enum GoalMode {
+  LUMP_SUM
+  STREAM
+}
+
+model Goal {
+  id                  String      @id @default(cuid())
+  familyId            String
+  family              FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name                String
+  mode                GoalMode    @default(LUMP_SUM)
+  targetAmount        Decimal
+  targetDate          DateTime
+  annualSpend         Decimal?
+  spendYears          Int?
+  metric              GoalMetric  @default(INVESTABLE)
+  monthlyContribution Decimal     @default(0)
+  expectedReturn      Float       @default(0.07)
+  volatility          Float       @default(0.15)
+  note                String?
+  createdAt           DateTime    @default(now())
+
+  @@index([familyId])
+}
+
+model FamilyPrefs {
+  id                   String      @id @default(cuid())
+  familyId             String      @unique
+  family               FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  cashFloor            Float       @default(0.08)
+  concentrationCeiling Float       @default(0.25)
+  cashDragCeiling      Float       @default(0.35)
+  drawdownThreshold    Float       @default(0.05)
+  goalProbThreshold    Float       @default(0.5)
+}
+
+model Snapshot {
+  id            String      @id @default(cuid())
+  familyId      String
+  family        FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  date          DateTime
+  assets        Decimal     @default(0)
+  liabilities   Decimal     @default(0)
+  netWorth      Decimal
+  investable    Decimal
+  contributions Decimal     @default(0)
+  createdAt     DateTime    @default(now())
+
+  @@unique([familyId, date])
+}
+
+enum Severity {
+  INFO
+  WARN
+  ALERT
+}
+
+model Insight {
+  id        String      @id @default(cuid())
+  familyId  String
+  family    FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  kind      String
+  severity  Severity    @default(INFO)
+  title     String
+  body      String
+  action    String?
+  createdAt DateTime    @default(now())
+
+  @@index([familyId])
+}
+
+model AuditLog {
+  id        String       @id @default(cuid())
+  familyId  String?
+  family    FamilySpace? @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  actorId   String?
+  actorName String
+  action    String
+  entity    String
+  entityId  String?
+  detail    String?
+  hash      String
+  prevHash  String?
+  createdAt DateTime     @default(now())
+
+  @@index([familyId, createdAt])
+}
+
+// ---------- 行情历史（全局共享，无 familyId，不参与 RLS） ----------
+
+model PriceBar {
+  id     String   @id @default(cuid())
+  symbol String
+  date   DateTime
+  close  Decimal
+  source String   @default("SIMULATED")
+
+  @@unique([symbol, date])
+  @@index([symbol])
+}

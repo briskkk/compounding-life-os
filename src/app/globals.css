@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0b0e13;
+  --color-panel: #10141c;
+  --color-panel2: #151b26;
+  --color-line: #1d2634;
+  --color-ink: #e7eaf2;
+  --color-ink-dim: #9aa4b8;
+  --color-ink-faint: #5d6676;
+  --color-gold: #c8a24a;
+  --color-up: #e5534b;
+  --color-down: #3fb68b;
+  --color-info: #5b8def;
+  --color-violet: #8b7cf6;
+  --color-teal: #2dd4bf;
+  --color-amber: #e8b558;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+/* 全局字号：rem 工具类整体 +6%（text-xs/sm/base 等随根字号放大） */
+html {
+  font-size: 17px;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", sans-serif;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 任意像素字号统一上调（非 rem 的 text-[Npx] 类） */
+.text-\[9px\] { font-size: 10.5px; }
+.text-\[10px\] { font-size: 11.5px; }
+.text-\[11px\] { font-size: 12.5px; }
+.text-\[12px\] { font-size: 13.5px; }
+.text-\[13px\] { font-size: 14.5px; }
+.text-\[14px\] { font-size: 15.5px; }
+.text-\[15px\] { font-size: 16.5px; }
+.text-\[26px\] { font-size: 30px; }
+
+/* 表格密度：10px 行距收紧到 8px */
+td.py-2\.5,
+th.py-2\.5 {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #1d2634;
+  border-radius: 5px;
+  border: 2px solid #0b0e13;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+select option {
+  background: #151b26;
+  color: #e7eaf2;
+}

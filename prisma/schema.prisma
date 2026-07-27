@@ -1,0 +1,321 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ---------- 家庭空间与成员 ----------
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model FamilySpace {
+  id               String           @id @default(cuid())
+  name             String
+  baseCurrency     String           @default("CNY")
+  createdAt        DateTime         @default(now())
+  members          Member[]
+  prefs            FamilyPrefs?
+  accounts         Account[]
+  assets           Asset[]
+  transactions     Transaction[]
+  liabilities      Liability[]
+  liabilityEntries LiabilityEntry[]
+  goals            Goal[]
+  snapshots        Snapshot[]
+  insights         Insight[]
+  auditLogs        AuditLog[]
+}
+
+model Member {
+  id        String      @id @default(cuid())
+  familyId  String
+  family    FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name      String
+  role      Role        @default(MEMBER)
+  createdAt DateTime    @default(now())
+
+  @@index([familyId])
+}
+
+// ---------- 账户与资产 ----------
+
+enum AccountType {
+  BROKERAGE
+  BANK
+  FUND
+  PROPERTY
+  OTHER
+}
+
+model Account {
+  id           String        @id @default(cuid())
+  familyId     String
+  family       FamilySpace   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name         String
+  type         AccountType   @default(OTHER)
+  institution  String?
+  currency     String        @default("CNY")
+  note         String?
+  createdAt    DateTime      @default(now())
+  transactions Transaction[]
+
+  @@unique([familyId, name])
+  @@index([familyId])
+}
+
+enum AssetClass {
+  STOCK
+  FUND
+  ETF
+  CASH
+  GOLD
+  REAL_ESTATE
+  RSU
+}
+
+model Asset {
+  id           String        @id @default(cuid())
+  familyId     String
+  family       FamilySpace   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  symbol       String
+  name         String
+  cls          AssetClass
+  manual       Boolean       @default(false) // 手动估值资产（房产等）
+  currency     String        @default("CNY")
+  tags         String        @default("") // 自定义分组标签，逗号分隔（如 "美元基金,长期"）
+  note         String?
+  createdAt    DateTime      @default(now())
+  transactions Transaction[]
+
+  @@unique([familyId, symbol])
+  @@index([familyId])
+}
+
+// ---------- 唯一事实源：交易流水 ----------
+
+enum TxType {
+  BUY
+  SELL
+  DIVIDEND
+  INTEREST
+  FEE
+  DEPOSIT
+  WITHDRAW
+  TRANSFER_IN
+  TRANSFER_OUT
+  VALUATION
+  VEST
+  REVERSAL
+}
+
+model Transaction {
+  id           String      @id @default(cuid())
+  familyId     String
+  family       FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  accountId    String
+  account      Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  assetId      String
+  asset        Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  type         TxType
+  quantity     Decimal?
+  price        Decimal?
+  amount       Decimal     @default(0)
+  fee          Decimal     @default(0)
+  occurredAt   DateTime
+  note         String?
+  internal     Boolean     @default(false) // 内部结算腿（买卖联动现金、转账），不计入外部投入
+  voidedAt     DateTime? // 被冲正后标记，账本折叠时跳过
+  reversalOfId String? // REVERSAL 流水指向被冲正的原始流水
+  settleOfId   String? // 结算腿指向其主流水（冲正时联动作废）
+  createdAt    DateTime    @default(now())
+
+  @@index([familyId, occurredAt])
+  @@index([familyId, assetId])
+}
+
+// ---------- 负债 ----------
+
+enum LiabilityType {
+  MORTGAGE
+  CAR_LOAN
+  CONSUMER
+  OTHER
+}
+
+model Liability {
+  id        String           @id @default(cuid())
+  familyId  String
+  family    FamilySpace      @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name      String
+  type      LiabilityType    @default(MORTGAGE)
+  rate      Float? // 年利率，如 0.042
+  note      String?
+  createdAt DateTime         @default(now())
+  entries   LiabilityEntry[]
+
+  @@index([familyId])
+}
+
+enum LiabilityEntryType {
+  DRAW
+  REPAY
+  ADJUST
+}
+
+model LiabilityEntry {
+  id          String             @id @default(cuid())
+  familyId    String
+  family      FamilySpace        @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  liabilityId String
+  liability   Liability          @relation(fields: [liabilityId], references: [id], onDelete: Cascade)
+  type        LiabilityEntryType
+  amount      Decimal
+  occurredAt  DateTime
+  note        String?
+  createdAt   DateTime           @default(now())
+
+  @@index([familyId, occurredAt])
+}
+
+// ---------- 目标 / 快照 / 洞察 / 审计 ----------
+
+enum GoalMetric {
+  NET_WORTH
+  INVESTABLE
+}
+
+enum GoalMode {
+  LUMP_SUM
+  STREAM
+}
+
+model Goal {
+  id                  String      @id @default(cuid())
+  familyId            String
+  family              FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name                String
+  mode                GoalMode    @default(LUMP_SUM) // LUMP_SUM 一次性目标 / STREAM 支出流目标
+  targetAmount        Decimal
+  targetDate          DateTime
+  annualSpend         Decimal? // STREAM：自 targetDate 起每年支出
+  spendYears          Int? // STREAM：支出年数
+  metric              GoalMetric  @default(INVESTABLE)
+  monthlyContribution Decimal     @default(0)
+  expectedReturn      Float       @default(0.07)
+  volatility          Float       @default(0.15)
+  note                String?
+  createdAt           DateTime    @default(now())
+
+  @@index([familyId])
+}
+
+// 家庭级策略阈值（洞察引擎使用）
+model FamilyPrefs {
+  id                   String      @id @default(cuid())
+  familyId             String      @unique
+  family               FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  cashFloor            Float       @default(0.08) // 现金安全线
+  concentrationCeiling Float       @default(0.25) // 单一资产集中度阈值
+  cashDragCeiling      Float       @default(0.35) // 现金拖累线
+  drawdownThreshold    Float       @default(0.05) // 30 日回撤警示线
+  goalProbThreshold    Float       @default(0.5) // 目标达成概率警示线
+}
+
+model Snapshot {
+  id            String      @id @default(cuid())
+  familyId      String
+  family        FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  date          DateTime
+  assets        Decimal     @default(0) // 总资产（未扣负债）
+  liabilities   Decimal     @default(0) // 总负债
+  netWorth      Decimal // = assets − liabilities
+  investable    Decimal // 可自由投资口径
+  contributions Decimal     @default(0) // 累计净投入（外部现金流）
+  createdAt     DateTime    @default(now())
+
+  @@unique([familyId, date])
+}
+
+enum Severity {
+  INFO
+  WARN
+  ALERT
+}
+
+model Insight {
+  id        String      @id @default(cuid())
+  familyId  String
+  family    FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  kind      String
+  severity  Severity    @default(INFO)
+  title     String
+  body      String
+  action    String?
+  createdAt DateTime    @default(now())
+
+  @@index([familyId])
+}
+
+model AuditLog {
+  id        String       @id @default(cuid())
+  familyId  String?
+  family    FamilySpace? @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  actorId   String?
+  actorName String
+  action    String
+  entity    String
+  entityId  String?
+  detail    String?
+  hash      String
+  prevHash  String?
+  createdAt DateTime     @default(now())
+
+  @@index([familyId, createdAt])
+}
+
+// ---------- 行情历史（全局共享，无 familyId，不参与 RLS） ----------
+
+model PriceBar {
+  id     String   @id @default(cuid())
+  symbol String
+  date   DateTime
+  close  Decimal
+  source String   @default("SIMULATED")
+
+  @@unique([symbol, date])
+  @@index([symbol])
+}
+
+// 基金盘中估值采集（内部估值引擎输出，分钟级去重）
+model FundEstimate {
+  id             String   @id @default(cuid())
+  symbol         String
+  estimateReturn Float // 估算涨跌幅（小数）
+  estimatedNav   Decimal // 估算净值
+  confidence     Float // 置信度 0-1（前十大持仓覆盖率）
+  detail         String? // 贡献分解 JSON
+  createdAt      DateTime @default(now())
+
+  @@index([symbol, createdAt])
+}
+
+// 估值校准：每日估算涨幅 vs 官方净值涨幅的误差记录
+model FundCalibration {
+  id             String   @id @default(cuid())
+  symbol         String
+  date           DateTime // 官方净值日期
+  estReturn      Float // 当日最后一条估算涨幅（小数）
+  officialReturn Float // 官方净值当日涨幅（小数）
+  error          Float // estReturn − officialReturn
+  createdAt      DateTime @default(now())
+
+  @@unique([symbol, date])
+}
