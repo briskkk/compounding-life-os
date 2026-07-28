@@ -141,10 +141,39 @@ export interface IntradayDatum {
   value: number
 }
 
-/** 当日收益曲线（相对昨收的组合盈亏） */
+/** 当日盈亏 tooltip（含组合市值） */
+function IntradayTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null
+  const d = payload[0].payload as IntradayDatum
+  return (
+    <div className="rounded border border-line bg-panel2 px-3 py-2 text-xs shadow-2xl">
+      <div className="num mb-1 text-ink-faint">{label}</div>
+      <div className="flex items-center gap-2 py-0.5">
+        <span className="text-ink-dim">当日盈亏</span>
+        <span className={`num ml-auto pl-3 ${d.pnl >= 0 ? 'text-up' : 'text-down'}`}>{fmtCNY(d.pnl, { sign: true })}</span>
+      </div>
+      <div className="flex items-center gap-2 py-0.5">
+        <span className="text-ink-dim">组合市值</span>
+        <span className="num ml-auto pl-3 text-ink">{fmtCNY(d.value)}</span>
+      </div>
+    </div>
+  )
+}
+
+/** 当日收益曲线（相对昨收的组合盈亏；Y 域 = 当日盈亏极值 + 15% 余量） */
 export function IntradayChart({ data }: { data: IntradayDatum[] }) {
   const last = data.length > 0 ? data[data.length - 1].pnl : 0
   const color = last >= 0 ? C.up : C.down
+  // 以当日盈亏极值定坐标上下限（含 0 轴），波动不再被总资产量级压平
+  let lo = 0
+  let hi = 0
+  for (const d of data) {
+    if (d.pnl < lo) lo = d.pnl
+    if (d.pnl > hi) hi = d.pnl
+  }
+  const span = hi - lo
+  const pad = span > 0 ? span * 0.15 : Math.max(Math.abs(hi || lo) * 0.1, 100)
+  const domain: [number, number] = [lo - pad, hi + pad]
   return (
     <ResponsiveContainer width="100%" height={260}>
       <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
@@ -161,13 +190,12 @@ export function IntradayChart({ data }: { data: IntradayDatum[] }) {
           tickLine={false}
           axisLine={false}
           width={72}
-          domain={['auto', 'auto']}
+          domain={domain}
           tickFormatter={(v: number) => fmtCNY(v)}
         />
-        <Tooltip content={<DarkTooltip />} />
+        <Tooltip content={<IntradayTooltip />} />
         <ReferenceLine y={0} stroke={C.inkFaint} strokeDasharray="4 6" />
         <Area type="monotone" dataKey="pnl" name="当日盈亏" stroke={color} strokeWidth={1.5} fill="url(#gDay)" dot={false} isAnimationActive={false} />
-        <Line type="monotone" dataKey="value" name="组合市值" stroke="none" dot={false} isAnimationActive={false} />
       </ComposedChart>
     </ResponsiveContainer>
   )

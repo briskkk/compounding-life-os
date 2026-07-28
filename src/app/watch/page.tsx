@@ -52,11 +52,14 @@ export default async function WatchPage() {
     (v) => Math.abs(v.quantity) > 1e-9 && (v.asset.manual || v.asset.cls === 'CASH' || v.asset.cls === 'REAL_ESTATE'),
   )
   const staticValueCny = staticPositions.reduce((s, v) => s + v.value, 0)
-  const staticRows: StaticRow[] = staticPositions.map((v) => ({
-    name: v.asset.name,
-    valueCny: v.value,
-    note: v.asset.cls === 'CASH' ? '现金' : '手动估值',
-  }))
+  // 按资产合并跨账户静态行（人民币现金一行、美元现金一行），过滤分位浮尘
+  const staticByAsset = new Map<string, { name: string; note: string; valueCny: number }>()
+  for (const v of staticPositions) {
+    const g = staticByAsset.get(v.assetId) ?? { name: v.asset.name, note: v.asset.cls === 'CASH' ? '现金' : '手动估值', valueCny: 0 }
+    g.valueCny += v.value
+    staticByAsset.set(v.assetId, g)
+  }
+  const staticRows: StaticRow[] = [...staticByAsset.values()].filter((r) => Math.abs(r.valueCny) >= 0.01)
 
   return <WatchClient holdings={holdings} staticValueCny={staticValueCny} staticRows={staticRows} provider={providerLabel()} />
 }

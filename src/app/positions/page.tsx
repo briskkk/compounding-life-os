@@ -5,8 +5,9 @@ import { loadEngineState } from '@/lib/queries'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { Empty, Panel, SetupScreen, Tag } from '@/components/ui'
-import { ValuationForm } from '@/components/valuation-form'
+import { ValuationToggle } from '@/components/valuation-toggle'
 import { groupByTag, parseTags } from '@/lib/engine/groups'
+import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { ASSET_CLASS_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtCNYExact, fmtPct, fmtPrice, fmtQty } from '@/lib/format'
 import { CLASS_COLORS } from '@/lib/colors'
@@ -31,9 +32,19 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
   const allRows = state.valued
     .filter((v) => Math.abs(v.quantity) > 1e-9 || v.value > 0)
     .sort((a, b) => b.value - a.value)
+  // 同一资产跨账户合并展示
+  const mergedRows = mergePositionsByAsset(allRows).sort((a, b) => b.value - a.value)
   const groups = groupByTag(allRows, assetTags)
   const activeTag = sp.tag ?? null
-  const rows = activeTag ? allRows.filter((r) => (assetTags.get(r.assetId) ?? []).includes(activeTag)) : allRows
+  const rows = activeTag ? mergedRows.filter((r) => (assetTags.get(r.assetId) ?? []).includes(activeTag)) : mergedRows
+
+  // 每个资产涉及的账户（合并展示用）
+  const accountsByAsset = new Map<string, Set<string>>()
+  for (const v of state.valued) {
+    const set = accountsByAsset.get(v.assetId) ?? new Set<string>()
+    set.add(v.accountId)
+    accountsByAsset.set(v.assetId, set)
+  }
 
   const classOrder: AssetClass[] = ['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'REAL_ESTATE', 'RSU']
   const manualAssets = state.assets.filter((a) => a.manual || a.cls === 'REAL_ESTATE')
@@ -79,12 +90,11 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+      <div>
         {/* 持仓明细 */}
         <Panel
           title={activeTag ? `持仓明细 · ${activeTag}` : '持仓明细'}
           en="HOLDINGS"
-          className="xl:col-span-2"
           bodyClassName="p-0"
           right={
             activeTag ? (
@@ -97,7 +107,14 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
           {rows.length === 0 ? (
             <Empty>暂无持仓 — 先录入流水</Empty>
           ) : (
-            <table className="w-full text-[12px]">
+            <>
+              <ValuationToggle
+                assets={manualAssets.map((a) => {
+                  const pos = state.valued.find((v) => v.assetId === a.id)
+                  return { id: a.id, name: a.name, accountId: pos?.accountId ?? '', current: pos?.value ?? null }
+                })}
+              />
+              <table className="w-full text-[12px] whitespace-nowrap">
               <thead>
                 <tr className="border-b border-line text-left text-[10px] tracking-wider text-ink-faint">
                   <th className="px-4 py-2.5 font-normal">资产</th>
@@ -135,7 +152,14 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                           </div>
                         </div>
                       </td>
-                      <td className="px-2 py-2.5 text-ink-dim">{accountName.get(p.accountId) ?? '—'}</td>
+                      <td className="px-2 py-2.5 text-ink-dim">
+                        {(() => {
+                          const accs = [...(accountsByAsset.get(p.assetId) ?? [])].map((id) => accountName.get(id) ?? '—')
+                          if (accs.length <= 1) return accs[0] ?? '—'
+                          if (accs.length === 2) return accs.join('、')
+                          return `${accs.length} 个账户`
+                        })()}
+                      </td>
                       <td className="num px-2 py-2.5 text-right text-ink">
                         {fmtQty(p.quantity)}
                         {restricted && <div className="text-[10px] text-amber">未归属 {fmtQty(p.unvestedQty)}</div>}
@@ -171,25 +195,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                   )
                 })}
               </tbody>
-            </table>
-          )}
-        </Panel>
-
-        {/* 手动估值 */}
-        <Panel title="手动估值" en="MANUAL VALUATION" right={<span className="text-[10px] text-ink-faint">写入 VALUATION 流水</span>}>
-          {manualAssets.length === 0 ? (
-            <Empty>暂无手动估值资产</Empty>
-          ) : (
-            <>
-              <p className="mb-3 text-[11px] leading-relaxed text-ink-faint">
-                房产等资产不参与行情定价，通过估值流水更新当前价值，保持净资产口径准确。
-              </p>
-              <ValuationForm
-                assets={manualAssets.map((a) => {
-                  const pos = state.valued.find((v) => v.assetId === a.id)
-                  return { id: a.id, name: a.name, accountId: pos?.accountId ?? '', current: pos?.value ?? null }
-                })}
-              />
+              </table>
             </>
           )}
         </Panel>
