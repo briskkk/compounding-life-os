@@ -33,7 +33,8 @@ export async function GET(req: NextRequest) {
           // 基金通道失败：重试一次；仍失败则跳过该标的（绝不回落模拟价）
           for (let attempt = 0; attempt < 2; attempt++) {
             try {
-              return await eastmoneyFundProvider.quote(s)
+              const q = await eastmoneyFundProvider.quote(s)
+              return { ...q, rawPrice: q.price, rawPrevClose: q.prevClose }
             } catch {
               if (attempt === 1) return null
               await new Promise((r) => setTimeout(r, 500))
@@ -43,7 +44,13 @@ export async function GET(req: NextRequest) {
         try {
           const q = await quoteSmart(s)
           const rate = cnyRateFor(s, rates)
-          return { ...q, price: q.price * rate, prevClose: q.prevClose * rate }
+          return {
+            ...q,
+            rawPrice: q.price,
+            rawPrevClose: q.prevClose,
+            price: q.price * rate,
+            prevClose: q.prevClose * rate,
+          }
         } catch {
           return null
         }

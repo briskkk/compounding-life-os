@@ -6,6 +6,8 @@ import { cnyRateFor, fxRates } from '@/lib/market/fx'
 import { SetupScreen } from '@/components/ui'
 import { WatchClient, type WatchHolding, type StaticRow } from '@/components/watch-client'
 import { providerLabel } from '@/lib/market'
+import { eastmoneyFundProvider } from '@/lib/market/eastmoney-fund'
+import { mergePositionsByAsset } from '@/lib/engine/merge'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +19,8 @@ export default async function WatchPage() {
   const rates = await fxRates()
 
   // 行情类持仓（股票/ETF/基金/黄金/RSU）——参与曲线与实时估值表
-  const marketPositions = state.valued.filter(
+  const positions = mergePositionsByAsset(state.valued)
+  const marketPositions = positions.filter(
     (v) => v.quantity > 1e-9 && !v.asset.manual && v.asset.cls !== 'CASH' && v.asset.cls !== 'REAL_ESTATE',
   )
   const holdings: WatchHolding[] = await Promise.all(
@@ -26,7 +29,8 @@ export default async function WatchPage() {
       let price: number | null = null
       let source: string | null = null
       try {
-        const q = await quoteSmart(v.asset.symbol)
+        const q =
+          v.asset.cls === 'FUND' ? await eastmoneyFundProvider.quote(v.asset.symbol) : await quoteSmart(v.asset.symbol)
         prevClose = q.prevClose
         price = q.price
         source = q.source
@@ -43,23 +47,19 @@ export default async function WatchPage() {
         prevClose,
         price,
         source,
+        fallbackValueCny: v.value,
       }
     }),
   )
 
   // 无分时数据的持仓（现金/手动/房产）——以常数计入组合曲线
-  const staticPositions = state.valued.filter(
+  const staticPositions = positions.filter(
     (v) => Math.abs(v.quantity) > 1e-9 && (v.asset.manual || v.asset.cls === 'CASH' || v.asset.cls === 'REAL_ESTATE'),
   )
   const staticValueCny = staticPositions.reduce((s, v) => s + v.value, 0)
-  // 按资产合并跨账户静态行（人民币现金一行、美元现金一行），过滤分位浮尘
-  const staticByAsset = new Map<string, { name: string; note: string; valueCny: number }>()
-  for (const v of staticPositions) {
-    const g = staticByAsset.get(v.assetId) ?? { name: v.asset.name, note: v.asset.cls === 'CASH' ? '现金' : '手动估值', valueCny: 0 }
-    g.valueCny += v.value
-    staticByAsset.set(v.assetId, g)
-  }
-  const staticRows: StaticRow[] = [...staticByAsset.values()].filter((r) => Math.abs(r.valueCny) >= 0.01)
+  const staticRows: StaticRow[] = staticPositions
+    .map((v) => ({ name: v.asset.name, note: v.asset.cls === 'CASH' ? '现金' : '手动估值', valueCny: v.value }))
+    .filter((r) => Math.abs(r.valueCny) >= 0.01)
 
   return <WatchClient holdings={holdings} staticValueCny={staticValueCny} staticRows={staticRows} provider={providerLabel()} />
 }

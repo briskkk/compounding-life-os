@@ -33,12 +33,21 @@ describe('组合当日收益曲线', () => {
     expect(curve[2].pnl).toBeGreaterThan(0)
   })
 
-  it('无昨收的标的不计入基线', () => {
+  it('无昨收时以首个分钟价为基线，避免把全部市值记为当日盈利', () => {
     const holdings: CurveHolding[] = [{ symbol: 'A', qty: 100, rateToCny: 1, prevClose: null }]
     const curve = buildPortfolioCurve(holdings, new Map([['A', [{ t: t0, price: 10 }]]]), 0)
-    // 基线为 0 → pnl 等于市值本身
-    expect(curve[0].pnl).toBe(curve[0].value)
+    expect(curve[0].pnl).toBe(0)
     expect(curve[0].value).toBe(1000)
+  })
+
+  it('将无分时持仓的当前市值与当日盈亏计入整条曲线', () => {
+    const holdings: CurveHolding[] = [{ symbol: 'A', qty: 100, rateToCny: 1, prevClose: 10 }]
+    const series = new Map([['A', [{ t: t0, price: 11 }]]])
+    // 无分时资产当前市值 5,000，较昨收亏损 200；动态资产盈利 100。
+    const [point] = buildPortfolioCurve(holdings, series, 5000, -200)
+    expect(point.value).toBe(6100)
+    expect(point.pnl).toBe(-100)
+    expect(point.value - point.pnl).toBe(6200)
   })
 
   it('全部无分时数据 → 空曲线', () => {

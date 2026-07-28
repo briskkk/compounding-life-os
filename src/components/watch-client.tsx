@@ -18,6 +18,7 @@ export interface WatchHolding {
   prevClose: number | null
   price: number | null
   source: string | null
+  fallbackValueCny: number
 }
 
 export interface StaticRow {
@@ -32,6 +33,9 @@ interface QuoteLite {
   prevClose: number
   changePct: number
   source: string
+  asOf: string
+  rawPrice?: number
+  rawPrevClose?: number
 }
 
 const POLL_MS = 30_000
@@ -80,18 +84,40 @@ export function WatchClient({
     }
   }, [symbols])
 
-  const curveHoldings: CurveHolding[] = holdings.map((h) => ({
+  // 实时估值表行
+  const rows = holdings.map((h) => {
+    const series = seriesMap.get(h.symbol)
+    const q = quotes.get(h.symbol)
+    // /api/prices 的 price 为人民币展示口径；组合计算必须使用原币报价，再统一乘一次汇率。
+    const quotePrice = q?.rawPrice ?? (q ? q.price / h.rateToCny : null)
+    const quotePrevClose = q?.rawPrevClose ?? (q ? q.prevClose / h.rateToCny : null)
+    const price = quotePrice ?? series?.points.at(-1)?.price ?? h.price ?? null
+    const prevClose = series?.prevClose ?? quotePrevClose ?? h.prevClose ?? series?.points[0]?.price ?? null
+    const changePct = price != null && prevClose ? price / prevClose - 1 : null
+    const valueCny = price != null ? h.qty * price * h.rateToCny : h.fallbackValueCny
+    const dayPnlCny = price != null && prevClose != null ? h.qty * (price - prevClose) * h.rateToCny : null
+    return { ...h, price, prevClose, changePct, valueCny, dayPnlCny, source: q?.source ?? series?.source ?? h.source ?? null }
+  })
+
+  const curveHoldings: CurveHolding[] = rows.map((h) => ({
     symbol: h.symbol,
     qty: h.qty,
     rateToCny: h.rateToCny,
-    prevClose: seriesMap.get(h.symbol)?.prevClose ?? h.prevClose,
+    prevClose: h.prevClose,
   }))
-
-  const curve = useMemo(
-    () => buildPortfolioCurve(curveHoldings, new Map([...seriesMap].map(([k, v]) => [k, v.points])), staticValueCny),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [seriesMap, staticValueCny, symbols.join(',')],
+  const curveSeries = new Map(
+    [...seriesMap].map(([symbol, series]) => {
+      const points = series.points.map((p) => ({ ...p }))
+      const current = rows.find((r) => r.symbol === symbol)?.price
+      // 报价轮询可能比分时端点更新；用同一价格替换末点，使曲线末点与顶部/表格完全同口径。
+      if (current != null && points.length > 0) points[points.length - 1].price = current
+      return [symbol, points] as const
+    }),
   )
+  const quoteOnlyRows = rows.filter((r) => !seriesMap.has(r.symbol))
+  const constantValueCny = staticValueCny + quoteOnlyRows.reduce((sum, row) => sum + row.valueCny, 0)
+  const constantPnlCny = quoteOnlyRows.reduce((sum, row) => sum + (row.dayPnlCny ?? 0), 0)
+  const curve = buildPortfolioCurve(curveHoldings, curveSeries, constantValueCny, constantPnlCny)
 
   const chartData = curve.map((p) => ({
     time: new Date(p.t).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
@@ -100,23 +126,13 @@ export function WatchClient({
   }))
 
   const lastPoint = curve.length > 0 ? curve[curve.length - 1] : null
-  const baseline = lastPoint ? lastPoint.value - lastPoint.pnl : null
-  // 基线为正才有百分比意义（现金透支等情况下基线可能≤0）
-  const dayPct = lastPoint && baseline != null && baseline > 0 ? lastPoint.pnl / baseline : null
-
-  // 实时估值表行
-  const rows = holdings.map((h) => {
-    const series = seriesMap.get(h.symbol)
-    const q = quotes.get(h.symbol)
-    const price = series?.points.at(-1)?.price ?? h.price ?? q?.price ?? null
-    const prevClose = series?.prevClose ?? h.prevClose ?? q?.prevClose ?? null
-    const changePct = price != null && prevClose ? price / prevClose - 1 : null
-    const valueCny = price != null ? h.qty * price * h.rateToCny : null
-    const dayPnlCny = price != null && prevClose != null ? h.qty * (price - prevClose) * h.rateToCny : null
-    return { ...h, price, prevClose, changePct, valueCny, dayPnlCny, source: series?.source ?? h.source ?? q?.source ?? null }
-  })
-  const totalValue = rows.reduce((s, r) => s + (r.valueCny ?? 0), staticValueCny)
-  const totalPnl = rows.reduce((s, r) => s + (r.dayPnlCny ?? 0), 0)
+  const rowTotalValue = rows.reduce((sum, row) => sum + row.valueCny, staticValueCny)
+  const rowTotalPnl = rows.reduce((sum, row) => sum + (row.dayPnlCny ?? 0), 0)
+  const totalValue = lastPoint?.value ?? rowTotalValue
+  const totalPnl = lastPoint?.pnl ?? rowTotalPnl
+  const baseline = totalValue - totalPnl
+  // 金额和百分比共用同一基线，避免顶部卡片内部出现两套口径。
+  const dayPct = baseline > 0 ? totalPnl / baseline : null
 
   return (
     <div className="space-y-3">
@@ -149,7 +165,7 @@ export function WatchClient({
       <Panel
         title="当日收益曲线"
         en="TODAY P&L"
-        right={<span className="text-[10px] text-ink-faint">分钟级 · 相对昨收 · 无分时持仓按常数计入</span>}
+        right={<span className="text-[10px] text-ink-faint">分钟级 · 相对昨收 · 曲线末点与顶部同口径</span>}
       >
         {chartData.length > 1 ? (
           <IntradayChart data={chartData} />
@@ -198,7 +214,7 @@ export function WatchClient({
             {staticRows.map((r) => (
               <tr key={r.name} className="opacity-60">
                 <td className="px-4 py-2.5 text-ink-dim">{r.name}</td>
-                <td className="px-2 py-2.5" colSpan={4}>
+                <td className="px-2 py-2.5" colSpan={3}>
                   <span className="text-[10px] text-ink-faint">{r.note} · 无分时数据</span>
                 </td>
                 <td className="num px-2 py-2.5 text-right text-ink-dim">{fmtCNY(r.valueCny)}</td>
@@ -211,7 +227,8 @@ export function WatchClient({
       </Panel>
 
       <p className="text-[11px] leading-relaxed text-ink-faint">
-        A 股/ETF 分时来自腾讯分钟线，US/HK 来自 Yahoo 分钟线；场外基金为 T-1 净值无盘中数据；报价存在交易所固有延迟，仅供参考。
+        A 股/ETF 分时来自腾讯分钟线，US/HK 来自 Yahoo
+        分钟线；场外基金按盘中估值或已公布净值，无可用分时线时按常量计入；报价存在交易所固有延迟，仅供参考。
       </p>
     </div>
   )
