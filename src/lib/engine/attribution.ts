@@ -9,7 +9,7 @@ const dayKey = (d: Date) => Math.floor(d.getTime() / DAY)
 export function dailyNetFlows(txs: TxInput[], rate: (currency: string) => number = () => 1): Map<number, number> {
   const flows = new Map<number, number>()
   for (const t of txs) {
-    if (t.internal) continue
+    if (t.internal || t.voidedAt) continue
     const r = rate(t.currency ?? 'CNY')
     if (t.type === 'DEPOSIT') flows.set(dayKey(t.occurredAt), (flows.get(dayKey(t.occurredAt)) ?? 0) + t.amount * r)
     else if (t.type === 'WITHDRAW') flows.set(dayKey(t.occurredAt), (flows.get(dayKey(t.occurredAt)) ?? 0) - t.amount * r)
@@ -87,7 +87,7 @@ export function xirr(flows: XirrFlow[], terminalValue: number, terminalDate: Dat
 /** 由外部现金流构造 XIRR 输入（投入取负号；外币按汇率折人民币） */
 export function xirrFlowsFromTxs(txs: TxInput[], rate: (currency: string) => number = () => 1): XirrFlow[] {
   return txs
-    .filter((t) => !t.internal && (t.type === 'DEPOSIT' || t.type === 'WITHDRAW'))
+    .filter((t) => !t.internal && !t.voidedAt && (t.type === 'DEPOSIT' || t.type === 'WITHDRAW'))
     .map((t) => {
       const r = rate(t.currency ?? 'CNY')
       return { date: t.occurredAt, amount: (t.type === 'DEPOSIT' ? -t.amount : t.amount) * r }

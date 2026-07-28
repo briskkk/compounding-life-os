@@ -275,6 +275,7 @@ model AuditLog {
   entityId  String?
   detail    String?
   hash      String
+  hashVersion Int        @default(1)
   prevHash  String?
   createdAt DateTime     @default(now())
 

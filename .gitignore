@@ -6,5 +6,7 @@ prisma/test.db
 prisma/schema.test.prisma
 prisma/generated
 backups
+test-results
+playwright-report
 *.tsbuildinfo
 next-env.d.ts

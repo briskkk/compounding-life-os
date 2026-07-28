@@ -25,9 +25,10 @@ describe('盘中估值 / 盘后净值切换', () => {
     expect(shouldUseOfficialNav(new Date('2026-07-27T00:00:00Z'), now)).toBe(true)
   })
 
-  it('收盘后今日净值未出 → 用昨日官方净值等更新', () => {
-    const now = new Date('2026-07-27T07:30:00Z') // 周一 北京 15:30
-    expect(shouldUseOfficialNav(new Date('2026-07-24T00:00:00Z'), now)).toBe(true)
+  it('收盘后今日净值未出 → 仍按估值（直至今日净值公布）', () => {
+    // 周一 北京 15:30 / 18:00，今日净值未出 → 估值是「今日盈亏」最佳代理
+    expect(shouldUseOfficialNav(new Date('2026-07-24T00:00:00Z'), new Date('2026-07-27T07:30:00Z'))).toBe(false)
+    expect(shouldUseOfficialNav(new Date('2026-07-24T00:00:00Z'), new Date('2026-07-27T10:00:00Z'))).toBe(false)
   })
 
   it('周末 → 官方净值', () => {
@@ -35,10 +36,10 @@ describe('盘中估值 / 盘后净值切换', () => {
     expect(shouldUseOfficialNav(new Date('2026-07-24T00:00:00Z'), now)).toBe(true)
   })
 
-  it('交易时段边界：09:30 前为估值准备期（仍用官方净值），09:30–15:00 估值', () => {
-    expect(shouldUseOfficialNav(new Date('2026-07-24T00:00:00Z'), new Date('2026-07-27T01:29:00Z'))).toBe(true) // 09:29
-    expect(shouldUseOfficialNav(new Date('2026-07-24T00:00:00Z'), new Date('2026-07-27T01:30:00Z'))).toBe(false) // 09:30
-    expect(shouldUseOfficialNav(new Date('2026-07-24T00:00:00Z'), new Date('2026-07-27T07:00:00Z'))).toBe(true) // 15:00
+  it('交易时段边界：09:30 前用官方净值，09:30 起估值直至今日净值公布', () => {
+    expect(shouldUseOfficialNav(new Date('2026-07-24T00:00:00Z'), new Date('2026-07-27T01:29:00Z'))).toBe(true) // 09:29 → 净值
+    expect(shouldUseOfficialNav(new Date('2026-07-24T00:00:00Z'), new Date('2026-07-27T01:30:00Z'))).toBe(false) // 09:30 → 估值
+    expect(shouldUseOfficialNav(new Date('2026-07-24T00:00:00Z'), new Date('2026-07-27T07:00:00Z'))).toBe(false) // 15:00 → 估值（未公布前）
   })
 })
 

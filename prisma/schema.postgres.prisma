@@ -99,6 +99,7 @@ model Asset {
   cls          AssetClass
   manual       Boolean       @default(false)
   currency     String        @default("CNY")
+  tags         String        @default("")
   note         String?
   createdAt    DateTime      @default(now())
   transactions Transaction[]
@@ -282,6 +283,7 @@ model AuditLog {
   entityId  String?
   detail    String?
   hash      String
+  hashVersion Int        @default(1)
   prevHash  String?
   createdAt DateTime     @default(now())
 
@@ -299,4 +301,28 @@ model PriceBar {
 
   @@unique([symbol, date])
   @@index([symbol])
+}
+
+model FundEstimate {
+  id             String   @id @default(cuid())
+  symbol         String
+  estimateReturn Float
+  estimatedNav   Decimal
+  confidence     Float
+  detail         String?
+  createdAt      DateTime @default(now())
+
+  @@index([symbol, createdAt])
+}
+
+model FundCalibration {
+  id             String   @id @default(cuid())
+  symbol         String
+  date           DateTime
+  estReturn      Float
+  officialReturn Float
+  error          Float
+  createdAt      DateTime @default(now())
+
+  @@unique([symbol, date])
 }

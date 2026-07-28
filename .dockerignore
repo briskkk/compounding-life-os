@@ -9,6 +9,12 @@ prisma/dev.db-journal
 prisma/test.db
 prisma/schema.test.prisma
 prisma/generated
+backups
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.log
 *.tsbuildinfo
 Dockerfile
 docker-compose.yml

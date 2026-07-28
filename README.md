@@ -102,7 +102,7 @@ npm run build && npm run start
 
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
-| `MARKET_PROVIDER` | `simulated` | 行情源优先级链（逗号分隔）：`tencent`（A股/港股/美股实时）· `eastmoney-fund`（场外基金净值）· `sina`（A股/港/美报价+A股K线）· `simulated`（离线模拟）。如 `tencent,eastmoney-fund,sina`，逐个尝试、失败回落模拟 |
+| `MARKET_PROVIDER` | dev/start 脚本已内置 `tencent,eastmoney-fund,sina` | 行情源优先级链（逗号分隔）：`tencent`（A股/港股/美股实时）· `eastmoney-fund`（场外基金净值）· `sina`（A股/港/美报价+A股K线）· `simulated`（离线模拟）。日常 `npm run dev` 开箱即为真实行情链；显式设 `MARKET_PROVIDER=simulated` 可回到模拟源 |
 | `OPENAI_API_KEY` | 空 | 配置后洞察正文由 LLM 重写为策略叙事；未配置回落规则模板 |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI 兼容端点 |
 | `OPENAI_MODEL` | `gpt-4o-mini` | 叙事模型 |
@@ -176,7 +176,7 @@ npm run build && npm run start
 顶栏「↻ 行情」按钮：沿 `MARKET_PROVIDER` 优先级链拉取历史日线落库（PriceBar）并重建快照；报价跑马灯每 5 秒刷新。推荐配置：
 
 ```bash
-MARKET_PROVIDER=tencent,eastmoney-fund,sina npm run dev   # 或写入 docker-compose.yml environment
+npm run dev   # dev/start 脚本已内置 tencent,eastmoney-fund,sina 行情链，无需手动带变量
 ```
 
 - **代码规范**：A股/场内ETF 用 6 位代码（`600519`/`510300`）；场外基金用基金代码（`110022`）；港股前缀 `HK`（`HK00700`）；美股前缀 `US`（`USAAPL`，BRK.B 这类写作 `USBRK.B`）

@@ -51,7 +51,10 @@ export function CsvImport({
     setPending(false)
     if (res.ok && res.data) {
       const d = res.data
-      setMsg({ ok: d.failed === 0, text: `导入 ${d.imported} 条成功${d.failed > 0 ? `，${d.failed} 条失败（行号：${d.errors.map((e) => e.row).join(', ')}）` : ''}` })
+      setMsg({
+        ok: d.failed === 0 && !res.warning,
+        text: `导入 ${d.imported} 条成功${d.failed > 0 ? `，${d.failed} 条失败（行号：${d.errors.map((e) => e.row).join(', ')}）` : ''}${res.warning ? `；${res.warning}` : ''}`,
+      })
       setPreview([])
       setRawRows([])
       if (fileRef.current) fileRef.current.value = ''

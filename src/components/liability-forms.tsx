@@ -27,7 +27,7 @@ export function LiabilityForm() {
     })
     setPending(false)
     if (res.ok) {
-      setMsg({ ok: true, text: '负债已登记，记得补一条「放款」条目' })
+      setMsg({ ok: !res.warning, text: res.warning ?? '负债已登记，记得补一条「放款」条目' })
       form.reset()
       router.refresh()
     } else setMsg({ ok: false, text: res.error })
@@ -81,7 +81,7 @@ export function LiabilityEntryForm({ liabilities }: { liabilities: { id: string;
     })
     setPending(false)
     if (res.ok) {
-      setMsg({ ok: true, text: '已入账，净资产已重算' })
+      setMsg({ ok: !res.warning, text: res.warning ?? '已入账，净资产已重算' })
       form.reset()
       router.refresh()
     } else setMsg({ ok: false, text: res.error })

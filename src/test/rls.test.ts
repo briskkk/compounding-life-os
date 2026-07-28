@@ -40,8 +40,8 @@ describe('行级安全（family 作用域）', () => {
   it('写：create 强制盖上本家庭 familyId', async () => {
     const dbA = scopedDb(base, ctxOf(famA))
     // 即便调用方试图伪造 familyId，也会被覆盖
-    await dbA.account.create({ data: { familyId: famB, name: '越权账户', type: 'BANK' } })
-    const leaked = await base.account.findFirst({ where: { name: '越权账户' } })
+    const created = await dbA.account.create({ data: { familyId: famB, name: '越权账户', type: 'BANK' } })
+    const leaked = await base.account.findUnique({ where: { id: created.id } })
     expect(leaked?.familyId).toBe(famA)
   })
 

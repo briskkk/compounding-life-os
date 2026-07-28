@@ -34,11 +34,18 @@ export function computeWealthSeries(
 ): WealthPoint[] {
   const assetMap = new Map(assets.map((a) => [a.id, a]))
   const flows = dailyNetFlows(txs, currencyRate)
-  const startMs = Math.floor(from.getTime() / DAY) * DAY
   const endMs = Math.floor(to.getTime() / DAY) * DAY
+  const requestedStartMs = Math.floor(from.getTime() / DAY) * DAY
+  // 超过窗口时保留最近 MAX_DAYS，而不是从最早日期截取一段已经过时的历史。
+  const startMs = Math.max(requestedStartMs, endMs - (MAX_DAYS - 1) * DAY)
   const days = Math.min(MAX_DAYS, Math.round((endMs - startMs) / DAY) + 1)
   const dates = Array.from({ length: days }, (_, i) => new Date(startMs + i * DAY))
-  const contributions = cumulativeContributions(dates, flows)
+  // 截窗前的净投入需要作为期初累计值带入，否则最近窗口的净投入会被重置。
+  const startDay = Math.floor(startMs / DAY)
+  const contributionCarry = [...flows.entries()]
+    .filter(([day]) => day < startDay)
+    .reduce((sum, [, amount]) => sum + amount, 0)
+  const contributions = cumulativeContributions(dates, flows).map((amount) => amount + contributionCarry)
 
   return dates.map((date, i) => {
     const positions = foldTransactions(txs, date)

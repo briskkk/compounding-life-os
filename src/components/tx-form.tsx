@@ -59,7 +59,7 @@ export function TxForm({
     })
     setPending(false)
     if (res.ok) {
-      setMsg({ ok: true, text: '已写入账本，快照已重建' })
+      setMsg({ ok: true, text: res.warning ?? '已写入账本，快照已重建' })
       form.reset()
       setType('BUY')
       router.refresh()

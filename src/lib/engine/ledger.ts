@@ -62,6 +62,8 @@ export function applyTransaction(pos: Position, tx: TxInput, cls: AssetClass): v
     case 'TRANSFER_IN': {
       pos.quantity += q
       pos.costBasis += tx.amount // amount 携带转入成本
+      // 转入的 RSU 视为已经取得并可处置的份额。
+      if (cls === 'RSU') pos.vestedQty += q
       break
     }
     case 'TRANSFER_OUT': {
@@ -70,6 +72,7 @@ export function applyTransaction(pos: Position, tx: TxInput, cls: AssetClass): v
       const carried = tx.amount > 0 ? tx.amount : unit * outQ
       pos.quantity -= outQ
       pos.costBasis = Math.max(0, pos.costBasis - carried)
+      if (cls === 'RSU') pos.vestedQty = Math.max(0, pos.vestedQty - outQ)
       break
     }
     case 'DIVIDEND':

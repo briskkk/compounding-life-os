@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client'
 import { historySmart } from './index'
 import { eastmoneyFundProvider } from './eastmoney-fund'
 import { closeAt } from './simulated'
+import { parseSymbol } from './symbols'
 
 const DAY = 86400000
 
@@ -16,8 +17,8 @@ export async function persistHistory(
   const results: { symbol: string; count: number; source: string }[] = []
   for (const symbol of symbols) {
     const { bars, source } = await historySmart(symbol, from, to)
-    await db.priceBar.deleteMany({ where: { symbol, date: { gte: from, lte: to } } })
     if (bars.length > 0) {
+      await db.priceBar.deleteMany({ where: { symbol, date: { gte: from, lte: to } } })
       await db.priceBar.createMany({
         data: bars.map((b) => ({ symbol, date: b.date, close: b.close, source })),
       })
@@ -91,11 +92,12 @@ function lastAtOrBefore(s: PriceSeries, ms: number): number | undefined {
   return ans >= 0 ? s.closes[ans] : undefined
 }
 
-/** 生成价格函数：库中历史优先，缺失日期回落模拟器（保证轨迹连续） */
+/** 生成价格函数：库中历史优先；仅非标准资产允许回落到其设计内的模拟价格。 */
 export function priceAtFn(map: Map<string, PriceSeries>): (symbol: string, date: Date) => number | undefined {
   return (symbol, date) => {
     const s = map.get(symbol)
     const v = s ? lastAtOrBefore(s, date.getTime()) : undefined
-    return v ?? closeAt(symbol, date)
+    if (v != null) return v
+    return parseSymbol(symbol).market === 'OTHER' ? closeAt(symbol, date) : undefined
   }
 }

@@ -8,15 +8,25 @@ import { cnDayKey, fetchNavSeries, latestNav } from './fund-holdings'
 /**
  * 盘中估值 / 盘后净值切换规则（纯函数，可测试）：
  * - 今日官方净值已公布 → 官方净值
- * - 交易时段内（周一至周五 09:30–15:00 CST）且今日净值未出 → 盘中估值
- * - 非交易时段（夜间/收盘后/周末）→ 最新官方净值（估值无新鲜输入，无意义）
+ * - 交易日的 09:30 起、今日净值未公布 → 盘中估值（含收盘后至净值公布前的窗口，
+ *   此时估值基于当日收盘价，是「今日盈亏」的最佳代理）
+ * - 盘前（<09:30）与周末 → 最新官方净值（估值无新鲜输入）
  */
 export function shouldUseOfficialNav(navDate: Date, now: Date): boolean {
   if (cnDayKey(navDate) >= cnDayKey(now)) return true
-  return !isFundTradingHours(now)
+  const cn = new Date(now.getTime() + 8 * 3600_000)
+  const dow = cn.getUTCDay()
+  if (dow === 0 || dow === 6) return true
+  const minutes = cn.getUTCHours() * 60 + cn.getUTCMinutes()
+  return minutes < 9 * 60 + 30
 }
 
-/** 中国时区的基金交易时段判定 */
+/** 是否应产出基金估值（shouldUseOfficialNav 的互补判定，供分时/盈亏使用） */
+export function shouldEstimateFund(navDate: Date, now: Date): boolean {
+  return !shouldUseOfficialNav(navDate, now)
+}
+
+/** 中国时区的基金交易时段判定（09:30–15:00） */
 export function isFundTradingHours(now: Date): boolean {
   const cn = new Date(now.getTime() + 8 * 3600_000)
   const dow = cn.getUTCDay()

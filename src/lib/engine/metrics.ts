@@ -52,15 +52,23 @@ export function aggregate(valued: ValuedPosition[]): Metrics {
     } else liquidity.market += p.value
   }
 
-  const holdings: HoldingWeight[] = valued
-    .filter((p) => p.asset.cls !== 'CASH' && p.value > 0)
-    .map((p) => ({
-      symbol: p.asset.symbol,
-      name: p.asset.name,
-      cls: p.asset.cls,
-      value: p.value,
-      weight: netWorth > 0 ? p.value / netWorth : 0,
-    }))
+  // 风险集中度按资产合并，避免同一标的分散在多个账户时被低估。
+  const holdingValues = new Map<string, Omit<HoldingWeight, 'weight'>>()
+  for (const p of valued) {
+    if (p.asset.cls === 'CASH' || p.value <= 0) continue
+    const current = holdingValues.get(p.assetId)
+    if (current) current.value += p.value
+    else {
+      holdingValues.set(p.assetId, {
+        symbol: p.asset.symbol,
+        name: p.asset.name,
+        cls: p.asset.cls,
+        value: p.value,
+      })
+    }
+  }
+  const holdings: HoldingWeight[] = [...holdingValues.values()]
+    .map((p) => ({ ...p, weight: netWorth > 0 ? p.value / netWorth : 0 }))
     .sort((a, b) => b.value - a.value)
 
   const unrealizedPnl = valued.reduce((s, p) => s + p.unrealized, 0)

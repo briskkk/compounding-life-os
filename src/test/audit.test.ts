@@ -40,6 +40,22 @@ describe('审计日志哈希链', () => {
     expect(v.brokenAt).toBe(latest!.id)
   })
 
+  it('篡改日志正文可被检测', async () => {
+    const fam = await base.familySpace.create({ data: { name: '正文篡改测试家' } })
+    const log = await recordAudit(base, {
+      familyId: fam.id,
+      actorId: 'm1',
+      actorName: '测试',
+      action: 'CREATE',
+      entity: 'Transaction',
+      detail: '原始正文',
+    })
+    await base.auditLog.update({ where: { id: log.id }, data: { detail: '被篡改正文' } })
+    const v = await verifyChain(base, fam.id)
+    expect(v.ok).toBe(false)
+    expect(v.brokenAt).toBe(log.id)
+  })
+
   it('hash 函数确定性', () => {
     expect(auditHash(null, 'payload')).toBe(auditHash(null, 'payload'))
     expect(auditHash('a', 'p')).not.toBe(auditHash('b', 'p'))

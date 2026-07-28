@@ -68,6 +68,16 @@ describe('收益归因', () => {
     ])
   })
 
+  it('已冲正的外部出入金不计入净投入与 XIRR', () => {
+    const txs = [
+      tx({ type: 'DEPOSIT', amount: 10000, occurredAt: D('2025-01-01'), voidedAt: D('2025-02-01') }),
+      tx({ type: 'DEPOSIT', amount: 3000, occurredAt: D('2025-01-02') }),
+    ]
+    const flows = dailyNetFlows(txs)
+    expect([...flows.values()]).toEqual([3000])
+    expect(xirrFlowsFromTxs(txs)).toEqual([{ date: D('2025-01-02'), amount: -3000 }])
+  })
+
   it('annualized：不足一年按天数折算', () => {
     expect(annualized(0.1, 365)).toBeCloseTo(0.1, 3)
     expect(annualized(0.21, 730)).toBeCloseTo(0.1, 2)

@@ -54,6 +54,17 @@ describe('双口径估值', () => {
   it('集中度取最大非现金持仓', () => {
     expect(metrics.concentration?.symbol).toBe('HOME-01')
   })
+
+  it('集中度会跨账户合并同一资产', () => {
+    const positions = foldTransactions([
+      { accountId: 'a', assetId: 'stock', type: 'BUY', quantity: 40, price: 100, amount: 4000, fee: 0, occurredAt: D('2025-01-01'), assetClass: 'STOCK' },
+      { accountId: 'b', assetId: 'stock', type: 'BUY', quantity: 40, price: 100, amount: 4000, fee: 0, occurredAt: D('2025-01-01'), assetClass: 'STOCK' },
+      { accountId: 'a', assetId: 'rsu', type: 'BUY', quantity: 60, price: 100, amount: 6000, fee: 0, occurredAt: D('2025-01-01'), assetClass: 'RSU' },
+    ])
+    const m = aggregate(valuePositions(positions, assetMap, () => 100))
+    expect(m.concentration?.symbol).toBe('600519')
+    expect(m.concentration?.value).toBe(8000)
+  })
 })
 
 describe('多币种现金估值', () => {
