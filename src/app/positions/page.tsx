@@ -12,6 +12,7 @@ import { ASSET_CLASS_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtCNYExact, fmtPct, fmtPrice, fmtQty } from '@/lib/format'
 import { CLASS_COLORS } from '@/lib/colors'
 import type { AssetClass } from '@/lib/engine/types'
+import { PositionSourceTag, ValuationLegend, ValuationSourceSummary } from '@/components/valuation-source'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,6 +66,14 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
         ))}
       </div>
 
+      <ValuationSourceSummary
+        items={mergedRows.map((p) => ({
+          priceSource: p.priceSource,
+          marketSource: state.quotes.get(p.asset.symbol)?.source,
+          value: p.value,
+        }))}
+      />
+
       {/* 自定义分组 */}
       {groups.length > 0 && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -96,13 +105,11 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
           title={activeTag ? `持仓明细 · ${activeTag}` : '持仓明细'}
           en="HOLDINGS"
           bodyClassName="p-0"
-          right={
-            activeTag ? (
-              <Link href="/positions" className="text-[10px] text-ink-faint hover:text-ink">
-                清除筛选 ×
-              </Link>
-            ) : undefined
-          }
+          right={activeTag ? (
+            <Link href="/positions" className="text-[10px] text-ink-faint hover:text-ink">
+              清除筛选 ×
+            </Link>
+          ) : undefined}
         >
           {rows.length === 0 ? (
             <Empty>暂无持仓 — 先录入流水</Empty>
@@ -114,6 +121,9 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                   return { id: a.id, name: a.name, accountId: pos?.accountId ?? '', current: pos?.value ?? null }
                 })}
               />
+              <div className="border-b border-line px-4 py-2.5">
+                <ValuationLegend />
+              </div>
               <table className="w-full text-[12px] whitespace-nowrap">
               <thead>
                 <tr className="border-b border-line text-left text-[10px] tracking-wider text-ink-faint">
@@ -121,7 +131,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                   <th className="px-2 py-2.5 font-normal">账户</th>
                   <th className="px-2 py-2.5 text-right font-normal">数量</th>
                   <th className="px-2 py-2.5 text-right font-normal">成本</th>
-                  <th className="px-2 py-2.5 text-right font-normal">现价</th>
+                  <th className="px-2 py-2.5 text-right font-normal">现价 / 来源</th>
                   <th className="px-2 py-2.5 text-right font-normal">市值</th>
                   <th className="px-2 py-2.5 text-right font-normal">未实现盈亏</th>
                   <th className="px-2 py-2.5 text-right font-normal">权重</th>
@@ -170,9 +180,16 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                       </td>
                       <td className="num px-2 py-2.5 text-right text-ink-dim">
                         {p.price != null ? fmtPrice(p.price) : '—'}
-                        <div className="text-[9px] text-ink-faint">
-                          {p.priceSource === 'MARKET' ? '行情' : p.priceSource === 'MANUAL' ? '手动' : p.priceSource === 'FACE' ? '面值' : '成本'}
+                        <div className="mt-1">
+                          <PositionSourceTag
+                            priceSource={p.priceSource}
+                            marketSource={state.quotes.get(p.asset.symbol)?.source}
+                            showProvider
+                          />
                         </div>
+                        {p.priceSource === 'MANUAL' && p.lastValuationAt && (
+                          <div className="mt-0.5 text-[9px] text-ink-faint">更新于 {p.lastValuationAt.toISOString().slice(0, 10)}</div>
+                        )}
                       </td>
                       <td className="num px-2 py-2.5 text-right text-ink">{fmtCNYExact(p.value)}</td>
                       <td className={cx('num px-2 py-2.5 text-right', p.unrealized >= 0 ? 'text-up' : 'text-down')}>

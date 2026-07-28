@@ -6,6 +6,8 @@ import { CLASS_COLORS, C } from '@/lib/colors'
 import { ASSET_CLASS_LABEL, GOAL_METRIC_LABEL, SEVERITY_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtDate, fmtPct } from '@/lib/format'
 import type { AssetClass } from '@/lib/engine/types'
+import { ValuationSourceSummary } from '@/components/valuation-source'
+import { mergePositionsByAsset } from '@/lib/engine/merge'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +28,7 @@ export default async function TerminalPage() {
     .map(([cls, v]) => ({ name: ASSET_CLASS_LABEL[cls], value: Math.round(v), color: CLASS_COLORS[cls] }))
 
   const prevNw = d.series.length > 1 ? d.series[d.series.length - 2].netWorth : null
+  const valuationRows = mergePositionsByAsset(d.state.valued)
 
   return (
     <div className="space-y-3">
@@ -68,6 +71,14 @@ export default async function TerminalPage() {
         />
       </div>
 
+      <ValuationSourceSummary
+        items={valuationRows.map((p) => ({
+          priceSource: p.priceSource,
+          marketSource: d.state.quotes.get(p.asset.symbol)?.source,
+          value: p.value,
+        }))}
+      />
+
       {/* 财富轨迹 + 流动性水位 */}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
         <Panel
@@ -99,6 +110,9 @@ export default async function TerminalPage() {
             <span>TWR 年化 <span className="num text-ink">{fmtPct(d.attribution.twrAnnualized, { sign: true })}</span></span>
             <span>XIRR 年化 <span className="num text-ink">{fmtPct(d.attribution.xirr, { sign: true })}</span></span>
           </div>
+          <p className="mt-2 text-[10px] leading-relaxed text-ink-faint">
+            口径说明：历史轨迹由已落库真实行情、官方净值、手工估值及必要的成本回退共同构成，不等同于全量实时市场价格。
+          </p>
         </Panel>
 
         <Panel title="流动性水位" en="LIQUIDITY LEVELS">

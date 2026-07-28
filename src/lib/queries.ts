@@ -15,6 +15,7 @@ import { quoteSmart, providerLabel } from './market'
 import { cnyRateFor, fxRates } from './market/fx'
 import { eastmoneyFundProvider } from './market/eastmoney-fund'
 import type { AssetInfo, TxInput } from './engine/types'
+import type { QuoteData } from './market/provider'
 
 export interface LiabilityView {
   id: string
@@ -27,6 +28,7 @@ export interface LiabilityView {
 export interface EngineState {
   assets: AssetInfo[]
   valued: ValuedPosition[]
+  quotes: Map<string, EngineQuote>
   metrics: Metrics // 资产端聚合（netWorth 字段 = 总资产）
   txCount: number
   liabilitiesTotal: number
@@ -34,6 +36,12 @@ export interface EngineState {
   netWorth: number // 总资产 − 总负债
   investable: number
   ledgerTxs: TxInput[]
+}
+
+export interface EngineQuote extends QuoteData {
+  /** 按当前汇率折算的人民币价格，供估值引擎使用。 */
+  priceCny: number
+  prevCloseCny: number
 }
 
 export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
@@ -77,18 +85,19 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
   // cls === 'FUND' 的资产统一走内部估值引擎（失败回落官方净值），其余走行情链路
   const listedAssets = assets.filter((a) => !a.manual && a.cls !== 'CASH' && a.cls !== 'REAL_ESTATE')
   const rates = await fxRates()
-  const quotes = new Map<string, number>()
+  const quotes = new Map<string, EngineQuote>()
   await Promise.all(
     listedAssets.map(async (a) => {
       try {
         if (a.cls === 'FUND') {
           // 盘中估值 / 盘后官方净值（eastmoneyFundProvider 内部按净值日期切换）
           const q = await eastmoneyFundProvider.quote(a.symbol)
-          quotes.set(a.symbol, q.price)
+          quotes.set(a.symbol, { ...q, priceCny: q.price, prevCloseCny: q.prevClose })
           return
         }
         const q = await quoteSmart(a.symbol)
-        quotes.set(a.symbol, q.price * cnyRateFor(a.symbol, rates))
+        const rate = cnyRateFor(a.symbol, rates)
+        quotes.set(a.symbol, { ...q, priceCny: q.price * rate, prevCloseCny: q.prevClose * rate })
       } catch {
         /* 无报价 → 成本回落 */
       }
@@ -97,7 +106,7 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
 
   const positions = foldTransactions(ledgerTxs)
   const currencyRate = (cur: string) => (cur === 'USD' ? rates.USDCNY : cur === 'HKD' ? rates.HKDCNY : 1)
-  const valued = valuePositions(positions, new Map(assets.map((a) => [a.id, a])), (s) => quotes.get(s), currencyRate)
+  const valued = valuePositions(positions, new Map(assets.map((a) => [a.id, a])), (s) => quotes.get(s)?.priceCny, currencyRate)
   const metrics = aggregate(valued)
 
   const balanceByLiability = new Map<string, number>()
@@ -116,6 +125,7 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
   return {
     assets,
     valued,
+    quotes,
     metrics,
     txCount: txsRaw.filter((t) => !t.voidedAt).length,
     liabilitiesTotal,
@@ -280,7 +290,7 @@ export interface DashboardData {
   attribution: Attribution
   goals: GoalView[]
   insights: Awaited<ReturnType<typeof ensureInsights>>
-  quotes: { symbol: string; name: string; price: number; changePct: number }[]
+  quotes: { symbol: string; name: string; price: number; changePct: number; source: string; asOf: string }[]
   provider: string
 }
 
@@ -334,22 +344,15 @@ export async function getDashboard(): Promise<DashboardData | null> {
     xirr: xirrValue,
   }
 
-  const listed = state.assets.filter((a) => !a.manual && a.cls !== 'CASH' && a.cls !== 'REAL_ESTATE')
-  const quotes = await Promise.all(
-    listed.map(async (a) => {
-      if (a.cls === 'FUND') {
-        try {
-          const q = await eastmoneyFundProvider.quote(a.symbol)
-          return { symbol: a.symbol, name: a.name, price: q.price, changePct: q.changePct }
-        } catch {
-          /* 回落行情链路 */
-        }
-      }
-      const q = await quoteSmart(a.symbol)
-      const rate = cnyRateFor(a.symbol, rates)
-      return { symbol: a.symbol, name: a.name, price: q.price * rate, changePct: q.changePct }
-    }),
-  )
+  const nameBySymbol = new Map(state.assets.map((a) => [a.symbol, a.name]))
+  const quotes = [...state.quotes.values()].map((q) => ({
+    symbol: q.symbol,
+    name: nameBySymbol.get(q.symbol) ?? q.symbol,
+    price: q.priceCny,
+    changePct: q.changePct,
+    source: q.source,
+    asOf: q.asOf,
+  }))
 
   return {
     ctx,

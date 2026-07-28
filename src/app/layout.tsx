@@ -8,6 +8,7 @@ import { MemberSwitcher } from '@/components/member-switcher'
 import { RefreshPricesButton } from '@/components/refresh-prices-button'
 import { Tag } from '@/components/ui'
 import { providerLabel } from '@/lib/market'
+import { marketChainLabel } from '@/lib/valuation-source'
 
 export const metadata: Metadata = {
   title: 'Family Wealth OS · 家庭财富终端',
@@ -30,6 +31,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   const today = new Date()
   const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const marketChain = marketChainLabel(providerLabel())
 
   return (
     <html lang="zh-CN">
@@ -57,7 +59,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <header className="flex h-14 shrink-0 items-center gap-4 border-b border-line bg-panel/60 px-6">
               <div className="flex items-center gap-2">
                 <span className="text-[13px] font-medium text-ink">{family?.name ?? '未初始化'}</span>
-                <Tag tone={providerLabel() === 'SIMULATED' ? 'amber' : 'down'}>{providerLabel()} 行情</Tag>
+                <span title={marketChain.description}>
+                  <Tag tone={marketChain.tone}>{marketChain.label}</Tag>
+                </span>
                 {ctx && ctx.role !== 'VIEWER' && <RefreshPricesButton />}
               </div>
               <TickerTape
