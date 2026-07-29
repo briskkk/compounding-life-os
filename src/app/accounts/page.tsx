@@ -4,7 +4,7 @@ import { loadEngineState } from '@/lib/queries'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { Panel, SetupScreen, Tag } from '@/components/ui'
-import { AccountForm, AssetForm } from '@/components/account-forms'
+import { AccountForm, AssetForm, SettlementAccountForm } from '@/components/account-forms'
 import { LiabilityEntryForm, LiabilityForm } from '@/components/liability-forms'
 import { ACCOUNT_TYPE_LABEL, ASSET_CLASS_LABEL, LIABILITY_TYPE_LABEL } from '@/lib/labels'
 import { fmtCNY, fmtPrice } from '@/lib/format'
@@ -19,7 +19,7 @@ export default async function AccountsPage() {
   const db = scopedDb(prisma, ctx)
   const [state, accounts, assets] = await Promise.all([
     loadEngineState(ctx),
-    db.account.findMany({ orderBy: { createdAt: 'asc' } }),
+    db.account.findMany({ include: { settlementAccount: true }, orderBy: { createdAt: 'asc' } }),
     db.asset.findMany({ orderBy: { createdAt: 'asc' } }),
   ])
 
@@ -49,10 +49,24 @@ export default async function AccountsPage() {
             <div className="mt-1 text-[11px] text-ink-faint">
               {a.institution ?? '—'} · {a.currency}
             </div>
+            <div className="mt-2 text-[11px] text-ink-dim">
+              现金结算：{a.settlementAccount?.name ?? '未关联'}
+            </div>
+            <SettlementAccountForm
+              accountId={a.id}
+              currentId={a.settlementAccountId}
+              accounts={accounts.filter((candidate) => candidate.currency === a.currency).map((candidate) => ({
+                id: candidate.id,
+                name: candidate.name,
+              }))}
+            />
           </div>
         ))}
         <Panel title="新建账户" en="ADD ACCOUNT">
           <AccountForm />
+          <p className="mt-4 border-t border-line pt-3 text-[11px] leading-relaxed text-ink-faint">
+            新账户默认不自动产生现金。创建后可将人民币交易账户统一关联招商银行、美元交易账户统一关联汇丰投资。
+          </p>
         </Panel>
       </div>
 

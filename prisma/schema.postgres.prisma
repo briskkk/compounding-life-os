@@ -65,19 +65,23 @@ enum AccountType {
 }
 
 model Account {
-  id           String        @id @default(cuid())
-  familyId     String
-  family       FamilySpace   @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  name         String
-  type         AccountType   @default(OTHER)
-  institution  String?
-  currency     String        @default("CNY")
-  note         String?
-  createdAt    DateTime      @default(now())
-  transactions Transaction[]
+  id                  String        @id @default(cuid())
+  familyId            String
+  family              FamilySpace   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name                String
+  type                AccountType   @default(OTHER)
+  institution         String?
+  currency            String        @default("CNY")
+  settlementAccountId String?
+  settlementAccount   Account?      @relation("AccountSettlement", fields: [settlementAccountId], references: [id], onDelete: SetNull)
+  settlementFor       Account[]     @relation("AccountSettlement")
+  note                String?
+  createdAt           DateTime      @default(now())
+  transactions        Transaction[]
 
   @@unique([familyId, name])
   @@index([familyId])
+  @@index([settlementAccountId])
 }
 
 enum AssetClass {
@@ -273,19 +277,19 @@ model Insight {
 }
 
 model AuditLog {
-  id        String       @id @default(cuid())
-  familyId  String?
-  family    FamilySpace? @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  actorId   String?
-  actorName String
-  action    String
-  entity    String
-  entityId  String?
-  detail    String?
-  hash      String
-  hashVersion Int        @default(1)
-  prevHash  String?
-  createdAt DateTime     @default(now())
+  id          String       @id @default(cuid())
+  familyId    String?
+  family      FamilySpace? @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  actorId     String?
+  actorName   String
+  action      String
+  entity      String
+  entityId    String?
+  detail      String?
+  hash        String
+  hashVersion Int          @default(1)
+  prevHash    String?
+  createdAt   DateTime     @default(now())
 
   @@index([familyId, createdAt])
 }

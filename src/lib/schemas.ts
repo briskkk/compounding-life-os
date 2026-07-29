@@ -48,6 +48,10 @@ export const accountInputSchema = z.object({
   note: z.string().max(200).nullable(),
 })
 
+export const accountSettlementSchema = z.object({
+  settlementAccountId: z.string().min(1).nullable(),
+})
+
 export const assetInputSchema = z.object({
   symbol: z
     .string()

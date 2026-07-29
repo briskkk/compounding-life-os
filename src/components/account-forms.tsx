@@ -3,7 +3,7 @@
 // 账户 / 资产登记表单
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { createAccount, createAsset } from '@/lib/actions'
+import { createAccount, createAsset, updateAccountSettlement } from '@/lib/actions'
 import { Field, FormMsg, btnCls, inputCls } from './fields'
 import { ACCOUNT_TYPE_LABEL, ASSET_CLASS_LABEL, CURRENCY_LABEL } from '@/lib/labels'
 
@@ -65,6 +65,68 @@ export function AccountForm() {
       <button type="submit" disabled={pending} className={btnCls}>
         {pending ? '创建中…' : '创建账户'}
       </button>
+    </form>
+  )
+}
+
+export function SettlementAccountForm({
+  accountId,
+  currentId,
+  accounts,
+}: {
+  accountId: string
+  currentId: string | null
+  accounts: { id: string; name: string }[]
+}) {
+  const router = useRouter()
+  const [selectedId, setSelectedId] = useState(currentId ?? '')
+  const [pending, setPending] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  useEffect(() => setSelectedId(currentId ?? ''), [currentId])
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setPending(true)
+    setMsg(null)
+    const res = await updateAccountSettlement(accountId, {
+      settlementAccountId: selectedId || null,
+    })
+    setPending(false)
+    if (res.ok) {
+      const moved = res.data?.moved ?? 0
+      setMsg({ ok: true, text: moved > 0 ? `已保存，并归集 ${moved} 条历史现金流水` : '资金账户已保存' })
+      router.refresh()
+    } else {
+      setMsg({ ok: false, text: res.error })
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="mt-3 border-t border-line pt-3">
+      <label className="block text-[10px] text-ink-faint">资金结算账户</label>
+      <div className="mt-1.5 flex gap-2">
+        <select
+          value={selectedId}
+          onChange={(e) => setSelectedId(e.target.value)}
+          className={`${inputCls} min-w-0 flex-1`}
+        >
+          <option value="">不自动联动现金</option>
+          {accounts.map((account) => (
+            <option key={account.id} value={account.id}>
+              {account.id === accountId ? `${account.name}（本账户）` : account.name}
+            </option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          disabled={pending || selectedId === (currentId ?? '')}
+          className="shrink-0 rounded border border-line bg-panel2 px-3 text-[11px] text-ink-dim hover:text-ink disabled:opacity-40"
+        >
+          {pending ? '保存中…' : '保存'}
+        </button>
+      </div>
+      <FormMsg msg={msg} />
     </form>
   )
 }

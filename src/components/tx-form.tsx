@@ -16,16 +16,26 @@ export function TxForm({
   accounts,
   assets,
 }: {
-  accounts: { id: string; name: string }[]
-  assets: { id: string; symbol: string; name: string; cls: string }[]
+  accounts: { id: string; name: string; currency: string; settlementAccountId: string | null; settlementAccountName: string | null }[]
+  assets: { id: string; symbol: string; name: string; cls: string; currency: string }[]
 }) {
   const router = useRouter()
+  const firstAccount = accounts[0]
+  const initialAsset = assets.find((asset) => asset.currency === firstAccount?.currency && asset.cls !== 'CASH')
+    ?? assets.find((asset) => asset.currency === firstAccount?.currency)
   const [type, setType] = useState<TxType>('BUY')
-  const [settle, setSettle] = useState(true)
-  const [assetId, setAssetId] = useState(assets[0]?.id ?? '')
+  const [accountId, setAccountId] = useState(firstAccount?.id ?? '')
+  const [settle, setSettle] = useState(Boolean(firstAccount?.settlementAccountName))
+  const [assetId, setAssetId] = useState(initialAsset?.id ?? '')
   const [pending, setPending] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const today = new Date().toISOString().slice(0, 10)
+  const selectedAccount = accounts.find((account) => account.id === accountId)
+  const selectedAsset = assets.find((asset) => asset.id === assetId)
+  const compatibleAssets = assets.filter((asset) => asset.currency === selectedAccount?.currency)
+  const routesCash = selectedAsset?.cls === 'CASH'
+    && selectedAccount?.settlementAccountId
+    && selectedAccount.settlementAccountId !== selectedAccount.id
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -46,7 +56,7 @@ export function TxForm({
     setPending(true)
     setMsg(null)
     const res = await createTransaction({
-      accountId: String(fd.get('accountId')),
+      accountId,
       assetId: String(fd.get('assetId')),
       type,
       quantity,
@@ -62,6 +72,7 @@ export function TxForm({
       setMsg({ ok: true, text: res.warning ?? '已写入账本，快照已重建' })
       form.reset()
       setType('BUY')
+      setSettle(Boolean(selectedAccount?.settlementAccountName))
       router.refresh()
     } else {
       setMsg({ ok: false, text: res.error })
@@ -85,7 +96,23 @@ export function TxForm({
         </Field>
       </div>
       <Field label="账户">
-        <select name="accountId" required className={inputCls}>
+        <select
+          name="accountId"
+          required
+          className={inputCls}
+          value={accountId}
+          onChange={(e) => {
+            const nextId = e.target.value
+            const nextAccount = accounts.find((account) => account.id === nextId)
+            setAccountId(nextId)
+            setSettle(Boolean(nextAccount?.settlementAccountName))
+            if (selectedAsset?.currency !== nextAccount?.currency) {
+              const nextAsset = assets.find((asset) => asset.currency === nextAccount?.currency && asset.cls !== 'CASH')
+                ?? assets.find((asset) => asset.currency === nextAccount?.currency)
+              setAssetId(nextAsset?.id ?? '')
+            }
+          }}
+        >
           {accounts.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}
@@ -96,7 +123,7 @@ export function TxForm({
       {/* 资产选择器不使用 <label> 包裹（label 的激活行为会把第二次点击派发到浮层按钮，导致下拉闪开闪关） */}
       <div>
         <span className="mb-1 block text-[11px] text-ink-faint">资产</span>
-        <AssetPicker assets={assets} value={assetId} onChange={setAssetId} />
+        <AssetPicker assets={compatibleAssets} value={assetId} onChange={setAssetId} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         {NEEDS_QTY.includes(type) && (
@@ -121,9 +148,22 @@ export function TxForm({
       </Field>
       {(type === 'BUY' || type === 'SELL') && (
         <label className="flex items-center gap-2 text-xs text-ink-dim">
-          <input type="checkbox" checked={settle} onChange={(e) => setSettle(e.target.checked)} className="accent-[#c8a24a]" />
-          现金联动结算（{type === 'BUY' ? '买入自动扣减同账户现金' : '卖出自动回笼同账户现金'}）
+          <input
+            type="checkbox"
+            checked={settle}
+            disabled={!selectedAccount?.settlementAccountName}
+            onChange={(e) => setSettle(e.target.checked)}
+            className="accent-[#c8a24a] disabled:opacity-40"
+          />
+          {selectedAccount?.settlementAccountName
+            ? `现金联动结算至 ${selectedAccount.settlementAccountName}`
+            : '未配置资金账户，本次买卖不自动变动现金'}
         </label>
+      )}
+      {routesCash && (
+        <p className="text-xs text-ink-dim">
+          该现金流水将自动归入 {selectedAccount.settlementAccountName}，不在 {selectedAccount.name} 中重复形成现金持仓。
+        </p>
       )}
       <FormMsg msg={msg} />
       <button type="submit" disabled={pending} className={btnCls}>

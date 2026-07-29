@@ -66,6 +66,10 @@ async function main() {
     gold: await prisma.account.create({ data: { familyId: fid, name: '黄金积存', type: 'BANK', institution: '招商银行' } }),
     rsu: await prisma.account.create({ data: { familyId: fid, name: '公司 RSU 计划', type: 'OTHER' } }),
   }
+  await prisma.account.updateMany({
+    where: { id: { in: [mk.ht.id, mk.tt.id, mk.prop.id, mk.gold.id, mk.rsu.id] } },
+    data: { settlementAccountId: mk.cmb.id },
+  })
   const at = {
     cash: await prisma.asset.create({ data: { familyId: fid, symbol: 'CASH-CNY', name: '人民币现金', cls: 'CASH' } }),
     moutai: await prisma.asset.create({ data: { familyId: fid, symbol: '600519', name: '贵州茅台', cls: 'STOCK' } }),
@@ -116,12 +120,6 @@ async function main() {
       settleOfId: parentId,
     })
   }
-  /** 账户间现金调拨（成对） */
-  const moveCash = (fromAcc: string, toAcc: string, amount: number, occurredAt: Date, note?: string) => {
-    push({ accountId: fromAcc, assetId: at.cash.id, type: 'TRANSFER_OUT', quantity: amount, amount, occurredAt, note: note ?? '资金调拨' })
-    push({ accountId: toAcc, assetId: at.cash.id, type: 'TRANSFER_IN', quantity: amount, amount, occurredAt, note: note ?? '资金调拨' })
-  }
-
   const px = (symbol: string, date: Date) => closeAt(symbol, date) ?? 1
   const months = monthSeq('2025-01', 19) // 2025-01 … 2026-07
 
@@ -131,20 +129,15 @@ async function main() {
   push({ accountId: mk.cmb.id, assetId: at.cash.id, type: 'DEPOSIT', amount: 1_000_000, occurredAt: d('2025-01-18'), note: '购房首付入金' })
 
   // 房产：按揭放款 + 买入 + 结算
-  push({ accountId: mk.prop.id, assetId: at.cash.id, type: 'DEPOSIT', amount: 2_200_000, occurredAt: d('2025-01-20'), note: '按揭放款', internal: true })
-  moveCash(mk.cmb.id, mk.prop.id, 1_000_000, d('2025-01-20'), '首付划转')
+  push({ accountId: mk.cmb.id, assetId: at.cash.id, type: 'DEPOSIT', amount: 2_200_000, occurredAt: d('2025-01-20'), note: '按揭放款', internal: true })
   const homeBuy = push({ accountId: mk.prop.id, assetId: at.home.id, type: 'BUY', quantity: 1, price: 3_200_000, amount: 3_200_000, occurredAt: d('2025-01-20'), note: '滨江两居室' })
-  settle(homeBuy, mk.prop.id, 'BUY', 3_200_000, 0, d('2025-01-20'))
+  settle(homeBuy, mk.cmb.id, 'BUY', 3_200_000, 0, d('2025-01-20'))
 
   for (const ym of months) {
     const day15 = d(`${ym}-15`)
     if (day15.getTime() > Date.now() + 30 * 86400000) break
     // 工资
     push({ accountId: mk.cmb.id, assetId: at.cash.id, type: 'DEPOSIT', amount: 42_000, occurredAt: d(`${ym}-10`), note: '工资' })
-    // 资金调拨到投资账户
-    moveCash(mk.cmb.id, mk.ht.id, 18_000, d(`${ym}-11`))
-    moveCash(mk.cmb.id, mk.tt.id, 7_000, d(`${ym}-11`))
-    moveCash(mk.cmb.id, mk.gold.id, 3_000, d(`${ym}-11`))
     // 月供（2025-02 起）
     if (ym >= '2025-02') {
       push({ accountId: mk.cmb.id, assetId: at.cash.id, type: 'WITHDRAW', amount: 9_800, occurredAt: d(`${ym}-01`), note: '房贷月供', internal: true })
@@ -153,40 +146,39 @@ async function main() {
     const etfPrice = px('510300', day15)
     const etfQty = Math.floor(6000 / etfPrice)
     const etfBuy = push({ accountId: mk.ht.id, assetId: at.etf300.id, type: 'BUY', quantity: etfQty, price: etfPrice, amount: etfQty * etfPrice, fee: 1, occurredAt: day15, note: '月定投' })
-    settle(etfBuy, mk.ht.id, 'BUY', etfQty * etfPrice, 1, day15)
+    settle(etfBuy, mk.cmb.id, 'BUY', etfQty * etfPrice, 1, day15)
     // 基金定投
     const fundPrice = px('110022', day15)
     const fundBuy = push({ accountId: mk.tt.id, assetId: at.fund.id, type: 'BUY', quantity: Math.round((4000 / fundPrice) * 100) / 100, price: fundPrice, amount: 4000, fee: 0, occurredAt: day15, note: '月定投' })
-    settle(fundBuy, mk.tt.id, 'BUY', 4000, 0, day15)
+    settle(fundBuy, mk.cmb.id, 'BUY', 4000, 0, day15)
     // 黄金积存
     const goldPrice = px('AU9999', day15)
     const goldBuy = push({ accountId: mk.gold.id, assetId: at.gold.id, type: 'BUY', quantity: Math.round((3000 / goldPrice) * 100) / 100, price: goldPrice, amount: 3000, fee: 0, occurredAt: d(`${ym}-20`) })
-    settle(goldBuy, mk.gold.id, 'BUY', 3000, 0, d(`${ym}-20`))
+    settle(goldBuy, mk.cmb.id, 'BUY', 3000, 0, d(`${ym}-20`))
   }
 
-  // 股票：季度建仓（先调拨 20 万到证券账户）
+  // 股票：季度建仓（统一由招商银行资金账户结算）
   for (const ym of ['2025-02', '2025-05', '2025-08', '2025-11', '2026-02', '2026-05']) {
-    moveCash(mk.cmb.id, mk.ht.id, 200_000, d(`${ym}-07`))
     const mt = d(`${ym}-08`)
     const p1 = px('600519', mt)
     const b1 = push({ accountId: mk.ht.id, assetId: at.moutai.id, type: 'BUY', quantity: 100, price: p1, amount: 100 * p1, fee: 15, occurredAt: mt })
-    settle(b1, mk.ht.id, 'BUY', 100 * p1, 15, mt)
+    settle(b1, mk.cmb.id, 'BUY', 100 * p1, 15, mt)
     const p2 = px('300750', mt)
     const b2 = push({ accountId: mk.ht.id, assetId: at.catl.id, type: 'BUY', quantity: 200, price: p2, amount: 200 * p2, fee: 8, occurredAt: mt })
-    settle(b2, mk.ht.id, 'BUY', 200 * p2, 8, mt)
+    settle(b2, mk.cmb.id, 'BUY', 200 * p2, 8, mt)
   }
   // 一次减持
   const sellDate = d('2025-11-12')
   const sellPx = px('300750', sellDate)
   const sellTx = push({ accountId: mk.ht.id, assetId: at.catl.id, type: 'SELL', quantity: 200, price: sellPx, amount: 200 * sellPx, fee: 8, occurredAt: sellDate, note: '再平衡减持' })
-  settle(sellTx, mk.ht.id, 'SELL', 200 * sellPx, 8, sellDate)
+  settle(sellTx, mk.cmb.id, 'SELL', 200 * sellPx, 8, sellDate)
 
   // 分红（含现金腿）
   for (const ym of ['2025-06', '2026-06']) {
     push({ accountId: mk.ht.id, assetId: at.moutai.id, type: 'DIVIDEND', amount: 2760, occurredAt: d(`${ym}-25`), note: '年度分红' })
-    push({ accountId: mk.ht.id, assetId: at.cash.id, type: 'DEPOSIT', amount: 2760, occurredAt: d(`${ym}-25`), note: '分红到账', internal: true })
+    push({ accountId: mk.cmb.id, assetId: at.cash.id, type: 'DEPOSIT', amount: 2760, occurredAt: d(`${ym}-25`), note: '分红到账', internal: true })
     push({ accountId: mk.ht.id, assetId: at.etf300.id, type: 'DIVIDEND', amount: 420, occurredAt: d(`${ym}-28`) })
-    push({ accountId: mk.ht.id, assetId: at.cash.id, type: 'DEPOSIT', amount: 420, occurredAt: d(`${ym}-28`), note: '分红到账', internal: true })
+    push({ accountId: mk.cmb.id, assetId: at.cash.id, type: 'DEPOSIT', amount: 420, occurredAt: d(`${ym}-28`), note: '分红到账', internal: true })
   }
   push({ accountId: mk.cmb.id, assetId: at.cash.id, type: 'INTEREST', amount: 380, occurredAt: d('2025-12-21'), note: '活期利息' })
   push({ accountId: mk.cmb.id, assetId: at.cash.id, type: 'INTEREST', amount: 412, occurredAt: d('2026-06-21'), note: '活期利息' })

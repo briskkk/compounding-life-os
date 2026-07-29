@@ -11,6 +11,7 @@ import { recordAudit } from './audit'
 import { rebuildSnapshots } from './snapshots'
 import {
   accountInputSchema,
+  accountSettlementSchema,
   assetInputSchema,
   assetUpdateSchema,
   goalInputSchema,
@@ -73,19 +74,52 @@ async function refresh(ctx: FamilyCtx): Promise<string | undefined> {
   return warning
 }
 
-/** 查找与账户币种匹配的现金资产（用于结算腿）；无匹配时退回任一现金资产 */
+/** 解析交易账户显式配置的资金账户及其同币种现金资产。 */
 type ActionDb = PrismaClient | Prisma.TransactionClient
 
-async function cashAssetIdOf(db: ActionDb, familyId: string, accountId?: string): Promise<string | null> {
-  if (accountId) {
-    const account = await db.account.findFirst({ where: { id: accountId, familyId } })
-    if (account) {
-      const matched = await db.asset.findFirst({ where: { familyId, cls: 'CASH', currency: account.currency } })
-      if (matched) return matched.id
-    }
+async function cashSettlementOf(
+  db: ActionDb,
+  familyId: string,
+  tradingAccountId: string,
+): Promise<{ accountId: string; cashAssetId: string } | null> {
+  const tradingAccount = await db.account.findFirst({ where: { id: tradingAccountId, familyId } })
+  if (!tradingAccount?.settlementAccountId) return null
+  const settlementAccount = await db.account.findFirst({
+    where: { id: tradingAccount.settlementAccountId, familyId },
+  })
+  if (!settlementAccount) throw new Error('关联的资金账户不存在，请在账户页重新配置')
+  if (settlementAccount.currency !== tradingAccount.currency) {
+    throw new Error('交易账户与资金账户币种不一致')
   }
-  const cash = await db.asset.findFirst({ where: { familyId, cls: 'CASH' } })
-  return cash?.id ?? null
+  const cashAsset = await db.asset.findFirst({
+    where: { familyId, cls: 'CASH', currency: settlementAccount.currency },
+  })
+  if (!cashAsset) throw new Error(`缺少 ${settlementAccount.currency} 现金资产，请先在资产目录登记`)
+  return { accountId: settlementAccount.id, cashAssetId: cashAsset.id }
+}
+
+/** 显式配置资金账户后，直接现金流水也统一归入该账户。 */
+async function routedAccountIdForAsset(
+  db: ActionDb,
+  familyId: string,
+  requestedAccountId: string,
+  assetId: string,
+): Promise<string> {
+  const [account, asset] = await Promise.all([
+    db.account.findFirst({ where: { id: requestedAccountId, familyId } }),
+    db.asset.findFirst({ where: { id: assetId, familyId } }),
+  ])
+  if (!account) throw new Error('账户不存在或不属于当前家庭')
+  if (!asset) throw new Error('资产不存在或不属于当前家庭')
+  if (account.currency !== asset.currency) throw new Error('账户与资产币种不一致')
+  if (asset.cls !== 'CASH' || !account.settlementAccountId || account.settlementAccountId === account.id) {
+    return account.id
+  }
+  const target = await db.account.findFirst({
+    where: { id: account.settlementAccountId, familyId, currency: account.currency },
+  })
+  if (!target) throw new Error('关联的资金账户不存在或币种不一致')
+  return target.id
 }
 
 async function validateTransaction(
@@ -107,6 +141,7 @@ async function validateTransaction(
   ])
   if (!account) throw new Error('账户不存在或不属于当前家庭')
   if (!asset) throw new Error('资产不存在或不属于当前家庭')
+  if (account.currency !== asset.currency) throw new Error('账户与资产币种不一致')
 
   const rows = await db.transaction.findMany({
     where: { familyId: ctx.familyId, accountId: data.accountId, assetId: data.assetId },
@@ -181,11 +216,13 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
     const ctx = await requireWrite()
     const { settleCash, ...data } = txInputSchema.parse(input)
     const txId = await prisma.$transaction(async (txDb) => {
-      await validateTransaction(txDb, ctx, data)
+      const accountId = await routedAccountIdForAsset(txDb, ctx.familyId, data.accountId, data.assetId)
+      const entry = { ...data, accountId }
+      await validateTransaction(txDb, ctx, entry)
       const tx = await txDb.transaction.create({
         data: {
           familyId: ctx.familyId,
-          accountId: data.accountId,
+          accountId: entry.accountId,
           assetId: data.assetId,
           type: data.type,
           quantity: data.quantity,
@@ -196,21 +233,24 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
           note: data.note,
         },
       })
-      // 现金联动结算腿（按账户币种匹配现金资产）
-      if (settleCash) {
-        const cashId = await cashAssetIdOf(txDb, ctx.familyId, data.accountId)
-        if (cashId) {
-          const legs = buildSettlementLegs({ ...data, internal: false }, cashId)
-          for (const leg of legs) {
-            await txDb.transaction.create({
-              data: {
-                familyId: ctx.familyId,
-                ...leg,
-                note: `结算 · #${tx.id.slice(0, 8)}`,
-                settleOfId: tx.id,
-              },
-            })
-          }
+      // 现金联动结算腿（路由到账户显式配置的资金账户）
+      if (settleCash && (data.type === 'BUY' || data.type === 'SELL')) {
+        const settlement = await cashSettlementOf(txDb, ctx.familyId, entry.accountId)
+        if (!settlement) throw new Error('该交易账户未配置资金账户；请先配置，或关闭现金联动结算')
+        const legs = buildSettlementLegs(
+          { ...entry, internal: false },
+          settlement.cashAssetId,
+          settlement.accountId,
+        )
+        for (const leg of legs) {
+          await txDb.transaction.create({
+            data: {
+              familyId: ctx.familyId,
+              ...leg,
+              note: `结算 · #${tx.id.slice(0, 8)}`,
+              settleOfId: tx.id,
+            },
+          })
         }
       }
       await audit(ctx, 'CREATE', 'Transaction', tx.id, `${data.type} ${data.amount}${settleCash ? '（含现金结算）' : ''}`, txDb)
@@ -281,11 +321,13 @@ export async function importTransactions(
       await prisma.$transaction(
         async (txDb) => {
           for (const tx of toCreate) {
-            await validateTransaction(txDb, ctx, { ...tx, type: tx.type as TransactionDraft['type'] })
+            const accountId = await routedAccountIdForAsset(txDb, ctx.familyId, tx.accountId, tx.assetId)
+            const entry = { ...tx, accountId }
+            await validateTransaction(txDb, ctx, { ...entry, type: entry.type as TransactionDraft['type'] })
             const created = await txDb.transaction.create({
               data: {
                 familyId: ctx.familyId,
-                accountId: tx.accountId,
+                accountId: entry.accountId,
                 assetId: tx.assetId,
                 type: tx.type,
                 quantity: tx.quantity,
@@ -296,9 +338,13 @@ export async function importTransactions(
                 note: tx.note,
               },
             })
-            const cashId = settle ? await cashAssetIdOf(txDb, ctx.familyId, tx.accountId) : null
-            if (cashId) {
-              const legs = buildSettlementLegs(tx as ParsedTx, cashId)
+            const needsSettlement = settle && (entry.type === 'BUY' || entry.type === 'SELL')
+            const settlement = needsSettlement ? await cashSettlementOf(txDb, ctx.familyId, entry.accountId) : null
+            if (needsSettlement && !settlement) {
+              throw new Error('CSV 中存在未配置资金账户的交易账户；请先完成账户配置，或关闭现金联动结算')
+            }
+            if (settlement) {
+              const legs = buildSettlementLegs(entry as ParsedTx, settlement.cashAssetId, settlement.accountId)
               for (const leg of legs) {
                 await txDb.transaction.create({
                   data: {
@@ -337,6 +383,87 @@ export async function createAccount(input: unknown): Promise<ActionResult<{ id: 
     })
     revalidatePath('/accounts')
     return { ok: true, data: { id: acc.id } }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/** 配置交易账户的资金结算账户，并将其历史现金流水归集到新资金账户。 */
+export async function updateAccountSettlement(
+  accountId: string,
+  input: unknown,
+): Promise<ActionResult<{ moved: number }>> {
+  try {
+    const ctx = await requireWrite()
+    const { settlementAccountId } = accountSettlementSchema.parse(input)
+    const moved = await prisma.$transaction(async (txDb) => {
+      const account = await txDb.account.findFirst({ where: { id: accountId, familyId: ctx.familyId } })
+      if (!account) throw new Error('账户不存在或不属于当前家庭')
+
+      let settlementName = '未关联'
+      if (settlementAccountId) {
+        const target = await txDb.account.findFirst({ where: { id: settlementAccountId, familyId: ctx.familyId } })
+        if (!target) throw new Error('资金账户不存在或不属于当前家庭')
+        if (target.currency !== account.currency) throw new Error('资金账户必须与交易账户币种一致')
+        settlementName = target.name
+      }
+
+      await txDb.account.updateMany({
+        where: { id: accountId, familyId: ctx.familyId },
+        data: { settlementAccountId },
+      })
+
+      let movedCount = 0
+      if (settlementAccountId && settlementAccountId !== accountId) {
+        const trades = await txDb.transaction.findMany({
+          where: { familyId: ctx.familyId, accountId, type: { in: ['BUY', 'SELL'] } },
+          select: { id: true },
+        })
+        for (let i = 0; i < trades.length; i += 500) {
+          const ids = trades.slice(i, i + 500).map((trade) => trade.id)
+          const result = await txDb.transaction.updateMany({
+            where: {
+              familyId: ctx.familyId,
+              settleOfId: { in: ids },
+              accountId: { not: settlementAccountId },
+            },
+            data: { accountId: settlementAccountId },
+          })
+          movedCount += result.count
+        }
+        const cashAssets = await txDb.asset.findMany({
+          where: { familyId: ctx.familyId, cls: 'CASH', currency: account.currency },
+          select: { id: true },
+        })
+        for (let i = 0; i < cashAssets.length; i += 500) {
+          const ids = cashAssets.slice(i, i + 500).map((asset) => asset.id)
+          const result = await txDb.transaction.updateMany({
+            where: {
+              familyId: ctx.familyId,
+              accountId,
+              assetId: { in: ids },
+            },
+            data: { accountId: settlementAccountId },
+          })
+          movedCount += result.count
+        }
+      }
+
+      await audit(
+        ctx,
+        'UPDATE',
+        'Account',
+        accountId,
+        `资金账户：${settlementName}；归集历史现金流水 ${movedCount} 条`,
+        txDb,
+      )
+      return movedCount
+    })
+    revalidatePath('/accounts')
+    revalidatePath('/transactions')
+    revalidatePath('/positions')
+    revalidatePath('/')
+    return { ok: true, data: { moved } }
   } catch (e) {
     return fail(e)
   }

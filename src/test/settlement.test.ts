@@ -15,24 +15,24 @@ const base: TxInput = {
 
 describe('现金结算腿', () => {
   it('BUY → WITHDRAW（金额 + 费用），internal 标记', () => {
-    const legs = buildSettlementLegs(base, 'cash1')
+    const legs = buildSettlementLegs(base, 'cash1', 'cmb')
     expect(legs).toHaveLength(1)
     expect(legs[0].type).toBe('WITHDRAW')
     expect(legs[0].amount).toBe(1005)
     expect(legs[0].internal).toBe(true)
-    expect(legs[0].accountId).toBe('acc1')
+    expect(legs[0].accountId).toBe('cmb')
   })
 
   it('SELL → DEPOSIT（金额 − 费用）', () => {
-    const legs = buildSettlementLegs({ ...base, type: 'SELL' }, 'cash1')
+    const legs = buildSettlementLegs({ ...base, type: 'SELL' }, 'cash1', 'cmb')
     expect(legs).toHaveLength(1)
     expect(legs[0].type).toBe('DEPOSIT')
     expect(legs[0].amount).toBe(995)
   })
 
   it('现金资产自身 / 零金额 / 非买卖类型 → 无腿', () => {
-    expect(buildSettlementLegs({ ...base, assetId: 'cash1' }, 'cash1')).toHaveLength(0)
-    expect(buildSettlementLegs({ ...base, amount: 0, fee: 0 }, 'cash1')).toHaveLength(0)
-    expect(buildSettlementLegs({ ...base, type: 'DIVIDEND' }, 'cash1')).toHaveLength(0)
+    expect(buildSettlementLegs({ ...base, assetId: 'cash1' }, 'cash1', 'cmb')).toHaveLength(0)
+    expect(buildSettlementLegs({ ...base, amount: 0, fee: 0 }, 'cash1', 'cmb')).toHaveLength(0)
+    expect(buildSettlementLegs({ ...base, type: 'DIVIDEND' }, 'cash1', 'cmb')).toHaveLength(0)
   })
 })

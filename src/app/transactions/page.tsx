@@ -33,7 +33,10 @@ export default async function TransactionsPage({
   const canWrite = ctx.role !== 'VIEWER'
   const db = scopedDb(prisma, ctx)
 
-  const [accounts, assets] = await Promise.all([db.account.findMany(), db.asset.findMany()])
+  const [accounts, assets] = await Promise.all([
+    db.account.findMany({ include: { settlementAccount: true } }),
+    db.asset.findMany(),
+  ])
   const where = {
     ...(sp.account ? { accountId: sp.account } : {}),
     ...(sp.type ? { type: sp.type as TxType } : {}),
@@ -152,8 +155,20 @@ export default async function TransactionsPage({
       <div className="space-y-3">
         <Panel title="录入流水" en="NEW ENTRY">
           <TxForm
-            accounts={accounts.map((a) => ({ id: a.id, name: a.name }))}
-            assets={assets.map((a) => ({ id: a.id, symbol: a.symbol, name: a.name, cls: a.cls }))}
+            accounts={accounts.map((a) => ({
+              id: a.id,
+              name: a.name,
+              currency: a.currency,
+              settlementAccountId: a.settlementAccountId,
+              settlementAccountName: a.settlementAccount?.name ?? null,
+            }))}
+            assets={assets.map((a) => ({
+              id: a.id,
+              symbol: a.symbol,
+              name: a.name,
+              cls: a.cls,
+              currency: a.currency,
+            }))}
           />
         </Panel>
         <Panel title="CSV 导入" en="BULK IMPORT">

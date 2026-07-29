@@ -46,6 +46,7 @@ async function main() {
   console.log('· 重建账户…')
   const hsbc = await prisma.account.create({ data: { familyId: fid, name: '汇丰投资', type: 'BROKERAGE', institution: '汇丰', currency: 'USD' } })
   const cmb = await prisma.account.create({ data: { familyId: fid, name: '招商银行', type: 'BANK', institution: '招商银行', currency: 'CNY' } })
+  await prisma.account.update({ where: { id: hsbc.id }, data: { settlementAccountId: hsbc.id } })
   void cmb
 
   console.log('· 重建资产…')
