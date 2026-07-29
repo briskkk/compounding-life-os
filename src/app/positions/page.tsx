@@ -13,10 +13,11 @@ import { cx, fmtCNY, fmtCNYExact, fmtPct, fmtPrice, fmtQty } from '@/lib/format'
 import { CLASS_COLORS } from '@/lib/colors'
 import type { AssetClass } from '@/lib/engine/types'
 import { PositionSourceTag, ValuationLegend, ValuationSourceSummary } from '@/components/valuation-source'
+import { parseHoldingSort, sortHoldings } from '@/lib/engine/holding-sort'
 
 export const dynamic = 'force-dynamic'
 
-export default async function PositionsPage({ searchParams }: { searchParams: Promise<{ tag?: string }> }) {
+export default async function PositionsPage({ searchParams }: { searchParams: Promise<{ tag?: string; sort?: string }> }) {
   const sp = await searchParams
   const ctx = await getSession()
   if (!ctx) return <SetupScreen />
@@ -34,10 +35,28 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
     .filter((v) => Math.abs(v.quantity) > 1e-9 || v.value > 0)
     .sort((a, b) => b.value - a.value)
   // 同一资产跨账户合并展示
-  const mergedRows = mergePositionsByAsset(allRows).sort((a, b) => b.value - a.value)
+  const mergedRows = mergePositionsByAsset(allRows)
   const groups = groupByTag(allRows, assetTags)
   const activeTag = sp.tag ?? null
-  const rows = activeTag ? mergedRows.filter((r) => (assetTags.get(r.assetId) ?? []).includes(activeTag)) : mergedRows
+  const activeSort = parseHoldingSort(sp.sort)
+  const positionRows = mergedRows.map((position) => {
+    const quote = state.quotes.get(position.asset.symbol)
+    const previousValueCny = quote ? position.quantity * quote.prevCloseCny : null
+    const dayPnlCny = previousValueCny == null ? null : position.value - previousValueCny
+    return {
+      position,
+      name: position.asset.name,
+      valueCny: position.value,
+      dayPnlCny,
+      dayPnlPct: previousValueCny != null && previousValueCny > 0 && dayPnlCny != null
+        ? dayPnlCny / previousValueCny
+        : null,
+    }
+  })
+  const filteredRows = activeTag
+    ? positionRows.filter((row) => (assetTags.get(row.position.assetId) ?? []).includes(activeTag))
+    : positionRows
+  const rows = sortHoldings(filteredRows, activeSort)
 
   // 每个资产涉及的账户（合并展示用）
   const accountsByAsset = new Map<string, Set<string>>()
@@ -80,7 +99,9 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
           {groups.map((g) => (
             <Link
               key={g.tag}
-              href={activeTag === g.tag ? '/positions' : `/positions?tag=${encodeURIComponent(g.tag)}`}
+              href={activeTag === g.tag
+                ? `/positions?sort=${activeSort}`
+                : `/positions?tag=${encodeURIComponent(g.tag)}&sort=${activeSort}`}
               className={cx(
                 'rounded-lg border bg-panel p-3 transition-colors',
                 activeTag === g.tag ? 'border-gold/60 bg-panel2' : 'border-line hover:border-ink-faint',
@@ -105,11 +126,32 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
           title={activeTag ? `持仓明细 · ${activeTag}` : '持仓明细'}
           en="HOLDINGS"
           bodyClassName="p-0"
-          right={activeTag ? (
-            <Link href="/positions" className="text-[10px] text-ink-faint hover:text-ink">
-              清除筛选 ×
-            </Link>
-          ) : undefined}
+          right={(
+            <div className="flex items-center gap-2">
+              {activeTag && (
+                <Link href={`/positions?sort=${activeSort}`} className="text-[10px] text-ink-faint hover:text-ink">
+                  清除筛选 ×
+                </Link>
+              )}
+              <form method="GET" className="flex items-center gap-1.5">
+                {activeTag && <input type="hidden" name="tag" value={activeTag} />}
+                <label htmlFor="position-sort" className="text-[10px] text-ink-faint">排序</label>
+                <select
+                  id="position-sort"
+                  name="sort"
+                  defaultValue={activeSort}
+                  className="rounded border border-line bg-panel2 px-2 py-1 text-[10px] text-ink-dim outline-none"
+                >
+                  <option value="value-desc">市值：从高到低</option>
+                  <option value="value-asc">市值：从低到高</option>
+                  <option value="dayPnl-desc">当日盈亏：从高到低</option>
+                  <option value="dayPnl-asc">当日盈亏：从低到高</option>
+                  <option value="name-asc">名称：拼音顺序</option>
+                </select>
+                <button type="submit" className="rounded border border-line px-2 py-1 text-[10px] text-ink-dim hover:text-ink">应用</button>
+              </form>
+            </div>
+          )}
         >
           {rows.length === 0 ? (
             <Empty>暂无持仓 — 先录入流水</Empty>
@@ -124,6 +166,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
               <div className="border-b border-line px-4 py-2.5">
                 <ValuationLegend />
               </div>
+              <div className="overflow-x-auto">
               <table className="w-full text-[12px] whitespace-nowrap">
               <thead>
                 <tr className="border-b border-line text-left text-[10px] tracking-wider text-ink-faint">
@@ -133,13 +176,14 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                   <th className="px-2 py-2.5 text-right font-normal">成本</th>
                   <th className="px-2 py-2.5 text-right font-normal">现价 / 来源</th>
                   <th className="px-2 py-2.5 text-right font-normal">市值</th>
+                  <th className="px-2 py-2.5 text-right font-normal">当日盈亏</th>
                   <th className="px-2 py-2.5 text-right font-normal">未实现盈亏</th>
                   <th className="px-2 py-2.5 text-right font-normal">权重</th>
                   <th className="px-4 py-2.5 text-right font-normal">流动性</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line/60">
-                {rows.map((p) => {
+                {rows.map(({ position: p, dayPnlCny, dayPnlPct }) => {
                   const restricted = p.asset.cls === 'RSU' && p.unvestedQty > 0
                   const illiquid = p.asset.cls === 'REAL_ESTATE' || p.asset.manual
                   return (
@@ -192,6 +236,10 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                         )}
                       </td>
                       <td className="num px-2 py-2.5 text-right text-ink">{fmtCNYExact(p.value)}</td>
+                      <td className={cx('num px-2 py-2.5 text-right', dayPnlCny == null ? 'text-ink-faint' : dayPnlCny >= 0 ? 'text-up' : 'text-down')}>
+                        {dayPnlCny == null ? '—' : fmtCNYExact(dayPnlCny, { sign: true })}
+                        {dayPnlPct != null && <div className="text-[10px] opacity-80">{fmtPct(dayPnlPct, { sign: true })}</div>}
+                      </td>
                       <td className={cx('num px-2 py-2.5 text-right', p.unrealized >= 0 ? 'text-up' : 'text-down')}>
                         {fmtCNYExact(p.unrealized, { sign: true })}
                         <div className="text-[10px] opacity-80">{fmtPct(p.unrealizedPct, { sign: true })}</div>
@@ -213,6 +261,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                 })}
               </tbody>
               </table>
+              </div>
             </>
           )}
         </Panel>

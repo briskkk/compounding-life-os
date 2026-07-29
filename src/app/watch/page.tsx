@@ -25,6 +25,7 @@ export default async function WatchPage() {
   const holdings: WatchHolding[] = marketPositions.map((v) => {
     const quote = state.quotes.get(v.asset.symbol)
     return {
+      assetId: v.assetId,
       symbol: v.asset.symbol,
       name: v.asset.name,
       cls: v.asset.cls,
@@ -46,6 +47,8 @@ export default async function WatchPage() {
   const staticValueCny = staticPositions.reduce((s, v) => s + v.value, 0)
   const staticRows: StaticRow[] = staticPositions
     .map((v) => ({
+      assetId: v.assetId,
+      symbol: v.asset.symbol,
       name: v.asset.name,
       note:
         v.priceSource === 'COST'

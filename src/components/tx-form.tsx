@@ -12,24 +12,37 @@ import type { TxType } from '@/lib/engine/types'
 const NEEDS_QTY: TxType[] = ['BUY', 'SELL', 'TRANSFER_IN', 'TRANSFER_OUT', 'VEST']
 const NEEDS_PRICE: TxType[] = ['BUY', 'SELL']
 
+function localDateInput(date: Date): string {
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-')
+}
+
 export function TxForm({
   accounts,
   assets,
+  initialAccountId,
+  initialAssetId,
 }: {
   accounts: { id: string; name: string; currency: string; settlementAccountId: string | null; settlementAccountName: string | null }[]
   assets: { id: string; symbol: string; name: string; cls: string; currency: string }[]
+  initialAccountId?: string
+  initialAssetId?: string
 }) {
   const router = useRouter()
-  const firstAccount = accounts[0]
-  const initialAsset = assets.find((asset) => asset.currency === firstAccount?.currency && asset.cls !== 'CASH')
+  const requestedAsset = assets.find((asset) => asset.id === initialAssetId)
+  const firstAccount = accounts.find((account) => account.id === initialAccountId)
+    ?? accounts.find((account) => account.currency === requestedAsset?.currency)
+    ?? accounts[0]
+  const initialAsset = assets.find((asset) => asset.id === initialAssetId && asset.currency === firstAccount?.currency)
+    ?? assets.find((asset) => asset.currency === firstAccount?.currency && asset.cls !== 'CASH')
     ?? assets.find((asset) => asset.currency === firstAccount?.currency)
-  const [type, setType] = useState<TxType>('BUY')
+  const defaultType: TxType = requestedAsset?.cls === 'CASH' ? 'DEPOSIT' : 'BUY'
+  const [type, setType] = useState<TxType>(defaultType)
   const [accountId, setAccountId] = useState(firstAccount?.id ?? '')
   const [settle, setSettle] = useState(Boolean(firstAccount?.settlementAccountName))
   const [assetId, setAssetId] = useState(initialAsset?.id ?? '')
   const [pending, setPending] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
-  const today = new Date().toISOString().slice(0, 10)
+  const today = localDateInput(new Date())
   const selectedAccount = accounts.find((account) => account.id === accountId)
   const selectedAsset = assets.find((asset) => asset.id === assetId)
   const compatibleAssets = assets.filter((asset) => asset.currency === selectedAccount?.currency)
@@ -71,7 +84,7 @@ export function TxForm({
     if (res.ok) {
       setMsg({ ok: true, text: res.warning ?? '已写入账本，快照已重建' })
       form.reset()
-      setType('BUY')
+      setType(defaultType)
       setSettle(Boolean(selectedAccount?.settlementAccountName))
       router.refresh()
     } else {

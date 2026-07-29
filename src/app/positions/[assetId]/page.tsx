@@ -23,6 +23,7 @@ import { ASSET_CLASS_LABEL, TX_TYPE_LABEL, CURRENCY_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtCNYExact, fmtDate, fmtDateTime, fmtMoney, fmtPct, fmtQty } from '@/lib/format'
 import { CLASS_COLORS } from '@/lib/colors'
 import { MarketSourceTag, PositionSourceTag } from '@/components/valuation-source'
+import { TxForm } from '@/components/tx-form'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +36,10 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
   const asset = await db.asset.findFirst({ where: { id: assetId } })
   if (!asset) return notFound()
 
-  const state = await loadEngineState(ctx)
+  const [state, accounts] = await Promise.all([
+    loadEngineState(ctx),
+    db.account.findMany({ include: { settlementAccount: true }, orderBy: { createdAt: 'asc' } }),
+  ])
   const positions = state.valued.filter((v) => v.assetId === asset.id)
 
   // 跨账户汇总为单一视图（用于摘要与建议）
@@ -125,6 +129,9 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
   const advice = combined ? assetAdvice(combined, state.netWorth, { concentrationCeiling: prefs?.concentrationCeiling }) : []
   const tags = parseTags(asset.tags)
   const weight = combined && state.netWorth > 0 ? combined.value / state.netWorth : 0
+  const initialAccountId = positions[0]?.accountId
+    ?? accounts.find((account) => account.currency === asset.currency)?.id
+  const compatibleAccounts = accounts.filter((account) => account.currency === asset.currency)
 
   // 场外基金：内部盘中估值（持仓 + 实时行情合成）+ 历史误差校准
   const fundEst = asset.cls === 'FUND' ? await fundEstimate(asset.symbol) : null
@@ -322,6 +329,33 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
         </div>
 
         <div className="space-y-3">
+          {ctx.role !== 'VIEWER' && (
+            <Panel title="录入当前资产流水" en="NEW TRANSACTION">
+              {compatibleAccounts.length > 0 ? (
+                <TxForm
+                  initialAccountId={initialAccountId}
+                  initialAssetId={asset.id}
+                  accounts={compatibleAccounts.map((account) => ({
+                    id: account.id,
+                    name: account.name,
+                    currency: account.currency,
+                    settlementAccountId: account.settlementAccountId,
+                    settlementAccountName: account.settlementAccount?.name ?? null,
+                  }))}
+                  assets={[{
+                    id: asset.id,
+                    symbol: asset.symbol,
+                    name: asset.name,
+                    cls: asset.cls,
+                    currency: asset.currency,
+                  }]}
+                />
+              ) : (
+                <p className="text-xs text-ink-faint">请先创建 {asset.currency} 账户后再录入流水。</p>
+              )}
+            </Panel>
+          )}
+
           {/* 盘中估值（内部模型） */}
           {fundEst && (
             <Panel

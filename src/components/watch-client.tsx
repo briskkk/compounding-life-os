@@ -2,8 +2,10 @@
 
 // 看盘客户端：30s 轮询分时数据与报价，合成当日组合收益曲线 + 实时估值表
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { buildPortfolioCurve, type CurveHolding } from '@/lib/engine/intraday'
 import { summarizeDailyPortfolio } from '@/lib/engine/daily-pnl'
+import { sortHoldings, type HoldingSort } from '@/lib/engine/holding-sort'
 import type { IntradaySeries } from '@/lib/market/intraday'
 import { Panel } from './ui'
 import { IntradayChart } from './charts'
@@ -12,6 +14,7 @@ import type { PriceSource } from '@/lib/engine/types'
 import { MarketSourceTag, PositionSourceTag, ValuationLegend } from './valuation-source'
 
 export interface WatchHolding {
+  assetId: string
   symbol: string
   name: string
   cls: string
@@ -26,6 +29,8 @@ export interface WatchHolding {
 }
 
 export interface StaticRow {
+  assetId: string
+  symbol: string
   name: string
   valueCny: number
   note: string
@@ -59,6 +64,7 @@ export function WatchClient({
   const [seriesMap, setSeriesMap] = useState<Map<string, IntradaySeries>>(new Map())
   const [quotes, setQuotes] = useState<Map<string, QuoteLite>>(new Map())
   const [asOf, setAsOf] = useState<string | null>(null)
+  const [sort, setSort] = useState<HoldingSort>('value-desc')
 
   const symbols = useMemo(() => holdings.map((h) => h.symbol), [holdings])
 
@@ -143,6 +149,10 @@ export function WatchClient({
   const baseline = totalValue - totalPnl
   // 金额和百分比共用同一基线，避免顶部卡片内部出现两套口径。
   const dayPct = baseline > 0 ? totalPnl / baseline : null
+  const displayRows = sortHoldings([
+    ...rows.map((row) => ({ ...row, kind: 'market' as const, name: row.name, valueCny: row.valueCny })),
+    ...staticRows.map((row) => ({ ...row, kind: 'static' as const, dayPnlCny: null })),
+  ], sort)
 
   return (
     <div className="space-y-3">
@@ -187,7 +197,28 @@ export function WatchClient({
       </Panel>
 
       {/* 实时估值表 */}
-      <Panel title="实时估值" en="LIVE VALUATION" bodyClassName="p-0">
+      <Panel
+        title="实时估值"
+        en="LIVE VALUATION"
+        bodyClassName="p-0"
+        right={(
+          <label className="flex items-center gap-1.5 text-[10px] text-ink-faint">
+            排序
+            <select
+              aria-label="看盘资产排序"
+              value={sort}
+              onChange={(event) => setSort(event.target.value as HoldingSort)}
+              className="rounded border border-line bg-panel2 px-2 py-1 text-[10px] text-ink-dim outline-none"
+            >
+              <option value="value-desc">市值：从高到低</option>
+              <option value="value-asc">市值：从低到高</option>
+              <option value="dayPnl-desc">当日盈亏：从高到低</option>
+              <option value="dayPnl-asc">当日盈亏：从低到高</option>
+              <option value="name-asc">名称：拼音顺序</option>
+            </select>
+          </label>
+        )}
+      >
         <div className="border-b border-line px-4 py-2.5">
           <ValuationLegend />
         </div>
@@ -204,10 +235,10 @@ export function WatchClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-line/60">
-            {rows.map((r) => (
-              <tr key={r.symbol} className="transition-colors hover:bg-panel2/50">
+            {displayRows.map((r) => r.kind === 'market' ? (
+              <tr key={r.assetId} className="transition-colors hover:bg-panel2/50">
                 <td className="px-4 py-2.5">
-                  <div className="text-ink">{r.name}</div>
+                  <Link href={`/positions/${r.assetId}`} className="text-ink transition-colors hover:text-gold">{r.name}</Link>
                   <div className="num text-[10px] text-ink-faint">{r.symbol}</div>
                 </td>
                 <td className="num px-2 py-2.5 text-right text-ink-dim">{fmtQty(r.qty)}</td>
@@ -215,30 +246,26 @@ export function WatchClient({
                 <td className={cx('num px-2 py-2.5 text-right', r.changePct == null ? 'text-ink-faint' : r.changePct >= 0 ? 'text-up' : 'text-down')}>
                   {r.changePct != null ? fmtPct(r.changePct, { sign: true }) : '—'}
                 </td>
-                <td className="num px-2 py-2.5 text-right text-ink">{r.valueCny != null ? fmtCNY(r.valueCny) : '—'}</td>
+                <td className="num px-2 py-2.5 text-right text-ink">{fmtCNY(r.valueCny)}</td>
                 <td className={cx('num px-2 py-2.5 text-right', r.dayPnlCny == null ? 'text-ink-faint' : r.dayPnlCny >= 0 ? 'text-up' : 'text-down')}>
                   {r.dayPnlCny != null ? fmtCNY(r.dayPnlCny, { sign: true }) : '—'}
                 </td>
                 <td className="px-4 py-2.5 text-right">
-                  {r.source ? (
-                    <MarketSourceTag source={r.source} showProvider />
-                  ) : (
-                    <PositionSourceTag priceSource={r.priceSource} />
-                  )}
+                  {r.source ? <MarketSourceTag source={r.source} showProvider /> : <PositionSourceTag priceSource={r.priceSource} />}
                 </td>
               </tr>
-            ))}
-            {staticRows.map((r) => (
-              <tr key={r.name} className="opacity-60">
-                <td className="px-4 py-2.5 text-ink-dim">{r.name}</td>
+            ) : (
+              <tr key={r.assetId} className="opacity-60 transition-colors hover:bg-panel2/50">
+                <td className="px-4 py-2.5">
+                  <Link href={`/positions/${r.assetId}`} className="text-ink-dim transition-colors hover:text-gold">{r.name}</Link>
+                  <div className="num text-[10px] text-ink-faint">{r.symbol}</div>
+                </td>
                 <td className="px-2 py-2.5" colSpan={3}>
                   <span className="text-[10px] text-ink-faint">{r.note}</span>
                 </td>
                 <td className="num px-2 py-2.5 text-right text-ink-dim">{fmtCNY(r.valueCny)}</td>
                 <td className="num px-2 py-2.5 text-right text-ink-faint">—</td>
-                <td className="px-4 py-2.5 text-right">
-                  <PositionSourceTag priceSource={r.priceSource} />
-                </td>
+                <td className="px-4 py-2.5 text-right"><PositionSourceTag priceSource={r.priceSource} /></td>
               </tr>
             ))}
           </tbody>
