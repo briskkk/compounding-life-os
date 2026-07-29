@@ -1,12 +1,11 @@
 // 看盘：当日组合收益曲线（分钟级）+ 全持仓实时估值
 import { getSession } from '@/lib/session'
 import { loadEngineState } from '@/lib/queries'
-import { quoteSmart } from '@/lib/market'
 import { cnyRateFor, fxRates } from '@/lib/market/fx'
 import { SetupScreen } from '@/components/ui'
 import { WatchClient, type WatchHolding, type StaticRow } from '@/components/watch-client'
 import { providerLabel } from '@/lib/market'
-import { eastmoneyFundProvider } from '@/lib/market/eastmoney-fund'
+import { marketChainLabel } from '@/lib/valuation-source'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 
 export const dynamic = 'force-dynamic'
@@ -17,49 +16,52 @@ export default async function WatchPage() {
 
   const state = await loadEngineState(ctx)
   const rates = await fxRates()
+  const mergedPositions = mergePositionsByAsset(state.valued)
 
   // 行情类持仓（股票/ETF/基金/黄金/RSU）——参与曲线与实时估值表
-  const positions = mergePositionsByAsset(state.valued)
-  const marketPositions = positions.filter(
+  const marketPositions = mergedPositions.filter(
     (v) => v.quantity > 1e-9 && !v.asset.manual && v.asset.cls !== 'CASH' && v.asset.cls !== 'REAL_ESTATE',
   )
-  const holdings: WatchHolding[] = await Promise.all(
-    marketPositions.map(async (v) => {
-      let prevClose: number | null = null
-      let price: number | null = null
-      let source: string | null = null
-      try {
-        const q =
-          v.asset.cls === 'FUND' ? await eastmoneyFundProvider.quote(v.asset.symbol) : await quoteSmart(v.asset.symbol)
-        prevClose = q.prevClose
-        price = q.price
-        source = q.source
-      } catch {
-        /* 无报价 */
-      }
-      return {
-        symbol: v.asset.symbol,
-        name: v.asset.name,
-        cls: v.asset.cls,
-        currency: v.asset.currency,
-        qty: v.quantity,
-        rateToCny: cnyRateFor(v.asset.symbol, rates),
-        prevClose,
-        price,
-        source,
-        fallbackValueCny: v.value,
-      }
-    }),
-  )
+  const holdings: WatchHolding[] = marketPositions.map((v) => {
+    const quote = state.quotes.get(v.asset.symbol)
+    return {
+      symbol: v.asset.symbol,
+      name: v.asset.name,
+      cls: v.asset.cls,
+      currency: v.asset.currency,
+      qty: v.quantity,
+      rateToCny: cnyRateFor(v.asset.symbol, rates),
+      prevClose: quote?.prevClose ?? null,
+      price: quote?.price ?? null,
+      source: quote?.source ?? null,
+      fallbackValueCny: v.value,
+      priceSource: v.priceSource,
+    }
+  })
 
   // 无分时数据的持仓（现金/手动/房产）——以常数计入组合曲线
-  const staticPositions = positions.filter(
+  const staticPositions = mergedPositions.filter(
     (v) => Math.abs(v.quantity) > 1e-9 && (v.asset.manual || v.asset.cls === 'CASH' || v.asset.cls === 'REAL_ESTATE'),
   )
   const staticValueCny = staticPositions.reduce((s, v) => s + v.value, 0)
   const staticRows: StaticRow[] = staticPositions
-    .map((v) => ({ name: v.asset.name, note: v.asset.cls === 'CASH' ? '现金' : '手动估值', valueCny: v.value }))
-    .filter((r) => Math.abs(r.valueCny) >= 0.01)
+    .map((v) => ({
+      name: v.asset.name,
+      note:
+        v.priceSource === 'COST'
+          ? '按成本计值 · 无分时数据'
+          : `${v.asset.cls === 'CASH' ? '现金' : '手工估值'} · 无分时数据`,
+      valueCny: v.value,
+      priceSource: v.priceSource,
+    }))
+    .filter((row) => Math.abs(row.valueCny) >= 0.01)
 
-  return <WatchClient holdings={holdings} staticValueCny={staticValueCny} staticRows={staticRows} provider={providerLabel()} />
+  return (
+    <WatchClient
+      holdings={holdings}
+      staticValueCny={staticValueCny}
+      staticRows={staticRows}
+      provider={marketChainLabel(providerLabel()).label}
+    />
+  )
 }

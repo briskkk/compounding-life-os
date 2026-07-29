@@ -9,8 +9,7 @@ import { Empty, Panel, Tag } from '@/components/ui'
 import { CandleChart, PriceLineChart } from '@/components/charts'
 import { AssetMetaForm } from '@/components/asset-meta-form'
 import { ReverseButton } from '@/components/reverse-button'
-import { quoteSmart, historySmart } from '@/lib/market'
-import { cnyRateFor, fxRates } from '@/lib/market/fx'
+import { historySmart } from '@/lib/market'
 import { persistHistory } from '@/lib/market/persist'
 import { dailyCloses, PROVIDER_LABEL } from '@/lib/market/simulated'
 import { parseSymbol } from '@/lib/market/symbols'
@@ -21,8 +20,9 @@ import { calibratedConfidencePct } from '@/lib/engine/fund-calibrate'
 import { shouldUseOfficialNav } from '@/lib/market/eastmoney-fund'
 import type { ValuedPosition } from '@/lib/engine/valuation'
 import { ASSET_CLASS_LABEL, TX_TYPE_LABEL, CURRENCY_LABEL } from '@/lib/labels'
-import { cx, fmtCNY, fmtCNYExact, fmtDate, fmtMoney, fmtPct, fmtPrice, fmtQty } from '@/lib/format'
+import { cx, fmtCNY, fmtCNYExact, fmtDate, fmtDateTime, fmtMoney, fmtPct, fmtQty } from '@/lib/format'
 import { CLASS_COLORS } from '@/lib/colors'
+import { MarketSourceTag, PositionSourceTag } from '@/components/valuation-source'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,9 +67,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
 
   // 实时行情（人民币口径）
   const isMarket = !asset.manual && asset.cls !== 'CASH' && asset.cls !== 'REAL_ESTATE'
-  const rates = await fxRates()
-  const rate = cnyRateFor(asset.symbol, rates)
-  const quote = isMarket ? await quoteSmart(asset.symbol) : null
+  const quote = isMarket ? (state.quotes.get(asset.symbol) ?? null) : null
 
   // 价格走势（统一人民币口径）：
   // 真实市场标的 —— 实时链路拉取并自愈落库，失败再读 PriceBar 中的真实源数据；绝不展示模拟序列
@@ -146,6 +144,15 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
         <span className="num text-sm text-ink-faint">{asset.symbol}</span>
         <Tag tone="dim">{ASSET_CLASS_LABEL[asset.cls]}</Tag>
         <Tag tone={asset.currency === 'CNY' ? 'dim' : 'gold'}>{CURRENCY_LABEL[asset.currency] ?? asset.currency}</Tag>
+        {combined ? (
+          <PositionSourceTag priceSource={combined.priceSource} marketSource={quote?.source} showProvider />
+        ) : isMarket ? (
+          <MarketSourceTag source={quote?.source} showProvider />
+        ) : asset.cls === 'CASH' ? (
+          <PositionSourceTag priceSource="FACE" />
+        ) : (
+          <PositionSourceTag priceSource="MANUAL" />
+        )}
         {tags.map((t) => (
           <Tag key={t} tone="info">
             {t}
@@ -160,18 +167,27 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
           {quote ? (
             <>
               <div className="num mt-1.5 text-[18px] leading-none text-ink">{fmtMoney(quote.price, asset.currency)}</div>
-              <div className={cx('num mt-1 text-[11px]', quote.changePct >= 0 ? 'text-up' : 'text-down')}>
-                {fmtPct(quote.changePct, { sign: true })}
-                <span className="ml-1 text-ink-faint">
-                  {quote.source === 'FUND-ENGINE' ? '盘中估值' : quote.source === 'EASTMONEY-FUND' ? '官方净值' : quote.source}
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <span className={cx('num text-[11px]', quote.changePct >= 0 ? 'text-up' : 'text-down')}>
+                  {fmtPct(quote.changePct, { sign: true })}
                 </span>
+                <MarketSourceTag source={quote.source} showProvider />
               </div>
               {asset.currency !== 'CNY' && (
-                <div className="mt-0.5 text-[10px] text-ink-faint">≈ {fmtCNY(quote.price * rate)}</div>
+                <div className="mt-0.5 text-[10px] text-ink-faint">≈ {fmtCNY(quote.priceCny)}</div>
               )}
+              <div className="mt-0.5 text-[9px] text-ink-faint">数据时点 {fmtDateTime(quote.asOf)}</div>
             </>
           ) : (
-            <div className="mt-1.5 text-[13px] text-ink-dim">{asset.cls === 'CASH' ? '面值 × 汇率' : '手动估值'}</div>
+            <div className="mt-1.5">
+              {combined ? (
+                <PositionSourceTag priceSource={combined.priceSource} />
+              ) : asset.cls === 'CASH' ? (
+                <PositionSourceTag priceSource="FACE" />
+              ) : (
+                <PositionSourceTag priceSource="MANUAL" />
+              )}
+            </div>
           )}
         </div>
         <div className="rounded-lg border border-line bg-panel p-3.5">
@@ -236,9 +252,12 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
             title="价格走势"
             en="PRICE · 180D"
             right={
-              <span className="text-[10px] text-ink-faint">
-                {chartSource ? `${chartSource} · ${ohlcData.length || chartData.length} 根K线 · ${asset.currency} 口径` : ''}
-              </span>
+              chartSource ? (
+                <div className="flex items-center gap-2 text-[10px] text-ink-faint">
+                  <MarketSourceTag source={chartSource} showProvider />
+                  <span>{ohlcData.length || chartData.length} 根K线 · {asset.currency} 口径</span>
+                </div>
+              ) : undefined
             }
           >
             {ohlcData.length > 0 ? (

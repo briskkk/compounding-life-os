@@ -5,9 +5,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { buildPortfolioCurve, type CurveHolding } from '@/lib/engine/intraday'
 import { summarizeDailyPortfolio } from '@/lib/engine/daily-pnl'
 import type { IntradaySeries } from '@/lib/market/intraday'
-import { Panel, Tag } from './ui'
+import { Panel } from './ui'
 import { IntradayChart } from './charts'
 import { cx, fmtCNY, fmtDateTime, fmtMoney, fmtPct, fmtQty } from '@/lib/format'
+import type { PriceSource } from '@/lib/engine/types'
+import { MarketSourceTag, PositionSourceTag, ValuationLegend } from './valuation-source'
 
 export interface WatchHolding {
   symbol: string
@@ -20,12 +22,14 @@ export interface WatchHolding {
   price: number | null
   source: string | null
   fallbackValueCny: number
+  priceSource: PriceSource
 }
 
 export interface StaticRow {
   name: string
   valueCny: number
   note: string
+  priceSource: PriceSource
 }
 
 interface QuoteLite {
@@ -184,6 +188,9 @@ export function WatchClient({
 
       {/* 实时估值表 */}
       <Panel title="实时估值" en="LIVE VALUATION" bodyClassName="p-0">
+        <div className="border-b border-line px-4 py-2.5">
+          <ValuationLegend />
+        </div>
         <table className="w-full text-[12px]">
           <thead>
             <tr className="border-b border-line text-left text-[10px] tracking-wider text-ink-faint">
@@ -213,7 +220,11 @@ export function WatchClient({
                   {r.dayPnlCny != null ? fmtCNY(r.dayPnlCny, { sign: true }) : '—'}
                 </td>
                 <td className="px-4 py-2.5 text-right">
-                  <Tag tone={r.source && r.source !== 'SIMULATED' ? 'down' : 'dim'}>{r.source ?? '—'}</Tag>
+                  {r.source ? (
+                    <MarketSourceTag source={r.source} showProvider />
+                  ) : (
+                    <PositionSourceTag priceSource={r.priceSource} />
+                  )}
                 </td>
               </tr>
             ))}
@@ -221,11 +232,13 @@ export function WatchClient({
               <tr key={r.name} className="opacity-60">
                 <td className="px-4 py-2.5 text-ink-dim">{r.name}</td>
                 <td className="px-2 py-2.5" colSpan={3}>
-                  <span className="text-[10px] text-ink-faint">{r.note} · 无分时数据</span>
+                  <span className="text-[10px] text-ink-faint">{r.note}</span>
                 </td>
                 <td className="num px-2 py-2.5 text-right text-ink-dim">{fmtCNY(r.valueCny)}</td>
                 <td className="num px-2 py-2.5 text-right text-ink-faint">—</td>
-                <td className="px-4 py-2.5 text-right text-[10px] text-ink-faint">静态</td>
+                <td className="px-4 py-2.5 text-right">
+                  <PositionSourceTag priceSource={r.priceSource} />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -233,8 +246,7 @@ export function WatchClient({
       </Panel>
 
       <p className="text-[11px] leading-relaxed text-ink-faint">
-        A 股/ETF 分时来自腾讯分钟线，US/HK 来自 Yahoo
-        分钟线；场外基金按盘中估值或已公布净值，无可用分时线时按常量计入；报价存在交易所固有延迟，仅供参考。
+        当日曲线会同时纳入真实行情、基金盘中估值和静态资产；无可用分时线时按常量计入，每项实际口径见上表“来源”列。报价可能延迟，模拟数据不代表真实市场成交，盘中估值以官方净值为准。
       </p>
     </div>
   )

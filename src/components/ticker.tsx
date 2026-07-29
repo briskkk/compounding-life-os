@@ -1,13 +1,15 @@
 'use client'
 
-// 行情跑马灯：每 5 秒轮询 /api/prices（模拟行情源）
+// 行情跑马灯：每 5 秒轮询 /api/prices，并显式标注每条报价的实际来源
 import { useEffect, useState } from 'react'
 import { fmtPrice, fmtPct, cx } from '@/lib/format'
+import { MarketSourceTag } from './valuation-source'
 
 interface Quote {
   symbol: string
   price: number
   changePct: number
+  source: string
 }
 
 export function TickerTape({ symbols, names }: { symbols: string[]; names: Record<string, string> }) {
@@ -42,6 +44,7 @@ export function TickerTape({ symbols, names }: { symbols: string[]; names: Recor
           <span className="text-ink-faint">{names[q.symbol] ?? q.symbol}</span>
           <span className="num text-ink">{fmtPrice(q.price)}</span>
           <span className={cx('num', q.changePct >= 0 ? 'text-up' : 'text-down')}>{fmtPct(q.changePct, { sign: true })}</span>
+          <MarketSourceTag source={q.source} />
         </span>
       ))}
       {quotes.length === 0 && <span className="text-[11px] text-ink-faint">行情加载中…</span>}

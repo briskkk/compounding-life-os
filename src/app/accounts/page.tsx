@@ -9,7 +9,7 @@ import { LiabilityEntryForm, LiabilityForm } from '@/components/liability-forms'
 import { ACCOUNT_TYPE_LABEL, ASSET_CLASS_LABEL, LIABILITY_TYPE_LABEL } from '@/lib/labels'
 import { fmtCNY, fmtPrice } from '@/lib/format'
 import { CLASS_COLORS } from '@/lib/colors'
-import { quoteAt } from '@/lib/market/simulated'
+import { MarketSourceTag, PositionSourceTag } from '@/components/valuation-source'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,8 +29,10 @@ export default async function AccountsPage() {
     valueByAccount.set(v.accountId, (valueByAccount.get(v.accountId) ?? 0) + v.value)
   }
   const valueByAsset = new Map<string, number>()
+  const positionByAsset = new Map<string, (typeof state.valued)[number]>()
   for (const v of state.valued) {
     valueByAsset.set(v.assetId, (valueByAsset.get(v.assetId) ?? 0) + v.value)
+    if (!positionByAsset.has(v.assetId)) positionByAsset.set(v.assetId, v)
   }
 
   return (
@@ -92,7 +94,8 @@ export default async function AccountsPage() {
             </thead>
             <tbody className="divide-y divide-line/60">
               {assets.map((a) => {
-                const q = !a.manual && a.cls !== 'CASH' && a.cls !== 'REAL_ESTATE' ? quoteAt(a.symbol) : null
+                const q = state.quotes.get(a.symbol)
+                const position = positionByAsset.get(a.id)
                 return (
                   <tr key={a.id} className="transition-colors hover:bg-panel2/50">
                     <td className="num px-4 py-2.5 text-ink-dim">{a.symbol}</td>
@@ -101,10 +104,20 @@ export default async function AccountsPage() {
                       <span className="text-ink">{a.name}</span>
                     </td>
                     <td className="px-2 py-2.5 text-ink-dim">{ASSET_CLASS_LABEL[a.cls]}</td>
-                    <td className="num px-2 py-2.5 text-right text-ink-dim">{q ? fmtPrice(q.price) : '—'}</td>
+                    <td className="num px-2 py-2.5 text-right text-ink-dim">
+                      {q ? fmtPrice(q.price) : position?.price != null ? fmtPrice(position.price) : '—'}
+                    </td>
                     <td className="num px-2 py-2.5 text-right text-ink">{fmtCNY(valueByAsset.get(a.id) ?? 0)}</td>
                     <td className="px-4 py-2.5 text-right">
-                      {a.manual || a.cls === 'REAL_ESTATE' ? <Tag tone="violet">手动估值</Tag> : a.cls === 'CASH' ? <Tag tone="dim">面值</Tag> : <Tag tone="info">行情</Tag>}
+                      {position ? (
+                        <PositionSourceTag priceSource={position.priceSource} marketSource={q?.source} showProvider />
+                      ) : a.manual || a.cls === 'REAL_ESTATE' ? (
+                        <PositionSourceTag priceSource="MANUAL" />
+                      ) : a.cls === 'CASH' ? (
+                        <PositionSourceTag priceSource="FACE" />
+                      ) : (
+                        <MarketSourceTag source={q?.source} showProvider />
+                      )}
                     </td>
                   </tr>
                 )
@@ -115,7 +128,7 @@ export default async function AccountsPage() {
         <Panel title="登记资产" en="ADD ASSET">
           <AssetForm />
           <p className="mt-4 border-t border-line pt-3 text-[11px] leading-relaxed text-ink-faint">
-            行情类资产（股票/基金/ETF/黄金/受限股）按代码接入行情源定价；房产等选择「手动估值」后通过持仓页的估值流水定价。
+            行情类资产按代码接入外部报价；场外基金会明确区分官方净值与盘中估值。未取得行情时持仓会标为「成本回退」，不会冒充真实行情。
           </p>
         </Panel>
       </div>
