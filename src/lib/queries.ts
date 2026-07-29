@@ -15,6 +15,8 @@ import { quoteSmart, providerLabel } from './market'
 import { cnyRateFor, fxRates } from './market/fx'
 import { eastmoneyFundProvider } from './market/eastmoney-fund'
 import type { AssetInfo, TxInput } from './engine/types'
+import { mergePositionsByAsset } from './engine/merge'
+import { summarizeDailyPortfolio } from './engine/daily-pnl'
 
 export interface LiabilityView {
   id: string
@@ -275,12 +277,13 @@ export interface DashboardData {
   familyName: string
   state: EngineState
   series: SeriesPoint[]
-  deltaToday: number | null
+  marketDayPnl: number
+  marketDayPnlPct: number | null
   delta30d: number | null
   attribution: Attribution
   goals: GoalView[]
   insights: Awaited<ReturnType<typeof ensureInsights>>
-  quotes: { symbol: string; name: string; price: number; changePct: number }[]
+  quotes: { symbol: string; name: string; price: number; prevClose: number; changePct: number }[]
   provider: string
 }
 
@@ -304,16 +307,18 @@ export async function getDashboard(): Promise<DashboardData | null> {
   const currencyRate = (cur: string) => (cur === 'USD' ? rates.USDCNY : cur === 'HKD' ? rates.HKDCNY : 1)
   const flows = dailyNetFlows(state.ledgerTxs, currencyRate)
   const contributionsNow = [...flows.values()].reduce((a, b) => a + b, 0)
-  series.push({
+  const livePoint: SeriesPoint = {
     date: new Date().toISOString().slice(0, 10),
     netWorth: Math.round(state.netWorth),
     investable: Math.round(state.investable),
     contributions: Math.round(contributionsNow),
     assets: Math.round(state.metrics.netWorth),
     liabilities: Math.round(state.liabilitiesTotal),
-  })
+  }
+  // 快照重建可能已经写入今日数据；实时点应覆盖今日快照，避免财富轨迹出现同日双点。
+  if (series.at(-1)?.date === livePoint.date) series[series.length - 1] = livePoint
+  else series.push(livePoint)
 
-  const prev = snaps.length > 0 ? Number(snaps[snaps.length - 1].netWorth) : null
   const ago30 = snaps.length > 30 ? Number(snaps[snaps.length - 30].netWorth) : null
   const goals = await loadGoals(ctx, state)
   const insights = await ensureInsights(ctx, state, goals)
@@ -340,23 +345,46 @@ export async function getDashboard(): Promise<DashboardData | null> {
       if (a.cls === 'FUND') {
         try {
           const q = await eastmoneyFundProvider.quote(a.symbol)
-          return { symbol: a.symbol, name: a.name, price: q.price, changePct: q.changePct }
+          return { symbol: a.symbol, name: a.name, price: q.price, prevClose: q.prevClose, changePct: q.changePct }
         } catch {
           /* 回落行情链路 */
         }
       }
       const q = await quoteSmart(a.symbol)
       const rate = cnyRateFor(a.symbol, rates)
-      return { symbol: a.symbol, name: a.name, price: q.price * rate, changePct: q.changePct }
+      return {
+        symbol: a.symbol,
+        name: a.name,
+        price: q.price * rate,
+        prevClose: q.prevClose * rate,
+        changePct: q.changePct,
+      }
     }),
   )
+
+  const mergedPositions = mergePositionsByAsset(state.valued).filter((v) => Math.abs(v.quantity) > 1e-9)
+  const quoteBySymbol = new Map(quotes.map((q) => [q.symbol, q]))
+  const staticValueCny = mergedPositions
+    .filter((v) => v.asset.manual || v.asset.cls === 'CASH' || v.asset.cls === 'REAL_ESTATE')
+    .reduce((sum, v) => sum + v.value, 0)
+  const marketItems = mergedPositions
+    .filter((v) => !v.asset.manual && v.asset.cls !== 'CASH' && v.asset.cls !== 'REAL_ESTATE')
+    .map((v) => {
+      const quote = quoteBySymbol.get(v.asset.symbol)
+      return {
+        currentValueCny: quote ? v.quantity * quote.price : v.value,
+        previousValueCny: quote ? v.quantity * quote.prevClose : null,
+      }
+    })
+  const marketDay = summarizeDailyPortfolio(marketItems, staticValueCny)
 
   return {
     ctx,
     familyName: family?.name ?? '家庭空间',
     state,
     series,
-    deltaToday: prev != null ? state.netWorth - prev : null,
+    marketDayPnl: marketDay.pnlCny,
+    marketDayPnlPct: marketDay.pnlPct,
     delta30d: ago30 != null ? state.netWorth - ago30 : null,
     attribution,
     goals,

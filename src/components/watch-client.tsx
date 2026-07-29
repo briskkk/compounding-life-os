@@ -3,6 +3,7 @@
 // 看盘客户端：30s 轮询分时数据与报价，合成当日组合收益曲线 + 实时估值表
 import { useEffect, useMemo, useState } from 'react'
 import { buildPortfolioCurve, type CurveHolding } from '@/lib/engine/intraday'
+import { summarizeDailyPortfolio } from '@/lib/engine/daily-pnl'
 import type { IntradaySeries } from '@/lib/market/intraday'
 import { Panel, Tag } from './ui'
 import { IntradayChart } from './charts'
@@ -126,10 +127,15 @@ export function WatchClient({
   }))
 
   const lastPoint = curve.length > 0 ? curve[curve.length - 1] : null
-  const rowTotalValue = rows.reduce((sum, row) => sum + row.valueCny, staticValueCny)
-  const rowTotalPnl = rows.reduce((sum, row) => sum + (row.dayPnlCny ?? 0), 0)
-  const totalValue = lastPoint?.value ?? rowTotalValue
-  const totalPnl = lastPoint?.pnl ?? rowTotalPnl
+  const rowSummary = summarizeDailyPortfolio(
+    rows.map((row) => ({
+      currentValueCny: row.valueCny,
+      previousValueCny: row.dayPnlCny == null ? null : row.valueCny - row.dayPnlCny,
+    })),
+    staticValueCny,
+  )
+  const totalValue = lastPoint?.value ?? rowSummary.valueCny
+  const totalPnl = lastPoint?.pnl ?? rowSummary.pnlCny
   const baseline = totalValue - totalPnl
   // 金额和百分比共用同一基线，避免顶部卡片内部出现两套口径。
   const dayPct = baseline > 0 ? totalPnl / baseline : null

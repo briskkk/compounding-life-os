@@ -25,8 +25,6 @@ export default async function TerminalPage() {
     .filter(([, v]) => v > 0)
     .map(([cls, v]) => ({ name: ASSET_CLASS_LABEL[cls], value: Math.round(v), color: CLASS_COLORS[cls] }))
 
-  const prevNw = d.series.length > 1 ? d.series[d.series.length - 2].netWorth : null
-
   return (
     <div className="space-y-3">
       {/* 双口径指标行 */}
@@ -35,7 +33,7 @@ export default async function TerminalPage() {
           label="净资产"
           en="NET WORTH"
           value={fmtCNY(d.state.netWorth)}
-          sub={<Delta value={d.deltaToday} pct={d.deltaToday != null && prevNw ? d.deltaToday / prevNw : null} prefix="今日 " />}
+          sub={<Delta value={d.marketDayPnl} pct={d.marketDayPnlPct} prefix="行情今日 " />}
           hint={`总资产 ${fmtCNY(m.netWorth)} − 负债 ${fmtCNY(d.state.liabilitiesTotal)} · 负债率 ${fmtPct(m.netWorth > 0 ? d.state.liabilitiesTotal / m.netWorth : 0)}`}
         />
         <Stat
