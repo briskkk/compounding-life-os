@@ -155,6 +155,7 @@ export default async function TransactionsPage({
       <div className="space-y-3">
         <Panel title="录入流水" en="NEW ENTRY">
           <TxForm
+            initialAccountId={sp.account}
             accounts={accounts.map((a) => ({
               id: a.id,
               name: a.name,

@@ -21,11 +21,13 @@ export function TxForm({
   assets,
   initialAccountId,
   initialAssetId,
+  lockAccount = false,
 }: {
   accounts: { id: string; name: string; currency: string; settlementAccountId: string | null; settlementAccountName: string | null }[]
   assets: { id: string; symbol: string; name: string; cls: string; currency: string }[]
   initialAccountId?: string
   initialAssetId?: string
+  lockAccount?: boolean
 }) {
   const router = useRouter()
   const requestedAsset = assets.find((asset) => asset.id === initialAssetId)
@@ -100,7 +102,7 @@ export function TxForm({
         </Field>
         <Field label="类型">
           <select className={inputCls} value={type} onChange={(e) => setType(e.target.value as TxType)}>
-            {Object.entries(TX_TYPE_LABEL).map(([k, v]) => (
+            {Object.entries(TX_TYPE_LABEL).filter(([key]) => key !== 'REVERSAL').map(([k, v]) => (
               <option key={k} value={k}>
                 {v}
               </option>
@@ -109,29 +111,36 @@ export function TxForm({
         </Field>
       </div>
       <Field label="账户">
-        <select
-          name="accountId"
-          required
-          className={inputCls}
-          value={accountId}
-          onChange={(e) => {
-            const nextId = e.target.value
-            const nextAccount = accounts.find((account) => account.id === nextId)
-            setAccountId(nextId)
-            setSettle(Boolean(nextAccount?.settlementAccountName))
-            if (selectedAsset?.currency !== nextAccount?.currency) {
-              const nextAsset = assets.find((asset) => asset.currency === nextAccount?.currency && asset.cls !== 'CASH')
-                ?? assets.find((asset) => asset.currency === nextAccount?.currency)
-              setAssetId(nextAsset?.id ?? '')
-            }
-          }}
-        >
-          {accounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
+        {lockAccount ? (
+          <div className={`${inputCls} flex items-center justify-between`}>
+            <span>{selectedAccount?.name ?? '—'}</span>
+            <span className="text-[10px] text-ink-faint">当前账户</span>
+          </div>
+        ) : (
+          <select
+            name="accountId"
+            required
+            className={inputCls}
+            value={accountId}
+            onChange={(e) => {
+              const nextId = e.target.value
+              const nextAccount = accounts.find((account) => account.id === nextId)
+              setAccountId(nextId)
+              setSettle(Boolean(nextAccount?.settlementAccountName))
+              if (selectedAsset?.currency !== nextAccount?.currency) {
+                const nextAsset = assets.find((asset) => asset.currency === nextAccount?.currency && asset.cls !== 'CASH')
+                  ?? assets.find((asset) => asset.currency === nextAccount?.currency)
+                setAssetId(nextAsset?.id ?? '')
+              }
+            }}
+          >
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        )}
       </Field>
       {/* 资产选择器不使用 <label> 包裹（label 的激活行为会把第二次点击派发到浮层按钮，导致下拉闪开闪关） */}
       <div>

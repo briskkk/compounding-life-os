@@ -23,6 +23,7 @@ import {
 } from './schemas'
 import { parseCsvRows, type CsvLookup, type ParsedTx } from './csv'
 import { buildSettlementLegs } from './engine/settlement'
+import { createsSettlementCycle } from './engine/settlement-account'
 import { foldTransactions, type LedgerTx } from './engine/ledger'
 import { parseTags, serializeTags } from './engine/groups'
 import { persistFundHistory, persistHistory } from './market/persist'
@@ -405,6 +406,13 @@ export async function updateAccountSettlement(
         const target = await txDb.account.findFirst({ where: { id: settlementAccountId, familyId: ctx.familyId } })
         if (!target) throw new Error('资金账户不存在或不属于当前家庭')
         if (target.currency !== account.currency) throw new Error('资金账户必须与交易账户币种一致')
+        const familyAccounts = await txDb.account.findMany({
+          where: { familyId: ctx.familyId },
+          select: { id: true, settlementAccountId: true },
+        })
+        if (createsSettlementCycle(accountId, settlementAccountId, familyAccounts)) {
+          throw new Error('资金结算关系不能形成循环')
+        }
         settlementName = target.name
       }
 
@@ -460,6 +468,7 @@ export async function updateAccountSettlement(
       return movedCount
     })
     revalidatePath('/accounts')
+    revalidatePath(`/accounts/${accountId}`)
     revalidatePath('/transactions')
     revalidatePath('/positions')
     revalidatePath('/')
