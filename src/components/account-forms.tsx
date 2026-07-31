@@ -104,7 +104,7 @@ export function SettlementAccountForm({
 
   return (
     <form onSubmit={onSubmit} className="mt-3 border-t border-line pt-3">
-      <label className="block text-[10px] text-ink-faint">资金结算账户</label>
+      <label className="block text-[12px] text-ink-faint">资金结算账户</label>
       <div className="mt-1.5 flex gap-2">
         <select
           value={selectedId}
@@ -121,7 +121,7 @@ export function SettlementAccountForm({
         <button
           type="submit"
           disabled={pending || selectedId === (currentId ?? '')}
-          className="shrink-0 rounded border border-line bg-panel2 px-3 text-[11px] text-ink-dim hover:text-ink disabled:opacity-40"
+          className="shrink-0 rounded border border-line bg-panel2 px-3 text-[13px] text-ink-dim hover:text-ink disabled:opacity-40"
         >
           {pending ? '保存中…' : '保存'}
         </button>
@@ -224,9 +224,9 @@ export function AssetForm() {
       <Field label="名称">
         <input name="name" required className={inputCls} placeholder="输入代码后自动识别" value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
-      {lookupState === 'loading' && <p className="text-[11px] text-ink-faint">识别中…</p>}
-      {lookupState === 'found' && <p className="text-[11px] text-down">✓ 已自动识别名称、类别与币种</p>}
-      {lookupState === 'notfound' && <p className="text-[11px] text-amber">未识别，请手动填写名称</p>}
+      {lookupState === 'loading' && <p className="text-[13px] text-ink-faint">识别中…</p>}
+      {lookupState === 'found' && <p className="text-[13px] text-down">✓ 已自动识别名称、类别与币种</p>}
+      {lookupState === 'notfound' && <p className="text-[13px] text-amber">未识别，请手动填写名称</p>}
       <Field label="币种">
         <select name="currency" className={inputCls} value={currency} onChange={(e) => setCurrency(e.target.value)}>
           {Object.entries(CURRENCY_LABEL).map(([k, v]) => (

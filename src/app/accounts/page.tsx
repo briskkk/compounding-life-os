@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session'
 import { loadEngineState, type EngineState } from '@/lib/queries'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
-import { Empty, Panel, SetupScreen, Stat, Tag } from '@/components/ui'
+import { Empty, PageHeader, Panel, SetupScreen, Stat, Tag } from '@/components/ui'
 import { AccountForm, AssetForm } from '@/components/account-forms'
 import { LiabilityEntryForm, LiabilityForm } from '@/components/liability-forms'
 import { ACCOUNT_TYPE_LABEL, ASSET_CLASS_LABEL, LIABILITY_TYPE_LABEL } from '@/lib/labels'
@@ -108,42 +108,40 @@ export default async function AccountsPage({
   ]
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-[10px] tracking-[0.24em] text-gold">CUSTODY &amp; CASH ROUTING</div>
-          <h1 className="mt-1 text-xl font-medium text-ink">账户中心</h1>
-          <p className="mt-1 text-xs text-ink-faint">按托管账户查看未合并持仓、收益及共享资金结算关系。</p>
-        </div>
-        <div className="text-right text-[10px] leading-relaxed text-ink-faint">
-          <div>账户余额由交易流水重放推导</div>
-          <div>共享结算现金只在资金账户计入一次</div>
-        </div>
-      </div>
+    <div className="page-shell">
+      <PageHeader
+        kicker="Custody & cash routing"
+        title="账户中心"
+        description="跨账户的资产汇总，所有数字均从交易流水与最新估值推导。"
+        right={(
+          <div className="flex items-end gap-5">
+            <div><div className="text-[14px] text-ink-faint">账户总资产</div><div className="num mt-2 text-[34px] text-ink">{fmtCNY(totalAssets)}</div></div>
+            {canWrite && <a href="#new-account" className="inline-flex min-h-11 items-center rounded-lg bg-gold px-5 text-[14px] font-medium text-bg">＋ 新建账户</a>}
+          </div>
+        )}
+      />
 
-      <nav className="flex flex-wrap gap-2 border-b border-line pb-3" aria-label="账户中心视图">
+      <nav className="flex flex-wrap gap-8 border-b border-line" aria-label="账户中心视图">
         {tabs.map((tab) => (
           <Link
             key={tab.view}
             href={tab.view === 'overview' ? '/accounts' : `/accounts?view=${tab.view}`}
             className={cx(
-              'flex items-center gap-2 rounded border px-3 py-2 text-xs transition-colors',
+              'flex items-center gap-2 border-b-2 px-0.5 py-3 text-[15px] transition-colors',
               activeView === tab.view
-                ? 'border-gold/40 bg-gold/10 text-gold'
-                : 'border-line bg-panel text-ink-dim hover:border-ink-faint hover:text-ink',
+                ? 'border-gold text-gold'
+                : 'border-transparent text-ink-dim hover:text-ink',
             )}
           >
             <span>{tab.label}</span>
-            <span className="text-[9px] tracking-wider opacity-60">{tab.en}</span>
-            <span className="num rounded bg-panel2 px-1.5 py-0.5 text-[9px]">{tab.count}</span>
+            <span className="num text-[12px] opacity-60">{tab.count}</span>
           </Link>
         ))}
       </nav>
 
       {activeView === 'overview' && (
         <>
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <Stat label="账户总资产" en="GROSS ASSETS" value={<span className="text-ink">{fmtCNY(totalAssets)}</span>} hint="不扣除负债" />
+          <div className="metric-band">
             <Stat label="今日盈亏" en="DAY P&L" value={<DeltaAmount value={totalDayPnl} />} hint="仅汇总有昨收行情的资产" />
             <Stat label="现金余额" en="CASH" value={<span className="text-gold">{fmtCNY(totalCash)}</span>} sub={<span className="text-ink-dim">占资产 {fmtPct(totalAssets > 0 ? totalCash / totalAssets : null)}</span>} />
             <Stat
@@ -160,15 +158,15 @@ export default async function AccountsPage({
               title="账户资产分布"
               en="ACCOUNT HOLDINGS"
               bodyClassName="p-0"
-              right={<span className="text-[10px] text-ink-faint">点击账户查看明细</span>}
+              right={<span className="text-[12px] text-ink-faint">点击账户查看明细</span>}
             >
               {accounts.length === 0 ? (
                 <Empty>暂无账户</Empty>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-[12px] whitespace-nowrap">
+                <div className="table-scroll">
+                  <table className="w-full text-[14px] whitespace-nowrap">
                     <thead>
-                      <tr className="border-b border-line text-left text-[10px] tracking-wider text-ink-faint">
+                      <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
                         <th className="px-4 py-2.5 font-normal">账户</th>
                         <th className="px-2 py-2.5 font-normal">角色</th>
                         <th className="px-2 py-2.5 text-right font-normal">持仓</th>
@@ -190,20 +188,20 @@ export default async function AccountsPage({
                           <tr key={account.id} className="transition-colors hover:bg-panel2/50">
                             <td className="px-4 py-3">
                               <Link href={`/accounts/${account.id}`} className="font-medium text-ink hover:text-gold">{account.name}</Link>
-                              <div className="mt-0.5 text-[10px] text-ink-faint">
+                              <div className="mt-0.5 text-[12px] text-ink-faint">
                                 {account.institution ?? '未登记机构'} · {account.currency}
                                 {latestActivityByAccount.get(account.id) && ` · 更新于 ${fmtDate(latestActivityByAccount.get(account.id)!)}`}
                               </div>
                             </td>
                             <td className="px-2 py-3">
                               <Tag tone={role === '投资账户' ? 'info' : role === '综合账户' ? 'gold' : 'dim'}>{role}</Tag>
-                              <div className="mt-1 text-[10px] text-ink-faint">{ACCOUNT_TYPE_LABEL[account.type]}</div>
+                              <div className="mt-1 text-[12px] text-ink-faint">{ACCOUNT_TYPE_LABEL[account.type]}</div>
                             </td>
                             <td className="num px-2 py-3 text-right text-ink-dim">{summary.holdingCount} 项</td>
                             <td className="num px-2 py-3 text-right text-ink">
                               {fmtCNY(summary.valueCny)}
                               {account.currency !== 'CNY' && original != null && (
-                                <div className="text-[10px] text-ink-faint">≈ {fmtMoney(original, account.currency)}</div>
+                                <div className="text-[12px] text-ink-faint">≈ {fmtMoney(original, account.currency)}</div>
                               )}
                             </td>
                             <td className="px-2 py-3 text-right"><DeltaAmount value={summary.dayPnlCny} /></td>
@@ -232,19 +230,20 @@ export default async function AccountsPage({
                   {accounts.filter((account) => account.type === 'BROKERAGE' || account.type === 'FUND').map((account) => (
                     <Link key={account.id} href={`/accounts/${account.id}`} className="flex items-center justify-between gap-3 rounded border border-line bg-panel2 px-3 py-2 transition-colors hover:border-ink-faint">
                       <span className="truncate text-xs text-ink-dim">{account.name}</span>
-                      <span className={cx('shrink-0 text-[10px]', account.settlementAccount ? 'text-ink-faint' : 'text-amber')}>
+                      <span className={cx('shrink-0 text-[12px]', account.settlementAccount ? 'text-ink-faint' : 'text-amber')}>
                         {account.settlementAccount?.name ?? '待配置'} →
                       </span>
                     </Link>
                   ))}
                 </div>
-                <p className="mt-3 text-[10px] leading-relaxed text-ink-faint">关联现金是共享引用，只计入资金账户，不在各投资账户重复形成余额。</p>
+                <p className="mt-3 text-[12px] leading-relaxed text-ink-faint">关联现金是共享引用，只计入资金账户，不在各投资账户重复形成余额。</p>
               </Panel>
 
               {canWrite && (
-                <Panel title="新建账户" en="ADD ACCOUNT">
+                <Panel title="新建账户" en="ADD ACCOUNT" className="scroll-mt-6" >
+                  <div id="new-account" />
                   <AccountForm />
-                  <p className="mt-4 border-t border-line pt-3 text-[11px] leading-relaxed text-ink-faint">创建后进入账户详情配置同币种资金结算账户。</p>
+                  <p className="mt-4 border-t border-line pt-3 text-[13px] leading-relaxed text-ink-faint">创建后进入账户详情配置同币种资金结算账户。</p>
                 </Panel>
               )}
             </div>
@@ -254,11 +253,11 @@ export default async function AccountsPage({
 
       {activeView === 'assets' && (
         <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-3">
-          <Panel title="资产目录" en="ASSET UNIVERSE" className="xl:col-span-2" bodyClassName="p-0" right={<span className="num text-[10px] text-ink-faint">{assets.length} 项</span>}>
+          <Panel title="资产目录" en="ASSET UNIVERSE" className="xl:col-span-2" bodyClassName="p-0" right={<span className="num text-[12px] text-ink-faint">{assets.length} 项</span>}>
             <div className="overflow-x-auto">
-              <table className="w-full text-[12px] whitespace-nowrap">
+              <table className="w-full text-[14px] whitespace-nowrap">
                 <thead>
-                  <tr className="border-b border-line text-left text-[10px] tracking-wider text-ink-faint">
+                  <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
                     <th className="px-4 py-2.5 font-normal">代码</th>
                     <th className="px-2 py-2.5 font-normal">名称</th>
                     <th className="px-2 py-2.5 font-normal">类别</th>
@@ -302,7 +301,7 @@ export default async function AccountsPage({
           {canWrite && (
             <Panel title="登记资产" en="ADD ASSET">
               <AssetForm />
-              <p className="mt-4 border-t border-line pt-3 text-[11px] leading-relaxed text-ink-faint">资产是全局标的目录；实际归属账户由交易流水决定。</p>
+              <p className="mt-4 border-t border-line pt-3 text-[13px] leading-relaxed text-ink-faint">资产是全局标的目录；实际归属账户由交易流水决定。</p>
             </Panel>
           )}
         </div>
@@ -326,7 +325,7 @@ export default async function AccountsPage({
                         <div className="text-sm text-ink">{liability.name}</div>
                         <div className="mt-1 flex items-center gap-2">
                           <Tag tone="amber">{LIABILITY_TYPE_LABEL[liability.type]}</Tag>
-                          <span className="text-[10px] text-ink-faint">{liability.rate != null ? `年利率 ${(liability.rate * 100).toFixed(2)}%` : '利率未登记'}</span>
+                          <span className="text-[12px] text-ink-faint">{liability.rate != null ? `年利率 ${(liability.rate * 100).toFixed(2)}%` : '利率未登记'}</span>
                         </div>
                       </div>
                       <div className="num text-lg text-up">−{fmtCNY(liability.balance)}</div>

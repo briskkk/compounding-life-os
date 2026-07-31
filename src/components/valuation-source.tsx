@@ -55,7 +55,7 @@ export function ValuationSourceSummary({ items, className }: { items: ValuationS
   const total = groups.observed.value + groups.estimated.value + groups.fallback.value
 
   return (
-    <div className={cx('flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-line bg-panel px-3.5 py-2.5 text-[11px]', className)}>
+    <div className={cx('source-summary flex flex-wrap items-center gap-x-7 gap-y-3 px-5 py-4 text-[15px]', className)}>
       <span className="font-medium text-ink-dim">当前估值口径</span>
       <span className="text-ink-faint">
         <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-down" />
@@ -63,7 +63,7 @@ export function ValuationSourceSummary({ items, className }: { items: ValuationS
       </span>
       <span className="text-ink-faint">
         <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-violet" />
-        估算/手工 <span className="num text-ink">{groups.estimated.count} 项 · {fmtCNY(groups.estimated.value)}</span>
+        手动估值 <span className="num text-ink">{groups.estimated.count} 项 · {fmtCNY(groups.estimated.value)}</span>
       </span>
       <span className={groups.fallback.count > 0 ? 'text-amber' : 'text-ink-faint'}>
         <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber" />
@@ -80,7 +80,7 @@ export function ValuationSourceSummary({ items, className }: { items: ValuationS
 
 export function ValuationLegend({ className }: { className?: string }) {
   return (
-    <div className={cx('flex flex-wrap items-center gap-2 text-[10px] text-ink-faint', className)}>
+    <div className={cx('flex flex-wrap items-center gap-2 text-[12px] text-ink-faint', className)}>
       <span>来源说明：</span>
       <MarketSourceTag source="TENCENT" />
       <MarketSourceTag source="EASTMONEY-FUND" />

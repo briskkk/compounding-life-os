@@ -98,14 +98,14 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
       </div>
 
       <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-3">
-        <Panel title="账户持仓" en="ACCOUNT POSITIONS" className="xl:col-span-2" bodyClassName="p-0" right={<span className="num text-[10px] text-ink-faint">{summary.holdingCount} 项</span>}>
+        <Panel title="账户持仓" en="ACCOUNT POSITIONS" className="xl:col-span-2" bodyClassName="p-0" right={<span className="num text-[12px] text-ink-faint">{summary.holdingCount} 项</span>}>
           {positions.length === 0 ? (
             <Empty>当前账户暂无持仓</Empty>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-[12px] whitespace-nowrap">
+              <table className="w-full text-[14px] whitespace-nowrap">
                 <thead>
-                  <tr className="border-b border-line text-left text-[10px] tracking-wider text-ink-faint">
+                  <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
                     <th className="px-4 py-2.5 font-normal">资产</th>
                     <th className="px-2 py-2.5 text-right font-normal">数量</th>
                     <th className="px-2 py-2.5 text-right font-normal">现价 / 来源</th>
@@ -124,7 +124,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
                         <td className="px-4 py-3">
                           <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: CLASS_COLORS[position.asset.cls] }} />
                           <Link href={`/positions/${position.assetId}`} className="text-ink hover:text-gold">{position.asset.name}</Link>
-                          <div className="num ml-3.5 mt-0.5 text-[10px] text-ink-faint">{position.asset.symbol} · {ASSET_CLASS_LABEL[position.asset.cls]}</div>
+                          <div className="num ml-3.5 mt-0.5 text-[12px] text-ink-faint">{position.asset.symbol} · {ASSET_CLASS_LABEL[position.asset.cls]}</div>
                         </td>
                         <td className="num px-2 py-3 text-right text-ink-dim">{fmtQty(position.quantity)}</td>
                         <td className="px-2 py-3 text-right">
@@ -155,12 +155,12 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
         <div className="space-y-3">
           <Panel title="资金结算" en="CASH ROUTING">
             <div className="rounded border border-line bg-panel2 px-3 py-2.5">
-              <div className="text-[10px] text-ink-faint">当前关系</div>
+              <div className="text-[12px] text-ink-faint">当前关系</div>
               <div className="mt-1.5 text-sm text-ink">
                 {account.name} <span className="mx-1 text-ink-faint">→</span> {account.settlementAccount?.name ?? '不自动联动现金'}
               </div>
               {account.settlementAccountId && account.settlementAccountId !== account.id && (
-                <p className="mt-2 text-[10px] leading-relaxed text-ink-faint">共享资金余额 {fmtCNY(sharedCashCny)}，仅计入 {account.settlementAccount?.name}，不重复计入本账户。</p>
+                <p className="mt-2 text-[12px] leading-relaxed text-ink-faint">共享资金余额 {fmtCNY(sharedCashCny)}，仅计入 {account.settlementAccount?.name}，不重复计入本账户。</p>
               )}
             </div>
             {canWrite && (
@@ -201,15 +201,15 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
         title="最近流水"
         en="RECENT LEDGER"
         bodyClassName="p-0"
-        right={<Link href={`/transactions?account=${account.id}`} className="text-[10px] text-ink-faint hover:text-gold">查看全部 →</Link>}
+        right={<Link href={`/transactions?account=${account.id}`} className="text-[12px] text-ink-faint hover:text-gold">查看全部 →</Link>}
       >
         {recentTransactions.length === 0 ? (
           <Empty>当前账户暂无流水</Empty>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-[12px] whitespace-nowrap">
+            <table className="w-full text-[14px] whitespace-nowrap">
               <thead>
-                <tr className="border-b border-line text-left text-[10px] tracking-wider text-ink-faint">
+                <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
                   <th className="px-4 py-2.5 font-normal">日期</th>
                   <th className="px-2 py-2.5 font-normal">类型</th>
                   <th className="px-2 py-2.5 font-normal">资产</th>
@@ -222,11 +222,11 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
                 {recentTransactions.map((transaction) => (
                   <tr key={transaction.id} className={cx(transaction.voidedAt && 'opacity-40')}>
                     <td className="num px-4 py-2.5 text-ink-dim">{fmtDate(transaction.occurredAt)}</td>
-                    <td className="px-2 py-2.5"><Tag tone="dim">{TX_TYPE_LABEL[transaction.type]}</Tag>{transaction.internal && <span className="ml-1 text-[9px] text-ink-faint">结算</span>}</td>
+                    <td className="px-2 py-2.5"><Tag tone="dim">{TX_TYPE_LABEL[transaction.type]}</Tag>{transaction.internal && <span className="ml-1 text-[11px] text-ink-faint">结算</span>}</td>
                     <td className="px-2 py-2.5"><Link href={`/positions/${transaction.assetId}`} className="text-ink hover:text-gold">{transaction.asset.name}</Link></td>
                     <td className="num px-2 py-2.5 text-right text-ink-dim">{transaction.quantity != null ? fmtQty(Number(transaction.quantity)) : '—'}</td>
                     <td className="num px-2 py-2.5 text-right text-ink">{fmtMoney(Number(transaction.amount), transaction.asset.currency)}</td>
-                    <td className="max-w-[260px] truncate px-4 py-2.5 text-right text-[10px] text-ink-faint">{transaction.voidedAt ? '已冲正' : transaction.note ?? ''}</td>
+                    <td className="max-w-[260px] truncate px-4 py-2.5 text-right text-[12px] text-ink-faint">{transaction.voidedAt ? '已冲正' : transaction.note ?? ''}</td>
                   </tr>
                 ))}
               </tbody>

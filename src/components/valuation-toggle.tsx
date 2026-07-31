@@ -19,12 +19,12 @@ export function ValuationToggle({
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={cx(
-          'flex w-full items-center justify-between px-4 py-2 text-left text-[12px] transition-colors',
+          'flex w-full items-center justify-between px-4 py-2 text-left text-[14px] transition-colors',
           open ? 'border-b border-line text-gold' : 'text-ink-faint hover:text-ink-dim',
         )}
       >
         <span>手动估值（房产等非行情资产）</span>
-        <span className="num text-[10px]">{open ? '▲ 收起' : '▼ 展开'}</span>
+        <span className="num text-[12px]">{open ? '▲ 收起' : '▼ 展开'}</span>
       </button>
       {open && (
         <div className="border-b border-line bg-panel2/40 px-4 py-3.5">

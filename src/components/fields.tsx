@@ -3,18 +3,18 @@ import type { ReactNode } from 'react'
 import { cx } from '@/lib/format'
 
 export const inputCls =
-  'w-full rounded border border-line bg-panel2 px-2.5 py-1.5 text-[13px] text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-gold/50'
+  'min-h-11 w-full rounded-lg border border-line bg-panel2 px-3 py-2 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-gold'
 
 export const btnCls =
-  'inline-flex items-center justify-center gap-1.5 rounded border border-gold/40 bg-gold/10 px-3.5 py-1.5 text-[13px] text-gold transition-colors hover:bg-gold/20 disabled:cursor-not-allowed disabled:opacity-40'
+  'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-gold bg-gold px-4 py-2 text-[14px] font-medium text-bg transition-colors hover:bg-gold/90 disabled:cursor-not-allowed disabled:opacity-40'
 
 export const btnGhostCls =
-  'inline-flex items-center justify-center gap-1.5 rounded border border-line bg-panel2 px-3 py-1.5 text-[13px] text-ink-dim transition-colors hover:border-ink-faint hover:text-ink disabled:opacity-40'
+  'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-line bg-transparent px-4 py-2 text-[14px] text-ink-dim transition-colors hover:border-ink-faint hover:text-ink disabled:opacity-40'
 
 export function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
     <label className={cx('block', className)}>
-      <span className="mb-1 block text-[11px] text-ink-faint">{label}</span>
+      <span className="mb-1 block text-[13px] text-ink-faint">{label}</span>
       {children}
     </label>
   )

@@ -74,7 +74,7 @@ export function ValuationForm({
       <button type="submit" disabled={pending || !selected?.accountId} className={btnCls}>
         {pending ? '写入中…' : '提交估值'}
       </button>
-      {!selected?.accountId && <p className="text-[11px] text-ink-faint">该资产尚无持仓记录，先在流水页录入一笔买入。</p>}
+      {!selected?.accountId && <p className="text-[13px] text-ink-faint">该资产尚无持仓记录，先在流水页录入一笔买入。</p>}
     </form>
   )
 }

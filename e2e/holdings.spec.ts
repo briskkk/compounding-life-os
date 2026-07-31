@@ -24,6 +24,9 @@ test('看盘页：资产排序、详情跳转与当前资产流水录入', async
 
   await expect(page).toHaveURL(/\/positions\//)
   if (assetName) await expect(page.getByRole('heading', { level: 1 })).toHaveText(assetName)
-  await expect(page.getByRole('heading', { name: '录入当前资产流水' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '持仓概览' })).toBeVisible()
+  await expect(page.getByLabel('账户持仓明细')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '录入一笔新流水' })).toBeVisible()
   await expect(page.getByRole('button', { name: '写入账本' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '简介', exact: true })).toBeVisible()
 })

@@ -1,19 +1,19 @@
 // 终端配色常量（图表等 JS 场景使用；CSS 侧见 globals.css @theme）
 export const C = {
-  bg: '#0B0E13',
-  panel: '#10141C',
-  panel2: '#151B26',
-  line: '#1D2634',
-  ink: '#E7EAF2',
-  inkDim: '#9AA4B8',
-  inkFaint: '#5D6676',
-  gold: '#C8A24A',
-  up: '#E5534B',
-  down: '#3FB68B',
-  info: '#5B8DEF',
-  violet: '#8B7CF6',
-  teal: '#2DD4BF',
-  amber: '#E8B558',
+  bg: '#151719',
+  panel: '#1A1D1F',
+  panel2: '#202428',
+  line: '#30363B',
+  ink: '#F3F5F7',
+  inkDim: '#A9AFB5',
+  inkFaint: '#727A82',
+  gold: '#79BFFF',
+  up: '#FF7A3D',
+  down: '#43C692',
+  info: '#79BFFF',
+  violet: '#A995F5',
+  teal: '#57C8BE',
+  amber: '#E4B45F',
 } as const
 
 export const CLASS_COLORS: Record<string, string> = {

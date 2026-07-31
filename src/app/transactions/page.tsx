@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
-import { Empty, Panel, SetupScreen, Tag } from '@/components/ui'
+import { Empty, PageHeader, Panel, SetupScreen, Tag } from '@/components/ui'
 import { TxForm } from '@/components/tx-form'
 import { CsvImport } from '@/components/csv-import'
 import { ReverseButton } from '@/components/reverse-button'
@@ -49,14 +49,25 @@ export default async function TransactionsPage({
   })
 
   return (
-    <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+    <div className="page-shell">
+      <PageHeader
+        kicker="Ledger"
+        title="每一笔变化，都有出处。"
+        description="交易流水是组合的唯一事实源；筛选、导出、录入、批量导入与冲正能力全部保留。"
+        right={(
+          <div className="flex items-center gap-5">
+            <div><div className="text-[14px] text-ink-faint">交易笔数</div><div className="num mt-2 text-[28px] text-ink">{txs.length}</div></div>
+            {canWrite && <a href="#new-entry" className="inline-flex min-h-11 items-center rounded-lg bg-gold px-5 text-[14px] font-medium text-bg">新增流水</a>}
+          </div>
+        )}
+      />
+
       {/* 流水表 */}
       <Panel
         title="交易流水"
         en="LEDGER · SOURCE OF TRUTH"
-        className="xl:col-span-2"
         bodyClassName="p-0"
-        right={<span className="num text-[10px] text-ink-faint">最近 {txs.length} 条</span>}
+        right={<span className="num text-[12px] text-ink-faint">最近 {txs.length} 条</span>}
       >
         {/* 筛选 */}
         <form className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3" method="GET">
@@ -92,9 +103,10 @@ export default async function TransactionsPage({
         {txs.length === 0 ? (
           <Empty>无匹配流水</Empty>
         ) : (
-          <table className="w-full text-[12px] whitespace-nowrap">
+          <div className="table-scroll">
+          <table className="w-full text-[14px] whitespace-nowrap">
             <thead>
-              <tr className="border-b border-line text-left text-[10px] tracking-wider text-ink-faint">
+              <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
                 <th className="px-4 py-2.5 font-normal">日期</th>
                 <th className="px-2 py-2.5 font-normal">类型</th>
                 <th className="px-2 py-2.5 font-normal">资产</th>
@@ -112,11 +124,11 @@ export default async function TransactionsPage({
                   <td className="num px-4 py-2 text-ink-dim">{fmtDate(t.occurredAt)}</td>
                   <td className="px-2 py-2">
                     <Tag tone={TONE_BY_TYPE[t.type] ?? 'dim'}>{TX_TYPE_LABEL[t.type]}</Tag>
-                    {t.internal && <span className="ml-1 text-[9px] text-ink-faint">结算</span>}
+                    {t.internal && <span className="ml-1 text-[11px] text-ink-faint">结算</span>}
                   </td>
                   <td className="max-w-[180px] truncate px-2 py-2 text-ink">
                     {t.asset.name}
-                    <span className="num ml-1 text-[10px] text-ink-faint">{t.asset.symbol}</span>
+                    <span className="num ml-1 text-[12px] text-ink-faint">{t.asset.symbol}</span>
                   </td>
                   <td className="px-2 py-2 text-ink-dim">{t.account.name}</td>
                   <td className="num px-2 py-2 text-right text-ink-dim">{t.quantity != null ? fmtQty(Number(t.quantity)) : '—'}</td>
@@ -133,10 +145,10 @@ export default async function TransactionsPage({
                   >
                     {fmtMoney(Number(t.amount), t.asset.currency)}
                   </td>
-                  <td className="max-w-[120px] truncate px-2 py-2 text-right text-[11px] text-ink-faint">{t.note ?? ''}</td>
+                  <td className="max-w-[120px] truncate px-2 py-2 text-right text-[13px] text-ink-faint">{t.note ?? ''}</td>
                   <td className="px-4 py-2 text-right">
                     {t.voidedAt ? (
-                      <span className="text-[10px] text-ink-faint">已冲正</span>
+                      <span className="text-[12px] text-ink-faint">已冲正</span>
                     ) : (
                       canWrite &&
                       t.type !== 'REVERSAL' && (
@@ -148,11 +160,12 @@ export default async function TransactionsPage({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </Panel>
 
       {/* 录入 + 导入 */}
-      <div className="space-y-3">
+      <div id="new-entry" className="grid gap-12 xl:grid-cols-2">
         <Panel title="录入流水" en="NEW ENTRY">
           <TxForm
             initialAccountId={sp.account}

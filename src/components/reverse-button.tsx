@@ -16,7 +16,7 @@ export function ReverseButton({ id, label }: { id: string; label: string }) {
         type="button"
         title={label}
         onClick={() => setConfirming(true)}
-        className="text-[11px] text-ink-faint transition-colors hover:text-up"
+        className="text-[13px] text-ink-faint transition-colors hover:text-up"
       >
         冲正
       </button>
@@ -33,11 +33,11 @@ export function ReverseButton({ id, label }: { id: string; label: string }) {
             router.refresh()
           })
         }
-        className="text-[11px] font-medium text-up"
+        className="text-[13px] font-medium text-up"
       >
         {pending ? '处理中…' : '确认冲正'}
       </button>
-      <button type="button" onClick={() => setConfirming(false)} className="text-[11px] text-ink-faint">
+      <button type="button" onClick={() => setConfirming(false)} className="text-[13px] text-ink-faint">
         取消
       </button>
     </span>

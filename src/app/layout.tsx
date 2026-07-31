@@ -3,7 +3,6 @@ import './globals.css'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { Nav } from '@/components/nav'
-import { TickerTape } from '@/components/ticker'
 import { MemberSwitcher } from '@/components/member-switcher'
 import { RefreshPricesButton } from '@/components/refresh-prices-button'
 import { Tag } from '@/components/ui'
@@ -19,65 +18,54 @@ export const dynamic = 'force-dynamic'
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getSession()
-  const [family, members, listed] = ctx
+  const [family, members] = ctx
     ? await Promise.all([
         prisma.familySpace.findUnique({ where: { id: ctx.familyId } }),
         prisma.member.findMany({ where: { familyId: ctx.familyId }, orderBy: { createdAt: 'asc' } }),
-        prisma.asset.findMany({
-          where: { familyId: ctx.familyId, manual: false, cls: { notIn: ['CASH', 'REAL_ESTATE'] } },
-        }),
       ])
-    : [null, [], []]
+    : [null, []]
 
   const today = new Date()
-  const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const dateStr = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
   const marketChain = marketChainLabel(providerLabel())
 
   return (
     <html lang="zh-CN">
       <body>
-        <div className="flex min-h-screen">
-          {/* 侧边栏 */}
-          <aside className="flex w-[224px] shrink-0 flex-col border-r border-line bg-panel">
-            <div className="border-b border-line px-5 py-5">
-              <div className="text-lg font-semibold tracking-wide text-ink">
-                秦人集合
+        <div className="min-h-screen">
+          <a href="#main-content" className="fixed left-4 top-4 z-[100] -translate-y-24 rounded bg-gold px-4 py-2 text-sm text-bg transition-transform focus:translate-y-0">跳至主要内容</a>
+          <header className="border-b border-line">
+            <div className="app-shell grid min-h-[112px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-8 py-4 max-lg:grid-cols-[auto_1fr] max-sm:gap-x-3">
+              <div className="flex shrink-0 items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-[14px] text-ink" aria-hidden="true">△</div>
+                <div>
+                  <div className="whitespace-nowrap text-[16px] font-medium text-ink">秦人集合</div>
+                  <div className="mt-0.5 whitespace-nowrap text-[13px] text-ink-faint max-sm:hidden">Family Capital</div>
+                </div>
               </div>
-              <div className="num mt-0.5 text-[10px] tracking-[0.3em] text-gold">QIN &amp; HUA</div>
-            </div>
-            <div className="flex-1 py-4">
-              <Nav />
-            </div>
-            <div className="border-t border-line px-5 py-3 text-[10px] leading-relaxed text-ink-faint">
-              <div>事实源：交易流水</div>
-              <div className="num mt-0.5">v0.1 · DATA LOOP</div>
-            </div>
-          </aside>
 
-          {/* 主区域 */}
-          <div className="flex min-w-0 flex-1 flex-col">
-            <header className="flex h-14 shrink-0 items-center gap-4 border-b border-line bg-panel/60 px-6">
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] font-medium text-ink">{family?.name ?? '未初始化'}</span>
-                <span title={marketChain.description}>
-                  <Tag tone={marketChain.tone}>{marketChain.label}</Tag>
-                </span>
-                {ctx && ctx.role !== 'VIEWER' && <RefreshPricesButton />}
+              <div className="max-lg:order-3 max-lg:col-span-2">
+                <Nav />
               </div>
-              <TickerTape
-                symbols={listed.map((a) => a.symbol)}
-                names={Object.fromEntries(listed.map((a) => [a.symbol, a.name]))}
-              />
-              <div className="num text-xs text-ink-faint">{dateStr}</div>
-              {ctx && members.length > 0 && (
-                <MemberSwitcher
-                  members={members.map((m) => ({ id: m.id, name: m.name, role: m.role }))}
-                  currentId={ctx.memberId}
-                />
-              )}
-            </header>
-            <main className="mx-auto w-full max-w-[1500px] flex-1 p-4">{children}</main>
-          </div>
+
+              <div className="flex items-center justify-end gap-3">
+                <div className="hidden text-right xl:block">
+                  <div className="text-[14px] font-medium text-ink">{family?.name ?? '未初始化'}</div>
+                  <div className="num mt-0.5 text-[12px] tracking-[0.08em] text-ink-faint">{dateStr}</div>
+                </div>
+                <span className="hidden 2xl:inline-flex" title={marketChain.description}><Tag tone={marketChain.tone}>{marketChain.label}</Tag></span>
+                {ctx && ctx.role !== 'VIEWER' && <RefreshPricesButton />}
+                {ctx && members.length > 0 && (
+                  <MemberSwitcher
+                    members={members.map((m) => ({ id: m.id, name: m.name, role: m.role }))}
+                    currentId={ctx.memberId}
+                  />
+                )}
+              </div>
+            </div>
+          </header>
+
+          <main id="main-content" className="app-shell">{children}</main>
         </div>
       </body>
     </html>

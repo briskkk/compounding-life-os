@@ -1,249 +1,181 @@
-// 终端首页：财富轨迹 / 目标路径 / 风险敞口 / 流动性水位 / 今日行动建议
+// 总览：净资产主叙事 + 财富轨迹 + 渐进式完整分析
 import { getDashboard } from '@/lib/queries'
-import { Bar, Delta, Empty, Panel, SetupScreen, Stat, Tag } from '@/components/ui'
-import { Donut, WealthChart } from '@/components/charts'
-import { CLASS_COLORS, C } from '@/lib/colors'
-import { ASSET_CLASS_LABEL, GOAL_METRIC_LABEL, SEVERITY_LABEL } from '@/lib/labels'
+import { Bar, Empty, Panel, SetupScreen, Tag } from '@/components/ui'
+import { WealthChart } from '@/components/charts'
+import { C } from '@/lib/colors'
+import { GOAL_METRIC_LABEL, SEVERITY_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtDate, fmtPct } from '@/lib/format'
-import type { AssetClass } from '@/lib/engine/types'
 import { ValuationSourceSummary } from '@/components/valuation-source'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 
 export const dynamic = 'force-dynamic'
 
-export default async function TerminalPage() {
+export default async function OverviewPage() {
   const d = await getDashboard()
   if (!d) return <SetupScreen />
 
   const m = d.state.metrics
+  const leadInsight = d.insights[0]
+  const valuationRows = mergePositionsByAsset(d.state.valued)
   const liqTotal = m.liquidity.cash + m.liquidity.market + m.liquidity.restricted + m.liquidity.illiquid
   const liqSegs = [
     { label: '现金', value: m.liquidity.cash, color: C.teal },
     { label: '高流动性证券', value: m.liquidity.market, color: C.info },
-    { label: '受限（RSU 未归属）', value: m.liquidity.restricted, color: C.amber },
+    { label: '受限资产', value: m.liquidity.restricted, color: C.amber },
     { label: '不动产及其他', value: m.liquidity.illiquid, color: C.violet },
   ]
-  const donutData = (Object.entries(m.byClass) as [AssetClass, number][])
-    .filter(([, v]) => v > 0)
-    .map(([cls, v]) => ({ name: ASSET_CLASS_LABEL[cls], value: Math.round(v), color: CLASS_COLORS[cls] }))
-
-  const valuationRows = mergePositionsByAsset(d.state.valued)
 
   return (
-    <div className="space-y-3">
-      {/* 双口径指标行 */}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <Stat
-          label="净资产"
-          en="NET WORTH"
-          value={fmtCNY(d.state.netWorth)}
-          sub={<Delta value={d.marketDayPnl} pct={d.marketDayPnlPct} prefix="行情今日 " />}
-          hint={`总资产 ${fmtCNY(m.netWorth)} − 负债 ${fmtCNY(d.state.liabilitiesTotal)} · 负债率 ${fmtPct(m.netWorth > 0 ? d.state.liabilitiesTotal / m.netWorth : 0)}`}
-        />
-        <Stat
-          label="可自由投资资产"
-          en="INVESTABLE"
-          value={<span className="text-info">{fmtCNY(d.state.investable)}</span>}
-          sub={<span className="text-ink-dim">占净资产 {fmtPct(d.state.netWorth > 0 ? d.state.investable / d.state.netWorth : null)}</span>}
-          hint="剔除不动产与未归属受限股"
-        />
-        <Stat
-          label="投资收益"
-          en="ATTRIBUTION"
-          value={
-            <span className={d.attribution.gain >= 0 ? 'text-up' : 'text-down'}>{fmtCNY(d.attribution.gain, { sign: true })}</span>
-          }
-          sub={
-            <span className="text-ink-dim">
-              TWR 年化 <span className="num">{fmtPct(d.attribution.twrAnnualized, { sign: true })}</span>
-              <span className="mx-1.5 text-ink-faint">·</span>XIRR <span className="num">{fmtPct(d.attribution.xirr, { sign: true })}</span>
-            </span>
-          }
-          hint={`净投入 ${fmtCNY(d.attribution.contributions)} · TWR 累计 ${fmtPct(d.attribution.twrCumulative, { sign: true })}`}
-        />
-        <Stat
-          label="现金水位"
-          en="CASH RATIO"
-          value={<span className="text-teal">{fmtPct(m.cashRatio)}</span>}
-          sub={<span className="text-ink-dim">{fmtCNY(m.liquidity.cash)}</span>}
-          hint="安全线 8%"
-        />
-      </div>
+    <div className="page-shell">
+      <section className="space-y-12">
+        <div className="hero-grid overview-hero">
+          <div className="overview-narrative">
+            <div>
+              <div className="eyebrow">Net worth</div>
+              <h1 className="num hero-number mt-4">{fmtCNY(d.state.netWorth)}</h1>
+              <div className={cx('num mt-5 text-[20px]', (d.marketDayPnl ?? 0) >= 0 ? 'text-up' : 'text-down')}>
+                {(d.marketDayPnl ?? 0) >= 0 ? '↑' : '↓'} {fmtCNY(Math.abs(d.marketDayPnl ?? 0))}
+                <span className="mx-2">·</span>{fmtPct(d.marketDayPnlPct, { sign: true })} 今日
+              </div>
+            </div>
+            <div>
+              <div className="eyebrow">Today, in one sentence</div>
+              <h2 className="mt-4 max-w-xl text-[clamp(2rem,3.8vw,3.4rem)] font-medium leading-[1.18] tracking-[-0.05em] text-ink">
+                {leadInsight?.title ?? '今天没有需要特别处理的事项。'}
+              </h2>
+              <p className="mt-6 max-w-xl text-[16px] leading-8 text-ink-faint">
+                {leadInsight?.body ?? '组合保持在既定路径上，资产结构与现金水位没有触发新的提醒。'}
+              </p>
+            </div>
+          </div>
+          <div className="chart-surface">
+            <div className="mb-4 flex items-center justify-between gap-4"><div className="eyebrow">财富轨迹</div><div className="text-[14px] text-ink-faint">更新至 {fmtDate(new Date())}</div></div>
+            <WealthChart data={d.series} />
+            <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-ink-faint">
+              <span>净投入 <strong className="num font-normal text-ink">{fmtCNY(d.attribution.contributions)}</strong></span>
+              <span>投资收益 <strong className={cx('num font-normal', d.attribution.gain >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(d.attribution.gain, { sign: true })}</strong></span>
+              <span>TWR 年化 <strong className="num font-normal text-ink">{fmtPct(d.attribution.twrAnnualized, { sign: true })}</strong></span>
+              <span>XIRR <strong className="num font-normal text-ink">{fmtPct(d.attribution.xirr, { sign: true })}</strong></span>
+            </div>
+            <div className="mt-5 flex justify-end gap-3 text-[15px] text-ink-faint">
+              <span className="rounded-lg px-3 py-2">1D</span>
+              <span className="rounded-lg px-3 py-2">1M</span>
+              <span className="rounded-lg bg-gold px-3 py-2 text-bg">1Y</span>
+              <span className="rounded-lg px-3 py-2">ALL</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="metric-band" aria-label="关键财富摘要">
+          <div>
+            <div className="text-[15px] text-ink-faint">可自由投资资产</div>
+            <div className="num mt-3 text-[24px] text-ink">{fmtCNY(d.state.investable)}</div>
+          </div>
+          <div>
+            <div className="text-[15px] text-ink-faint">现金水位</div>
+            <div className="num mt-3 text-[24px] text-ink">{fmtPct(m.cashRatio)}</div>
+          </div>
+          <div>
+            <div className="text-[15px] text-ink-faint">事实源</div>
+            <div className="mt-3 text-[20px] text-ink">交易流水 · 已核对</div>
+          </div>
+          <div>
+            <div className="text-[15px] text-ink-faint">投资收益</div>
+            <div className={cx('num mt-3 text-[24px]', d.attribution.gain >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(d.attribution.gain, { sign: true })}</div>
+          </div>
+          <div>
+            <div className="text-[15px] text-ink-faint">负债率</div>
+            <div className="num mt-3 text-[24px] text-ink">{fmtPct(m.netWorth > 0 ? d.state.liabilitiesTotal / m.netWorth : 0)}</div>
+          </div>
+          <div>
+            <div className="text-[15px] text-ink-faint">净资产构成</div>
+            <div className="num mt-3 text-[18px] leading-relaxed text-ink">总资产 {fmtCNY(m.netWorth)}<br /><span className="text-ink-faint">负债 {fmtCNY(d.state.liabilitiesTotal)}</span></div>
+          </div>
+        </div>
+      </section>
 
       <ValuationSourceSummary
-        items={valuationRows.map((p) => ({
-          priceSource: p.priceSource,
-          marketSource: d.state.quotes.get(p.asset.symbol)?.source,
-          value: p.value,
+        items={valuationRows.map((position) => ({
+          priceSource: position.priceSource,
+          marketSource: d.state.quotes.get(position.asset.symbol)?.source,
+          value: position.value,
         }))}
       />
 
-      {/* 财富轨迹 + 流动性水位 */}
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-        <Panel
-          title="财富轨迹"
-          en="WEALTH TRAJECTORY"
-          className="xl:col-span-2"
-          right={
-            <div className="flex items-center gap-3 text-[10px] text-ink-faint">
-              <span className="flex items-center gap-1.5">
-                <i className="inline-block h-1.5 w-1.5 rounded-full bg-gold" /> 净资产
-              </span>
-              <span className="flex items-center gap-1.5">
-                <i className="inline-block h-1.5 w-1.5 rounded-full bg-info" /> 可自由投资
-              </span>
-              <span className="flex items-center gap-1.5">
-                <i className="inline-block h-0.5 w-3 border-t border-dashed border-ink-faint" /> 净投入
-              </span>
-              <a href="/api/export/snapshots" className="hover:text-gold" download>
-                ↓ 轨迹
-              </a>
-            </div>
-          }
-        >
-          <WealthChart data={d.series} />
-          <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 border-t border-line pt-3 text-[11px] text-ink-faint">
-            <span>净投入 <span className="num text-ink">{fmtCNY(d.attribution.contributions)}</span></span>
-            <span>投资收益 <span className={cx('num', d.attribution.gain >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(d.attribution.gain, { sign: true })}</span></span>
-            <span>TWR 累计 <span className="num text-ink">{fmtPct(d.attribution.twrCumulative, { sign: true })}</span></span>
-            <span>TWR 年化 <span className="num text-ink">{fmtPct(d.attribution.twrAnnualized, { sign: true })}</span></span>
-            <span>XIRR 年化 <span className="num text-ink">{fmtPct(d.attribution.xirr, { sign: true })}</span></span>
+      <Panel title="今日行动建议" en="TODAY'S ACTIONS">
+          <div className="quiet-list">
+            {d.insights.slice(0, 5).map((insight, index) => (
+              <div key={insight.id} className="grid gap-3 py-5 md:grid-cols-[40px_1fr_auto] md:items-start">
+                <span className="num text-[20px] text-ink-faint">{String(index + 1).padStart(2, '0')}</span>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-ink">{insight.title}</span>
+                    <Tag tone={insight.severity === 'ALERT' ? 'up' : insight.severity === 'WARN' ? 'amber' : 'info'}>{SEVERITY_LABEL[insight.severity]}</Tag>
+                  </div>
+                  <p className="mt-2 text-[15px] leading-7 text-ink-faint">{insight.body}</p>
+                </div>
+                {insight.action && <span className="text-[14px] text-gold">查看 →</span>}
+              </div>
+            ))}
           </div>
-          <p className="mt-2 text-[10px] leading-relaxed text-ink-faint">
-            口径说明：历史轨迹由已落库真实行情、官方净值、手工估值及必要的成本回退共同构成，不等同于全量实时市场价格。
-          </p>
-        </Panel>
+      </Panel>
 
+      <section className="grid gap-12 xl:grid-cols-2">
         <Panel title="流动性水位" en="LIQUIDITY LEVELS">
-          <div className="flex h-2.5 w-full overflow-hidden rounded-full">
-            {liqSegs.map((s) => (
-              <div
-                key={s.label}
-                style={{ width: `${liqTotal > 0 ? (s.value / liqTotal) * 100 : 0}%`, background: s.color }}
-                className="h-full transition-all"
-              />
+          <div className="allocation-track">
+            {liqSegs.map((segment) => (
+              <div key={segment.label} style={{ width: `${liqTotal > 0 ? (segment.value / liqTotal) * 100 : 0}%`, background: segment.color }} />
             ))}
           </div>
-          <div className="mt-4 space-y-2.5">
-            {liqSegs.map((s) => (
-              <div key={s.label} className="flex items-center gap-2 text-xs">
-                <i className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: s.color }} />
-                <span className="text-ink-dim">{s.label}</span>
-                <span className="num ml-auto text-ink">{fmtCNY(s.value)}</span>
-                <span className="num w-12 text-right text-ink-faint">{fmtPct(liqTotal > 0 ? s.value / liqTotal : 0)}</span>
+          <div className="quiet-list mt-5">
+            {liqSegs.map((segment) => (
+              <div key={segment.label} className="flex items-center gap-3 py-3 text-[15px]">
+                <i className="h-1.5 w-1.5 rounded-full" style={{ background: segment.color }} />
+                <span className="text-ink-dim">{segment.label}</span>
+                <span className="num ml-auto text-ink">{fmtCNY(segment.value)}</span>
+                <span className="num w-12 text-right text-ink-faint">{fmtPct(liqTotal > 0 ? segment.value / liqTotal : 0)}</span>
               </div>
             ))}
           </div>
-          <div className="mt-4 border-t border-line pt-3 text-[11px] leading-relaxed text-ink-faint">
-            可自由投资 = 现金 + 高流动性证券（含已归属受限股），当前{' '}
-            <span className="num text-info">{fmtPct(liqTotal > 0 ? (m.liquidity.cash + m.liquidity.market) / liqTotal : 0)}</span>
-          </div>
         </Panel>
-      </div>
 
-      {/* 风险敞口 + 目标路径 */}
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
         <Panel title="风险敞口" en="RISK EXPOSURE">
-          {donutData.length === 0 ? (
-            <Empty>暂无持仓</Empty>
-          ) : (
-            <>
-              <div className="relative">
-                <Donut data={donutData} />
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-[9px] tracking-[0.2em] text-ink-faint">总资产</span>
-                  <span className="num text-sm text-ink">{fmtCNY(m.netWorth, { compact: true })}</span>
+          {m.holdings.length === 0 ? <Empty>暂无持仓</Empty> : (
+            <div className="quiet-list">
+              {m.holdings.slice(0, 5).map((holding) => (
+                <div key={holding.symbol} className="py-3">
+                  <div className="mb-2 flex items-center justify-between gap-4 text-[15px]">
+                    <span className="text-ink-dim">{holding.name}</span>
+                    <span className="num text-ink">{fmtPct(holding.weight)}</span>
+                  </div>
+                  <Bar ratio={holding.weight} className={holding.weight > 0.25 ? 'bg-up' : 'bg-gold'} />
                 </div>
-              </div>
-              <div className="mt-3 space-y-2">
-                {m.holdings.slice(0, 5).map((h) => (
-                  <div key={h.symbol} className="text-xs">
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="text-ink-dim">
-                        {h.name} <span className="num text-ink-faint">{h.symbol}</span>
-                      </span>
-                      <span className={cx('num', h.weight > 0.25 ? 'text-up' : 'text-ink')}>{fmtPct(h.weight)}</span>
-                    </div>
-                    <Bar ratio={h.weight} className={h.weight > 0.25 ? 'bg-up' : 'bg-gold/80'} />
-                  </div>
-                ))}
-                <div className="pt-1 text-[10px] text-ink-faint">阈值线 25% · 超限持仓以红色标记</div>
-              </div>
-            </>
-          )}
-        </Panel>
-
-        <Panel title="目标路径" en="GOAL PATHS" className="xl:col-span-2">
-          {d.goals.length === 0 ? (
-            <Empty>尚未设定目标 — 前往「目标」页创建</Empty>
-          ) : (
-            <div className="grid gap-3 md:grid-cols-2">
-              {d.goals.map((g) => {
-                const prob = g.projection.successProb
-                const probTone = prob >= 0.7 ? 'text-down' : prob >= 0.45 ? 'text-amber' : 'text-up'
-                return (
-                  <div key={g.id} className="rounded-lg border border-line bg-panel2 p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[13px] font-medium text-ink">{g.name}</span>
-                      <Tag tone={g.metric === 'NET_WORTH' ? 'gold' : 'info'}>{GOAL_METRIC_LABEL[g.metric]}</Tag>
-                    </div>
-                    <div className="mt-3 flex items-end justify-between">
-                      <div>
-                        <div className="num text-lg text-ink">{fmtCNY(g.current)}</div>
-                        <div className="mt-0.5 text-[10px] text-ink-faint">目标 {fmtCNY(g.targetAmount)} · {fmtDate(g.targetDate)}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className={cx('num text-lg', probTone)}>{fmtPct(prob)}</div>
-                        <div className="mt-0.5 text-[10px] text-ink-faint">达成概率</div>
-                      </div>
-                    </div>
-                    <div className="mt-3">
-                      <Bar ratio={g.projection.fundedRatio} />
-                      <div className="mt-1.5 flex justify-between text-[10px] text-ink-faint">
-                        <span>进度 {fmtPct(g.projection.fundedRatio)}</span>
-                        <span>
-                          {prob < 0.99 && g.projection.requiredMonthly > g.monthlyContribution
-                            ? `月缴 ${fmtCNY(g.monthlyContribution)} → 需 ${fmtCNY(g.projection.requiredMonthly)}`
-                            : `月缴 ${fmtCNY(g.monthlyContribution)}`}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+              ))}
             </div>
           )}
         </Panel>
-      </div>
+      </section>
 
-      {/* 今日行动建议 */}
-      <Panel
-        title="今日行动建议"
-        en="TODAY'S ACTIONS"
-        right={<span className="text-[10px] text-ink-faint">由策略引擎基于最新账本与行情生成</span>}
-      >
-        <div className="divide-y divide-line">
-          {d.insights.slice(0, 5).map((ins) => (
-            <div key={ins.id} className="flex gap-3 py-3 first:pt-0 last:pb-0">
-              <span
-                className={cx(
-                  'mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full',
-                  ins.severity === 'ALERT' ? 'bg-up' : ins.severity === 'WARN' ? 'bg-amber' : 'bg-info',
-                )}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[13px] font-medium text-ink">{ins.title}</span>
-                  <Tag tone={ins.severity === 'ALERT' ? 'up' : ins.severity === 'WARN' ? 'amber' : 'info'}>
-                    {SEVERITY_LABEL[ins.severity]}
-                  </Tag>
+      <Panel title="目标路径" en="GOAL PATHS">
+        {d.goals.length === 0 ? <Empty>尚未设定目标</Empty> : (
+          <div className="quiet-list">
+            {d.goals.map((goal) => (
+              <div key={goal.id} className="grid gap-5 py-5 md:grid-cols-[1fr_0.75fr] md:items-center">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-ink">{goal.name}</span>
+                    <Tag tone={goal.metric === 'NET_WORTH' ? 'gold' : 'info'}>{GOAL_METRIC_LABEL[goal.metric]}</Tag>
+                  </div>
+                  <div className="num mt-2 text-[18px] text-ink">{fmtCNY(goal.current)} <span className="text-[14px] text-ink-faint">/ {fmtCNY(goal.targetAmount)}</span></div>
                 </div>
-                <p className="mt-1 text-xs leading-relaxed text-ink-dim">{ins.body}</p>
-                {ins.action && <p className="mt-1 text-xs leading-relaxed text-gold">→ {ins.action}</p>}
+                <div>
+                  <div className="mb-2 flex justify-between text-[14px] text-ink-faint"><span>{fmtDate(goal.targetDate)}</span><span className="num text-ink">{fmtPct(goal.projection.successProb)}</span></div>
+                  <Bar ratio={goal.projection.fundedRatio} />
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </Panel>
     </div>
   )

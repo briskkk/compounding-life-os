@@ -5,8 +5,19 @@ import { useRouter } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
 import { updateAsset } from '@/lib/actions'
 import { Field, FormMsg, btnCls, inputCls } from './fields'
+import { cx } from '@/lib/format'
 
-export function AssetMetaForm({ assetId, initialTags, initialNote }: { assetId: string; initialTags: string; initialNote: string }) {
+export function AssetMetaForm({
+  assetId,
+  initialTags,
+  initialNote,
+  layout = 'compact',
+}: {
+  assetId: string
+  initialTags: string
+  initialNote: string
+  layout?: 'compact' | 'wide'
+}) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -28,11 +39,11 @@ export function AssetMetaForm({ assetId, initialTags, initialNote }: { assetId: 
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-3">
-      <Field label="分组标签（逗号分隔）">
+    <form onSubmit={onSubmit} className={layout === 'wide' ? 'meta-form-wide' : 'space-y-3'}>
+      <Field label="分组标签（逗号分隔）" className="meta-form-tags">
         <input name="tags" defaultValue={initialTags} className={inputCls} placeholder="美元基金,长期" />
       </Field>
-      <Field label="资产介绍">
+      <Field label="资产简介" className="meta-form-note">
         <textarea
           name="note"
           defaultValue={initialNote}
@@ -41,10 +52,12 @@ export function AssetMetaForm({ assetId, initialTags, initialNote }: { assetId: 
           placeholder="投资逻辑、跟踪要点、目标仓位…"
         />
       </Field>
-      <FormMsg msg={msg} />
-      <button type="submit" disabled={pending} className={btnCls}>
-        {pending ? '保存中…' : '保存'}
-      </button>
+      <div className="meta-form-footer">
+        <div className="meta-form-message"><FormMsg msg={msg} /></div>
+        <button type="submit" disabled={pending} className={cx(btnCls, 'meta-form-submit')}>
+          {pending ? '保存中…' : '保存'}
+        </button>
+      </div>
     </form>
   )
 }

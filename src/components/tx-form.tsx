@@ -8,6 +8,7 @@ import { Field, FormMsg, btnCls, inputCls } from './fields'
 import { AssetPicker } from './asset-picker'
 import { TX_TYPE_LABEL } from '@/lib/labels'
 import type { TxType } from '@/lib/engine/types'
+import { cx } from '@/lib/format'
 
 const NEEDS_QTY: TxType[] = ['BUY', 'SELL', 'TRANSFER_IN', 'TRANSFER_OUT', 'VEST']
 const NEEDS_PRICE: TxType[] = ['BUY', 'SELL']
@@ -22,12 +23,14 @@ export function TxForm({
   initialAccountId,
   initialAssetId,
   lockAccount = false,
+  layout = 'compact',
 }: {
   accounts: { id: string; name: string; currency: string; settlementAccountId: string | null; settlementAccountName: string | null }[]
   assets: { id: string; symbol: string; name: string; cls: string; currency: string }[]
   initialAccountId?: string
   initialAssetId?: string
   lockAccount?: boolean
+  layout?: 'compact' | 'wide'
 }) {
   const router = useRouter()
   const requestedAsset = assets.find((asset) => asset.id === initialAssetId)
@@ -95,8 +98,8 @@ export function TxForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
+    <form onSubmit={onSubmit} className={cx(layout === 'wide' ? 'tx-form-wide' : 'space-y-3')}>
+      <div className="tx-form-date-type grid grid-cols-2 gap-3">
         <Field label="日期">
           <input name="occurredAt" type="date" required defaultValue={today} className={inputCls} />
         </Field>
@@ -110,11 +113,11 @@ export function TxForm({
           </select>
         </Field>
       </div>
-      <Field label="账户">
+      <Field label="账户" className="tx-form-account">
         {lockAccount ? (
           <div className={`${inputCls} flex items-center justify-between`}>
             <span>{selectedAccount?.name ?? '—'}</span>
-            <span className="text-[10px] text-ink-faint">当前账户</span>
+            <span className="text-[12px] text-ink-faint">当前账户</span>
           </div>
         ) : (
           <select
@@ -143,11 +146,11 @@ export function TxForm({
         )}
       </Field>
       {/* 资产选择器不使用 <label> 包裹（label 的激活行为会把第二次点击派发到浮层按钮，导致下拉闪开闪关） */}
-      <div>
-        <span className="mb-1 block text-[11px] text-ink-faint">资产</span>
+      <div className="tx-form-asset">
+        <span className="mb-1 block text-[13px] text-ink-faint">资产</span>
         <AssetPicker assets={compatibleAssets} value={assetId} onChange={setAssetId} />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="tx-form-values grid grid-cols-2 gap-3">
         {NEEDS_QTY.includes(type) && (
           <Field label="数量">
             <input name="quantity" type="number" min="0" step="any" required className={inputCls} />
@@ -165,32 +168,36 @@ export function TxForm({
           <input name="fee" type="number" min="0" step="any" defaultValue={0} className={inputCls} />
         </Field>
       </div>
-      <Field label="备注">
+      <Field label="备注" className="tx-form-note">
         <input name="note" className={inputCls} placeholder="可选" />
       </Field>
-      {(type === 'BUY' || type === 'SELL') && (
-        <label className="flex items-center gap-2 text-xs text-ink-dim">
-          <input
-            type="checkbox"
-            checked={settle}
-            disabled={!selectedAccount?.settlementAccountName}
-            onChange={(e) => setSettle(e.target.checked)}
-            className="accent-[#c8a24a] disabled:opacity-40"
-          />
-          {selectedAccount?.settlementAccountName
-            ? `现金联动结算至 ${selectedAccount.settlementAccountName}`
-            : '未配置资金账户，本次买卖不自动变动现金'}
-        </label>
-      )}
-      {routesCash && (
-        <p className="text-xs text-ink-dim">
-          该现金流水将自动归入 {selectedAccount.settlementAccountName}，不在 {selectedAccount.name} 中重复形成现金持仓。
-        </p>
-      )}
-      <FormMsg msg={msg} />
-      <button type="submit" disabled={pending} className={btnCls}>
-        {pending ? '写入中…' : '写入账本'}
-      </button>
+      <div className="tx-form-footer">
+        <div className="tx-form-feedback">
+          {(type === 'BUY' || type === 'SELL') && (
+            <label className="tx-form-settlement flex min-h-11 items-center gap-2 text-[13px] text-ink-dim">
+              <input
+                type="checkbox"
+                checked={settle}
+                disabled={!selectedAccount?.settlementAccountName}
+                onChange={(e) => setSettle(e.target.checked)}
+                className="accent-[#79bfff] disabled:opacity-40"
+              />
+              {selectedAccount?.settlementAccountName
+                ? `现金联动结算至 ${selectedAccount.settlementAccountName}`
+                : '未配置资金账户，本次买卖不自动变动现金'}
+            </label>
+          )}
+          {routesCash && (
+            <p className="tx-form-route text-[13px] text-ink-dim">
+              该现金流水将自动归入 {selectedAccount.settlementAccountName}，不在 {selectedAccount.name} 中重复形成现金持仓。
+            </p>
+          )}
+          <div className="tx-form-message"><FormMsg msg={msg} /></div>
+        </div>
+        <button type="submit" disabled={pending} className={cx(btnCls, 'tx-form-submit')}>
+          {pending ? '写入中…' : '写入账本'}
+        </button>
+      </div>
     </form>
   )
 }

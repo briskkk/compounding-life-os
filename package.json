@@ -4,8 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "MARKET_PROVIDER=tencent,eastmoney-fund,sina next dev",
+    "safe:dev": "./scripts/start-safe.sh dev",
     "build": "next build",
     "start": "MARKET_PROVIDER=tencent,eastmoney-fund,sina next start",
+    "safe:start": "./scripts/start-safe.sh production",
+    "safe:stop": "./scripts/start-safe.sh stop",
+    "safe:status": "./scripts/start-safe.sh status",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "db:migrate": "prisma migrate dev",

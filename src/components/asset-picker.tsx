@@ -123,7 +123,7 @@ export function AssetPicker({
             {selected ? `${selected.name} · ${selected.symbol}` : placeholder}
           </span>
         )}
-        <span className="shrink-0 text-[10px] text-ink-faint">{open ? '▲' : '▼'}</span>
+        <span className="shrink-0 text-[12px] text-ink-faint">{open ? '▲' : '▼'}</span>
       </div>
 
       {open && (
@@ -135,7 +135,7 @@ export function AssetPicker({
           {flat.length === 0 && <div className="px-3 py-3 text-xs text-ink-faint">无匹配资产</div>}
           {filtered.map((g) => (
             <div key={g.cls}>
-              <div className="sticky top-0 border-b border-line/60 bg-panel2 px-3 py-1 text-[10px] tracking-wider text-ink-faint">
+              <div className="sticky top-0 border-b border-line/60 bg-panel2 px-3 py-1 text-[12px] tracking-wider text-ink-faint">
                 {ASSET_CLASS_LABEL[g.cls as keyof typeof ASSET_CLASS_LABEL] ?? g.cls}
               </div>
               {g.items.map((a) => {
@@ -149,13 +149,13 @@ export function AssetPicker({
                     onClick={() => pick(a)}
                     onMouseEnter={() => setActiveIdx(i)}
                     className={cx(
-                      'flex w-full items-baseline gap-2 px-3 py-2 text-left text-[13px] transition-colors',
+                      'flex w-full items-baseline gap-2 px-3 py-2 text-left text-[15px] transition-colors',
                       i === activeIdx ? 'bg-gold/15 text-ink' : 'text-ink-dim hover:bg-panel',
                       a.id === value && 'text-gold',
                     )}
                   >
                     <span className="flex-1">{a.name}</span>
-                    <span className="num text-[11px] text-ink-faint">{a.symbol}</span>
+                    <span className="num text-[13px] text-ink-faint">{a.symbol}</span>
                   </button>
                 )
               })}

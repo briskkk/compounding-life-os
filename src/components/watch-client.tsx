@@ -13,6 +13,12 @@ import { cx, fmtCNY, fmtDateTime, fmtMoney, fmtPct, fmtQty } from '@/lib/format'
 import type { PriceSource } from '@/lib/engine/types'
 import { MarketSourceTag, PositionSourceTag, ValuationLegend } from './valuation-source'
 
+export interface PeriodPerformance {
+  label: string
+  amount: number | null
+  pct: number | null
+}
+
 export interface WatchHolding {
   assetId: string
   symbol: string
@@ -55,11 +61,13 @@ export function WatchClient({
   staticValueCny,
   staticRows,
   provider,
+  periods,
 }: {
   holdings: WatchHolding[]
   staticValueCny: number
   staticRows: StaticRow[]
   provider: string
+  periods: PeriodPerformance[]
 }) {
   const [seriesMap, setSeriesMap] = useState<Map<string, IntradaySeries>>(new Map())
   const [quotes, setQuotes] = useState<Map<string, QuoteLite>>(new Map())
@@ -155,46 +163,52 @@ export function WatchClient({
   ], sort)
 
   return (
-    <div className="space-y-3">
-      {/* 指标行 */}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <div className="rounded-lg border border-line bg-panel p-3.5">
-          <div className="text-xs text-ink-faint">总市值（含现金/手动）</div>
-          <div className="num mt-2 text-[26px] leading-none font-medium">{fmtCNY(totalValue)}</div>
-        </div>
-        <div className="rounded-lg border border-line bg-panel p-3.5">
-          <div className="text-xs text-ink-faint">当日盈亏</div>
-          <div className={cx('num mt-2 text-[26px] leading-none font-medium', totalPnl >= 0 ? 'text-up' : 'text-down')}>
+    <div className="page-shell">
+      <section className="hero-grid watch-hero">
+        <div>
+          <div className="eyebrow">今日涨跌（元）</div>
+          <h1 className={cx('num hero-number mt-4', totalPnl >= 0 ? 'text-up' : 'text-down')}>
             {fmtCNY(totalPnl, { sign: true })}
+          </h1>
+          <div className={cx('num mt-4 text-[18px]', totalPnl >= 0 ? 'text-up' : 'text-down')}>
+            {dayPct != null ? fmtPct(dayPct, { sign: true }) : '—'}
           </div>
-          <div className="mt-1 text-[11px] text-ink-faint">{dayPct != null ? fmtPct(dayPct, { sign: true }) : '—'} · 相对昨收</div>
+          <p className="mt-6 text-[15px] text-ink-faint">{asOf ? `数据更新于 ${fmtDateTime(asOf)}` : '分钟级行情加载中…'}</p>
+          <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-ink-faint">
+            <span>组合总市值 <strong className="num ml-1 font-normal text-ink">{fmtCNY(totalValue)}</strong></span>
+            <span>覆盖 <strong className="num ml-1 font-normal text-ink">{rows.length}</strong> 个标的</span>
+            <span>{provider} · 30 秒刷新</span>
+          </div>
         </div>
-        <div className="rounded-lg border border-line bg-panel p-3.5">
-          <div className="text-xs text-ink-faint">覆盖标的</div>
-          <div className="num mt-2 text-[26px] leading-none font-medium">{rows.length}</div>
-          <div className="mt-1 text-[11px] text-ink-faint">分时数据 {seriesMap.size} 个</div>
-        </div>
-        <div className="rounded-lg border border-line bg-panel p-3.5">
-          <div className="text-xs text-ink-faint">数据刷新</div>
-          <div className="num mt-2 text-[15px] leading-tight font-medium text-ink">{asOf ? fmtDateTime(asOf) : '加载中…'}</div>
-          <div className="mt-1 text-[11px] text-ink-faint">每 30 秒 · {provider}</div>
-        </div>
-      </div>
-
-      {/* 当日收益曲线 */}
-      <Panel
-        title="当日收益曲线"
-        en="TODAY P&L"
-        right={<span className="text-[10px] text-ink-faint">分钟级 · 相对昨收 · 曲线末点与顶部同口径</span>}
-      >
+        <div className="chart-surface">
         {chartData.length > 1 ? (
           <IntradayChart data={chartData} />
         ) : (
-          <div className="flex h-24 items-center justify-center text-xs text-ink-faint">
+          <div className="flex h-[260px] items-center justify-center text-xs text-ink-faint">
             {rows.length === 0 ? '暂无行情类持仓' : '分时数据加载中…'}
           </div>
         )}
-      </Panel>
+        </div>
+      </section>
+
+      <section className="performance-strip" aria-label="阶段收益">
+        {periods.map((period) => {
+          const value = period.amount ?? 0
+          return (
+            <div key={period.label}>
+              <div className="text-[15px] text-ink-faint">{period.label}涨跌</div>
+              <div className={cx('num mt-3 text-[26px]', period.amount == null ? 'text-ink-faint' : value >= 0 ? 'text-up' : 'text-down')}>
+                {period.amount == null ? '—' : fmtCNY(period.amount, { sign: true })}
+              </div>
+              <div className={cx('num mt-2 text-[14px]', period.pct == null ? 'text-ink-faint' : (period.pct ?? 0) >= 0 ? 'text-up' : 'text-down')}>
+                {period.pct == null ? '历史数据不足' : fmtPct(period.pct, { sign: true })}
+              </div>
+            </div>
+          )
+        })}
+      </section>
+
+      <p className="-mt-6 text-[14px] text-ink-faint">阶段涨跌按净资产变化扣除同期净投入计算，口径与财富轨迹一致。</p>
 
       {/* 实时估值表 */}
       <Panel
@@ -202,13 +216,13 @@ export function WatchClient({
         en="LIVE VALUATION"
         bodyClassName="p-0"
         right={(
-          <label className="flex items-center gap-1.5 text-[10px] text-ink-faint">
+          <label className="flex items-center gap-1.5 text-[12px] text-ink-faint">
             排序
             <select
               aria-label="看盘资产排序"
               value={sort}
               onChange={(event) => setSort(event.target.value as HoldingSort)}
-              className="rounded border border-line bg-panel2 px-2 py-1 text-[10px] text-ink-dim outline-none"
+              className="rounded border border-line bg-panel2 px-2 py-1 text-[12px] text-ink-dim outline-none"
             >
               <option value="value-desc">市值：从高到低</option>
               <option value="value-asc">市值：从低到高</option>
@@ -222,9 +236,10 @@ export function WatchClient({
         <div className="border-b border-line px-4 py-2.5">
           <ValuationLegend />
         </div>
-        <table className="w-full text-[12px]">
+        <div className="table-scroll">
+        <table className="w-full text-[14px]">
           <thead>
-            <tr className="border-b border-line text-left text-[10px] tracking-wider text-ink-faint">
+            <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
               <th className="px-4 py-2.5 font-normal">资产</th>
               <th className="px-2 py-2.5 text-right font-normal">数量</th>
               <th className="px-2 py-2.5 text-right font-normal">现价</th>
@@ -239,7 +254,7 @@ export function WatchClient({
               <tr key={r.assetId} className="transition-colors hover:bg-panel2/50">
                 <td className="px-4 py-2.5">
                   <Link href={`/positions/${r.assetId}`} className="text-ink transition-colors hover:text-gold">{r.name}</Link>
-                  <div className="num text-[10px] text-ink-faint">{r.symbol}</div>
+                  <div className="num text-[12px] text-ink-faint">{r.symbol}</div>
                 </td>
                 <td className="num px-2 py-2.5 text-right text-ink-dim">{fmtQty(r.qty)}</td>
                 <td className="num px-2 py-2.5 text-right text-ink">{r.price != null ? fmtMoney(r.price, r.currency) : '—'}</td>
@@ -258,10 +273,10 @@ export function WatchClient({
               <tr key={r.assetId} className="opacity-60 transition-colors hover:bg-panel2/50">
                 <td className="px-4 py-2.5">
                   <Link href={`/positions/${r.assetId}`} className="text-ink-dim transition-colors hover:text-gold">{r.name}</Link>
-                  <div className="num text-[10px] text-ink-faint">{r.symbol}</div>
+                  <div className="num text-[12px] text-ink-faint">{r.symbol}</div>
                 </td>
                 <td className="px-2 py-2.5" colSpan={3}>
-                  <span className="text-[10px] text-ink-faint">{r.note}</span>
+                  <span className="text-[12px] text-ink-faint">{r.note}</span>
                 </td>
                 <td className="num px-2 py-2.5 text-right text-ink-dim">{fmtCNY(r.valueCny)}</td>
                 <td className="num px-2 py-2.5 text-right text-ink-faint">—</td>
@@ -270,9 +285,10 @@ export function WatchClient({
             ))}
           </tbody>
         </table>
+        </div>
       </Panel>
 
-      <p className="text-[11px] leading-relaxed text-ink-faint">
+      <p className="text-[13px] leading-relaxed text-ink-faint">
         当日曲线会同时纳入真实行情、基金盘中估值和静态资产；无可用分时线时按常量计入，每项实际口径见上表“来源”列。报价可能延迟，模拟数据不代表真实市场成交，盘中估值以官方净值为准。
       </p>
     </div>

@@ -87,7 +87,7 @@ export function LiabilityEntryForm({ liabilities }: { liabilities: { id: string;
     } else setMsg({ ok: false, text: res.error })
   }
 
-  if (liabilities.length === 0) return <p className="text-[11px] text-ink-faint">先登记一笔负债。</p>
+  if (liabilities.length === 0) return <p className="text-[13px] text-ink-faint">先登记一笔负债。</p>
 
   return (
     <form onSubmit={onSubmit} className="space-y-3">

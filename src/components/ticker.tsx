@@ -40,14 +40,14 @@ export function TickerTape({ symbols, names }: { symbols: string[]; names: Recor
   return (
     <div className="flex min-w-0 flex-1 items-center gap-5 overflow-x-auto px-2 [scrollbar-width:none]">
       {quotes.map((q) => (
-        <span key={q.symbol} className="flex shrink-0 items-baseline gap-1.5 text-[11px]">
+        <span key={q.symbol} className="flex shrink-0 items-baseline gap-1.5 text-[13px]">
           <span className="text-ink-faint">{names[q.symbol] ?? q.symbol}</span>
           <span className="num text-ink">{fmtPrice(q.price)}</span>
           <span className={cx('num', q.changePct >= 0 ? 'text-up' : 'text-down')}>{fmtPct(q.changePct, { sign: true })}</span>
           <MarketSourceTag source={q.source} />
         </span>
       ))}
-      {quotes.length === 0 && <span className="text-[11px] text-ink-faint">行情加载中…</span>}
+      {quotes.length === 0 && <span className="text-[13px] text-ink-faint">行情加载中…</span>}
     </div>
   )
 }

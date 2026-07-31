@@ -100,7 +100,7 @@ export function CsvImport({
       {preview.length > 0 && (
         <>
           <div className="max-h-56 overflow-auto rounded border border-line">
-            <table className="w-full text-[11px]">
+            <table className="w-full text-[13px]">
               <thead className="sticky top-0 bg-panel2">
                 <tr className="text-left text-ink-faint">
                   <th className="px-2 py-1.5 font-normal">行</th>
@@ -140,7 +140,7 @@ export function CsvImport({
       )}
 
       <FormMsg msg={msg} />
-      <p className="text-[10px] leading-relaxed text-ink-faint">
+      <p className="text-[12px] leading-relaxed text-ink-faint">
         列：日期,账户,代码,类型,数量,单价,金额,费用,备注；类型支持 买入/卖出/分红/利息/费用/存入/取出/转入/转出/估值/归属。
       </p>
     </div>

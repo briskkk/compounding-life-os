@@ -21,63 +21,59 @@ export default async function InsightsPage() {
   const llmOn = llmConfig() != null
   const db = scopedDb(prisma, ctx)
   const prefs = await db.familyPrefs.findUnique({ where: { familyId: ctx.familyId } })
+  const leadInsight = insights[0]
+  const topHolding = state.metrics.holdings[0]
 
   return (
-    <div className="space-y-3">
-      <Panel
-        title="AI 财富策略洞察"
-        en="STRATEGY INSIGHTS"
-        right={
-          <div className="flex items-center gap-3">
-            <Tag tone={llmOn ? 'gold' : 'dim'}>{llmOn ? 'LLM 叙事已启用' : '规则引擎 · 模板叙事'}</Tag>
+    <div className="page-shell">
+      <section className="grid gap-12 border-b border-line pb-12 xl:grid-cols-[1fr_0.55fr] xl:items-end">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="eyebrow">AI 财富策略洞察</div>
+            <Tag tone={llmOn ? 'gold' : 'dim'}>{llmOn ? 'LLM 叙事' : '规则引擎'}</Tag>
+          </div>
+          <h1 className="mt-5 max-w-4xl text-[clamp(2.25rem,4.5vw,4.5rem)] font-medium leading-[1.16] tracking-[-0.055em] text-ink">
+            {leadInsight?.title ?? '当前组合没有需要优先处理的风险。'}
+          </h1>
+          <p className="mt-6 max-w-3xl text-[15px] leading-8 text-ink-faint">{leadInsight?.body}</p>
+          <div className="mt-7 flex flex-wrap items-center gap-4">
+            {leadInsight?.action && <span className="text-[14px] text-gold">{leadInsight.action} →</span>}
             <RegenerateButton />
           </div>
-        }
-      >
-        <div className="space-y-3">
-          {insights.map((ins) => (
-            <div
-              key={ins.id}
-              className={cx(
-                'rounded-lg border bg-panel2 p-4',
-                ins.severity === 'ALERT' ? 'border-up/40' : ins.severity === 'WARN' ? 'border-amber/30' : 'border-line',
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={cx(
-                    'inline-block h-2 w-2 rounded-full',
-                    ins.severity === 'ALERT' ? 'bg-up' : ins.severity === 'WARN' ? 'bg-amber' : 'bg-info',
-                  )}
-                />
-                <span className="text-[14px] font-medium text-ink">{ins.title}</span>
-                <Tag tone={ins.severity === 'ALERT' ? 'up' : ins.severity === 'WARN' ? 'amber' : 'info'}>
-                  {SEVERITY_LABEL[ins.severity]}
-                </Tag>
-                <span className="num ml-auto text-[10px] text-ink-faint">{fmtDateTime(ins.createdAt)}</span>
+        </div>
+
+        <aside className="surface p-6" aria-label="关键依据">
+          <div className="eyebrow">关键依据</div>
+          <div className="quiet-list mt-4">
+            <div className="py-4"><div className="text-[15px] text-ink">现金水位 {state.metrics.cashRatio.toLocaleString('zh-CN', { style: 'percent', maximumFractionDigits: 1 })}</div><div className="mt-1 text-[13px] text-ink-faint">策略安全线 {((prefs?.cashFloor ?? 0.08) * 100).toFixed(1)}%</div></div>
+            <div className="py-4"><div className="text-[15px] text-ink">最大持仓 {topHolding?.name ?? '—'}</div><div className="mt-1 text-[13px] text-ink-faint">当前权重 {topHolding ? (topHolding.weight * 100).toFixed(1) : '—'}%</div></div>
+            <div className="py-4"><div className="text-[15px] text-ink">目标路径 {goals.length} 项</div><div className="mt-1 text-[13px] text-ink-faint">最低成功概率 {goals.length ? `${Math.min(...goals.map((goal) => goal.projection.successProb)) * 100}`.slice(0, 4) : '—'}%</div></div>
+          </div>
+        </aside>
+      </section>
+
+      <Panel title="更多洞察" en="RANKED INSIGHTS" right={<span className="text-[13px] text-ink-faint">按优先级排序</span>}>
+        <div className="quiet-list">
+          {insights.slice(1).map((ins, index) => (
+            <div key={ins.id} className="grid gap-4 py-5 md:grid-cols-[44px_1fr_auto] md:items-center">
+              <span className="num flex h-8 w-8 items-center justify-center rounded-full border border-line text-[15px] text-ink-dim">{index + 2}</span>
+              <div>
+                <div className="flex flex-wrap items-center gap-2"><span className="font-medium text-ink">{ins.title}</span><Tag tone={ins.severity === 'ALERT' ? 'up' : ins.severity === 'WARN' ? 'amber' : 'info'}>{SEVERITY_LABEL[ins.severity]}</Tag></div>
+                <p className="mt-2 text-[15px] leading-7 text-ink-faint">{ins.body}</p>
               </div>
-              <p className="mt-2 text-[13px] leading-relaxed text-ink-dim">{ins.body}</p>
-              {ins.action && <p className="mt-2 text-[13px] leading-relaxed text-gold">→ {ins.action}</p>}
+              <div className="text-right"><div className="num text-[12px] text-ink-faint">{fmtDateTime(ins.createdAt)}</div>{ins.action && <div className="mt-2 text-[14px] text-gold">查看 →</div>}</div>
             </div>
           ))}
         </div>
-        <p className="mt-4 border-t border-line pt-3 text-[11px] leading-relaxed text-ink-faint">
-          洞察由规则引擎基于集中度、流动性水位、目标达成概率、回撤、估值时效、受限股归属等维度生成；配置
-          <code className="mx-1 rounded bg-panel2 px-1 text-gold">OPENAI_API_KEY</code> 后正文将由 LLM 重写为策略叙事。内容仅为量化提示，不构成投资建议。
-        </p>
       </Panel>
 
-      <Panel title="策略阈值" en="THRESHOLDS" right={<span className="text-[10px] text-ink-faint">家庭级配置，保存后立即重算洞察</span>}>
-        <PrefsForm
-          initial={{
-            cashFloor: prefs?.cashFloor ?? 0.08,
-            concentrationCeiling: prefs?.concentrationCeiling ?? 0.25,
-            cashDragCeiling: prefs?.cashDragCeiling ?? 0.35,
-            drawdownThreshold: prefs?.drawdownThreshold ?? 0.05,
-            goalProbThreshold: prefs?.goalProbThreshold ?? 0.5,
-          }}
-        />
-      </Panel>
+      <details open className="border-y border-line py-4">
+        <summary className="flex list-none items-center justify-between text-[15px] text-ink-dim [&::-webkit-details-marker]:hidden"><span>策略阈值</span><span>生成说明 ＋</span></summary>
+        <div className="mt-6">
+          <PrefsForm initial={{ cashFloor: prefs?.cashFloor ?? 0.08, concentrationCeiling: prefs?.concentrationCeiling ?? 0.25, cashDragCeiling: prefs?.cashDragCeiling ?? 0.35, drawdownThreshold: prefs?.drawdownThreshold ?? 0.05, goalProbThreshold: prefs?.goalProbThreshold ?? 0.5 }} />
+          <p className="mt-5 text-[14px] leading-7 text-ink-faint">洞察基于集中度、流动性、目标达成概率、回撤、估值时效与受限股归属生成，仅作量化提示。</p>
+        </div>
+      </details>
     </div>
   )
 }

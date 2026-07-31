@@ -1,20 +1,37 @@
 // 看盘：当日组合收益曲线（分钟级）+ 全持仓实时估值
-import { getSession } from '@/lib/session'
-import { loadEngineState } from '@/lib/queries'
+import { getDashboard, type SeriesPoint } from '@/lib/queries'
 import { cnyRateFor, fxRates } from '@/lib/market/fx'
 import { SetupScreen } from '@/components/ui'
-import { WatchClient, type WatchHolding, type StaticRow } from '@/components/watch-client'
+import { WatchClient, type WatchHolding, type StaticRow, type PeriodPerformance } from '@/components/watch-client'
 import { providerLabel } from '@/lib/market'
 import { marketChainLabel } from '@/lib/valuation-source'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 
 export const dynamic = 'force-dynamic'
 
-export default async function WatchPage() {
-  const ctx = await getSession()
-  if (!ctx) return <SetupScreen />
+function periodPerformance(series: SeriesPoint[], start: Date, label: string): PeriodPerformance {
+  const last = series.at(-1)
+  if (!last || series.length < 2) return { label, amount: null, pct: null }
 
-  const state = await loadEngineState(ctx)
+  const startKey = start.toISOString().slice(0, 10)
+  const beforeStart = series.filter((point) => point.date < startKey).at(-1)
+  const base = beforeStart ?? series[0]
+  if (base.date === last.date) return { label, amount: 0, pct: 0 }
+
+  const netFlow = last.contributions - base.contributions
+  const amount = last.netWorth - base.netWorth - netFlow
+  return {
+    label,
+    amount,
+    pct: base.netWorth > 0 ? amount / base.netWorth : null,
+  }
+}
+
+export default async function WatchPage() {
+  const dashboard = await getDashboard()
+  if (!dashboard) return <SetupScreen />
+
+  const state = dashboard.state
   const rates = await fxRates()
   const mergedPositions = mergePositionsByAsset(state.valued)
 
@@ -59,12 +76,20 @@ export default async function WatchPage() {
     }))
     .filter((row) => Math.abs(row.valueCny) >= 0.01)
 
+  const now = new Date()
+  const periods = [
+    periodPerformance(dashboard.series, new Date(now.getFullYear(), now.getMonth(), 1), '本月'),
+    periodPerformance(dashboard.series, new Date(now.getFullYear(), 0, 1), '今年'),
+    periodPerformance(dashboard.series, new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()), '近一年'),
+  ]
+
   return (
     <WatchClient
       holdings={holdings}
       staticValueCny={staticValueCny}
       staticRows={staticRows}
       provider={marketChainLabel(providerLabel()).label}
+      periods={periods}
     />
   )
 }

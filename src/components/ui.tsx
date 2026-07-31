@@ -2,6 +2,29 @@
 import type { ReactNode } from 'react'
 import { cx, fmtCNY, fmtPct, toneOf } from '@/lib/format'
 
+export function PageHeader({
+  kicker,
+  title,
+  description,
+  right,
+}: {
+  kicker?: string
+  title: string
+  description?: ReactNode
+  right?: ReactNode
+}) {
+  return (
+    <header className="page-header">
+      <div>
+        {kicker && <div className="page-kicker">{kicker}</div>}
+        <h1 className="page-title">{title}</h1>
+        {description && <div className="page-description">{description}</div>}
+      </div>
+      {right && <div className="text-right">{right}</div>}
+    </header>
+  )
+}
+
 export function Panel({
   title,
   en,
@@ -18,15 +41,15 @@ export function Panel({
   children: ReactNode
 }) {
   return (
-    <section className={cx('rounded-lg border border-line bg-panel', className)}>
-      <header className="flex h-10 items-center justify-between border-b border-line px-3.5">
+    <section className={cx('section-panel', className)}>
+      <header className="flex min-h-14 items-center justify-between gap-4 pb-5">
         <div className="flex items-baseline gap-2.5">
-          <h2 className="text-[13px] font-medium text-ink-dim">{title}</h2>
-          {en && <span className="text-[10px] tracking-[0.22em] text-ink-faint">{en}</span>}
+          <h2 className="text-[19px] font-medium text-ink">{title}</h2>
+          {en && <span className="text-[13px] tracking-[0.18em] text-ink-faint">{en}</span>}
         </div>
         {right}
       </header>
-      <div className={cx('p-3.5', bodyClassName)}>{children}</div>
+      <div className={bodyClassName ?? 'pb-5'}>{children}</div>
     </section>
   )
 }
@@ -45,14 +68,14 @@ export function Stat({
   hint?: ReactNode
 }) {
   return (
-    <div className="rounded-lg border border-line bg-panel p-3.5">
+    <div>
       <div className="flex items-baseline justify-between">
-        <span className="text-xs text-ink-faint">{label}</span>
-        {en && <span className="text-[9px] tracking-[0.2em] text-ink-faint">{en}</span>}
+        <span className="text-sm text-ink-faint">{label}</span>
+        {en && <span className="text-[13px] tracking-[0.18em] text-ink-faint">{en}</span>}
       </div>
-      <div className="num mt-2 text-[24px] leading-none font-medium tracking-tight">{value}</div>
-      {sub && <div className="mt-1.5 text-xs">{sub}</div>}
-      {hint && <div className="mt-1 text-[11px] text-ink-faint">{hint}</div>}
+      <div className="num mt-2 text-[28px] leading-none font-medium tracking-[-0.045em]">{value}</div>
+      {sub && <div className="mt-2 text-sm">{sub}</div>}
+      {hint && <div className="mt-1.5 text-[15px] text-ink-faint">{hint}</div>}
     </div>
   )
 }
@@ -74,7 +97,7 @@ export function Delta({
     <span className={cx('num', color)}>
       {prefix}
       {fmtCNY(value, { sign: true })}
-      {pct != null && <span className="ml-1.5 text-[11px] opacity-80">({fmtPct(pct, { sign: true })})</span>}
+      {pct != null && <span className="ml-1.5 text-[13px] opacity-80">({fmtPct(pct, { sign: true })})</span>}
     </span>
   )
 }
@@ -93,7 +116,7 @@ const TONE_CLS: Record<Tone, string> = {
 
 export function Tag({ tone = 'dim', children }: { tone?: Tone; children: ReactNode }) {
   return (
-    <span className={cx('inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] leading-none', TONE_CLS[tone])}>
+    <span className={cx('inline-flex items-center rounded-full border px-2.5 py-1.5 text-[14px] leading-none', TONE_CLS[tone])}>
       {children}
     </span>
   )
@@ -111,12 +134,12 @@ export function Bar({ ratio, className }: { ratio: number; className?: string })
 }
 
 export function Empty({ children }: { children: ReactNode }) {
-  return <div className="flex h-24 items-center justify-center text-xs text-ink-faint">{children}</div>
+  return <div className="flex h-24 items-center justify-center text-sm text-ink-faint">{children}</div>
 }
 
 export function SetupScreen() {
   return (
-    <div className="mx-auto mt-24 max-w-md rounded-lg border border-line bg-panel p-8 text-center">
+    <div className="mx-auto mt-24 max-w-md border-y border-line py-12 text-center">
       <div className="num text-xl text-gold">FW·OS</div>
       <p className="mt-4 text-sm text-ink-dim">家庭空间尚未初始化</p>
       <p className="mt-2 text-xs text-ink-faint">

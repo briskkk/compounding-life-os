@@ -57,37 +57,24 @@ export interface WealthPoint {
 
 export function WealthChart({ data }: { data: WealthPoint[] }) {
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+    <ResponsiveContainer width="100%" height={340}>
+      <ComposedChart data={data} margin={{ top: 12, right: 4, bottom: 0, left: 4 }}>
         <defs>
           <linearGradient id="gNW" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={C.gold} stopOpacity={0.22} />
-            <stop offset="100%" stopColor={C.gold} stopOpacity={0} />
-          </linearGradient>
-          <linearGradient id="gInv" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={C.info} stopOpacity={0.18} />
             <stop offset="100%" stopColor={C.info} stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid stroke={C.line} strokeDasharray="2 8" vertical={false} />
         <XAxis
           dataKey="date"
           tick={{ fill: C.inkFaint, fontSize: 11 }}
           tickLine={false}
-          axisLine={{ stroke: C.line }}
+          axisLine={false}
           minTickGap={80}
         />
-        <YAxis
-          tick={{ fill: C.inkFaint, fontSize: 11 }}
-          tickLine={false}
-          axisLine={false}
-          width={64}
-          tickFormatter={fmtAxis}
-        />
+        <YAxis hide domain={['dataMin', 'dataMax']} />
         <Tooltip content={<DarkTooltip />} />
-        <Area type="monotone" dataKey="netWorth" name="净资产" stroke={C.gold} strokeWidth={1.5} fill="url(#gNW)" dot={false} />
-        <Area type="monotone" dataKey="investable" name="可自由投资" stroke={C.info} strokeWidth={1.5} fill="url(#gInv)" dot={false} />
-        <Line type="monotone" dataKey="contributions" name="净投入" stroke={C.inkFaint} strokeWidth={1} strokeDasharray="4 4" dot={false} />
+        <Area type="monotone" dataKey="netWorth" name="净资产" stroke={C.info} strokeWidth={2.25} fill="url(#gNW)" dot={false} isAnimationActive={false} />
       </ComposedChart>
     </ResponsiveContainer>
   )
@@ -183,10 +170,9 @@ export function IntradayChart({ data }: { data: IntradayDatum[] }) {
             <stop offset="100%" stopColor={color} stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid stroke={C.line} strokeDasharray="2 8" vertical={false} />
-        <XAxis dataKey="time" tick={{ fill: C.inkFaint, fontSize: 11 }} tickLine={false} axisLine={{ stroke: C.line }} minTickGap={80} />
+        <XAxis dataKey="time" tick={{ fill: C.inkFaint, fontSize: 12 }} tickLine={false} axisLine={false} minTickGap={80} />
         <YAxis
-          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tick={{ fill: C.inkFaint, fontSize: 12 }}
           tickLine={false}
           axisLine={false}
           width={72}
@@ -194,8 +180,8 @@ export function IntradayChart({ data }: { data: IntradayDatum[] }) {
           tickFormatter={(v: number) => fmtCNY(v)}
         />
         <Tooltip content={<IntradayTooltip />} />
-        <ReferenceLine y={0} stroke={C.inkFaint} strokeDasharray="4 6" />
-        <Area type="monotone" dataKey="pnl" name="当日盈亏" stroke={color} strokeWidth={1.5} fill="url(#gDay)" dot={false} isAnimationActive={false} />
+        <ReferenceLine y={0} stroke={C.line} />
+        <Area type="monotone" dataKey="pnl" name="当日盈亏" stroke={color} strokeWidth={2.25} fill="url(#gDay)" dot={false} isAnimationActive={false} />
       </ComposedChart>
     </ResponsiveContainer>
   )
