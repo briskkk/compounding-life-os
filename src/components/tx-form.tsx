@@ -161,7 +161,10 @@ export function TxForm({
             <input name="price" type="number" min="0" step="any" required className={inputCls} />
           </Field>
         )}
-        <Field label={type === 'VALUATION' ? '估值总额' : '金额（买卖可留空）'} className={NEEDS_QTY.includes(type) ? '' : 'col-span-2'}>
+        <Field
+          label={type === 'VALUATION' ? '估值总额' : '金额（买卖可留空）'}
+          className={layout === 'compact' && !NEEDS_QTY.includes(type) ? 'col-span-2' : undefined}
+        >
           <input name="amount" type="number" min="0" step="any" className={inputCls} required={!NEEDS_PRICE.includes(type)} />
         </Field>
         <Field label="费用">

@@ -1,19 +1,29 @@
-// 目标页：主目标概率 + 置信区间 + 其他目标列表
 import { getSession } from '@/lib/session'
-import { loadEngineState, loadGoals } from '@/lib/queries'
-import { Empty, Panel, SetupScreen, Tag } from '@/components/ui'
-import { ProjectionChart, type ProjectionDatum } from '@/components/charts'
+import { loadEngineState, loadGoals, loadSavingsOverview } from '@/lib/queries'
+import { Empty, SetupScreen, Tag } from '@/components/ui'
+import { ProjectionChart, SavingsRateChart, type ProjectionDatum } from '@/components/charts'
 import { GoalForm } from '@/components/goal-form'
+import { GoalScenarioLab } from '@/components/goal-scenario-lab'
+import { SavingsCheckIn } from '@/components/savings-check-in'
 import { GOAL_METRIC_LABEL } from '@/lib/labels'
-import { cx, fmtCNY, fmtDate, fmtPct } from '@/lib/format'
+import { fmtCNY, fmtDate, fmtPct } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
+
+function goalStatus(probability: number): { label: string; tone: 'amber' | 'info' | 'down' } {
+  if (probability < 0.55) return { label: '需要调整', tone: 'amber' }
+  if (probability < 0.75) return { label: '持续观察', tone: 'info' }
+  return { label: '路径稳健', tone: 'down' }
+}
 
 export default async function GoalsPage() {
   const ctx = await getSession()
   if (!ctx) return <SetupScreen />
   const state = await loadEngineState(ctx)
-  const goals = await loadGoals(ctx, state)
+  const [goals, savings] = await Promise.all([
+    loadGoals(ctx, state),
+    loadSavingsOverview(ctx),
+  ])
   const now = new Date()
   const goalViews = goals.map((goal) => {
     const data: ProjectionDatum[] = goal.projection.points
@@ -32,84 +42,152 @@ export default async function GoalsPage() {
     return { goal, data }
   })
   const primary = goalViews[0]
+  const currentMonth = savings.current.month
+  const savingsChart = savings.months.map((month) => ({
+    month: month.month,
+    label: `${Number(month.month.slice(5))}月`,
+    rate: month.savingsRate,
+  }))
+  const sustainable = Math.max(0, savings.sustainableMonthlySavings)
 
   return (
-    <div className="page-shell">
+    <div className="page-shell goals-page">
+      <header className="goal-page-header">
+        <div>
+          <div className="eyebrow">Goal planning</div>
+          <h1>把目标变成可执行的资金路径</h1>
+          <p>{goals.length} 项目标 · 以真实资产、储蓄节奏与投入计划持续重算</p>
+        </div>
+        <Tag tone="info">更新于 {now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</Tag>
+      </header>
+
       {primary ? (
-        <section className="border-b border-line pb-12">
-          <div className="eyebrow">核心目标</div>
-          <div className="mt-5 grid gap-12 xl:grid-cols-[0.45fr_1fr] xl:items-center">
-            <div>
-              <div className="mb-3"><Tag tone="info">{GOAL_METRIC_LABEL[primary.goal.metric]}</Tag></div>
-              <h1 className="text-[clamp(2rem,4vw,3.5rem)] font-medium tracking-[-0.05em] text-ink">{primary.goal.name}</h1>
-              <p className="mt-3 text-[15px] leading-7 text-ink-faint">为下一代的教育、事业与生活，持续创造确定性。</p>
-              <div className="mt-9 text-[15px] text-ink-faint">达成概率</div>
-              <div className="num mt-2 text-[58px] leading-none text-ink">{fmtPct(primary.goal.projection.successProb)}</div>
-              <div className="mt-4 text-[14px] text-ink-faint">基于当前计划 · 距 {fmtDate(primary.goal.targetDate)} 尚有 {primary.goal.monthsLeft} 个月</div>
-              <div className="mt-7 text-[15px] text-ink-faint">目标金额</div>
-              <div className="num mt-2 text-[25px] text-ink">{fmtCNY(primary.goal.targetAmount)}</div>
+        <section className="goal-hero">
+          <div className="goal-hero-copy">
+            <Tag tone="info">核心目标 · {GOAL_METRIC_LABEL[primary.goal.metric]}</Tag>
+            <h2>{primary.goal.name}</h2>
+            <div className="goal-probability"><span>预计达成概率</span><strong>{fmtPct(primary.goal.projection.successProb)}</strong></div>
+            <div className="goal-context">
+              <span>目标 <strong>{fmtCNY(primary.goal.targetAmount)}</strong></span>
+              <span>当前口径资产 <strong>{fmtCNY(primary.goal.current)}</strong></span>
+              <span>剩余 <strong>{primary.goal.monthsLeft} 个月</strong></span>
             </div>
-            <ProjectionChart data={primary.data} target={primary.goal.mode === 'STREAM' ? 0 : primary.goal.targetAmount} targetLabel={primary.goal.mode === 'STREAM' ? '断供线' : '目标'} />
-          </div>
-
-          <div className="metric-band mt-10">
-            <div><div className="text-[14px] text-ink-faint">预期年化收益</div><div className="num mt-2 text-[18px] text-ink">{fmtPct(primary.goal.expectedReturn)}</div></div>
-            <div><div className="text-[14px] text-ink-faint">年均波动</div><div className="num mt-2 text-[18px] text-ink">{fmtPct(primary.goal.volatility)}</div></div>
-            <div><div className="text-[14px] text-ink-faint">每月追加投入</div><div className="num mt-2 text-[18px] text-ink">{fmtCNY(primary.goal.monthlyContribution)}</div></div>
-            <div><div className="text-[14px] text-ink-faint">达标所需月缴</div><div className={cx('num mt-2 text-[18px]', primary.goal.projection.requiredMonthly > primary.goal.monthlyContribution ? 'text-amber' : 'text-ink')}>{fmtCNY(primary.goal.projection.requiredMonthly)}</div></div>
-          </div>
-
-          <details className="mt-6 border-y border-line py-4">
-            <summary className="flex list-none items-center justify-between text-[15px] text-ink-dim [&::-webkit-details-marker]:hidden"><span>编辑核心目标与假设</span><span>＋</span></summary>
-            <div className="mt-6">
-              <GoalForm mode="edit" goalId={primary.goal.id} initial={{ name: primary.goal.name, mode: primary.goal.mode, targetAmount: primary.goal.targetAmount, targetDate: primary.goal.targetDate.slice(0, 10), annualSpend: primary.goal.annualSpend, spendYears: primary.goal.spendYears, metric: primary.goal.metric, monthlyContribution: primary.goal.monthlyContribution, expectedReturn: primary.goal.expectedReturn, volatility: primary.goal.volatility, note: primary.goal.note ?? '' }} />
-            </div>
-          </details>
-        </section>
-      ) : (
-        <section className="grid gap-12 border-b border-line pb-12 xl:grid-cols-[0.75fr_1fr] xl:items-end">
-          <div>
-            <div className="page-kicker">Goals</div>
-            <h1 className="mt-4 max-w-2xl text-[clamp(2.5rem,5vw,4.5rem)] font-medium leading-[1.05] tracking-[-0.06em] text-ink">把未来变成可计算的路径。</h1>
-            <p className="mt-6 max-w-lg text-[14px] leading-7 text-ink-faint">建立第一个目标后，系统会以真实持仓和现金流为基础，持续计算达成概率、资金缺口与所需投入。</p>
-            <a href="#new-goal" className="mt-9 inline-flex min-h-11 items-center border-b border-info text-[15px] font-medium text-info transition-colors hover:text-ink">建立第一个目标 →</a>
-          </div>
-          <div className="metric-band" aria-label="目标规划步骤">
-            <div><div className="eyebrow">01 · 定义</div><div className="mt-3 text-[16px] text-ink">目标与日期</div></div>
-            <div><div className="eyebrow">02 · 计算</div><div className="mt-3 text-[16px] text-ink">概率与缺口</div></div>
-            <div><div className="eyebrow">03 · 跟踪</div><div className="mt-3 text-[16px] text-ink">投入与进度</div></div>
-          </div>
-        </section>
-      )}
-
-      {goalViews.length > 0 && (
-        <Panel title="其他目标" en="OTHER GOALS">
-          {goalViews.length <= 1 ? <Empty>尚无其他目标</Empty> : (
-          <div className="quiet-list">
-            {goalViews.slice(1).map(({ goal }) => (
-              <details key={goal.id} className="group py-5">
-                <summary className="grid list-none gap-4 md:grid-cols-[1fr_auto_auto_24px] md:items-center [&::-webkit-details-marker]:hidden">
-                  <div><div className="flex items-center gap-2"><span className="font-medium text-ink">{goal.name}</span><Tag tone="info">{GOAL_METRIC_LABEL[goal.metric]}</Tag></div><div className="mt-1 text-[13px] text-ink-faint">目标 {fmtCNY(goal.targetAmount)} · {fmtDate(goal.targetDate)}</div></div>
-                  <div className="num text-[14px] text-ink">当前 {fmtCNY(goal.current)}</div>
-                  <div className="num text-[18px] text-gold">{fmtPct(goal.projection.successProb)}</div>
-                  <span className="text-ink-faint transition-transform group-open:rotate-45">＋</span>
-                </summary>
-                <div className="mt-6">
-                  <GoalForm mode="edit" goalId={goal.id} initial={{ name: goal.name, mode: goal.mode, targetAmount: goal.targetAmount, targetDate: goal.targetDate.slice(0, 10), annualSpend: goal.annualSpend, spendYears: goal.spendYears, metric: goal.metric, monthlyContribution: goal.monthlyContribution, expectedReturn: goal.expectedReturn, volatility: goal.volatility, note: goal.note ?? '' }} />
+            <div className="flex flex-wrap gap-2">
+              <a href="#scenario-lab" className="inline-flex min-h-11 items-center rounded-lg border border-gold bg-gold px-4 py-2 text-[14px] font-medium text-bg">优化投入方案</a>
+              <details className="goal-edit-details">
+                <summary>编辑目标</summary>
+                <div className="goal-edit-popover">
+                  <GoalForm mode="edit" goalId={primary.goal.id} initiallyOpen initial={{
+                    name: primary.goal.name,
+                    mode: primary.goal.mode,
+                    targetAmount: primary.goal.targetAmount,
+                    targetDate: primary.goal.targetDate.slice(0, 10),
+                    annualSpend: primary.goal.annualSpend,
+                    spendYears: primary.goal.spendYears,
+                    metric: primary.goal.metric,
+                    monthlyContribution: primary.goal.monthlyContribution,
+                    expectedReturn: primary.goal.expectedReturn,
+                    volatility: primary.goal.volatility,
+                    note: primary.goal.note ?? '',
+                  }} />
                 </div>
               </details>
-            ))}
+            </div>
           </div>
-          )}
-        </Panel>
+          <div className="goal-chart-column">
+            <ProjectionChart data={primary.data} target={primary.goal.mode === 'STREAM' ? 0 : primary.goal.targetAmount} targetLabel={primary.goal.mode === 'STREAM' ? '断供线' : '目标'} />
+            <div className="goal-chart-legend"><span>中位路径 P50</span><span>保守—乐观区间 P10–P90</span><span>目标线</span></div>
+          </div>
+        </section>
+      ) : (
+        <section className="goal-empty-hero">
+          <div><div className="eyebrow">First goal</div><h2>先定义一个真正重要的目标。</h2><p>建立目标后，系统会把当前资产、未来投入和储蓄能力合并成一条可执行路径。</p></div>
+          <a href="#new-goal">建立第一个目标 →</a>
+        </section>
       )}
 
-      <div id="new-goal" className="scroll-mt-6">
-        <Panel title="新建目标" en="NEW GOAL">
-          <GoalForm mode="create" />
-          <p className="mt-5 border-t border-line pt-4 text-[14px] leading-7 text-ink-faint">预测基于 1500 条蒙特卡洛路径（月度步进）；有持仓时按实际类别权重做协方差组合模拟，否则退回单因子正态模型。</p>
-        </Panel>
-      </div>
+      <section className="savings-rhythm">
+        <div className="goal-section-head">
+          <div><div className="eyebrow">Savings rhythm</div><h2>储蓄率决定目标计划能否持续</h2></div>
+          <span>收入按月记录 · 消费可按周或按月补录</span>
+        </div>
+        <div className="savings-layout">
+          <div className="savings-trend">
+            <div className="savings-metrics">
+              <div><span>{Number(currentMonth.slice(5))} 月储蓄率</span><strong>{fmtPct(savings.current.savingsRate)}</strong></div>
+              <div><span>本月净储蓄</span><strong>{fmtCNY(savings.current.netSavings)}</strong></div>
+              <div><span>近月平均</span><strong>{fmtPct(savings.averageRate)}</strong></div>
+            </div>
+            <SavingsRateChart data={savingsChart} />
+            <div className="savings-goal-impact">
+              <div><Tag tone="info">对目标的影响</Tag><span>{savings.recordedMonths > 0 ? `近三个月可持续净储蓄约 ${fmtCNY(sustainable)} / 月` : '记录首个月度收支后，即可评估可持续目标投入'}</span></div>
+              {primary && sustainable > 0 && <a href="#scenario-lab">纳入目标方案 →</a>}
+            </div>
+          </div>
+          <div className="savings-entry-surface">
+            <SavingsCheckIn
+              month={currentMonth}
+              income={savings.current.income}
+              spending={savings.current.spending}
+              savedAmount={savings.current.savedAmount}
+            />
+          </div>
+        </div>
+      </section>
+
+      {primary?.goal.mode === 'LUMP_SUM' && (() => {
+        const finalPoint = primary.goal.projection.points.at(-1)
+        if (!finalPoint) return null
+        return (
+          <div id="scenario-lab" className="scroll-mt-6">
+            <GoalScenarioLab
+              goalId={primary.goal.id}
+              mode={primary.goal.mode}
+              targetAmount={primary.goal.targetAmount}
+              monthsLeft={primary.goal.monthsLeft}
+              monthlyContribution={primary.goal.monthlyContribution}
+              sustainableMonthlySavings={sustainable}
+              expectedReturn={primary.goal.expectedReturn}
+              projectedMedian={primary.goal.projection.projectedMedian}
+              projectedP10={finalPoint.p10}
+              projectedP90={finalPoint.p90}
+              successProbability={primary.goal.projection.successProb}
+            />
+          </div>
+        )
+      })()}
+
+      <section>
+        <div className="goal-section-head">
+          <div><div className="eyebrow">Goal portfolio</div><h2>全部目标</h2></div>
+          <a href="#new-goal">新建目标</a>
+        </div>
+        {goalViews.length === 0 ? <Empty>尚未建立目标</Empty> : (
+          <div className="goal-portfolio-list">
+            {goalViews.map(({ goal }) => {
+              const status = goalStatus(goal.projection.successProb)
+              return (
+                <details key={goal.id}>
+                  <summary>
+                    <div><strong>{goal.name}</strong><span>{goal.mode === 'STREAM' ? '持续支出' : fmtDate(goal.targetDate)} · {GOAL_METRIC_LABEL[goal.metric]}</span></div>
+                    <div><span>当前口径资产</span><strong>{fmtCNY(goal.current)}</strong></div>
+                    <div><span>达成概率</span><strong>{fmtPct(goal.projection.successProb)}</strong></div>
+                    <Tag tone={status.tone}>{status.label}</Tag>
+                  </summary>
+                  <div className="goal-row-editor">
+                    <GoalForm mode="edit" goalId={goal.id} initiallyOpen initial={{ name: goal.name, mode: goal.mode, targetAmount: goal.targetAmount, targetDate: goal.targetDate.slice(0, 10), annualSpend: goal.annualSpend, spendYears: goal.spendYears, metric: goal.metric, monthlyContribution: goal.monthlyContribution, expectedReturn: goal.expectedReturn, volatility: goal.volatility, note: goal.note ?? '' }} />
+                  </div>
+                </details>
+              )
+            })}
+          </div>
+        )}
+      </section>
+
+      <details id="new-goal" className="new-goal-section">
+        <summary><span><span className="eyebrow">New goal</span><strong>新建目标</strong></span><span>＋</span></summary>
+        <div className="mt-6"><GoalForm mode="create" /></div>
+      </details>
     </div>
   )
 }

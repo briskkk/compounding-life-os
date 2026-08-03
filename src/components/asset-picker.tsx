@@ -103,7 +103,7 @@ export function AssetPicker({
         />
       )}
       <div
-        className={cx(inputCls, 'flex cursor-text items-center justify-between gap-2', open && 'border-gold/50')}
+        className={cx(inputCls, 'flex h-11 overflow-hidden cursor-text items-center justify-between gap-2', open && 'border-gold/50')}
         onClick={(e) => {
           e.stopPropagation()
           setOpen(true)
@@ -119,7 +119,7 @@ export function AssetPicker({
             className="w-full bg-transparent outline-none placeholder:text-ink-faint"
           />
         ) : (
-          <span className={selected ? 'text-ink' : 'text-ink-faint'}>
+          <span className={cx('min-w-0 flex-1 truncate whitespace-nowrap', selected ? 'text-ink' : 'text-ink-faint')}>
             {selected ? `${selected.name} · ${selected.symbol}` : placeholder}
           </span>
         )}

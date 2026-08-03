@@ -17,6 +17,8 @@ export interface FundProfile {
 
 const profileCache = new Map<string, { at: number; profile: FundProfile }>()
 const PROFILE_TTL = 24 * 3600_000
+const navCache = new Map<string, { at: number; nav: { nav: number; date: Date; equityReturn: number } }>()
+const NAV_TTL = 60_000
 
 interface InverstPositionResponse {
   Datas?: {
@@ -127,6 +129,9 @@ export function parseMobileNavList(text: string): { nav: number; date: Date; equ
 
 /** 最新官方净值：移动端接口优先（当日净值更快），pingzhongdata 兜底 */
 export async function latestNav(symbol: string): Promise<{ nav: number; date: Date; equityReturn: number }> {
+  const cached = navCache.get(symbol)
+  if (cached && Date.now() - cached.at < NAV_TTL) return cached.nav
+
   try {
     const res = await fetch(
       `https://fundmobapi.eastmoney.com/FundMNewApi/FundMNHisNetList?FCODE=${symbol}&deviceid=12332&plat=Iphone&product=EFund&version=6.2.8&pageIndex=1&pageSize=1`,
@@ -134,14 +139,19 @@ export async function latestNav(symbol: string): Promise<{ nav: number; date: Da
     )
     if (res.ok) {
       const nav = parseMobileNavList(await res.text())
-      if (nav) return nav
+      if (nav) {
+        navCache.set(symbol, { at: Date.now(), nav })
+        return nav
+      }
     }
   } catch {
     /* 回落 pingzhongdata */
   }
   const series = await fetchNavSeries(symbol)
   const last = series[series.length - 1]
-  return { nav: last.y, date: new Date(last.x), equityReturn: (last.equityReturn ?? 0) / 100 }
+  const nav = { nav: last.y, date: new Date(last.x), equityReturn: (last.equityReturn ?? 0) / 100 }
+  navCache.set(symbol, { at: Date.now(), nav })
+  return nav
 }
 
 /** 中国时区日期键（用于「今日净值是否已公布」判断） */

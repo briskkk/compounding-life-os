@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test'
 test('终端首页：五大核心模块与双口径', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByText('财富轨迹')).toBeVisible()
-  await expect(page.getByText('流动性水位')).toBeVisible()
+  await expect(page.getByText('流动性水位', { exact: true })).toBeVisible()
   await expect(page.getByText('风险敞口')).toBeVisible()
   await expect(page.getByText('目标路径')).toBeVisible()
   await expect(page.getByText('今日行动建议')).toBeVisible()

@@ -10,16 +10,20 @@ import { scopedDb } from '@/lib/scoped'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+const responseCache = new Map<string, { at: number; payload: { asOf: string; series: Record<string, IntradaySeries> } }>()
+const RESPONSE_CACHE_TTL = 20_000
+
 /** 基金估值落库：同一分钟内去重 */
 async function persistFundEstimates(fundSymbols: string[], series: Map<string, IntradaySeries>) {
   const now = new Date()
-  for (const symbol of fundSymbols) {
+  await Promise.all(fundSymbols.map(async (symbol) => {
     const s = series.get(symbol)
+    if (!s || s.points.length === 0) return
     const est = await fundEstimate(symbol)
-    if (!s || !est || s.points.length === 0) continue
+    if (!est) return
     const minuteMs = Math.floor(now.getTime() / 60000) * 60000
     const last = await prisma.fundEstimate.findFirst({ where: { symbol }, orderBy: { createdAt: 'desc' } })
-    if (last && last.createdAt.getTime() >= minuteMs) continue
+    if (last && last.createdAt.getTime() >= minuteMs) return
     const lastPoint = s.points[s.points.length - 1]
     await prisma.fundEstimate.create({
       data: {
@@ -30,7 +34,7 @@ async function persistFundEstimates(fundSymbols: string[], series: Map<string, I
         detail: JSON.stringify(est.estimate.contributions),
       },
     })
-  }
+  }))
 }
 
 export async function GET(req: NextRequest) {
@@ -50,6 +54,9 @@ export async function GET(req: NextRequest) {
   }
   const fundSet = new Set(fundSymbols)
   const marketSymbols = symbols.filter((s) => !fundSet.has(s))
+  const cacheKey = `${[...symbols].sort().join(',')}|fund:${[...fundSymbols].sort().join(',')}`
+  const cached = responseCache.get(cacheKey)
+  if (cached && Date.now() - cached.at < RESPONSE_CACHE_TTL) return Response.json(cached.payload)
 
   // 基金分时序列仅在「交易时段且今日净值未公布」时产出；
   // 非交易时段 / 净值已出 → 不产出估值序列，前端回落到官方净值报价
@@ -77,8 +84,10 @@ export async function GET(req: NextRequest) {
   )
   await persistFundEstimates(estimableFunds, map)
 
-  return Response.json({
+  const payload = {
     asOf: new Date().toISOString(),
     series: Object.fromEntries(map),
-  })
+  }
+  responseCache.set(cacheKey, { at: Date.now(), payload })
+  return Response.json(payload)
 }

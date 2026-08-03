@@ -24,6 +24,9 @@ import { cx, fmtCNY, fmtCNYExact, fmtDate, fmtDateTime, fmtMoney, fmtPct, fmtQty
 import { C, CLASS_COLORS } from '@/lib/colors'
 import { MarketSourceTag, PositionSourceTag } from '@/components/valuation-source'
 import { TxForm } from '@/components/tx-form'
+import { AssetIntelligence } from '@/components/asset-intelligence'
+import { loadAssetJudgment } from '@/lib/ai/asset-intelligence'
+import { llmStatus } from '@/lib/ai/llm'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,9 +39,10 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
   const asset = await db.asset.findFirst({ where: { id: assetId } })
   if (!asset) return notFound()
 
-  const [state, accounts] = await Promise.all([
+  const [state, accounts, intelligence] = await Promise.all([
     loadEngineState(ctx),
     db.account.findMany({ include: { settlementAccount: true }, orderBy: { createdAt: 'asc' } }),
+    loadAssetJudgment(ctx, assetId),
   ])
   const positions = state.valued.filter((v) => v.assetId === asset.id)
 
@@ -139,6 +143,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
   const fundEst = asset.cls === 'FUND' ? await fundEstimate(asset.symbol) : null
   const fundCalib = asset.cls === 'FUND' ? await calibrateFund(asset.symbol) : null
   const fundConf = fundEst && fundCalib ? calibratedConfidencePct(fundEst.estimate.confidencePct, fundCalib.summary) : null
+  const llm = llmStatus()
 
   return (
     <div className="page-shell">
@@ -322,6 +327,15 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
           </div>
         </Panel>
       )}
+
+      <AssetIntelligence
+        assetId={asset.id}
+        llm={llm}
+        initialAnalysis={intelligence.analysis}
+        refreshDue={intelligence.refreshDue}
+        nextRefreshAt={intelligence.nextRefreshAt}
+        canInteract={ctx.role !== 'VIEWER'}
+      />
 
       {fundEst && (
         <Panel

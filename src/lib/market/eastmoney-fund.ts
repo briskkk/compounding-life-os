@@ -52,6 +52,7 @@ export const eastmoneyFundProvider: MarketDataProvider = {
         prevClose: nav.equityReturn !== -1 ? nav.nav / (1 + nav.equityReturn) : nav.nav,
         changePct: nav.equityReturn,
         asOf: nav.date.toISOString(),
+        tradingDate: cnDayKey(nav.date),
         source: 'EASTMONEY-FUND',
       }
     }
@@ -65,6 +66,7 @@ export const eastmoneyFundProvider: MarketDataProvider = {
         prevClose: est.prevNav,
         changePct: est.estimate.estimateReturnPct / 100,
         asOf: new Date().toISOString(),
+        tradingDate: cnDayKey(new Date()),
         source: 'FUND-ENGINE',
       }
     }
@@ -76,6 +78,7 @@ export const eastmoneyFundProvider: MarketDataProvider = {
       prevClose: nav.equityReturn !== -1 ? nav.nav / (1 + nav.equityReturn) : nav.nav,
       changePct: nav.equityReturn,
       asOf: nav.date.toISOString(),
+      tradingDate: cnDayKey(nav.date),
       source: 'EASTMONEY-FUND',
     }
   },

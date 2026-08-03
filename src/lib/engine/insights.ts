@@ -19,6 +19,13 @@ export interface GoalInsightInput {
   projection: ProjectionResult
 }
 
+export interface SavingsInsightInput {
+  averageRate: number | null
+  currentRate: number | null
+  sustainableMonthlySavings: number
+  recordedMonths: number
+}
+
 export interface InsightInput {
   metrics: Metrics
   valued: ValuedPosition[]
@@ -30,6 +37,7 @@ export interface InsightInput {
   cashDragCeiling?: number // 现金拖累线，默认 35%
   drawdownThreshold?: number // 30 日回撤警示线，默认 5%
   goalProbThreshold?: number // 目标达成概率警示线，默认 50%
+  savings?: SavingsInsightInput
 }
 
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`
@@ -47,6 +55,7 @@ export function generateInsights(input: InsightInput): InsightDraft[] {
     cashDragCeiling = 0.35,
     drawdownThreshold = 0.05,
     goalProbThreshold = 0.5,
+    savings,
   } = input
   const out: InsightDraft[] = []
 
@@ -109,7 +118,30 @@ export function generateInsights(input: InsightInput): InsightDraft[] {
     }
   }
 
-  // 4. 近 30 日回撤
+  // 4. 储蓄节奏（储蓄率 = 收入减消费 / 收入）
+  if (savings && savings.recordedMonths > 0 && savings.averageRate != null) {
+    const savingsTarget = 0.3
+    if (savings.averageRate < savingsTarget) {
+      const shortfall = savingsTarget - savings.averageRate
+      out.push({
+        kind: 'SAVINGS_RATE',
+        severity: savings.averageRate < 0.15 ? 'WARN' : 'INFO',
+        title: '平均储蓄率低于计划线',
+        body: `已记录月份的平均储蓄率为 ${pct(savings.averageRate)}，距 ${pct(savingsTarget)} 计划线尚差 ${pct(shortfall)}；近三个月可持续净储蓄约 ${wan(savings.sustainableMonthlySavings)} / 月。`,
+        action: '优先核对可调整消费，并将稳定净储蓄同步到核心目标的月度投入计划。',
+      })
+    } else if (savings.currentRate != null && savings.currentRate >= savingsTarget) {
+      out.push({
+        kind: 'SAVINGS_RATE',
+        severity: 'INFO',
+        title: '储蓄节奏正在支持目标路径',
+        body: `当前储蓄率 ${pct(savings.currentRate)}，已高于 ${pct(savingsTarget)} 计划线；近三个月可持续净储蓄约 ${wan(savings.sustainableMonthlySavings)} / 月。`,
+        action: '把可持续净储蓄与目标月投入保持一致，并继续观察三个月移动平均。',
+      })
+    }
+  }
+
+  // 5. 近 30 日回撤
   if (netWorth30dAgo && netWorth30dAgo > 0) {
     const change = (metrics.netWorth - netWorth30dAgo) / netWorth30dAgo
     if (change < -drawdownThreshold) {
@@ -123,7 +155,7 @@ export function generateInsights(input: InsightInput): InsightDraft[] {
     }
   }
 
-  // 5. 手动估值过期（>90 天未更新）
+  // 6. 手动估值过期（>90 天未更新）
   const stale = valued.filter(
     (p) =>
       (p.asset.cls === 'REAL_ESTATE' || p.asset.manual) &&
@@ -140,7 +172,7 @@ export function generateInsights(input: InsightInput): InsightDraft[] {
     })
   }
 
-  // 6. 受限股未归属提示
+  // 7. 受限股未归属提示
   const unvested = valued
     .filter((p) => p.asset.cls === 'RSU' && p.unvestedQty > 0)
     .reduce((s, p) => s + p.unvestedQty * (p.price ?? 0), 0)

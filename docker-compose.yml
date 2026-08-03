@@ -9,10 +9,13 @@ services:
       MARKET_PROVIDER: ${MARKET_PROVIDER:-tencent,eastmoney-fund,sina}
       # 首次启动是否灌入演示数据：1 是 / 0 否
       SEED_DEMO: ${SEED_DEMO:-1}
-      # 可选 LLM 洞察叙事
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      # 可选 LLM 结构化洞察（DeepSeek / Kimi / OpenAI 兼容端点）
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_THINKING: ${LLM_THINKING:-disabled}
+      LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-30000}
     volumes:
       - fwos-data:/app/prisma
     restart: unless-stopped

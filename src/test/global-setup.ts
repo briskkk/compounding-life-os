@@ -11,5 +11,6 @@ export default async function setup() {
   const content = fs.readFileSync(schemaPath, 'utf8').replace('file:./dev.db', 'file:./test.db')
   fs.writeFileSync(testSchemaPath, content)
   if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB)
+  fs.closeSync(fs.openSync(TEST_DB, 'w'))
   execSync(`npx prisma db push --schema "${testSchemaPath}" --skip-generate`, { stdio: 'pipe' })
 }

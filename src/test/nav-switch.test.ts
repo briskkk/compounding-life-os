@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { shouldUseOfficialNav } from '@/lib/market/eastmoney-fund'
 import { cnDayKey, parseMobileNavList } from '@/lib/market/fund-holdings'
-import { parseQuotePayload } from '@/lib/market/tencent'
+import { parseQuotePayload, parseTencentTradingDate } from '@/lib/market/tencent'
 
 describe('盘中估值 / 盘后净值切换', () => {
   it('中国时区日期键（UTC+8 边界）', () => {
@@ -63,5 +63,11 @@ describe('腾讯批量报价解析', () => {
     expect(m.get('sh600519')?.changePct).toBeCloseTo(1297.41 / 1292.01 - 1, 6)
     expect(m.get('sz159915')?.price).toBe(2.5)
     expect(m.has('pv_none_match')).toBe(false)
+  })
+
+  it('从境内与美股报文提取真实交易日', () => {
+    expect(parseTencentTradingDate('x~'.repeat(30) + '20260803142016~')).toBe('2026-08-03')
+    expect(parseTencentTradingDate('x~'.repeat(30) + '2026-07-31 16:00:01~')).toBe('2026-07-31')
+    expect(parseTencentTradingDate('x~'.repeat(30) + 'unknown~')).toBeNull()
   })
 })

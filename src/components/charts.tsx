@@ -286,3 +286,48 @@ export function ProjectionChart({ data, target, targetLabel = '目标' }: { data
     </ResponsiveContainer>
   )
 }
+
+export interface SavingsRateDatum {
+  month: string
+  label: string
+  rate: number | null
+}
+
+function SavingsTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length || payload[0].value == null) return null
+  return (
+    <div className="rounded border border-line bg-panel2 px-3 py-2 text-xs shadow-2xl">
+      <div className="num text-ink-faint">{label}</div>
+      <div className="mt-1 flex items-center gap-4">
+        <span className="text-ink-dim">储蓄率</span>
+        <span className="num text-ink">{(Number(payload[0].value) * 100).toFixed(1)}%</span>
+      </div>
+    </div>
+  )
+}
+
+export function SavingsRateChart({ data, target = 0.3 }: { data: SavingsRateDatum[]; target?: number }) {
+  return (
+    <ResponsiveContainer width="100%" height={230}>
+      <ComposedChart data={data} margin={{ top: 12, right: 8, bottom: 0, left: 0 }}>
+        <XAxis dataKey="label" tick={{ fill: C.inkFaint, fontSize: 12 }} tickLine={false} axisLine={{ stroke: C.line }} minTickGap={32} />
+        <YAxis
+          tick={{ fill: C.inkFaint, fontSize: 12 }}
+          tickLine={false}
+          axisLine={false}
+          width={48}
+          domain={[0, 'auto']}
+          tickFormatter={(value: number) => `${Math.round(value * 100)}%`}
+        />
+        <Tooltip content={<SavingsTooltip />} />
+        <ReferenceLine
+          y={target}
+          stroke={C.inkFaint}
+          strokeDasharray="4 7"
+          label={{ value: `计划 ${Math.round(target * 100)}%`, fill: C.inkFaint, fontSize: 11, position: 'insideTopRight' }}
+        />
+        <Line connectNulls type="monotone" dataKey="rate" name="储蓄率" stroke={C.info} strokeWidth={2} dot={{ r: 3, fill: C.info, strokeWidth: 0 }} isAnimationActive={false} />
+      </ComposedChart>
+    </ResponsiveContainer>
+  )
+}

@@ -23,6 +23,15 @@ export function parseUsFullCode(payload: string): string | null {
   return /^[A-Z0-9]+\.[A-Z]{1,3}$/i.test(full) ? `us${full}` : null
 }
 
+/** 腾讯第 30 字段中的交易所时间，格式可能为 YYYYMMDDhhmmss 或 YYYY-MM-DD hh:mm:ss。 */
+export function parseTencentTradingDate(payload: string): string | null {
+  const raw = payload.split('~')[30]?.trim() ?? ''
+  const compact = raw.match(/^(\d{4})(\d{2})(\d{2})\d{6}$/)
+  if (compact) return `${compact[1]}-${compact[2]}-${compact[3]}`
+  const separated = raw.match(/^(\d{4}-\d{2}-\d{2})[ T]\d{2}:\d{2}:\d{2}$/)
+  return separated?.[1] ?? null
+}
+
 async function resolveUsExchangeCode(code: string): Promise<string | null> {
   try {
     const text = await fetchText(`https://qt.gtimg.cn/q=us${code}`)
@@ -79,6 +88,7 @@ export const tencentProvider: MarketDataProvider = {
       prevClose,
       changePct: prevClose > 0 ? price / prevClose - 1 : 0,
       asOf: new Date().toISOString(),
+      tradingDate: parseTencentTradingDate(payload) ?? undefined,
       source: 'TENCENT',
     }
   },

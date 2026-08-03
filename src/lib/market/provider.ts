@@ -13,6 +13,8 @@ export interface QuoteData {
   prevClose: number
   changePct: number
   asOf: string
+  /** 报价对应的交易所交易日（YYYY-MM-DD），不能用请求时间代替。 */
+  tradingDate?: string
   source: string
 }
 

@@ -7,7 +7,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   use: { baseURL: 'http://localhost:3200' },
   webServer: {
-    command: 'npm run start -- -p 3200',
+    command: 'LLM_DISABLED=1 npm run start -- -p 3200',
     port: 3200,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

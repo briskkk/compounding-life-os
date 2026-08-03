@@ -10,13 +10,14 @@ import type { ClassWeights } from './engine/covariance'
 import { generateInsights, type InsightDraft } from './engine/insights'
 import { annualized, dailyNetFlows, twrSeries, xirr, xirrFlowsFromTxs } from './engine/attribution'
 import { totalLiabilities, type LiabilityEntryInput } from './engine/liabilities'
-import { polishNarrative } from './ai/llm'
+import { analyzeInsightSet } from './ai/llm'
 import { quoteSmart, providerLabel } from './market'
 import { cnyRateFor, fxRates } from './market/fx'
 import { eastmoneyFundProvider } from './market/eastmoney-fund'
 import type { AssetInfo, TxInput } from './engine/types'
 import { mergePositionsByAsset } from './engine/merge'
 import { summarizeDailyPortfolio } from './engine/daily-pnl'
+import { buildSavingsOverview, type SavingsOverview } from './engine/savings'
 import type { QuoteData } from './market/provider'
 
 export interface LiabilityView {
@@ -156,6 +157,29 @@ export interface GoalView {
   projection: ProjectionResult
 }
 
+export async function loadSavingsOverview(ctx: FamilyCtx, monthCount = 12): Promise<SavingsOverview> {
+  const db = scopedDb(prisma, ctx)
+  const start = new Date()
+  start.setUTCDate(1)
+  start.setUTCHours(0, 0, 0, 0)
+  start.setUTCMonth(start.getUTCMonth() - Math.max(0, monthCount - 1))
+  const rows = await db.savingsEntry.findMany({
+    where: { periodStart: { gte: start } },
+    orderBy: [{ periodStart: 'asc' }, { updatedAt: 'asc' }],
+  })
+  return buildSavingsOverview(
+    rows.map((row) => ({
+      periodType: row.periodType,
+      periodStart: row.periodStart,
+      income: Number(row.income),
+      spending: Number(row.spending),
+      savedAmount: Number(row.savedAmount),
+    })),
+    new Date(),
+    monthCount,
+  )
+}
+
 /** 按口径聚合各类别权重（协方差模拟输入） */
 function classWeights(valued: ValuedPosition[], field: 'value' | 'investable'): ClassWeights {
   const w: ClassWeights = {}
@@ -217,16 +241,20 @@ export async function ensureInsights(
   ctx: FamilyCtx,
   state: EngineState,
   goals: GoalView[],
-): Promise<{ id: string; kind: string; severity: string; title: string; body: string; action: string | null; createdAt: string }[]> {
+): Promise<InsightView[]> {
   const db = scopedDb(prisma, ctx)
   const latest = await db.insight.findFirst({ orderBy: { createdAt: 'desc' } })
   const fresh = latest && Date.now() - latest.createdAt.getTime() < 6 * 3600 * 1000
   if (fresh) {
-    const rows = await db.insight.findMany({ orderBy: { createdAt: 'desc' }, take: 12 })
-    return rows.map(serializeInsight)
+    const rows = await db.insight.findMany({ orderBy: { createdAt: 'asc' }, take: 12 })
+    return sortInsights(rows.map(serializeInsight))
   }
 
-  const snaps = await db.snapshot.findMany({ orderBy: { date: 'desc' }, take: 31 })
+  const [snaps, savings, previousRows] = await Promise.all([
+    db.snapshot.findMany({ orderBy: { date: 'desc' }, take: 31 }),
+    loadSavingsOverview(ctx),
+    db.insight.findMany({ orderBy: { createdAt: 'desc' }, take: 24 }),
+  ])
   const netWorth30dAgo = snaps.length >= 30 ? Number(snaps[30].netWorth) : snaps.length > 1 ? Number(snaps[snaps.length - 1].netWorth) : null
   const prefs = await db.familyPrefs.findUnique({ where: { familyId: ctx.familyId } })
 
@@ -241,28 +269,166 @@ export async function ensureInsights(
     cashDragCeiling: prefs?.cashDragCeiling,
     drawdownThreshold: prefs?.drawdownThreshold,
     goalProbThreshold: prefs?.goalProbThreshold,
+    savings: {
+      averageRate: savings.averageRate,
+      currentRate: savings.current.savingsRate,
+      sustainableMonthlySavings: savings.sustainableMonthlySavings,
+      recordedMonths: savings.recordedMonths,
+    },
   })
 
+  const sourceSnapshotAt = new Date().toISOString()
+  const analysis = await analyzeInsightSet(drafts, {
+    snapshotAt: sourceSnapshotAt,
+    netWorth: state.netWorth,
+    investable: state.investable,
+    cashRatio: state.metrics.cashRatio,
+    topHolding: state.metrics.concentration
+      ? {
+          name: state.metrics.concentration.name,
+          symbol: state.metrics.concentration.symbol,
+          weight: state.metrics.concentration.weight,
+        }
+      : null,
+    liabilities: state.liabilitiesTotal,
+    goals: goals.map((goal) => ({
+      name: goal.name,
+      target: goal.targetAmount,
+      monthsLeft: goal.monthsLeft,
+      successProbability: goal.projection.successProb,
+      requiredMonthly: goal.projection.requiredMonthly,
+    })),
+    savings: {
+      recordedMonths: savings.recordedMonths,
+      currentRate: savings.current.savingsRate,
+      averageRate: savings.averageRate,
+      sustainableMonthlySavings: savings.sustainableMonthlySavings,
+    },
+  })
+
+  const acknowledgedByKey = new Map(
+    previousRows
+      .filter((row) => row.acknowledgedAt)
+      .map((row) => [`${row.kind}:${row.title}`, row.acknowledgedAt]),
+  )
   await db.insight.deleteMany({})
-  for (const d of drafts) {
-    const polished = await polishNarrative(d.title, `${d.body}${d.action ? ` 建议：${d.action}` : ''}`)
+  const analysisRun = analysis
+    ? await db.insightAnalysis.create({
+        data: {
+          familyId: ctx.familyId,
+          provider: analysis.provider,
+          model: analysis.model,
+          promptVersion: analysis.promptVersion,
+          summary: analysis.summary,
+          risks: JSON.stringify(analysis.risks),
+          opportunities: JSON.stringify(analysis.opportunities),
+          sourceSnapshotAt: new Date(analysis.sourceSnapshotAt),
+        },
+      })
+    : null
+  const analysisByKey = new Map(analysis?.items.map((item) => [item.key, item]) ?? [])
+  for (const [index, d] of drafts.entries()) {
+    const enriched = analysisByKey.get(`${d.kind}:${index}`)
     await db.insight.create({
       data: {
         familyId: ctx.familyId,
+        analysisRunId: analysisRun?.id ?? null,
         kind: d.kind,
         severity: d.severity,
         title: d.title,
-        body: polished ?? d.body,
+        body: d.body,
         action: d.action ?? null,
+        analysis: enriched?.analysis ?? null,
+        evidence: enriched ? JSON.stringify(enriched.evidence) : null,
+        confidence: enriched?.confidence ?? null,
+        acknowledgedAt: acknowledgedByKey.get(`${d.kind}:${d.title}`) ?? null,
       },
     })
   }
-  const rows = await db.insight.findMany({ orderBy: { createdAt: 'desc' }, take: 12 })
-  return rows.map(serializeInsight)
+  const rows = await db.insight.findMany({ orderBy: { createdAt: 'asc' }, take: 12 })
+  return sortInsights(rows.map(serializeInsight))
 }
 
-function serializeInsight(i: { id: string; kind: string; severity: string; title: string; body: string; action: string | null; createdAt: Date }) {
-  return { id: i.id, kind: i.kind, severity: i.severity, title: i.title, body: i.body, action: i.action, createdAt: i.createdAt.toISOString() }
+export interface InsightView {
+  id: string
+  kind: string
+  severity: string
+  title: string
+  body: string
+  action: string | null
+  analysis: string | null
+  evidence: string[]
+  confidence: number | null
+  acknowledgedAt: string | null
+  createdAt: string
+}
+
+export interface InsightAnalysisView {
+  id: string
+  provider: string
+  model: string
+  promptVersion: string
+  summary: string
+  risks: string[]
+  opportunities: string[]
+  sourceSnapshotAt: string
+  createdAt: string
+}
+
+function parseStringArray(value: string | null): string[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+export async function loadLatestInsightAnalysis(ctx: FamilyCtx): Promise<InsightAnalysisView | null> {
+  const db = scopedDb(prisma, ctx)
+  const linkedInsight = await db.insight.findFirst({
+    where: { analysisRunId: { not: null } },
+    orderBy: { createdAt: 'desc' },
+  })
+  if (!linkedInsight?.analysisRunId) return null
+  const row = await db.insightAnalysis.findFirst({ where: { id: linkedInsight.analysisRunId } })
+  if (!row) return null
+  return {
+    id: row.id,
+    provider: row.provider,
+    model: row.model,
+    promptVersion: row.promptVersion,
+    summary: row.summary,
+    risks: parseStringArray(row.risks),
+    opportunities: parseStringArray(row.opportunities),
+    sourceSnapshotAt: row.sourceSnapshotAt.toISOString(),
+    createdAt: row.createdAt.toISOString(),
+  }
+}
+
+function sortInsights(rows: InsightView[]): InsightView[] {
+  const severityOrder: Record<string, number> = { ALERT: 0, WARN: 1, INFO: 2 }
+  return rows.sort((a, b) => {
+    if (Boolean(a.acknowledgedAt) !== Boolean(b.acknowledgedAt)) return a.acknowledgedAt ? 1 : -1
+    return (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3)
+  })
+}
+
+function serializeInsight(i: { id: string; kind: string; severity: string; title: string; body: string; action: string | null; analysis: string | null; evidence: string | null; confidence: number | null; acknowledgedAt: Date | null; createdAt: Date }): InsightView {
+  return {
+    id: i.id,
+    kind: i.kind,
+    severity: i.severity,
+    title: i.title,
+    body: i.body,
+    action: i.action,
+    analysis: i.analysis,
+    evidence: parseStringArray(i.evidence),
+    confidence: i.confidence,
+    acknowledgedAt: i.acknowledgedAt?.toISOString() ?? null,
+    createdAt: i.createdAt.toISOString(),
+  }
 }
 
 export interface SeriesPoint {
@@ -295,6 +461,47 @@ export interface DashboardData {
   insights: Awaited<ReturnType<typeof ensureInsights>>
   quotes: { symbol: string; name: string; price: number; prevClose: number; changePct: number; source: string; asOf: string }[]
   provider: string
+}
+
+export interface WatchData {
+  state: EngineState
+  series: SeriesPoint[]
+}
+
+/** 看盘只装配持仓与财富轨迹，避免触发目标投影、洞察生成和完整收益归因。 */
+export async function getWatchData(): Promise<WatchData | null> {
+  const ctx = await getSession()
+  if (!ctx) return null
+  const db = scopedDb(prisma, ctx)
+  const [state, snaps] = await Promise.all([
+    loadEngineState(ctx),
+    db.snapshot.findMany({ orderBy: { date: 'asc' } }),
+  ])
+  const series: SeriesPoint[] = snaps.map((snapshot) => ({
+    date: snapshot.date.toISOString().slice(0, 10),
+    netWorth: Number(snapshot.netWorth),
+    investable: Number(snapshot.investable),
+    contributions: Number(snapshot.contributions),
+    assets: Number(snapshot.assets),
+    liabilities: Number(snapshot.liabilities),
+  }))
+
+  const rates = await fxRates()
+  const currencyRate = (currency: string) => currency === 'USD' ? rates.USDCNY : currency === 'HKD' ? rates.HKDCNY : 1
+  const flows = dailyNetFlows(state.ledgerTxs, currencyRate)
+  const contributionsNow = [...flows.values()].reduce((sum, amount) => sum + amount, 0)
+  const livePoint: SeriesPoint = {
+    date: new Date().toISOString().slice(0, 10),
+    netWorth: Math.round(state.netWorth),
+    investable: Math.round(state.investable),
+    contributions: Math.round(contributionsNow),
+    assets: Math.round(state.metrics.netWorth),
+    liabilities: Math.round(state.liabilitiesTotal),
+  }
+  if (series.at(-1)?.date === livePoint.date) series[series.length - 1] = livePoint
+  else series.push(livePoint)
+
+  return { state, series }
 }
 
 export async function getDashboard(): Promise<DashboardData | null> {

@@ -10,8 +10,9 @@ DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
     'Member', 'Account', 'Asset', 'Transaction',
-    'Liability', 'LiabilityEntry', 'Goal', 'FamilyPrefs',
-    'Snapshot', 'Insight', 'AuditLog'
+    'Liability', 'LiabilityEntry', 'Goal', 'SavingsEntry', 'FamilyPrefs',
+    'Snapshot', 'Insight', 'InsightAnalysis', 'AssetAnalysis',
+    'AssetChatMessage', 'AuditLog'
   ]
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);

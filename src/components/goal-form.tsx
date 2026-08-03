@@ -20,9 +20,9 @@ export interface GoalInitial {
   note: string
 }
 
-export function GoalForm({ mode, goalId, initial }: { mode: 'create' | 'edit'; goalId?: string; initial?: GoalInitial }) {
+export function GoalForm({ mode, goalId, initial, initiallyOpen = false }: { mode: 'create' | 'edit'; goalId?: string; initial?: GoalInitial; initiallyOpen?: boolean }) {
   const router = useRouter()
-  const [open, setOpen] = useState(mode === 'create')
+  const [open, setOpen] = useState(mode === 'create' || initiallyOpen)
   const [goalMode, setGoalMode] = useState<'LUMP_SUM' | 'STREAM'>(initial?.mode ?? 'LUMP_SUM')
   const [pending, setPending] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -75,7 +75,7 @@ export function GoalForm({ mode, goalId, initial }: { mode: 'create' | 'edit'; g
 
   return (
     <form onSubmit={onSubmit} className="mt-3 space-y-3 border-t border-line pt-3">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <Field label="目标名称">
           <input name="name" required defaultValue={initial?.name} className={inputCls} placeholder="子女教育金" />
         </Field>

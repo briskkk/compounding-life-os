@@ -14,6 +14,7 @@ import { CLASS_COLORS } from '@/lib/colors'
 import type { AssetClass } from '@/lib/engine/types'
 import { PositionSourceTag, ValuationLegend, ValuationSourceSummary } from '@/components/valuation-source'
 import { parseHoldingSort, sortHoldings } from '@/lib/engine/holding-sort'
+import { HoldingSortSelect } from '@/components/holding-sort-select'
 
 export const dynamic = 'force-dynamic'
 
@@ -152,24 +153,6 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                   清除筛选 ×
                 </Link>
               )}
-              <form method="GET" className="flex items-center gap-1.5">
-                {activeTag && <input type="hidden" name="tag" value={activeTag} />}
-                {activeClass && <input type="hidden" name="cls" value={activeClass} />}
-                <label htmlFor="position-sort" className="text-[12px] text-ink-faint">排序</label>
-                <select
-                  id="position-sort"
-                  name="sort"
-                  defaultValue={activeSort}
-                  className="rounded border border-line bg-panel2 px-2 py-1 text-[12px] text-ink-dim outline-none"
-                >
-                  <option value="value-desc">市值：从高到低</option>
-                  <option value="value-asc">市值：从低到高</option>
-                  <option value="dayPnl-desc">当日盈亏：从高到低</option>
-                  <option value="dayPnl-asc">当日盈亏：从低到高</option>
-                  <option value="name-asc">名称：拼音顺序</option>
-                </select>
-                <button type="submit" className="rounded border border-line px-2 py-1 text-[12px] text-ink-dim hover:text-ink">应用</button>
-              </form>
             </div>
           )}
         >
@@ -190,7 +173,12 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
               <table className="w-full text-[14px] whitespace-nowrap">
               <thead>
                 <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
-                  <th className="px-4 py-2.5 font-normal">资产</th>
+                  <th className="px-4 py-2.5 font-normal" aria-sort="other">
+                    <div className="flex items-center gap-2">
+                      <span>资产</span>
+                      <HoldingSortSelect value={activeSort} ariaLabel="持仓资产排序" navigate />
+                    </div>
+                  </th>
                   <th className="px-2 py-2.5 font-normal">账户</th>
                   <th className="px-2 py-2.5 text-right font-normal">数量</th>
                   <th className="px-2 py-2.5 text-right font-normal">成本</th>

@@ -97,6 +97,21 @@ export const goalInputSchema = goalBaseSchema.superRefine((v, ctx) => {
 
 export const goalUpdateSchema = goalBaseSchema.partial()
 
+export const goalScenarioSchema = z.object({
+  monthlyContribution: z.number().nonnegative(),
+  delayMonths: z.number().int().min(0).max(36),
+  targetReduction: z.number().min(0).max(0.2),
+})
+
+export const savingsEntryInputSchema = z.object({
+  periodType: z.enum(['WEEK', 'MONTH']),
+  periodStart: z.coerce.date(),
+  income: z.number().nonnegative('收入不能为负'),
+  spending: z.number().nonnegative('消费不能为负'),
+  savedAmount: z.number().nonnegative('已储蓄金额不能为负'),
+  note: z.string().max(200).nullable().default(null),
+})
+
 export const prefsInputSchema = z.object({
   cashFloor: z.number().min(0).max(1),
   concentrationCeiling: z.number().min(0.01).max(1),

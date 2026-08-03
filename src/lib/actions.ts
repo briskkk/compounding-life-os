@@ -15,10 +15,12 @@ import {
   assetInputSchema,
   assetUpdateSchema,
   goalInputSchema,
+  goalScenarioSchema,
   goalUpdateSchema,
   liabilityEntryInputSchema,
   liabilityInputSchema,
   prefsInputSchema,
+  savingsEntryInputSchema,
   txInputSchema,
 } from './schemas'
 import { parseCsvRows, type CsvLookup, type ParsedTx } from './csv'
@@ -28,6 +30,7 @@ import { foldTransactions, type LedgerTx } from './engine/ledger'
 import { parseTags, serializeTags } from './engine/groups'
 import { persistFundHistory, persistHistory } from './market/persist'
 import { assertTransactionRules, assertTransactionTimeline, type TransactionDraft } from './transaction-rules'
+import { checkLlmConnection } from './ai/llm'
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T; warning?: string }
@@ -563,6 +566,7 @@ export async function createGoal(input: unknown): Promise<ActionResult<{ id: str
     const targetAmount = data.mode === 'STREAM' ? data.annualSpend * data.spendYears : data.targetAmount
     const goal = await prisma.$transaction(async (txDb) => {
       const created = await txDb.goal.create({ data: { ...data, targetAmount, familyId: ctx.familyId } })
+      await txDb.insight.deleteMany({ where: { familyId: ctx.familyId } })
       await audit(ctx, 'CREATE', 'Goal', created.id, `${data.name} ${data.targetAmount}`, txDb)
       return created
     })
@@ -585,6 +589,7 @@ export async function updateGoal(id: string, input: unknown): Promise<ActionResu
     await prisma.$transaction(async (txDb) => {
       const updated = await txDb.goal.updateMany({ where: { id, familyId: ctx.familyId }, data: patch })
       if (updated.count === 0) throw new Error('目标不存在或不属于当前家庭')
+      await txDb.insight.deleteMany({ where: { familyId: ctx.familyId } })
       await audit(ctx, 'UPDATE', 'Goal', id, JSON.stringify(data), txDb)
     })
     revalidatePath('/goals')
@@ -601,11 +606,101 @@ export async function deleteGoal(id: string): Promise<ActionResult> {
     await prisma.$transaction(async (txDb) => {
       const deleted = await txDb.goal.deleteMany({ where: { id, familyId: ctx.familyId } })
       if (deleted.count === 0) throw new Error('目标不存在或不属于当前家庭')
+      await txDb.insight.deleteMany({ where: { familyId: ctx.familyId } })
       await audit(ctx, 'DELETE', 'Goal', id, null, txDb)
     })
     revalidatePath('/goals')
     revalidatePath('/')
     return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function applyGoalScenario(id: string, input: unknown): Promise<ActionResult> {
+  try {
+    const ctx = await requireWrite()
+    const data = goalScenarioSchema.parse(input)
+    await prisma.$transaction(async (txDb) => {
+      const goal = await txDb.goal.findFirst({ where: { id, familyId: ctx.familyId } })
+      if (!goal) throw new Error('目标不存在或不属于当前家庭')
+      const targetDate = new Date(goal.targetDate)
+      targetDate.setUTCMonth(targetDate.getUTCMonth() + data.delayMonths)
+      const targetAmount = goal.mode === 'LUMP_SUM'
+        ? Number(goal.targetAmount) * (1 - data.targetReduction)
+        : Number(goal.targetAmount)
+      await txDb.goal.updateMany({
+        where: { id, familyId: ctx.familyId },
+        data: {
+          monthlyContribution: data.monthlyContribution,
+          targetDate,
+          targetAmount,
+        },
+      })
+      await txDb.insight.deleteMany({ where: { familyId: ctx.familyId } })
+      await audit(
+        ctx,
+        'UPDATE',
+        'Goal',
+        id,
+        `情景方案：月投入 ${data.monthlyContribution}，延后 ${data.delayMonths} 月，目标调整 ${(data.targetReduction * 100).toFixed(0)}%`,
+        txDb,
+      )
+    })
+    revalidatePath('/goals')
+    revalidatePath('/insights')
+    revalidatePath('/')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+function canonicalSavingsPeriod(periodType: 'WEEK' | 'MONTH', value: Date): Date {
+  const date = new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()))
+  if (periodType === 'MONTH') return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
+  const daysSinceMonday = (date.getUTCDay() + 6) % 7
+  date.setUTCDate(date.getUTCDate() - daysSinceMonday)
+  return date
+}
+
+export async function upsertSavingsEntry(input: unknown): Promise<ActionResult<{ id: string }>> {
+  try {
+    const ctx = await requireWrite()
+    const data = savingsEntryInputSchema.parse(input)
+    const periodStart = canonicalSavingsPeriod(data.periodType, data.periodStart)
+    const entry = await prisma.$transaction(async (txDb) => {
+      const saved = await txDb.savingsEntry.upsert({
+        where: {
+          familyId_periodType_periodStart: {
+            familyId: ctx.familyId,
+            periodType: data.periodType,
+            periodStart,
+          },
+        },
+        create: { ...data, periodStart, familyId: ctx.familyId },
+        update: {
+          income: data.income,
+          spending: data.spending,
+          savedAmount: data.savedAmount,
+          note: data.note,
+        },
+      })
+      await txDb.insight.deleteMany({ where: { familyId: ctx.familyId } })
+      await audit(
+        ctx,
+        'UPSERT',
+        'SavingsEntry',
+        saved.id,
+        `${data.periodType} ${periodStart.toISOString().slice(0, 10)} 收入 ${data.income} 消费 ${data.spending} 储蓄 ${data.savedAmount}`,
+        txDb,
+      )
+      return saved
+    })
+    revalidatePath('/goals')
+    revalidatePath('/insights')
+    revalidatePath('/')
+    return { ok: true, data: { id: entry.id } }
   } catch (e) {
     return fail(e)
   }
@@ -641,6 +736,36 @@ export async function regenerateInsights(): Promise<ActionResult> {
     await prisma.$transaction(async (txDb) => {
       await txDb.insight.deleteMany({ where: { familyId: ctx.familyId } })
       await audit(ctx, 'REGENERATE', 'Insight', null, null, txDb)
+    })
+    revalidatePath('/insights')
+    revalidatePath('/')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function testLlmConnection(): Promise<ActionResult<{ model?: string; message: string }>> {
+  try {
+    await getSessionOrThrow()
+    const result = await checkLlmConnection()
+    if (!result.ok) return { ok: false, error: result.message }
+    return { ok: true, data: { model: result.model, message: result.message } }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function acknowledgeInsight(id: string): Promise<ActionResult> {
+  try {
+    const ctx = await requireWrite()
+    await prisma.$transaction(async (txDb) => {
+      const updated = await txDb.insight.updateMany({
+        where: { id, familyId: ctx.familyId },
+        data: { acknowledgedAt: new Date() },
+      })
+      if (updated.count === 0) throw new Error('洞察不存在或不属于当前家庭')
+      await audit(ctx, 'ACKNOWLEDGE', 'Insight', id, null, txDb)
     })
     revalidatePath('/insights')
     revalidatePath('/')
