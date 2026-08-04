@@ -8,14 +8,20 @@
   --color-ink: #f3f5f7;
   --color-ink-dim: #a9afb5;
   --color-ink-faint: #8d959d;
-  --color-gold: #79bfff;
+  --color-accent: #79bfff;
   --color-up: #ff7a3d;
   --color-down: #43c692;
   --color-info: #79bfff;
   --color-violet: #a995f5;
   --color-teal: #57c8be;
   --color-amber: #e4b45f;
-  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --font-mono: "JetBrains Mono", "PingFang SC", "Hiragino Sans GB", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* 表面层级：浮层只允许这两档；蓝色渐变图表底为特例（见 .chart-surface） */
+:root {
+  --surface-1: rgba(255, 255, 255, 0.032);
+  --surface-2: rgba(255, 255, 255, 0.06);
 }
 
 html {
@@ -42,7 +48,7 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-gold);
+  outline: 2px solid var(--color-accent);
   outline-offset: 3px;
 }
 
@@ -55,9 +61,21 @@ select {
 
 .num,
 .data-num {
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
-  letter-spacing: -0.025em;
+  letter-spacing: -0.01em;
+}
+
+/* 数据表格统一走等宽栈：拉丁/数字用 JetBrains Mono，中文回退苹方 */
+td,
+th {
+  font-family: var(--font-mono);
+}
+
+/* 图表刻度数字同属数据语境 */
+.recharts-cartesian-axis-tick-value {
+  font-family: var(--font-mono);
 }
 
 .app-shell {
@@ -84,6 +102,7 @@ select {
 .eyebrow,
 .page-kicker {
   color: var(--color-ink-faint);
+  font-family: var(--font-mono);
   font-size: 13px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -108,10 +127,11 @@ select {
 
 .hero-number {
   color: var(--color-ink);
+  font-family: var(--font-mono);
   font-size: clamp(2.75rem, 5vw, 4.5rem);
   font-weight: 450;
   line-height: 0.95;
-  letter-spacing: -0.065em;
+  letter-spacing: -0.045em;
 }
 
 .hero-grid {
@@ -144,7 +164,7 @@ select {
   min-height: 118px;
   padding: 1.35rem 1.5rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.032);
+  background: var(--surface-1);
 }
 
 .metric-band > * + * {
@@ -162,7 +182,7 @@ select {
   min-width: 0;
   padding: 1.5rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.032);
+  background: var(--surface-1);
 }
 
 .portfolio-history {
@@ -235,7 +255,7 @@ select {
   margin-top: 1rem;
   padding: 1rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.032);
+  background: var(--surface-1);
 }
 
 .history-date-form label > span {
@@ -263,7 +283,7 @@ select {
   min-height: 116px;
   padding: 1.2rem 1.35rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.032);
+  background: var(--surface-1);
 }
 
 .history-metrics span {
@@ -319,6 +339,11 @@ select {
 .history-legend-amount {
   height: 0;
   border-top: 2px dashed var(--color-amber);
+}
+
+.history-legend-bench {
+  height: 0;
+  border-top: 2px dashed var(--color-violet);
 }
 
 .history-chart-empty,
@@ -422,7 +447,7 @@ select {
   margin-top: 2.25rem;
   padding: clamp(1.5rem, 3vw, 2.5rem);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.032);
+  background: var(--surface-1);
 }
 
 .holding-primary > span,
@@ -515,7 +540,7 @@ select {
   min-width: 0;
   padding: 1.15rem 1.25rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--surface-1);
 }
 
 .account-holding-row > div:not(.account-holding-name) {
@@ -652,7 +677,7 @@ select {
 .asset-ai-unconfigured {
   padding: clamp(1.5rem, 3vw, 2.25rem);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.032);
+  background: var(--surface-1);
 }
 
 .asset-ai-unconfigured strong {
@@ -671,7 +696,7 @@ select {
 .asset-ai-brief {
   min-width: 0;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.032);
+  background: var(--surface-1);
   padding: clamp(1.5rem, 3vw, 2.25rem);
 }
 
@@ -784,7 +809,7 @@ select {
   width: 100%;
   height: 14px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-2);
   animation: asset-ai-pulse 1.4s ease-in-out infinite alternate;
 }
 
@@ -837,7 +862,7 @@ select {
 .asset-research-empty {
   border-radius: 16px;
   padding: clamp(1.5rem, 3vw, 2.25rem);
-  background: rgba(255, 255, 255, 0.032);
+  background: var(--surface-1);
 }
 
 .asset-research-empty strong {
@@ -857,7 +882,7 @@ select {
   overflow: hidden;
   grid-template-columns: minmax(250px, 0.26fr) minmax(0, 0.74fr);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.032);
+  background: var(--surface-1);
 }
 
 .asset-research-context {
@@ -1120,7 +1145,7 @@ select {
   width: 100%;
   height: 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-2);
   animation: asset-ai-pulse 1.4s ease-in-out infinite alternate;
 }
 
@@ -1150,7 +1175,7 @@ select {
   align-items: start;
   padding: clamp(1.5rem, 3vw, 2.25rem);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.032);
+  background: var(--surface-1);
 }
 
 .asset-form-intro > span {
@@ -1295,7 +1320,7 @@ select {
 
 .source-summary {
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.026);
+  background: var(--surface-1);
 }
 
 .goal-page-header,
@@ -1309,6 +1334,13 @@ select {
 .goal-page-header {
   padding-bottom: 1.75rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* 大标题页（FIRE / 洞察）首屏收紧：页头上方少留一段 */
+.goals-page,
+.insights-page {
+  gap: 2.75rem;
+  padding-block-start: 2.5rem;
 }
 
 .goal-page-header h1 {
@@ -1397,29 +1429,37 @@ select {
   font-size: 12px;
 }
 
-.goal-edit-details > summary {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-  padding-inline: 0.9rem;
-  color: var(--color-ink-dim);
-  font-size: 14px;
-  list-style: none;
-  cursor: pointer;
+.goal-dialog {
+  width: min(100% - 2.5rem, 760px);
+  max-height: calc(100dvh - 4rem);
+  margin: auto;
+  overflow-y: auto;
+  border: 1px solid var(--color-line);
+  border-radius: 16px;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  padding: clamp(1.25rem, 3vw, 2rem);
 }
 
-.goal-edit-details > summary::-webkit-details-marker,
+.goal-dialog::backdrop {
+  background: rgba(7, 9, 10, 0.62);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .goal-dialog[open] {
+    animation: goal-dialog-in 180ms ease;
+  }
+}
+
+@keyframes goal-dialog-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
 .goal-portfolio-list summary::-webkit-details-marker,
 .new-goal-section > summary::-webkit-details-marker,
 .insight-policy-details > summary::-webkit-details-marker {
   display: none;
-}
-
-.goal-edit-popover {
-  margin-top: 1rem;
-  padding: 1.25rem;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.035);
 }
 
 .goal-empty-hero {
@@ -1482,7 +1522,7 @@ select {
   min-height: 148px;
   padding: 1.25rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.032);
+  background: var(--surface-1);
 }
 
 .fire-metric-grid span,
@@ -1569,7 +1609,7 @@ select {
 .insight-lead,
 .insight-evidence {
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.032);
+  background: var(--surface-1);
 }
 
 .savings-entry-surface {
@@ -1981,7 +2021,7 @@ select {
   gap: 0.35rem;
   padding: 1.2rem 1.4rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.027);
+  background: var(--surface-1);
 }
 
 .insight-context-strip strong {
@@ -2133,7 +2173,7 @@ select {
   margin-bottom: 1.5rem;
   padding: 1.25rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-1);
 }
 
 .llm-status-panel strong {
@@ -2158,7 +2198,7 @@ select {
 .surface {
   border: 1px solid rgba(255, 255, 255, 0.055);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--surface-1);
 }
 
 .quiet-list {
@@ -2203,7 +2243,7 @@ tbody tr {
 }
 
 tbody tr:hover {
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--surface-1);
 }
 
 select option {

@@ -20,7 +20,7 @@ export function ValuationToggle({
         onClick={() => setOpen((o) => !o)}
         className={cx(
           'flex w-full items-center justify-between px-4 py-2 text-left text-[14px] transition-colors',
-          open ? 'border-b border-line text-gold' : 'text-ink-faint hover:text-ink-dim',
+          open ? 'border-b border-line text-accent' : 'text-ink-faint hover:text-ink-dim',
         )}
       >
         <span>手动估值（房产等非行情资产）</span>

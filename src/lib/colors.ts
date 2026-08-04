@@ -7,7 +7,7 @@ export const C = {
   ink: '#F3F5F7',
   inkDim: '#A9AFB5',
   inkFaint: '#727A82',
-  gold: '#79BFFF',
+  accent: '#79BFFF',
   up: '#FF7A3D',
   down: '#43C692',
   info: '#79BFFF',
@@ -21,7 +21,7 @@ export const CLASS_COLORS: Record<string, string> = {
   FUND: C.info,
   ETF: C.teal,
   CASH: C.inkFaint,
-  GOLD: C.gold,
+  GOLD: C.accent,
   REAL_ESTATE: C.violet,
   HUAWEI_STOCK: C.amber,
 }

@@ -1,6 +1,7 @@
 // 终端 UI 原语（server-safe）
 import Link from 'next/link'
 import type { ReactNode } from 'react'
+import { BRAND_NAME } from '@/lib/brand'
 import { cx, fmtCNY, fmtPct, toneOf } from '@/lib/format'
 
 export function PageHeader({
@@ -103,12 +104,12 @@ export function Delta({
   )
 }
 
-type Tone = 'up' | 'down' | 'gold' | 'info' | 'dim' | 'violet' | 'amber'
+type Tone = 'up' | 'down' | 'accent' | 'info' | 'dim' | 'violet' | 'amber'
 
 const TONE_CLS: Record<Tone, string> = {
   up: 'text-up border-up/30 bg-up/10',
   down: 'text-down border-down/30 bg-down/10',
-  gold: 'text-gold border-gold/30 bg-gold/10',
+  accent: 'text-accent border-accent/30 bg-accent/10',
   info: 'text-info border-info/30 bg-info/10',
   dim: 'text-ink-dim border-line bg-panel2',
   violet: 'text-violet border-violet/30 bg-violet/10',
@@ -127,7 +128,7 @@ export function Bar({ ratio, className }: { ratio: number; className?: string })
   return (
     <div className="h-1 w-full overflow-hidden rounded-full bg-panel2">
       <div
-        className={cx('h-full rounded-full bg-gold transition-all', className)}
+        className={cx('h-full rounded-full bg-accent transition-all', className)}
         style={{ width: `${Math.min(100, Math.max(0, ratio * 100))}%` }}
       />
     </div>
@@ -153,10 +154,10 @@ export function Empty({ children, action }: { children: ReactNode; action?: { hr
 export function SetupScreen() {
   return (
     <div className="mx-auto mt-24 max-w-md border-y border-line py-12 text-center">
-      <div className="num text-xl text-gold">FW·OS</div>
+      <div className="num text-xl text-accent">{BRAND_NAME}</div>
       <p className="mt-4 text-sm text-ink-dim">家庭空间尚未初始化</p>
       <p className="mt-2 text-xs text-ink-faint">
-        运行 <code className="rounded bg-panel2 px-1.5 py-0.5 text-gold">npm run db:init</code> 创建空白家庭空间后刷新
+        运行 <code className="rounded bg-panel2 px-1.5 py-0.5 text-accent">npm run db:init</code> 创建空白家庭空间后刷新
       </p>
     </div>
   )

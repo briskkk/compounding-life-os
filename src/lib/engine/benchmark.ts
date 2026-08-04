@@ -69,3 +69,57 @@ export function bestFitIndex(
   }
   return best
 }
+
+// ---------- 组合基准对比 ----------
+
+export interface BenchmarkIndex {
+  symbol: string // 行情代码（parseSymbol → INDEX 市场）
+  label: string
+}
+
+/** 可选基准指数：沪深300 / 上证指数 / 创业板指 / 科创50 */
+export const BENCHMARK_INDICES: BenchmarkIndex[] = [
+  { symbol: 'sh000300', label: '沪深300' },
+  { symbol: 'sh000001', label: '上证指数' },
+  { symbol: 'sz399006', label: '创业板指' },
+  { symbol: 'sh000688', label: '科创50' },
+]
+
+export const DEFAULT_BENCHMARK_SYMBOL = 'sh000300'
+
+export interface BenchmarkPoint {
+  date: string // YYYY-MM-DD
+  close: number
+}
+
+/** 加载完成的一组基准序列（点数 ≥ 2 才会传入 UI） */
+export interface LoadedBenchmark extends BenchmarkIndex {
+  points: BenchmarkPoint[]
+}
+
+/**
+ * 逐日基准累计收益率：基准净值为曲线首日（期初基准日）当天或之前最近的收盘价；
+ * 非交易日沿用前一收盘价。基准日之前无任何收盘价时整列返回 null（调用方不展示基准）。
+ */
+export function alignBenchmark(curveDates: string[], points: BenchmarkPoint[]): (number | null)[] {
+  if (curveDates.length === 0 || points.length === 0) return curveDates.map(() => null)
+  const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date))
+
+  // 交易日表不一定覆盖每个曲线日期：游标式「任意日期 → 当天或之前最近收盘」（曲线日期升序）
+  let cursor = 0
+  let lastClose: number | null = null
+  const lookup = (date: string): number | null => {
+    while (cursor < sorted.length && sorted[cursor].date <= date) {
+      lastClose = sorted[cursor].close
+      cursor += 1
+    }
+    return lastClose
+  }
+
+  const base = lookup(curveDates[0])
+  if (base == null || base <= 0) return curveDates.map(() => null)
+  return curveDates.map((date) => {
+    const close = lookup(date)
+    return close == null ? null : close / base - 1
+  })
+}

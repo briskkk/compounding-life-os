@@ -20,14 +20,14 @@ This file is the implementation source of truth derived from the approved high-f
 | Foreground | `#F3F5F7` |
 | Muted | `#A9AFB5` |
 | Faint | `#8D959D` |
-| Primary blue | `#79BFFF` |
+| Primary blue (`--color-accent`) | `#79BFFF` |
 | Positive / CN up | `#FF7A3D` |
 | Negative / CN down | `#43C692` |
 
 ## Typography and spacing
 
-- Native system sans: SF Pro / PingFang SC. Tabular numerals for financial data.
-- Base text: 16px, line-height 1.6. Data tables: 14px; panel headings: 19px; secondary labels never below 12px.
+- Latin numerals, codes, eyebrows, table cells, and chart ticks: JetBrains Mono (self-hosted via `@fontsource/jetbrains-mono`, weights 400/500), falling back to PingFang SC for CJK. Body prose: native system sans (SF Pro / PingFang SC).
+- Tabular numerals for financial data. Base text: 16px, line-height 1.6. Data tables: 14px; panel headings: 19px; secondary labels never below 12px.
 - Page width: 1440–1500px maximum, 24–40px horizontal inset.
 - Section spacing: 40–64px. Table rows: 42–48px.
 
@@ -40,7 +40,7 @@ This file is the implementation source of truth derived from the approved high-f
 ## Components
 
 - Major sections are separated by whitespace and headings. Avoid continuous full-width divider grids.
-- Metric groups use quiet 3% white surfaces with 12px radius and 12px gaps; no vertical rules.
+- Quiet surfaces use only two sanctioned levels: `--surface-1` (3.2% white, default cards/tiles) and `--surface-2` (6% white, raised/loading states); 12px radius and 12px gaps; no vertical rules. Blue-tinted gradient chart surfaces are the single exception.
 - Primary buttons: blue fill, dark text, 8–10px radius, minimum 44px target.
 - Secondary actions: transparent with border or text-only.
 - Tables use calm typography, generous rows, sticky semantic headers where useful, and local horizontal scrolling on small screens.

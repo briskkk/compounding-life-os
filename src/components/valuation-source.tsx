@@ -72,7 +72,7 @@ export function ValuationSourceSummary({ items, className }: { items: ValuationS
       <span className="ml-auto text-ink-faint">
         总计 <span className="num text-ink">{fmtCNY(total)}</span>
         <span className="mx-2">·</span>
-        <Link href="/positions" className="hover:text-gold">查看来源明细 →</Link>
+        <Link href="/positions" className="hover:text-accent">查看来源明细 →</Link>
       </span>
     </div>
   )

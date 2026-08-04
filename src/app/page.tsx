@@ -58,7 +58,7 @@ export default async function OverviewPage() {
                   <p className="mt-1 text-[14px] text-ink-faint">{step.why}</p>
                 </div>
                 {!step.done && (
-                  <Link href={step.href} className="text-[14px] text-gold transition-colors hover:text-ink">{step.action}</Link>
+                  <Link href={step.href} className="text-[14px] text-accent transition-colors hover:text-ink">{step.action}</Link>
                 )}
               </div>
             ))}
@@ -109,7 +109,7 @@ export default async function OverviewPage() {
           </div>
           <div>
             <div className="text-[15px] text-ink-faint">事实源</div>
-            <Link href="/audit" className={cx('mt-3 block text-[20px] transition-colors hover:text-gold', chain.ok ? 'text-ink' : 'text-up')}>
+            <Link href="/audit" className={cx('mt-3 block text-[20px] transition-colors hover:text-accent', chain.ok ? 'text-ink' : 'text-up')}>
               {!chain.ok ? '审计链断裂 · 待检查' : chain.count > 0 ? `审计链完整 · ${chain.count} 条` : '账本记录 · 尚无留痕'}
             </Link>
           </div>
@@ -148,7 +148,7 @@ export default async function OverviewPage() {
                   </div>
                   <p className="mt-2 text-[15px] leading-7 text-ink-faint">{insight.body}</p>
                 </div>
-                {insight.action && <Link href={insightHref(insight.kind)} className="text-[14px] text-gold transition-colors hover:text-ink">前往处理 →</Link>}
+                {insight.action && <Link href={insightHref(insight.kind)} className="text-[14px] text-accent transition-colors hover:text-ink">前往处理 →</Link>}
               </div>
             ))}
           </div>
@@ -182,7 +182,7 @@ export default async function OverviewPage() {
                     <span className="text-ink-dim">{holding.name}</span>
                     <span className="num text-ink">{fmtPct(holding.weight)}</span>
                   </div>
-                  <Bar ratio={holding.weight} className={holding.weight > 0.25 ? 'bg-up' : 'bg-gold'} />
+                  <Bar ratio={holding.weight} className={holding.weight > 0.25 ? 'bg-up' : 'bg-accent'} />
                 </div>
               ))}
             </div>
@@ -198,7 +198,7 @@ export default async function OverviewPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-ink">{goal.name}</span>
-                    <Tag tone={goal.metric === 'NET_WORTH' ? 'gold' : 'info'}>{GOAL_METRIC_LABEL[goal.metric]}</Tag>
+                    <Tag tone={goal.metric === 'NET_WORTH' ? 'accent' : 'info'}>{GOAL_METRIC_LABEL[goal.metric]}</Tag>
                   </div>
                   <div className="num mt-2 text-[18px] text-ink">{fmtCNY(goal.current)} <span className="text-[14px] text-ink-faint">/ {fmtCNY(goal.targetAmount)}</span></div>
                 </div>

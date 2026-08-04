@@ -7,6 +7,8 @@ import {
   type PerformancePoint,
   type PerformancePreset,
 } from '@/lib/engine/period-performance'
+import { alignBenchmark, DEFAULT_BENCHMARK_SYMBOL, type LoadedBenchmark } from '@/lib/engine/benchmark'
+import { RISK_FREE_ANNUAL, riskMetrics } from '@/lib/engine/risk'
 import { dateKeyAt } from '@/lib/engine/watch-market'
 import { cx, fmtCNY } from '@/lib/format'
 import { btnCls, inputCls } from './fields'
@@ -30,10 +32,12 @@ export function PortfolioHistory({
   series,
   liveValue,
   currentContributions,
+  benchmarks = [],
 }: {
   series: PerformancePoint[]
   liveValue: number
   currentContributions: number
+  benchmarks?: LoadedBenchmark[]
 }) {
   const todayKey = dateKeyAt(new Date())
   const liveSeries = useMemo(() => {
@@ -89,6 +93,22 @@ export function PortfolioHistory({
   const hasHistory = performance.endDate != null
   // 首点是期初计算基准，没有“当日”收益；明细只展示其后的真实日变化。
   const recentRows = performance.curve.slice(1).slice(-20).reverse()
+
+  // 风险三指标与基准对齐：与所选区间同口径，随周期切换即时重算
+  const risk = useMemo(() => riskMetrics(performance.curve), [performance])
+  const [benchmarkSymbol, setBenchmarkSymbol] = useState(DEFAULT_BENCHMARK_SYMBOL)
+  const activeBenchmark = benchmarks.find((item) => item.symbol === benchmarkSymbol) ?? benchmarks[0] ?? null
+  const benchCurve = useMemo(
+    () => alignBenchmark(performance.curve.map((point) => point.date), activeBenchmark?.points ?? []),
+    [activeBenchmark, performance],
+  )
+  const benchValidCount = benchCurve.filter((value) => value != null).length
+  const hasBenchmark = benchValidCount > 1
+  const benchmarkTotal = hasBenchmark ? benchCurve[benchCurve.length - 1] : null
+  const chartData = useMemo(
+    () => performance.curve.map((point, index) => ({ ...point, benchPct: hasBenchmark ? benchCurve[index] : null })),
+    [benchCurve, hasBenchmark, performance],
+  )
 
   return (
     <section className="portfolio-history" aria-labelledby="portfolio-history-title">
@@ -162,6 +182,23 @@ export function PortfolioHistory({
         </form>
       )}
 
+      {benchmarks.length > 0 && (
+        <div className="history-range-controls" role="group" aria-label="基准指数">
+          <span className="self-center text-[13px] text-ink-faint">对比基准</span>
+          {benchmarks.map((item) => (
+            <button
+              key={item.symbol}
+              type="button"
+              aria-pressed={activeBenchmark?.symbol === item.symbol}
+              className="history-range-button"
+              onClick={() => setBenchmarkSymbol(item.symbol)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {hasHistory ? (
         <>
           <div className="history-metrics" aria-label={`${performance.label}收益摘要`}>
@@ -189,6 +226,30 @@ export function PortfolioHistory({
               <span>期末可投资资产</span>
               <strong className="num">{performance.endNetWorth == null ? '—' : fmtCNY(performance.endNetWorth)}</strong>
             </div>
+            <div>
+              <span>同期{activeBenchmark?.label ?? '基准'}</span>
+              <strong className={cx('num', benchmarkTotal == null ? 'text-ink-faint' : benchmarkTotal >= 0 ? 'text-up' : 'text-down')}>
+                {benchmarkTotal == null ? '—' : signedPct(benchmarkTotal)}
+              </strong>
+            </div>
+            <div>
+              <span>最大回撤</span>
+              <strong className={cx('num', risk.maxDrawdown == null ? 'text-ink-faint' : 'text-down')}>
+                {risk.maxDrawdown == null ? '—' : signedPct(risk.maxDrawdown)}
+              </strong>
+            </div>
+            <div>
+              <span>年化波动率</span>
+              <strong className={cx('num', risk.volatility == null && 'text-ink-faint')}>
+                {risk.volatility == null ? '—' : `${(risk.volatility * 100).toFixed(1)}%`}
+              </strong>
+            </div>
+            <div>
+              <span>夏普比率</span>
+              <strong className={cx('num', risk.sharpe == null && 'text-ink-faint')}>
+                {risk.sharpe == null ? '—' : risk.sharpe.toFixed(2)}
+              </strong>
+            </div>
           </div>
 
           <div className="history-chart-surface">
@@ -201,13 +262,19 @@ export function PortfolioHistory({
                 <i className="history-legend-amount" aria-hidden="true" />
                 累计收益金额（右轴）
               </span>
+              {hasBenchmark && activeBenchmark && (
+                <span className="history-legend-item">
+                  <i className="history-legend-bench" aria-hidden="true" />
+                  {activeBenchmark.label}基准（左轴）
+                </span>
+              )}
             </div>
             {performance.curve.length > 1 ? (
               <div
                 role="img"
                 aria-label={`${performance.startDate} 至 ${performance.endDate}，累计时间加权收益率 ${pct == null ? '无法计算' : signedPct(pct)}，累计收益金额 ${amount == null ? '无法计算' : fmtCNY(amount, { sign: true })}`}
               >
-                <PortfolioReturnChart data={performance.curve} />
+                <PortfolioReturnChart data={chartData} benchmarkLabel={activeBenchmark?.label ?? '基准'} />
               </div>
             ) : (
               <div className="history-chart-empty">该区间只有一个快照，收益为 0。</div>
@@ -241,6 +308,7 @@ export function PortfolioHistory({
 
           <p className="history-method-note">
             明细按相邻快照计算当日收益，并扣除当天存入与取出；曲线收益率再将每日结果链式计算，避免大额出入金扭曲表现。期初基准为 {performance.basisDate ?? '—'} 收盘快照。
+            最大回撤为区间内净值峰值到谷底的最大跌幅；波动率按日收益样本标准差 × √252 年化；夏普比率的无风险利率按 {`${(RISK_FREE_ANNUAL * 100).toFixed(0)}%`} 假设。
           </p>
         </>
       ) : (

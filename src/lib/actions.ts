@@ -25,6 +25,7 @@ import {
 } from './schemas'
 import { parseCsvRows, type CsvLookup, type ParsedTx } from './csv'
 import { buildSettlementLegs } from './engine/settlement'
+import { BENCHMARK_INDICES } from './engine/benchmark'
 import { createsSettlementCycle } from './engine/settlement-account'
 import { foldTransactions, type LedgerTx } from './engine/ledger'
 import { parseTags, serializeTags } from './engine/groups'
@@ -720,14 +721,26 @@ export async function updatePrefs(input: unknown): Promise<ActionResult> {
   try {
     const ctx = await requireWrite()
     const data = prefsInputSchema.parse(input)
+    // 目标配置：非空时六项必须齐全且合计为 100%（±1% 容差），存库前序列化为 JSON 字符串
+    let targetAllocation: string | null = null
+    if (data.targetAllocation) {
+      const entries = Object.entries(data.targetAllocation)
+      const sum = entries.reduce((s, [, w]) => s + w, 0)
+      if (entries.length !== 6 || sum < 0.99 || sum > 1.01) {
+        return { ok: false, error: '目标配置合计需为 100%' }
+      }
+      targetAllocation = JSON.stringify(data.targetAllocation)
+    }
+    const { targetAllocation: _omit, ...thresholds } = data
+    const payload = { ...thresholds, targetAllocation }
     await prisma.$transaction(async (txDb) => {
       await txDb.familyPrefs.upsert({
         where: { familyId: ctx.familyId },
-        create: { ...data, familyId: ctx.familyId },
-        update: data,
+        create: { ...payload, familyId: ctx.familyId },
+        update: payload,
       })
       await txDb.insight.deleteMany({ where: { familyId: ctx.familyId } })
-      await audit(ctx, 'UPDATE', 'FamilyPrefs', ctx.familyId, JSON.stringify(data), txDb)
+      await audit(ctx, 'UPDATE', 'FamilyPrefs', ctx.familyId, JSON.stringify(payload), txDb)
     })
     revalidatePath('/insights')
     revalidatePath('/')
@@ -794,7 +807,10 @@ export async function refreshPrices(): Promise<ActionResult<{ symbol: string; co
     const purged = await prisma.priceBar.deleteMany({ where: { source: 'SIMULATED' } })
     // 基金资产落官方净值历史，其余走行情链路
     const fundSymbols = assets.filter((a) => a.cls === 'FUND').map((a) => a.symbol)
-    const marketSymbols = assets.filter((a) => a.cls !== 'FUND').map((a) => a.symbol)
+    const marketSymbols = [
+      ...assets.filter((a) => a.cls !== 'FUND').map((a) => a.symbol),
+      ...BENCHMARK_INDICES.map((index) => index.symbol),
+    ]
     const results = [
       ...(await persistFundHistory(prisma, fundSymbols, from, new Date())),
       ...(await persistHistory(prisma, marketSymbols, from, new Date())),

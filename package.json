@@ -23,6 +23,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@fontsource/jetbrains-mono": "^5.3.0",
     "@prisma/client": "^6.6.0",
     "next": "^15.3.0",
     "papaparse": "^5.4.1",

@@ -120,7 +120,7 @@ export default async function AccountsPage({
         right={(
           <div className="flex items-end gap-5">
             <div><div className="text-[14px] text-ink-faint">账户总资产</div><div className="num mt-2 text-[34px] text-ink">{fmtCNY(totalAssets)}</div></div>
-            {canWrite && <a href="#new-account" className="inline-flex min-h-11 items-center rounded-lg bg-gold px-5 text-[14px] font-medium text-bg">＋ 新建账户</a>}
+            {canWrite && <a href="#new-account" className="inline-flex min-h-11 items-center rounded-lg bg-accent px-5 text-[14px] font-medium text-bg">＋ 新建账户</a>}
           </div>
         )}
       />
@@ -133,7 +133,7 @@ export default async function AccountsPage({
             className={cx(
               'flex items-center gap-2 border-b-2 px-0.5 py-3 text-[15px] transition-colors',
               activeView === tab.view
-                ? 'border-gold text-gold'
+                ? 'border-accent text-accent'
                 : 'border-transparent text-ink-dim hover:text-ink',
             )}
           >
@@ -147,7 +147,7 @@ export default async function AccountsPage({
         <>
           <div className="metric-band">
             <Stat label="今日盈亏" en="DAY P&L" value={<DeltaAmount value={totalDayPnl} />} hint="仅汇总有昨收行情的资产" />
-            <Stat label="现金余额" en="CASH" value={<span className="text-gold">{fmtCNY(totalCash)}</span>} sub={<span className="text-ink-dim">占资产 {fmtPct(totalAssets > 0 ? totalCash / totalAssets : null)}</span>} />
+            <Stat label="现金余额" en="CASH" value={<span className="text-accent">{fmtCNY(totalCash)}</span>} sub={<span className="text-ink-dim">占资产 {fmtPct(totalAssets > 0 ? totalCash / totalAssets : null)}</span>} />
             <Stat
               label="账户结构"
               en="STRUCTURE"
@@ -191,14 +191,14 @@ export default async function AccountsPage({
                         return (
                           <tr key={account.id} className="transition-colors hover:bg-panel2/50">
                             <td className="px-4 py-3">
-                              <Link href={`/accounts/${account.id}`} className="font-medium text-ink hover:text-gold">{account.name}</Link>
+                              <Link href={`/accounts/${account.id}`} className="font-medium text-ink hover:text-accent">{account.name}</Link>
                               <div className="mt-0.5 text-[12px] text-ink-faint">
                                 {account.institution ?? '未登记机构'} · {account.currency}
                                 {latestActivityByAccount.get(account.id) && ` · 更新于 ${fmtDate(latestActivityByAccount.get(account.id)!)}`}
                               </div>
                             </td>
                             <td className="px-2 py-3">
-                              <Tag tone={role === '投资账户' ? 'info' : role === '综合账户' ? 'gold' : 'dim'}>{role}</Tag>
+                              <Tag tone={role === '投资账户' ? 'info' : role === '综合账户' ? 'accent' : 'dim'}>{role}</Tag>
                               <div className="mt-1 text-[12px] text-ink-faint">{ACCOUNT_TYPE_LABEL[account.type]}</div>
                             </td>
                             <td className="num px-2 py-3 text-right text-ink-dim">{summary.holdingCount} 项</td>
@@ -279,9 +279,9 @@ export default async function AccountsPage({
                         <td className="num px-4 py-2.5 text-ink-dim">{asset.symbol}</td>
                         <td className="px-2 py-2.5">
                           <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: CLASS_COLORS[asset.cls] }} />
-                          <Link href={`/positions/${asset.id}`} className="text-ink hover:text-gold">{asset.name}</Link>
+                          <Link href={`/positions/${asset.id}`} className="text-ink hover:text-accent">{asset.name}</Link>
                           {asset.cls === 'HUAWEI_STOCK' && (
-                            <div className="ml-3.5 mt-0.5 text-[11px] text-amber">长期资产 · 不进入持仓、流水和收益率</div>
+                            <div className="ml-3.5 mt-0.5 text-[12px] text-amber">长期资产 · 不进入持仓、流水和收益率</div>
                           )}
                         </td>
                         <td className="px-2 py-2.5 text-ink-dim">{ASSET_CLASS_LABEL[asset.cls]}</td>

@@ -40,7 +40,7 @@ function DarkTooltip({ active, payload, label, money = true }: any) {
         .filter((p: any) => !p.payload?.__bandBase)
         .map((p: any, i: number) => (
           <div key={i} className="flex items-center gap-2 py-0.5">
-            <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: p.color ?? p.stroke ?? C.gold }} />
+            <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: p.color ?? p.stroke ?? C.accent }} />
             <span className="text-ink-dim">{p.name}</span>
             <span className="num ml-auto pl-3 text-ink">{money ? fmtCNY(Number(p.value)) : fmtPrice(Number(p.value))}</span>
           </div>
@@ -104,7 +104,7 @@ export function WealthChart({ data, showRange = false }: { data: WealthPoint[]; 
               type="button"
               aria-pressed={range === key}
               onClick={() => setRange(key)}
-              className={range === key ? 'rounded-lg bg-gold px-3 py-2 text-bg' : 'rounded-lg px-3 py-2 text-ink-faint transition-colors hover:text-ink'}
+              className={range === key ? 'rounded-lg bg-accent px-3 py-2 text-bg' : 'rounded-lg px-3 py-2 text-ink-faint transition-colors hover:text-ink'}
             >
               {key}
             </button>
@@ -120,6 +120,7 @@ export interface PortfolioReturnDatum {
   pct: number
   amount: number
   netWorth: number
+  benchPct?: number | null
 }
 
 function fmtCNYAxis(value: number): string {
@@ -130,7 +131,7 @@ function fmtCNYAxis(value: number): string {
   return `${sign}¥${abs.toFixed(0)}`
 }
 
-function PortfolioReturnTooltip({ active, payload, label }: any) {
+function PortfolioReturnTooltip({ active, payload, label, benchmarkLabel = '基准' }: any) {
   if (!active || !payload?.length) return null
   const point = payload[0].payload as PortfolioReturnDatum
   return (
@@ -140,6 +141,12 @@ function PortfolioReturnTooltip({ active, payload, label }: any) {
         <span className="text-ink-dim">累计收益率</span>
         <span className="num ml-auto text-ink">{point.pct >= 0 ? '+' : ''}{(point.pct * 100).toFixed(2)}%</span>
       </div>
+      {point.benchPct != null && (
+        <div className="flex items-center gap-4 py-0.5">
+          <span className="text-ink-dim">{benchmarkLabel}基准</span>
+          <span className="num ml-auto text-violet">{point.benchPct >= 0 ? '+' : ''}{(point.benchPct * 100).toFixed(2)}%</span>
+        </div>
+      )}
       <div className="flex items-center gap-4 py-0.5">
         <span className="text-ink-dim">累计收益金额</span>
         <span className="num ml-auto text-ink">{fmtCNY(point.amount, { sign: true })}</span>
@@ -153,7 +160,7 @@ function PortfolioReturnTooltip({ active, payload, label }: any) {
 }
 
 /** 任意区间的累计时间加权收益率与扣除净投入后的累计收益金额曲线。 */
-export function PortfolioReturnChart({ data }: { data: PortfolioReturnDatum[] }) {
+export function PortfolioReturnChart({ data, benchmarkLabel = '基准' }: { data: PortfolioReturnDatum[]; benchmarkLabel?: string }) {
   return (
     <ResponsiveContainer width="100%" height={280}>
       <ComposedChart data={data} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
@@ -190,7 +197,7 @@ export function PortfolioReturnChart({ data }: { data: PortfolioReturnDatum[] })
           domain={['auto', 'auto']}
           tickFormatter={fmtCNYAxis}
         />
-        <Tooltip content={<PortfolioReturnTooltip />} />
+        <Tooltip content={<PortfolioReturnTooltip benchmarkLabel={benchmarkLabel} />} />
         <ReferenceLine yAxisId="rate" y={0} stroke={C.inkFaint} strokeDasharray="4 7" />
         <Area
           yAxisId="rate"
@@ -214,6 +221,20 @@ export function PortfolioReturnChart({ data }: { data: PortfolioReturnDatum[] })
           dot={false}
           isAnimationActive={false}
         />
+        {data.some((d) => d.benchPct != null) && (
+          <Line
+            yAxisId="rate"
+            type="monotone"
+            dataKey="benchPct"
+            name={`${benchmarkLabel}基准`}
+            stroke={C.violet}
+            strokeWidth={1.5}
+            strokeDasharray="4 4"
+            dot={false}
+            connectNulls
+            isAnimationActive={false}
+          />
+        )}
       </ComposedChart>
     </ResponsiveContainer>
   )
@@ -234,7 +255,7 @@ export function Donut({ data }: { data: { name: string; value: number; color: st
   )
 }
 
-export function PriceLineChart({ data, color = C.gold }: { data: { date: string; close: number }[]; color?: string }) {
+export function PriceLineChart({ data, color = C.accent }: { data: { date: string; close: number }[]; color?: string }) {
   return (
     <ResponsiveContainer width="100%" height={220}>
       <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
@@ -378,7 +399,7 @@ function CandleTooltip({ active, payload, label }: any) {
   )
 }
 
-export function CandleChart({ data, color = C.gold }: { data: CandleDatum[]; color?: string }) {
+export function CandleChart({ data, color = C.accent }: { data: CandleDatum[]; color?: string }) {
   void color
   const ranged = data.map((d) => ({ ...d, range: [d.low, d.high] }))
   return (
@@ -429,7 +450,7 @@ export function ProjectionChart({
         <Tooltip content={<DarkTooltip />} />
         <Area dataKey="base" stackId="band" stroke="none" fill="transparent" isAnimationActive={false} name="base" />
         <Area dataKey="band" stackId="band" stroke="none" fill={C.info} fillOpacity={0.14} name="P10–P90 区间" isAnimationActive={false} />
-        <Line type="monotone" dataKey="p50" name="中位路径" stroke={C.gold} strokeWidth={1.5} dot={false} />
+        <Line type="monotone" dataKey="p50" name="中位路径" stroke={C.accent} strokeWidth={1.5} dot={false} />
         {dynamicTarget ? (
           <Line type="monotone" dataKey="target" name={targetLabel} stroke={C.up} strokeWidth={1.25} strokeDasharray="4 6" dot={false} isAnimationActive={false} />
         ) : (

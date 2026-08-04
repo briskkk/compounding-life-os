@@ -1,7 +1,10 @@
 import type { Metadata } from 'next'
+import '@fontsource/jetbrains-mono/400.css'
+import '@fontsource/jetbrains-mono/500.css'
 import './globals.css'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
+import { BRAND_NAME, BRAND_NAME_EN } from '@/lib/brand'
 import { Nav } from '@/components/nav'
 import { MemberSwitcher } from '@/components/member-switcher'
 import { RefreshPricesButton } from '@/components/refresh-prices-button'
@@ -10,7 +13,7 @@ import { providerLabel } from '@/lib/market'
 import { marketChainLabel } from '@/lib/valuation-source'
 
 export const metadata: Metadata = {
-  title: 'Family Wealth OS · 家庭财富终端',
+  title: `${BRAND_NAME_EN} · ${BRAND_NAME}`,
   description: '以交易流水为唯一事实源的家庭财富操作系统',
 }
 
@@ -26,21 +29,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     : [null, []]
 
   const today = new Date()
-  const dateStr = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
+  const dateStr = today.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
   const marketChain = marketChainLabel(providerLabel())
 
   return (
     <html lang="zh-CN">
       <body>
         <div className="min-h-screen">
-          <a href="#main-content" className="fixed left-4 top-4 z-[100] -translate-y-24 rounded bg-gold px-4 py-2 text-sm text-bg transition-transform focus:translate-y-0">跳至主要内容</a>
+          <a href="#main-content" className="fixed left-4 top-4 z-[100] -translate-y-24 rounded bg-accent px-4 py-2 text-sm text-bg transition-transform focus:translate-y-0">跳至主要内容</a>
           <header className="border-b border-line">
-            <div className="app-shell grid min-h-[112px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-8 py-4 max-lg:grid-cols-[auto_1fr] max-sm:gap-x-3">
+            <div className="app-shell grid min-h-24 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-8 py-4 max-lg:grid-cols-[auto_minmax(0,1fr)] max-sm:gap-x-3">
               <div className="flex shrink-0 items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-[14px] text-ink" aria-hidden="true">△</div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-line font-mono text-[15px] text-ink" aria-hidden="true">{BRAND_NAME.slice(0, 1)}</div>
                 <div>
-                  <div className="whitespace-nowrap text-[16px] font-medium text-ink">秦人集合</div>
-                  <div className="mt-0.5 whitespace-nowrap text-[13px] text-ink-faint max-sm:hidden">Family Capital</div>
+                  <div className="whitespace-nowrap text-[16px] font-medium text-ink">{BRAND_NAME}</div>
+                  <div className="mt-0.5 whitespace-nowrap text-[13px] text-ink-faint max-sm:hidden">{BRAND_NAME_EN}</div>
                 </div>
               </div>
 
@@ -48,7 +51,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Nav />
               </div>
 
-              <div className="flex items-center justify-end gap-3">
+              <div className="flex min-w-0 flex-wrap items-center justify-end gap-3">
                 <div className="hidden text-right xl:block">
                   <div className="text-[14px] font-medium text-ink">{family?.name ?? '未初始化'}</div>
                   <div className="num mt-0.5 text-[12px] tracking-[0.08em] text-ink-faint">{dateStr}</div>

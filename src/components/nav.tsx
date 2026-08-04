@@ -28,7 +28,7 @@ export function Nav() {
             aria-current={active ? 'page' : undefined}
             className={cx(
               'border-b-2 px-0.5 py-3 text-[16px] font-medium transition-colors duration-200',
-              active ? 'border-gold text-gold' : 'border-transparent text-ink-faint hover:text-ink',
+              active ? 'border-accent text-accent' : 'border-transparent text-ink-faint hover:text-ink',
             )}
           >
             {link.label}

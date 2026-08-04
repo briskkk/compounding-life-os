@@ -80,7 +80,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-medium text-ink">{account.name}</h1>
             <Tag tone="dim">{ACCOUNT_TYPE_LABEL[account.type]}</Tag>
-            <Tag tone={account.currency === 'CNY' ? 'dim' : 'gold'}>{account.currency}</Tag>
+            <Tag tone={account.currency === 'CNY' ? 'dim' : 'accent'}>{account.currency}</Tag>
           </div>
           <p className="mt-1 text-xs text-ink-faint">
             {account.institution ?? '未登记机构'} · 账户内资产按托管关系独立展示，不与其他账户合并
@@ -96,7 +96,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
         <Stat label="账户资产" en="VALUE" value={<span className="text-ink">{fmtCNY(summary.valueCny)}</span>} hint="人民币折算口径" />
         <Stat label="今日盈亏" en="DAY P&L" value={<DeltaAmount value={summary.dayPnlCny} />} hint="仅含有昨收行情的资产" />
         <Stat label="未实现盈亏" en="UNREALIZED" value={<DeltaAmount value={summary.unrealizedCny} />} />
-        <Stat label="本账户现金" en="CASH" value={<span className="text-gold">{fmtCNY(summary.cashCny)}</span>} hint={sharedCashCny > 0 ? `另关联共享现金 ${fmtCNY(sharedCashCny)}` : '仅统计本账户持有现金'} />
+        <Stat label="本账户现金" en="CASH" value={<span className="text-accent">{fmtCNY(summary.cashCny)}</span>} hint={sharedCashCny > 0 ? `另关联共享现金 ${fmtCNY(sharedCashCny)}` : '仅统计本账户持有现金'} />
         <Stat label="投资组合占比" en="WEIGHT" value={<span className="text-info">{fmtPct(accountWeight)}</span>} hint={`${summary.holdingCount} 项当前持仓`} />
       </div>
 
@@ -126,7 +126,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
                       <tr key={position.assetId} className="transition-colors hover:bg-panel2/50">
                         <td className="px-4 py-3">
                           <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: CLASS_COLORS[position.asset.cls] }} />
-                          <Link href={`/positions/${position.assetId}`} className="text-ink hover:text-gold">{position.asset.name}</Link>
+                          <Link href={`/positions/${position.assetId}`} className="text-ink hover:text-accent">{position.asset.name}</Link>
                           <div className="num ml-3.5 mt-0.5 text-[12px] text-ink-faint">{position.asset.symbol} · {ASSET_CLASS_LABEL[position.asset.cls]}</div>
                         </td>
                         <td className="num px-2 py-3 text-right text-ink-dim">{fmtQty(position.quantity)}</td>
@@ -204,7 +204,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
         title="最近流水"
         en="RECENT LEDGER"
         bodyClassName="p-0"
-        right={<Link href={`/transactions?account=${account.id}`} className="text-[12px] text-ink-faint hover:text-gold">查看全部 →</Link>}
+        right={<Link href={`/transactions?account=${account.id}`} className="text-[12px] text-ink-faint hover:text-accent">查看全部 →</Link>}
       >
         {recentTransactions.length === 0 ? (
           <Empty>当前账户暂无流水</Empty>
@@ -225,8 +225,8 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
                 {recentTransactions.map((transaction) => (
                   <tr key={transaction.id} className={cx(transaction.voidedAt && 'opacity-40')}>
                     <td className="num px-4 py-2.5 text-ink-dim">{fmtDate(transaction.occurredAt)}</td>
-                    <td className="px-2 py-2.5"><Tag tone="dim">{TX_TYPE_LABEL[transaction.type]}</Tag>{transaction.internal && <span className="ml-1 text-[11px] text-ink-faint">结算</span>}</td>
-                    <td className="px-2 py-2.5"><Link href={`/positions/${transaction.assetId}`} className="text-ink hover:text-gold">{transaction.asset.name}</Link></td>
+                    <td className="px-2 py-2.5"><Tag tone="dim">{TX_TYPE_LABEL[transaction.type]}</Tag>{transaction.internal && <span className="ml-1 text-[12px] text-ink-faint">结算</span>}</td>
+                    <td className="px-2 py-2.5"><Link href={`/positions/${transaction.assetId}`} className="text-ink hover:text-accent">{transaction.asset.name}</Link></td>
                     <td className="num px-2 py-2.5 text-right text-ink-dim">{transaction.quantity != null ? fmtQty(Number(transaction.quantity)) : '—'}</td>
                     <td className="num px-2 py-2.5 text-right text-ink">{fmtMoney(Number(transaction.amount), transaction.asset.currency)}</td>
                     <td className="max-w-[260px] truncate px-4 py-2.5 text-right text-[12px] text-ink-faint">{transaction.voidedAt ? '已冲正' : transaction.note ?? ''}</td>

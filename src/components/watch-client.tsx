@@ -16,6 +16,7 @@ import { MarketSourceTag, PositionSourceTag, ValuationLegend } from './valuation
 import { HoldingSortSelect } from './holding-sort-select'
 import { PortfolioHistory } from './portfolio-history'
 import type { PerformancePoint } from '@/lib/engine/period-performance'
+import type { LoadedBenchmark } from '@/lib/engine/benchmark'
 
 export interface WatchHolding {
   assetId: string
@@ -66,6 +67,7 @@ export function WatchClient({
   historySeries,
   currentContributions,
   initialSort,
+  benchmarks,
 }: {
   holdings: WatchHolding[]
   staticValueCny: number
@@ -75,6 +77,7 @@ export function WatchClient({
   historySeries: PerformancePoint[]
   currentContributions: number
   initialSort: HoldingSort
+  benchmarks: LoadedBenchmark[]
 }) {
   const [seriesMap, setSeriesMap] = useState<Map<string, IntradaySeries>>(new Map())
   const [quotes, setQuotes] = useState<Map<string, QuoteLite>>(new Map())
@@ -266,6 +269,7 @@ export function WatchClient({
         series={historySeries}
         liveValue={liveInvestableValue}
         currentContributions={currentContributions}
+        benchmarks={benchmarks}
       />
 
       {/* 实时估值表 */}
@@ -299,7 +303,7 @@ export function WatchClient({
             {displayRows.map((r) => r.kind === 'market' ? (
               <tr key={r.assetId} className="transition-colors hover:bg-panel2/50">
                 <td className="px-4 py-2.5">
-                  <Link href={`/positions/${r.assetId}`} className="text-ink transition-colors hover:text-gold">{r.name}</Link>
+                  <Link href={`/positions/${r.assetId}`} className="text-ink transition-colors hover:text-accent">{r.name}</Link>
                   <div className="num text-[12px] text-ink-faint">{r.symbol}</div>
                 </td>
                 <td className="num px-2 py-2.5 text-right text-ink-dim">{fmtQty(r.qty)}</td>
@@ -311,7 +315,7 @@ export function WatchClient({
                 <td className={cx('num px-2 py-2.5 text-right', r.dayPnlCny == null ? 'text-ink-faint' : r.dayPnlCny >= 0 ? 'text-up' : 'text-down')}>
                   {r.dayPnlCny != null ? fmtCNY(r.dayPnlCny, { sign: true }) : '—'}
                   {r.dayPnlCny != null && !r.currentPortfolioDay && (
-                    <div className="mt-0.5 text-[11px] font-normal text-ink-faint">
+                    <div className="mt-0.5 text-[12px] font-normal text-ink-faint">
                       交易日 {r.tradingDate ?? '未知'}
                     </div>
                   )}
@@ -323,7 +327,7 @@ export function WatchClient({
             ) : (
               <tr key={r.assetId} className="opacity-60 transition-colors hover:bg-panel2/50">
                 <td className="px-4 py-2.5">
-                  <Link href={`/positions/${r.assetId}`} className="text-ink-dim transition-colors hover:text-gold">{r.name}</Link>
+                  <Link href={`/positions/${r.assetId}`} className="text-ink-dim transition-colors hover:text-accent">{r.name}</Link>
                   <div className="num text-[12px] text-ink-faint">{r.symbol}</div>
                 </td>
                 <td className="px-2 py-2.5" colSpan={3}>

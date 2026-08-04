@@ -7,6 +7,7 @@ import { scopedDb } from '@/lib/scoped'
 import { Empty, Panel, SetupScreen, Tag } from '@/components/ui'
 import { ValuationToggle } from '@/components/valuation-toggle'
 import { groupByTag, parseTags } from '@/lib/engine/groups'
+import { allocationDrift, DRIFT_BAND, type AllocationSlice } from '@/lib/engine/allocation'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { ASSET_CLASS_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtCNYExact, fmtPct, fmtPrice, fmtQty } from '@/lib/format'
@@ -24,14 +25,27 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
   const ctx = await getSession()
   if (!ctx) return <SetupScreen />
   const db = scopedDb(prisma, ctx)
-  const [state, accounts, assetsRaw] = await Promise.all([
+  const [state, accounts, assetsRaw, prefs] = await Promise.all([
     loadEngineState(ctx),
     db.account.findMany(),
     db.asset.findMany(),
+    db.familyPrefs.findUnique({ where: { familyId: ctx.familyId } }),
   ])
   const accountName = new Map(accounts.map((a) => [a.id, a.name]))
   const assetTags = new Map(assetsRaw.map((a) => [a.id, parseTags(a.tags)]))
   const m = state.metrics
+  // 目标配置以 JSON 字符串存储；坏数据按未配置处理
+  let targetAllocation: Record<string, number> | null = null
+  if (prefs?.targetAllocation) {
+    try {
+      targetAllocation = JSON.parse(prefs.targetAllocation) as Record<string, number>
+    } catch {
+      targetAllocation = null
+    }
+  }
+  const driftByClass = new Map<AssetClass, AllocationSlice>(
+    targetAllocation ? allocationDrift(m.byClass, targetAllocation).map((s) => [s.cls, s]) : [],
+  )
 
   const allRows = state.valued
     .filter((v) => isPortfolioAssetClass(v.asset.cls) && (Math.abs(v.quantity) > 1e-9 || v.value > 0))
@@ -75,6 +89,8 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
   const manualAssets = state.assets.filter((a) => isPortfolioAssetClass(a.cls) && (a.manual || a.cls === 'REAL_ESTATE'))
   const totalHeld = mergedRows.reduce((sum, position) => sum + position.value, 0)
   const totalUnrealized = mergedRows.reduce((sum, position) => sum + position.unrealized, 0)
+  const heldClassCount = classOrder.filter((cls) => m.byClass[cls] > 0).length
+  const heldAccountCount = new Set(allRows.map((v) => v.accountId)).size
 
   return (
     <div className="page-shell">
@@ -85,23 +101,41 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
           <div className={cx('num mt-5 text-[18px]', totalUnrealized >= 0 ? 'text-up' : 'text-down')}>
             {fmtCNY(totalUnrealized, { sign: true })} · 持有收益
           </div>
-          <p className="mt-5 text-[14px] text-ink-faint">多元分散配置，穿越周期，稳健增值。</p>
+          <p className="mt-5 text-[14px] text-ink-faint">{heldClassCount} 类资产 · {heldAccountCount} 个账户 · {mergedRows.length} 项持仓</p>
         </div>
 
         <div>
           <div className="grid grid-cols-3 gap-5 sm:grid-cols-4 xl:grid-cols-6">
-            {classOrder.map((cls) => (
-              <div key={cls}>
-                <div className="text-[14px] text-ink-faint">{ASSET_CLASS_LABEL[cls]}</div>
-                <div className="num mt-2 text-[16px] text-ink">{fmtPct(totalHeld > 0 ? m.byClass[cls] / totalHeld : 0)}</div>
-              </div>
-            ))}
+            {classOrder.map((cls) => {
+              const drift = driftByClass.get(cls)
+              return (
+                <div key={cls}>
+                  <div className="text-[14px] text-ink-faint">{ASSET_CLASS_LABEL[cls]}</div>
+                  <div className="num mt-2 text-[16px] text-ink">{fmtPct(totalHeld > 0 ? m.byClass[cls] / totalHeld : 0)}</div>
+                  {drift && (
+                    <div className={cx(
+                      'num mt-1 text-[12px]',
+                      Math.abs(drift.drift) <= DRIFT_BAND ? 'text-ink-faint' : drift.drift < 0 ? 'text-down' : 'text-up',
+                    )}>
+                      {Math.abs(drift.drift) <= DRIFT_BAND
+                        ? `目标 ${fmtPct(drift.target)}·达标`
+                        : `目标 ${fmtPct(drift.target)}·${drift.drift < 0 ? '低配' : '超配'}${fmtPct(Math.abs(drift.drift))}`}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
           <div className="allocation-track mt-5">
             {classOrder.map((cls) => (
               <div key={cls} style={{ width: `${totalHeld > 0 ? (m.byClass[cls] / totalHeld) * 100 : 0}%`, background: CLASS_COLORS[cls] }} />
             ))}
           </div>
+          {!targetAllocation && (
+            <div className="mt-3">
+              <Link href="/insights" className="text-[13px] text-ink-faint hover:text-ink">在洞察页设定目标配置 →</Link>
+            </div>
+          )}
         </div>
       </section>
 
@@ -114,12 +148,12 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
       />
 
       <section className="flex flex-wrap items-center gap-2 border-b border-line pb-5">
-        <Link href={`/positions?sort=${activeSort}${activeTag ? `&tag=${encodeURIComponent(activeTag)}` : ''}`} className={cx('rounded-lg border px-4 py-2 text-[15px] transition-colors', !activeClass ? 'border-gold bg-gold text-bg' : 'border-line text-ink-dim hover:border-ink-faint')}>全部</Link>
+        <Link href={`/positions?sort=${activeSort}${activeTag ? `&tag=${encodeURIComponent(activeTag)}` : ''}`} className={cx('rounded-lg border px-4 py-2 text-[15px] transition-colors', !activeClass ? 'border-accent bg-accent text-bg' : 'border-line text-ink-dim hover:border-ink-faint')}>全部</Link>
         {classOrder.map((cls) => (
           <Link
             key={cls}
             href={`/positions?sort=${activeSort}&cls=${cls}${activeTag ? `&tag=${encodeURIComponent(activeTag)}` : ''}`}
-            className={cx('rounded-lg border px-4 py-2 text-[15px] transition-colors', activeClass === cls ? 'border-gold bg-gold text-bg' : 'border-line text-ink-dim hover:border-ink-faint')}
+            className={cx('rounded-lg border px-4 py-2 text-[15px] transition-colors', activeClass === cls ? 'border-accent bg-accent text-bg' : 'border-line text-ink-dim hover:border-ink-faint')}
           >
             {ASSET_CLASS_LABEL[cls]}
           </Link>
@@ -133,7 +167,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                 : `/positions?tag=${encodeURIComponent(g.tag)}&sort=${activeSort}${activeClass ? `&cls=${activeClass}` : ''}`}
               className={cx(
                 'rounded-lg border px-4 py-2 text-[15px] transition-colors',
-                activeTag === g.tag ? 'border-gold text-gold' : 'border-line text-ink-faint hover:border-ink-faint',
+                activeTag === g.tag ? 'border-accent text-accent' : 'border-line text-ink-faint hover:border-ink-faint',
               )}
             >
               {g.tag} <span className="num ml-1 text-[13px]">({g.count})</span>
@@ -200,13 +234,13 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                         <div className="flex items-center gap-2">
                           <i className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: CLASS_COLORS[p.asset.cls] }} />
                           <div>
-                            <Link href={`/positions/${p.assetId}`} className="text-ink transition-colors hover:text-gold">
+                            <Link href={`/positions/${p.assetId}`} className="text-ink transition-colors hover:text-accent">
                               {p.asset.name}
                             </Link>
                             <div className="num text-[12px] text-ink-faint">
                               {p.asset.symbol}
                               {(assetTags.get(p.assetId) ?? []).map((t) => (
-                                <span key={t} className="ml-1.5 rounded border border-line bg-panel2 px-1 py-px text-[11px] text-ink-faint">
+                                <span key={t} className="ml-1.5 rounded border border-line bg-panel2 px-1 py-px text-[12px] text-ink-faint">
                                   {t}
                                 </span>
                               ))}
@@ -227,7 +261,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                       </td>
                       <td className="num px-2 py-2.5 text-right text-ink-dim">
                         {fmtCNYExact(p.costCny)}
-                        {p.asset.currency !== 'CNY' && <div className="text-[11px] text-ink-faint">{p.asset.currency} 资产</div>}
+                        {p.asset.currency !== 'CNY' && <div className="text-[12px] text-ink-faint">{p.asset.currency} 资产</div>}
                       </td>
                       <td className="num px-2 py-2.5 text-right text-ink-dim">
                         {p.price != null ? fmtPrice(p.price) : '—'}
@@ -239,7 +273,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                           />
                         </div>
                         {p.priceSource === 'MANUAL' && p.lastValuationAt && (
-                          <div className="mt-0.5 text-[11px] text-ink-faint">更新于 {p.lastValuationAt.toISOString().slice(0, 10)}</div>
+                          <div className="mt-0.5 text-[12px] text-ink-faint">更新于 {p.lastValuationAt.toISOString().slice(0, 10)}</div>
                         )}
                       </td>
                       <td className="num px-2 py-2.5 text-right text-ink">{fmtCNYExact(p.value)}</td>

@@ -263,6 +263,7 @@ model FamilyPrefs {
   cashDragCeiling      Float       @default(0.35) // 现金拖累线
   drawdownThreshold    Float       @default(0.05) // 30 日回撤警示线
   goalProbThreshold    Float       @default(0.9) // FIRE 全周期不断供概率警示线
+  targetAllocation     String? // JSON：六类资产目标权重，如 {"STOCK":0.4,...}
 }
 
 model Snapshot {

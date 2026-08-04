@@ -3,6 +3,7 @@ import { loadEngineState, loadGoals, loadSavingsOverview, type GoalView } from '
 import { Empty, SetupScreen, Tag } from '@/components/ui'
 import { ProjectionChart, SavingsRateChart, type ProjectionDatum } from '@/components/charts'
 import { GoalForm } from '@/components/goal-form'
+import { GoalEditDialog } from '@/components/goal-edit-dialog'
 import { GoalScenarioLab } from '@/components/goal-scenario-lab'
 import { SavingsCheckIn } from '@/components/savings-check-in'
 import { fmtCNY, fmtDate, fmtPct } from '@/lib/format'
@@ -87,28 +88,23 @@ export default async function GoalsPage() {
               <span>完成度 <strong>{fmtPct(Math.min(primary.goal.projection.fundedRatio, 9.99))}</strong></span>
             </div>
             <div className="flex flex-wrap gap-2">
-              <a href="#scenario-lab" className="inline-flex min-h-11 items-center rounded-lg border border-gold bg-gold px-4 py-2 text-[14px] font-medium text-bg">优化 FIRE 路径</a>
-              <details className="goal-edit-details">
-                <summary>编辑计划</summary>
-                <div className="goal-edit-popover">
-                  <GoalForm mode="edit" goalId={primary.goal.id} initiallyOpen initial={{
-                    name: primary.goal.name,
-                    mode: primary.goal.mode,
-                    targetAmount: primary.goal.targetAmount,
-                    targetDate: primary.goal.targetDate.slice(0, 10),
-                    annualSpend: primary.goal.annualSpend,
-                    spendYears: primary.goal.spendYears,
-                    retirementIncome: primary.goal.retirementIncome,
-                    withdrawalRate: primary.goal.withdrawalRate,
-                    inflationRate: primary.goal.inflationRate,
-                    metric: primary.goal.metric,
-                    monthlyContribution: primary.goal.monthlyContribution,
-                    expectedReturn: primary.goal.expectedReturn,
-                    volatility: primary.goal.volatility,
-                    note: primary.goal.note ?? '',
-                  }} />
-                </div>
-              </details>
+              <a href="#scenario-lab" className="inline-flex min-h-11 items-center rounded-lg border border-accent bg-accent px-4 py-2 text-[14px] font-medium text-bg">优化 FIRE 路径</a>
+              <GoalEditDialog goalId={primary.goal.id} initial={{
+                name: primary.goal.name,
+                mode: primary.goal.mode,
+                targetAmount: primary.goal.targetAmount,
+                targetDate: primary.goal.targetDate.slice(0, 10),
+                annualSpend: primary.goal.annualSpend,
+                spendYears: primary.goal.spendYears,
+                retirementIncome: primary.goal.retirementIncome,
+                withdrawalRate: primary.goal.withdrawalRate,
+                inflationRate: primary.goal.inflationRate,
+                metric: primary.goal.metric,
+                monthlyContribution: primary.goal.monthlyContribution,
+                expectedReturn: primary.goal.expectedReturn,
+                volatility: primary.goal.volatility,
+                note: primary.goal.note ?? '',
+              }} />
             </div>
           </div>
           <div

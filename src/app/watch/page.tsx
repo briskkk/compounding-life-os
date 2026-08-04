@@ -1,5 +1,5 @@
 // 看盘：当日组合收益曲线（分钟级）+ 全持仓实时估值
-import { getWatchData } from '@/lib/queries'
+import { getWatchData, loadBenchmarks } from '@/lib/queries'
 import { cnyRateFor, fxRates } from '@/lib/market/fx'
 import { SetupScreen } from '@/components/ui'
 import { WatchClient, type WatchHolding, type StaticRow } from '@/components/watch-client'
@@ -17,6 +17,10 @@ export default async function WatchPage({ searchParams }: { searchParams: Promis
 
   const state = watchData.state
   const rates = await fxRates()
+  // 基准序列向前多取 10 天：保证期初基准日（可能落在非交易日）有可用收盘净值
+  const benchmarks = watchData.series.length > 0
+    ? await loadBenchmarks(new Date(new Date(`${watchData.series[0].date}T00:00:00`).getTime() - 10 * 86400000), new Date())
+    : []
   const mergedPositions = mergePositionsByAsset(state.valued.filter((position) => isPortfolioAssetClass(position.asset.cls)))
 
   // 行情类持仓（股票/ETF/基金/黄金）——参与曲线与实时估值表
@@ -76,6 +80,7 @@ export default async function WatchPage({ searchParams }: { searchParams: Promis
       }))}
       currentContributions={watchData.series.at(-1)?.contributions ?? 0}
       initialSort={parseHoldingSort(sp.sort)}
+      benchmarks={benchmarks}
     />
   )
 }

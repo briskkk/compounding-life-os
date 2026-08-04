@@ -271,6 +271,7 @@ model FamilyPrefs {
   cashDragCeiling      Float       @default(0.35)
   drawdownThreshold    Float       @default(0.05)
   goalProbThreshold    Float       @default(0.9)
+  targetAllocation     String? // JSON：六类资产目标权重，如 {"STOCK":0.4,...}
 }
 
 model Snapshot {

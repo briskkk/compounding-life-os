@@ -61,6 +61,15 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
   const initialAssetConversation = selectedAssetId
     ? await loadAssetIntelligence(ctx, selectedAssetId)
     : null
+  // 目标配置以 JSON 字符串存储；坏数据按未配置处理
+  let targetAllocation: Record<string, number> | null = null
+  if (prefs?.targetAllocation) {
+    try {
+      targetAllocation = JSON.parse(prefs.targetAllocation) as Record<string, number>
+    } catch {
+      targetAllocation = null
+    }
+  }
 
   return (
     <div className="page-shell insights-page">
@@ -147,7 +156,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
         <summary><span><strong>策略阈值与生成说明</strong><small>现金安全线、集中度、回撤与 FIRE 稳健度</small></span><span>＋</span></summary>
         <div className="mt-7">
           <LlmStatusCard status={llm} />
-          <PrefsForm initial={{ cashFloor: prefs?.cashFloor ?? 0.08, concentrationCeiling: prefs?.concentrationCeiling ?? 0.25, cashDragCeiling: prefs?.cashDragCeiling ?? 0.35, drawdownThreshold: prefs?.drawdownThreshold ?? 0.05, goalProbThreshold: prefs?.goalProbThreshold ?? 0.9 }} />
+          <PrefsForm initial={{ cashFloor: prefs?.cashFloor ?? 0.08, concentrationCeiling: prefs?.concentrationCeiling ?? 0.25, cashDragCeiling: prefs?.cashDragCeiling ?? 0.35, drawdownThreshold: prefs?.drawdownThreshold ?? 0.05, goalProbThreshold: prefs?.goalProbThreshold ?? 0.9, targetAllocation }} />
           <p className="mt-5 text-[14px] leading-7 text-ink-faint">发送给模型的内容仅包括组合聚合指标、目标预测、储蓄摘要与规则结论，不包含成员姓名、账户名称、交易备注或数据库标识。模型不能修改事实、金额、优先级或账本。</p>
         </div>
       </details>

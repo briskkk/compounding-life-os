@@ -47,6 +47,20 @@ test('看盘页：历史收益支持预设周期与自定义日期', async ({ pa
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
+test('看盘页：基准指数可选（沪深300/上证指数/创业板指/科创50）', async ({ page }) => {
+  await page.goto('/watch')
+  const group = page.getByRole('group', { name: '基准指数' })
+  await expect(group.getByRole('button', { name: '沪深300', exact: true })).toBeVisible()
+  await expect(group.getByRole('button', { name: '上证指数', exact: true })).toBeVisible()
+  await expect(group.getByRole('button', { name: '创业板指', exact: true })).toBeVisible()
+  await expect(group.getByRole('button', { name: '科创50', exact: true })).toBeVisible()
+  // 默认沪深300；切换后指标格与选中态同步
+  await expect(page.getByText('同期沪深300', { exact: true })).toBeVisible()
+  await group.getByRole('button', { name: '科创50', exact: true }).click()
+  await expect(page.getByText('同期科创50', { exact: true })).toBeVisible()
+  await expect(group.getByRole('button', { name: '科创50', exact: true })).toHaveAttribute('aria-pressed', 'true')
+})
+
 test('资产登记：华为股票使用独立长期资产分类', async ({ page }) => {
   await page.goto('/accounts?view=assets')
   await page.getByLabel('类别').selectOption('HUAWEI_STOCK')
@@ -60,6 +74,29 @@ test('FIRE 页：积累达标与退休不断供概率', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '储蓄率决定 FIRE 速度' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '全部 FIRE 方案' })).toBeVisible()
   await expect(page.getByText('新建 FIRE 方案', { exact: true })).toBeVisible()
+})
+
+test('FIRE 页：编辑计划弹窗（Esc / 遮罩关闭，焦点归还）', async ({ page }) => {
+  await page.goto('/goals')
+  const trigger = page.getByRole('button', { name: '编辑计划', exact: true })
+  await trigger.click()
+  const dialog = page.getByRole('dialog', { name: '编辑 FIRE 计划' })
+  await expect(dialog).toBeVisible()
+  // 打开后焦点进入弹窗内部
+  const focusInside = await page.evaluate(() => {
+    const dlg = document.querySelector('dialog.goal-dialog')
+    return dlg != null && (dlg === document.activeElement || dlg.contains(document.activeElement))
+  })
+  expect(focusInside).toBe(true)
+  // Esc 关闭，焦点归还触发按钮
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(trigger).toBeFocused()
+  // 再次打开，点击遮罩关闭
+  await trigger.click()
+  await expect(dialog).toBeVisible()
+  await page.mouse.click(10, 10)
+  await expect(dialog).toBeHidden()
 })
 
 test('审计页：哈希链完整', async ({ page }) => {

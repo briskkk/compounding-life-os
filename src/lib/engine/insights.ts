@@ -1,4 +1,6 @@
 // 财富策略洞察：规则引擎生成结构化建议；叙事可经 LLM 增强（见 lib/ai/llm.ts）
+import { ASSET_CLASS_LABEL } from '../labels'
+import { allocationDrift, DRIFT_BAND } from './allocation'
 import type { Metrics } from './metrics'
 import type { ProjectionResult } from './projection'
 import type { ValuedPosition } from './valuation'
@@ -37,6 +39,7 @@ export interface InsightInput {
   cashDragCeiling?: number // 现金拖累线，默认 35%
   drawdownThreshold?: number // 30 日回撤警示线，默认 5%
   goalProbThreshold?: number // FIRE 全周期不断供概率警示线，默认 90%
+  targetAllocation?: Record<string, number> | null // 六类资产目标权重（合计 1）
   savings?: SavingsInsightInput
 }
 
@@ -55,6 +58,7 @@ export function generateInsights(input: InsightInput): InsightDraft[] {
     cashDragCeiling = 0.35,
     drawdownThreshold = 0.05,
     goalProbThreshold = 0.9,
+    targetAllocation,
     savings,
   } = input
   const out: InsightDraft[] = []
@@ -170,6 +174,30 @@ export function generateInsights(input: InsightInput): InsightDraft[] {
       body: `${stale.map((p) => p.asset.name).join('、')} 超过 90 天未手动估值，净资产读数可能偏离真实水平。`,
       action: '在持仓页提交最新估值（VALUATION 流水），保持口径准确。',
     })
+  }
+
+  // 7. 目标配置偏离（|偏离| 超过 ±5% 触发再平衡提醒）
+  if (targetAllocation) {
+    const drifted = allocationDrift(metrics.byClass, targetAllocation).filter((s) => Math.abs(s.drift) > DRIFT_BAND)
+    if (drifted.length > 0) {
+      const maxDrift = Math.max(...drifted.map((s) => Math.abs(s.drift)))
+      const sells = drifted.filter((s) => s.drift > 0)
+      const buys = drifted.filter((s) => s.drift < 0)
+      const detail = drifted
+        .map((s) => `${ASSET_CLASS_LABEL[s.cls]} 当前 ${pct(s.current)} / 目标 ${pct(s.target)}（${s.drift > 0 ? '超配' : '低配'} ${pct(Math.abs(s.drift))}）`)
+        .join('；')
+      const moves = [
+        ...sells.map((s) => `卖出 ${ASSET_CLASS_LABEL[s.cls]} 约 ${wan(s.amountCny)}`),
+        ...buys.map((s) => `买入 ${ASSET_CLASS_LABEL[s.cls]} 约 ${wan(s.amountCny)}`),
+      ].join('、')
+      out.push({
+        kind: 'ALLOCATION_DRIFT',
+        severity: maxDrift > 0.1 ? 'ALERT' : 'WARN',
+        title: '资产配置偏离目标',
+        body: `当前配置相对目标出现越带偏离：${detail}。`,
+        action: `${moves}，分 2–3 批执行以降低择时风险。`,
+      })
+    }
   }
 
   if (out.length === 0) {

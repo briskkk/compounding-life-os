@@ -42,9 +42,32 @@ describe('财富快照窗口', () => {
 })
 
 describe('历史行情来源', () => {
-  it('真实市场标的缺数据时不伪造，黄金非标资产仍可使用设计内模拟价', () => {
-    const priceAt = priceAtFn(new Map())
-    expect(priceAt('600519', D('2025-01-10T00:00:00Z'))).toBeUndefined()
-    expect(priceAt('AU9999', D('2025-01-10T00:00:00Z'))).toBeGreaterThan(0)
+  const saved = process.env.MARKET_PROVIDER
+  const restore = () => {
+    if (saved === undefined) delete process.env.MARKET_PROVIDER
+    else process.env.MARKET_PROVIDER = saved
+  }
+
+  it('真实链（含默认未配置）下任何标的缺数据都不伪造：真实标的与非标资产一律缺省', () => {
+    delete process.env.MARKET_PROVIDER
+    try {
+      const priceAt = priceAtFn(new Map())
+      expect(priceAt('600519', D('2025-01-10T00:00:00Z'))).toBeUndefined()
+      expect(priceAt('AU9999', D('2025-01-10T00:00:00Z'))).toBeUndefined()
+    } finally {
+      restore()
+    }
+  })
+
+  it('显式模拟模式下，非标资产允许使用设计内模拟价', () => {
+    process.env.MARKET_PROVIDER = 'simulated'
+    try {
+      const priceAt = priceAtFn(new Map())
+      expect(priceAt('AU9999', D('2025-01-10T00:00:00Z'))).toBeGreaterThan(0)
+      // 真实市场标的即使在模拟模式下也只给模拟源链自己的报价，与 priceAt 口径无关
+      expect(priceAt('600519', D('2025-01-10T00:00:00Z'))).toBeUndefined()
+    } finally {
+      restore()
+    }
   })
 })

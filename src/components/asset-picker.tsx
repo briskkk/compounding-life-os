@@ -103,7 +103,7 @@ export function AssetPicker({
         />
       )}
       <div
-        className={cx(inputCls, 'flex h-11 overflow-hidden cursor-text items-center justify-between gap-2', open && 'border-gold/50')}
+        className={cx(inputCls, 'flex h-11 overflow-hidden cursor-text items-center justify-between gap-2', open && 'border-accent/50')}
         onClick={(e) => {
           e.stopPropagation()
           setOpen(true)
@@ -150,8 +150,8 @@ export function AssetPicker({
                     onMouseEnter={() => setActiveIdx(i)}
                     className={cx(
                       'flex w-full items-baseline gap-2 px-3 py-2 text-left text-[15px] transition-colors',
-                      i === activeIdx ? 'bg-gold/15 text-ink' : 'text-ink-dim hover:bg-panel',
-                      a.id === value && 'text-gold',
+                      i === activeIdx ? 'bg-accent/15 text-ink' : 'text-ink-dim hover:bg-panel',
+                      a.id === value && 'text-accent',
                     )}
                   >
                     <span className="flex-1">{a.name}</span>

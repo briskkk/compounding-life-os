@@ -121,6 +121,10 @@ export const prefsInputSchema = z.object({
   cashDragCeiling: z.number().min(0.01).max(1),
   drawdownThreshold: z.number().min(0.01).max(0.9),
   goalProbThreshold: z.number().min(0.01).max(1),
+  targetAllocation: z
+    .record(z.enum(['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'REAL_ESTATE']), z.number().min(0).max(1))
+    .nullable()
+    .optional(),
 })
 
 export const liabilityInputSchema = z.object({

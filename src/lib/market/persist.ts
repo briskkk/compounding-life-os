@@ -4,6 +4,7 @@ import type { Bar } from './provider'
 import { historySmart } from './index'
 import { eastmoneyFundProvider } from './eastmoney-fund'
 import { closeAt } from './simulated'
+import { simulatedAllowed } from './index'
 import { parseSymbol } from './symbols'
 
 const DAY = 86400000
@@ -114,12 +115,12 @@ function lastAtOrBefore(s: PriceSeries, ms: number): number | undefined {
   return ans >= 0 ? s.closes[ans] : undefined
 }
 
-/** 生成价格函数：库中历史优先；仅非标准资产允许回落到其设计内的模拟价格。 */
+/** 生成价格函数：库中历史优先；非标资产的模拟价格仅在显式模拟模式下允许回落。 */
 export function priceAtFn(map: Map<string, PriceSeries>): (symbol: string, date: Date) => number | undefined {
   return (symbol, date) => {
     const s = map.get(symbol)
     const v = s ? lastAtOrBefore(s, date.getTime()) : undefined
     if (v != null) return v
-    return parseSymbol(symbol).market === 'OTHER' ? closeAt(symbol, date) : undefined
+    return parseSymbol(symbol).market === 'OTHER' && simulatedAllowed() ? closeAt(symbol, date) : undefined
   }
 }

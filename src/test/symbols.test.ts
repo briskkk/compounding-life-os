@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, afterEach } from 'vitest'
 import { parseSymbol, toTencentCode, toTencentKlineCode, toSinaCode } from '@/lib/market/symbols'
 import { parseFundName, parseTencentName } from '@/lib/market/lookup'
-import { providerChain } from '@/lib/market'
+import { providerChain, simulatedAllowed, quoteSmart, historySmart } from '@/lib/market'
 
 describe('多市场代码解析', () => {
   it('A 股 / 场内 ETF', () => {
@@ -27,6 +27,15 @@ describe('多市场代码解析', () => {
     expect(parseSymbol('HUAWEI-ESOP').market).toBe('OTHER')
     expect(parseSymbol('AU9999').market).toBe('OTHER')
     expect(parseSymbol('CASH-CNY').market).toBe('OTHER')
+  })
+
+  it('指数代码（交易所前缀 + 6 位数字）→ INDEX，不回落模拟源', () => {
+    expect(parseSymbol('sh000300').market).toBe('INDEX')
+    expect(parseSymbol('SZ399006').market).toBe('INDEX')
+    expect(parseSymbol('sh000688').code).toBe('sh000688')
+    expect(toTencentCode(parseSymbol('sh000300'))).toBe('sh000300')
+    expect(toTencentKlineCode(parseSymbol('sz399006'))).toBe('sz399006')
+    expect(toSinaCode(parseSymbol('sh000001'))).toBe('sh000001')
   })
 
   it('各源代码映射', () => {
@@ -57,6 +66,41 @@ describe('行情源优先级链', () => {
     expect(providerChain('nonsense').map((p) => p.label)).toEqual(['SIMULATED'])
     expect(providerChain('').map((p) => p.label)).toEqual(['SIMULATED'])
     expect(providerChain('tencent,unknown').map((p) => p.label)).toEqual(['TENCENT'])
+  })
+})
+
+describe('模拟数据底线：生产环境宁可缺省，绝不伪造', () => {
+  const saved = process.env.MARKET_PROVIDER
+  afterEach(() => {
+    if (saved === undefined) delete process.env.MARKET_PROVIDER
+    else process.env.MARKET_PROVIDER = saved
+  })
+
+  it('未配置 MARKET_PROVIDER 时默认真实链，不含模拟源', () => {
+    delete process.env.MARKET_PROVIDER
+    expect(providerChain().map((p) => p.label)).toEqual(['TENCENT', 'EASTMONEY-FUND', 'SINA'])
+    expect(simulatedAllowed()).toBe(false)
+  })
+
+  it('只有显式写入 simulated 才允许模拟回落', () => {
+    process.env.MARKET_PROVIDER = 'tencent,eastmoney-fund,sina'
+    expect(simulatedAllowed()).toBe(false)
+    process.env.MARKET_PROVIDER = 'tencent,simulated'
+    expect(simulatedAllowed()).toBe(true)
+  })
+
+  it('真实链下非标代码报价直接失败，不给模拟价（不发起网络请求）', async () => {
+    process.env.MARKET_PROVIDER = 'tencent' // 腾讯源对 AU9999 在编码阶段即抛错，无网络调用
+    await expect(quoteSmart('AU9999')).rejects.toThrow('全部行情源均不可用')
+    const { bars, source } = await historySmart('AU9999', new Date('2026-01-01'), new Date('2026-02-01'))
+    expect(bars).toEqual([])
+    expect(source).toBe('NONE')
+  })
+
+  it('显式模拟模式下非标代码才回落模拟价', async () => {
+    process.env.MARKET_PROVIDER = 'simulated'
+    const quote = await quoteSmart('AU9999')
+    expect(quote.source).toBe('SIMULATED')
   })
 })
 

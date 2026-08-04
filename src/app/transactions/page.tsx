@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { Empty, PageHeader, Panel, SetupScreen, Tag } from '@/components/ui'
 import { TxForm } from '@/components/tx-form'
+import { TxFilters } from '@/components/tx-filters'
 import { CsvImport } from '@/components/csv-import'
 import { ReverseButton } from '@/components/reverse-button'
 import { TX_TYPE_LABEL } from '@/lib/labels'
@@ -13,11 +14,11 @@ import type { TxType } from '@/lib/engine/types'
 
 export const dynamic = 'force-dynamic'
 
-const TONE_BY_TYPE: Partial<Record<TxType, 'up' | 'down' | 'gold' | 'info' | 'amber'>> = {
+const TONE_BY_TYPE: Partial<Record<TxType, 'up' | 'down' | 'accent' | 'info' | 'amber'>> = {
   BUY: 'up',
   SELL: 'down',
-  DIVIDEND: 'gold',
-  INTEREST: 'gold',
+  DIVIDEND: 'accent',
+  INTEREST: 'accent',
   VALUATION: 'info',
 }
 
@@ -74,7 +75,7 @@ export default async function TransactionsPage({
         right={(
           <div className="flex items-center gap-5">
             <div><div className="text-[14px] text-ink-faint">交易笔数</div><div className="num mt-2 text-[28px] text-ink">{total}</div></div>
-            {canWrite && <a href="#new-entry" className="inline-flex min-h-11 items-center rounded-lg bg-gold px-5 text-[14px] font-medium text-bg">新增流水</a>}
+            {canWrite && <a href="#new-entry" className="inline-flex min-h-11 items-center rounded-lg bg-accent px-5 text-[14px] font-medium text-bg">新增流水</a>}
           </div>
         )}
       />
@@ -87,35 +88,12 @@ export default async function TransactionsPage({
         right={<span className="num text-[12px] text-ink-faint">{total > 0 ? `第 ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} 条 / 共 ${total} 条` : '共 0 条'}</span>}
       >
         {/* 筛选 */}
-        <form className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3" method="GET">
-          <select name="account" defaultValue={sp.account ?? ''} className="rounded border border-line bg-panel2 px-2 py-1 text-xs text-ink-dim outline-none">
-            <option value="">全部账户</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-          <select name="type" defaultValue={sp.type ?? ''} className="rounded border border-line bg-panel2 px-2 py-1 text-xs text-ink-dim outline-none">
-            <option value="">全部类型</option>
-            {Object.entries(TX_TYPE_LABEL).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </select>
-          <button type="submit" className="rounded border border-line bg-panel2 px-3 py-1 text-xs text-ink-dim hover:text-ink">
-            筛选
-          </button>
-          {(sp.account || sp.type) && (
-            <Link href="/transactions" className="text-xs text-ink-faint hover:text-ink">
-              清除
-            </Link>
-          )}
-          <a href="/api/export/transactions" className="ml-auto text-xs text-ink-faint hover:text-gold" download>
-            ↓ 导出 CSV
-          </a>
-        </form>
+        <TxFilters
+          accounts={accounts.map((a) => ({ id: a.id, name: a.name }))}
+          types={Object.entries(TX_TYPE_LABEL)}
+          account={sp.account ?? ''}
+          type={sp.type ?? ''}
+        />
 
         {txs.length === 0 ? (
           total > 0 ? (
@@ -151,7 +129,7 @@ export default async function TransactionsPage({
                   <td className="num px-4 py-2 text-ink-dim">{fmtDate(t.occurredAt)}</td>
                   <td className="px-2 py-2">
                     <Tag tone={TONE_BY_TYPE[t.type] ?? 'dim'}>{TX_TYPE_LABEL[t.type]}</Tag>
-                    {t.internal && <span className="ml-1 text-[11px] text-ink-faint">结算</span>}
+                    {t.internal && <span className="ml-1 text-[12px] text-ink-faint">结算</span>}
                   </td>
                   <td className="max-w-[180px] truncate px-2 py-2 text-ink">
                     {t.asset.name}
@@ -192,13 +170,13 @@ export default async function TransactionsPage({
         {(total > PAGE_SIZE || page > 1) && (
           <div className="flex items-center justify-between gap-4 border-t border-line px-4 py-3 text-[13px]">
             {page > 1 ? (
-              <Link href={pageHref(page - 1)} className="text-ink-dim transition-colors hover:text-gold">← 上一页</Link>
+              <Link href={pageHref(page - 1)} className="text-ink-dim transition-colors hover:text-accent">← 上一页</Link>
             ) : (
               <span aria-disabled="true" className="text-ink-faint/50">← 上一页</span>
             )}
             <span className="num text-ink-faint">第 {page} / {totalPages} 页</span>
             {page < totalPages ? (
-              <Link href={pageHref(page + 1)} className="text-ink-dim transition-colors hover:text-gold">下一页 →</Link>
+              <Link href={pageHref(page + 1)} className="text-ink-dim transition-colors hover:text-accent">下一页 →</Link>
             ) : (
               <span aria-disabled="true" className="text-ink-faint/50">下一页 →</span>
             )}

@@ -23,7 +23,7 @@ export interface GoalInitial {
   note: string
 }
 
-export function GoalForm({ mode, goalId, initial, initiallyOpen = false }: { mode: 'create' | 'edit'; goalId?: string; initial?: GoalInitial; initiallyOpen?: boolean }) {
+export function GoalForm({ mode, goalId, initial, initiallyOpen = false, onDone }: { mode: 'create' | 'edit'; goalId?: string; initial?: GoalInitial; initiallyOpen?: boolean; onDone?: () => void }) {
   const router = useRouter()
   const [open, setOpen] = useState(mode === 'create' || initiallyOpen)
   const [goalMode, setGoalMode] = useState<'LUMP_SUM' | 'STREAM'>(initial?.mode ?? 'LUMP_SUM')
@@ -56,6 +56,7 @@ export function GoalForm({ mode, goalId, initial, initiallyOpen = false }: { mod
     if (res.ok) {
       setMsg({ ok: true, text: mode === 'create' ? 'FIRE 计划已创建' : '已保存，FIRE 路径已重算' })
       if (mode === 'edit') setOpen(false)
+      onDone?.()
       router.refresh()
     } else {
       setMsg({ ok: false, text: res.error })

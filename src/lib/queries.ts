@@ -11,7 +11,8 @@ import { generateInsights, type InsightDraft } from './engine/insights'
 import { annualized, dailyNetFlows, twrSeries, xirr, xirrFlowsFromTxs } from './engine/attribution'
 import { totalLiabilities, type LiabilityEntryInput } from './engine/liabilities'
 import { analyzeInsightSet } from './ai/llm'
-import { quoteSmart, providerLabel } from './market'
+import { quoteSmart, providerLabel, historySmart } from './market'
+import { BENCHMARK_INDICES, type BenchmarkPoint, type LoadedBenchmark } from './engine/benchmark'
 import { cnyRateFor, fxRates } from './market/fx'
 import { eastmoneyFundProvider } from './market/eastmoney-fund'
 import type { AssetInfo, TxInput } from './engine/types'
@@ -274,6 +275,15 @@ export async function ensureInsights(
   ])
   const netWorth30dAgo = snaps.length >= 30 ? Number(snaps[30].investable) : snaps.length > 1 ? Number(snaps[snaps.length - 1].investable) : null
   const prefs = await db.familyPrefs.findUnique({ where: { familyId: ctx.familyId } })
+  // 目标配置以 JSON 字符串存储；坏数据按未配置处理
+  let targetAllocation: Record<string, number> | null = null
+  if (prefs?.targetAllocation) {
+    try {
+      targetAllocation = JSON.parse(prefs.targetAllocation) as Record<string, number>
+    } catch {
+      targetAllocation = null
+    }
+  }
 
   const drafts: InsightDraft[] = generateInsights({
     metrics: { ...state.metrics, netWorth: state.investable },
@@ -286,6 +296,7 @@ export async function ensureInsights(
     cashDragCeiling: prefs?.cashDragCeiling,
     drawdownThreshold: prefs?.drawdownThreshold,
     goalProbThreshold: prefs?.goalProbThreshold,
+    targetAllocation,
     savings: {
       averageRate: savings.averageRate,
       currentRate: savings.current.savingsRate,
@@ -497,6 +508,34 @@ function contributionsAtDates(series: SeriesPoint[], flows: Map<number, number>)
     }
     return cumulative
   })
+}
+
+/** 基准指数收盘价序列：优先 PriceBar 缓存（行情刷新时落库），不足时沿行情链取一次；全链失败返回空（调用方不展示基准，绝不伪造） */
+export async function loadBenchmarkSeries(symbol: string, from: Date, to: Date): Promise<BenchmarkPoint[]> {
+  const cached = await prisma.priceBar.findMany({
+    where: { symbol, date: { gte: from, lte: to } },
+    orderBy: { date: 'asc' },
+  })
+  if (cached.length >= 2) {
+    return cached.map((bar) => ({ date: bar.date.toISOString().slice(0, 10), close: Number(bar.close) }))
+  }
+  try {
+    const { bars } = await historySmart(symbol, from, to)
+    return bars.map((bar) => ({ date: bar.date.toISOString().slice(0, 10), close: bar.close }))
+  } catch {
+    return []
+  }
+}
+
+/** 加载全部可选基准指数；无数据的指数静默剔除 */
+export async function loadBenchmarks(from: Date, to: Date): Promise<LoadedBenchmark[]> {
+  const results = await Promise.all(
+    BENCHMARK_INDICES.map(async (index) => ({
+      ...index,
+      points: await loadBenchmarkSeries(index.symbol, from, to),
+    })),
+  )
+  return results.filter((result) => result.points.length >= 2)
 }
 
 /** 看盘只装配持仓与财富轨迹，避免触发目标投影、洞察生成和完整收益归因。 */

@@ -218,7 +218,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
           <h1 className="mt-5 text-4xl font-medium tracking-tight text-ink md:text-5xl">{asset.name}</h1>
           <div className="mt-7 flex flex-wrap items-center gap-2">
             <Tag tone="dim">{ASSET_CLASS_LABEL[asset.cls]}</Tag>
-            <Tag tone={asset.currency === 'CNY' ? 'dim' : 'gold'}>{CURRENCY_LABEL[asset.currency] ?? asset.currency}</Tag>
+            <Tag tone={asset.currency === 'CNY' ? 'dim' : 'accent'}>{CURRENCY_LABEL[asset.currency] ?? asset.currency}</Tag>
             {tags.map((t) => <Tag key={t} tone="info">{t}</Tag>)}
           </div>
           <div className="mt-10">
@@ -543,7 +543,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
                       <td className="num px-4 py-2 text-ink-dim">{fmtDate(t.occurredAt)}</td>
                       <td className="px-2 py-2">
                         <Tag tone="dim">{TX_TYPE_LABEL[t.type]}</Tag>
-                        {t.internal && <span className="ml-1 text-[11px] text-ink-faint">结算</span>}
+                        {t.internal && <span className="ml-1 text-[12px] text-ink-faint">结算</span>}
                       </td>
                       <td className="px-2 py-2 text-ink-dim">{t.account.name}</td>
                       <td className="num px-2 py-2 text-right text-ink-dim">{t.quantity != null ? fmtQty(Number(t.quantity)) : '—'}</td>
