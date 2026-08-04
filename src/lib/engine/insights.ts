@@ -36,7 +36,7 @@ export interface InsightInput {
   concentrationCeiling?: number // 集中度阈值，默认 25%
   cashDragCeiling?: number // 现金拖累线，默认 35%
   drawdownThreshold?: number // 30 日回撤警示线，默认 5%
-  goalProbThreshold?: number // 目标达成概率警示线，默认 50%
+  goalProbThreshold?: number // FIRE 全周期不断供概率警示线，默认 90%
   savings?: SavingsInsightInput
 }
 
@@ -54,7 +54,7 @@ export function generateInsights(input: InsightInput): InsightDraft[] {
     concentrationCeiling = 0.25,
     cashDragCeiling = 0.35,
     drawdownThreshold = 0.05,
-    goalProbThreshold = 0.5,
+    goalProbThreshold = 0.9,
     savings,
   } = input
   const out: InsightDraft[] = []
@@ -80,7 +80,7 @@ export function generateInsights(input: InsightInput): InsightDraft[] {
       kind: 'CONCENTRATION',
       severity: top.weight > 0.35 ? 'ALERT' : 'WARN',
       title: '单一资产集中度过高',
-      body: `${top.name}（${top.symbol}）占净资产 ${pct(top.weight)}，已越过 ${pct(concentrationCeiling)} 的敞口阈值，单一标的波动将主导组合净值。`,
+      body: `${top.name}（${top.symbol}）占投资组合 ${pct(top.weight)}，已越过 ${pct(concentrationCeiling)} 的敞口阈值，单一标的波动将主导组合净值。`,
       action: `制定分批再平衡计划，将其权重压降至 ${pct(concentrationCeiling)} 以内，释放的资金按目标配置分散。`,
     })
   }
@@ -91,7 +91,7 @@ export function generateInsights(input: InsightInput): InsightDraft[] {
       kind: 'LIQUIDITY_LOW',
       severity: metrics.cashRatio < 0.04 ? 'ALERT' : 'WARN',
       title: '流动性水位偏低',
-      body: `现金及等价物仅占净资产 ${pct(metrics.cashRatio)}，低于 ${pct(cashFloor)} 安全线，突发支出将被迫在不利价位变现资产。`,
+      body: `现金及等价物仅占投资组合 ${pct(metrics.cashRatio)}，低于 ${pct(cashFloor)} 安全线，突发支出将被迫在不利价位变现资产。`,
       action: '通过分红留存、减持高波动仓位或新增存入，把现金垫补回 3–6 个月家庭开支。',
     })
   } else if (metrics.cashRatio > cashDragCeiling) {
@@ -104,16 +104,16 @@ export function generateInsights(input: InsightInput): InsightDraft[] {
     })
   }
 
-  // 3. 目标达成概率
+  // 3. FIRE 全周期不断供概率
   for (const g of goals) {
     if (g.projection.successProb < goalProbThreshold) {
       const gap = Math.max(0, g.target - g.projection.projectedMedian)
       out.push({
         kind: 'GOAL_GAP',
         severity: g.projection.successProb < goalProbThreshold * 0.6 ? 'ALERT' : 'WARN',
-        title: `目标「${g.name}」达成概率偏低`,
-        body: `按当前路径模拟，到期达成概率 ${pct(g.projection.successProb)}，中位缺口约 ${wan(gap)}。`,
-        action: `将月缴提升至约 ${wan(g.projection.requiredMonthly)}，或延后目标日期 / 下调目标金额。`,
+        title: `FIRE 计划「${g.name}」稳健度不足`,
+        body: `按当前路径模拟，退休全周期不断供概率为 ${pct(g.projection.successProb)}，退休日中位资金缺口约 ${wan(gap)}。`,
+        action: `将月投入提升至约 ${wan(g.projection.requiredMonthly)}，或延后退休日期 / 下调退休支出。`,
       })
     }
   }
@@ -134,7 +134,7 @@ export function generateInsights(input: InsightInput): InsightDraft[] {
       out.push({
         kind: 'SAVINGS_RATE',
         severity: 'INFO',
-        title: '储蓄节奏正在支持目标路径',
+        title: '储蓄节奏正在支持 FIRE 路径',
         body: `当前储蓄率 ${pct(savings.currentRate)}，已高于 ${pct(savingsTarget)} 计划线；近三个月可持续净储蓄约 ${wan(savings.sustainableMonthlySavings)} / 月。`,
         action: '把可持续净储蓄与目标月投入保持一致，并继续观察三个月移动平均。',
       })
@@ -172,26 +172,12 @@ export function generateInsights(input: InsightInput): InsightDraft[] {
     })
   }
 
-  // 7. 受限股未归属提示
-  const unvested = valued
-    .filter((p) => p.asset.cls === 'RSU' && p.unvestedQty > 0)
-    .reduce((s, p) => s + p.unvestedQty * (p.price ?? 0), 0)
-  if (unvested > 0) {
-    out.push({
-      kind: 'RSU_UNVESTED',
-      severity: 'INFO',
-      title: '受限股存在未归属部分',
-      body: `未归属受限股当前参考市值约 ${wan(unvested)}，已计入净资产、但未计入可自由投资资产。`,
-      action: '关注归属时间表与离职条款，勿把未归属部分计入可动用流动性。',
-    })
-  }
-
   if (out.length === 0) {
     out.push({
       kind: 'ALL_CLEAR',
       severity: 'INFO',
       title: '各项指标处于阈值内',
-      body: '集中度、流动性水位与目标路径均在设定区间，维持当前纪律即可。',
+      body: '集中度、流动性水位与 FIRE 路径均在设定区间，维持当前纪律即可。',
       action: '按计划执行定投与定期再平衡。',
     })
   }

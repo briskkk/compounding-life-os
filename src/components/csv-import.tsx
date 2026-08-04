@@ -141,7 +141,7 @@ export function CsvImport({
 
       <FormMsg msg={msg} />
       <p className="text-[12px] leading-relaxed text-ink-faint">
-        列：日期,账户,代码,类型,数量,单价,金额,费用,备注；类型支持 买入/卖出/分红/利息/费用/存入/取出/转入/转出/估值/归属。
+        列：日期,账户,代码,类型,数量,单价,金额,费用,备注；类型支持 买入/卖出/分红/利息/费用/存入/取出/转入/转出/估值。
       </p>
     </div>
   )

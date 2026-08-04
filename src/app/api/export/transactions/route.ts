@@ -11,7 +11,12 @@ export async function GET() {
   if (!ctx) return new Response('未初始化', { status: 400 })
   const db = scopedDb(prisma, ctx)
   const txs = await db.transaction.findMany({
-    where: { voidedAt: null, internal: false, type: { not: 'REVERSAL' } },
+    where: {
+      voidedAt: null,
+      internal: false,
+      type: { not: 'REVERSAL' },
+      asset: { cls: { not: 'HUAWEI_STOCK' } },
+    },
     include: { account: true, asset: true },
     orderBy: { occurredAt: 'asc' },
   })

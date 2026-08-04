@@ -58,14 +58,13 @@ describe('账本折叠（移动平均成本）', () => {
     expect(pos.costBasis).toBe(25000)
   })
 
-  it('RSU：买入为未归属，VEST 迁移到已归属', () => {
+  it('历史归属流水保留审计记录但不再改变持仓', () => {
     const [pos] = foldTransactions([
-      tx({ type: 'BUY', quantity: 4800, price: 0, assetClass: 'RSU' }),
-      tx({ type: 'VEST', quantity: 300, occurredAt: D('2025-04-01'), assetClass: 'RSU' }),
-      tx({ type: 'VEST', quantity: 300, occurredAt: D('2025-07-01'), assetClass: 'RSU' }),
+      tx({ type: 'BUY', quantity: 4800, price: 8, assetClass: 'HUAWEI_STOCK' }),
+      tx({ type: 'VEST', quantity: 300, occurredAt: D('2025-04-01'), assetClass: 'HUAWEI_STOCK' }),
     ])
-    expect(pos.unvestedQty).toBe(4200)
-    expect(pos.vestedQty).toBe(600)
+    expect(pos.unvestedQty).toBe(0)
+    expect(pos.vestedQty).toBe(0)
     expect(pos.quantity).toBe(4800)
   })
 

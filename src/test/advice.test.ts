@@ -43,11 +43,6 @@ describe('单资产投资建议', () => {
     expect(gain.some((a) => a.text.includes('止盈'))).toBe(true)
   })
 
-  it('RSU 未归属提示', () => {
-    const out = assetAdvice(vp({ asset: { cls: 'RSU' }, unvestedQty: 500 }), 100000)
-    expect(out.some((a) => a.text.includes('未归属'))).toBe(true)
-  })
-
   it('手动估值超 90 天 → 更新提醒', () => {
     const old = new Date(Date.now() - 120 * 86400000)
     const out = assetAdvice(vp({ asset: { cls: 'REAL_ESTATE', manual: true }, lastValuationAt: old, priceSource: 'MANUAL' }), 100000)

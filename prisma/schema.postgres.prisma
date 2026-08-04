@@ -96,7 +96,7 @@ enum AssetClass {
   CASH
   GOLD
   REAL_ESTATE
-  RSU
+  HUAWEI_STOCK
 }
 
 model Asset {
@@ -249,6 +249,9 @@ model Goal {
   targetDate          DateTime
   annualSpend         Decimal?
   spendYears          Int?
+  retirementIncome    Decimal     @default(0)
+  withdrawalRate      Float       @default(0.04)
+  inflationRate       Float       @default(0.025)
   metric              GoalMetric  @default(INVESTABLE)
   monthlyContribution Decimal     @default(0)
   expectedReturn      Float       @default(0.07)
@@ -267,7 +270,7 @@ model FamilyPrefs {
   concentrationCeiling Float       @default(0.25)
   cashDragCeiling      Float       @default(0.35)
   drawdownThreshold    Float       @default(0.05)
-  goalProbThreshold    Float       @default(0.5)
+  goalProbThreshold    Float       @default(0.9)
 }
 
 model Snapshot {

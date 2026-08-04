@@ -10,7 +10,7 @@ import { TX_TYPE_LABEL } from '@/lib/labels'
 import type { TxType } from '@/lib/engine/types'
 import { cx } from '@/lib/format'
 
-const NEEDS_QTY: TxType[] = ['BUY', 'SELL', 'TRANSFER_IN', 'TRANSFER_OUT', 'VEST']
+const NEEDS_QTY: TxType[] = ['BUY', 'SELL', 'TRANSFER_IN', 'TRANSFER_OUT']
 const NEEDS_PRICE: TxType[] = ['BUY', 'SELL']
 
 function localDateInput(date: Date): string {
@@ -50,6 +50,7 @@ export function TxForm({
   const today = localDateInput(new Date())
   const selectedAccount = accounts.find((account) => account.id === accountId)
   const selectedAsset = assets.find((asset) => asset.id === assetId)
+  const isLongTermAsset = selectedAsset?.cls === 'HUAWEI_STOCK'
   const compatibleAssets = assets.filter((asset) => asset.currency === selectedAccount?.currency)
   const routesCash = selectedAsset?.cls === 'CASH'
     && selectedAccount?.settlementAccountId
@@ -83,11 +84,11 @@ export function TxForm({
       fee: num('fee') ?? 0,
       occurredAt: new Date(String(fd.get('occurredAt'))),
       note: (fd.get('note') as string) || null,
-      settleCash: settle && (type === 'BUY' || type === 'SELL'),
+      settleCash: !isLongTermAsset && settle && (type === 'BUY' || type === 'SELL'),
     })
     setPending(false)
     if (res.ok) {
-      setMsg({ ok: true, text: res.warning ?? '已写入账本，快照已重建' })
+      setMsg({ ok: true, text: res.warning ?? (isLongTermAsset ? '长期资产记录已保存' : '已写入账本，快照已重建') })
       form.reset()
       setType(defaultType)
       setSettle(Boolean(selectedAccount?.settlementAccountName))
@@ -105,7 +106,11 @@ export function TxForm({
         </Field>
         <Field label="类型">
           <select className={inputCls} value={type} onChange={(e) => setType(e.target.value as TxType)}>
-            {Object.entries(TX_TYPE_LABEL).filter(([key]) => key !== 'REVERSAL').map(([k, v]) => (
+            {Object.entries(TX_TYPE_LABEL).filter(([key]) => (
+              isLongTermAsset
+                ? key === 'BUY' || key === 'SELL' || key === 'DIVIDEND' || key === 'VALUATION'
+                : key !== 'REVERSAL' && key !== 'VEST'
+            )).map(([k, v]) => (
               <option key={k} value={k}>
                 {v}
               </option>
@@ -176,7 +181,7 @@ export function TxForm({
       </Field>
       <div className="tx-form-footer">
         <div className="tx-form-feedback">
-          {(type === 'BUY' || type === 'SELL') && (
+          {!isLongTermAsset && (type === 'BUY' || type === 'SELL') && (
             <label className="tx-form-settlement flex min-h-11 items-center gap-2 text-[13px] text-ink-dim">
               <input
                 type="checkbox"
@@ -190,7 +195,7 @@ export function TxForm({
                 : '未配置资金账户，本次买卖不自动变动现金'}
             </label>
           )}
-          {routesCash && (
+          {!isLongTermAsset && routesCash && (
             <p className="tx-form-route text-[13px] text-ink-dim">
               该现金流水将自动归入 {selectedAccount.settlementAccountName}，不在 {selectedAccount.name} 中重复形成现金持仓。
             </p>
@@ -198,7 +203,7 @@ export function TxForm({
           <div className="tx-form-message"><FormMsg msg={msg} /></div>
         </div>
         <button type="submit" disabled={pending} className={cx(btnCls, 'tx-form-submit')}>
-          {pending ? '写入中…' : '写入账本'}
+          {pending ? '写入中…' : isLongTermAsset ? '保存长期资产记录' : '写入账本'}
         </button>
       </div>
     </form>

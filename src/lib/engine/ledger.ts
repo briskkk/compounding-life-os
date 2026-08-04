@@ -4,9 +4,9 @@ import type { AssetClass, TxInput } from './types'
 export interface Position {
   accountId: string
   assetId: string
-  quantity: number // 总数量（RSU = 已归属 + 未归属；现金 = 余额）
-  vestedQty: number // RSU 已归属
-  unvestedQty: number // RSU 未归属
+  quantity: number // 总数量（现金资产中表示余额）
+  vestedQty: number // 兼容历史 RSU 流水，当前资产模型不再使用
+  unvestedQty: number // 兼容历史 RSU 流水，当前资产模型不再使用
   costBasis: number // 剩余成本（移动平均成本法）
   realizedPnl: number // 已实现盈亏（卖出差价 + 分红利息 - 费用）
   manualValue: number | null // 最近一次手动估值总额
@@ -36,7 +36,6 @@ export function applyTransaction(pos: Position, tx: TxInput, cls: AssetClass): v
     case 'BUY': {
       pos.quantity += q
       pos.costBasis += q * p + tx.fee
-      if (cls === 'RSU') pos.unvestedQty += q
       break
     }
     case 'SELL': {
@@ -45,8 +44,6 @@ export function applyTransaction(pos: Position, tx: TxInput, cls: AssetClass): v
       pos.realizedPnl += sellQ * p - tx.fee - unit * sellQ
       pos.quantity -= sellQ
       pos.costBasis -= unit * sellQ
-      // RSU 卖出优先消耗已归属部分
-      if (cls === 'RSU') pos.vestedQty = Math.max(0, pos.vestedQty - sellQ)
       break
     }
     case 'DEPOSIT': {
@@ -62,8 +59,6 @@ export function applyTransaction(pos: Position, tx: TxInput, cls: AssetClass): v
     case 'TRANSFER_IN': {
       pos.quantity += q
       pos.costBasis += tx.amount // amount 携带转入成本
-      // 转入的 RSU 视为已经取得并可处置的份额。
-      if (cls === 'RSU') pos.vestedQty += q
       break
     }
     case 'TRANSFER_OUT': {
@@ -72,7 +67,6 @@ export function applyTransaction(pos: Position, tx: TxInput, cls: AssetClass): v
       const carried = tx.amount > 0 ? tx.amount : unit * outQ
       pos.quantity -= outQ
       pos.costBasis = Math.max(0, pos.costBasis - carried)
-      if (cls === 'RSU') pos.vestedQty = Math.max(0, pos.vestedQty - outQ)
       break
     }
     case 'DIVIDEND':
@@ -95,9 +89,7 @@ export function applyTransaction(pos: Position, tx: TxInput, cls: AssetClass): v
       break
     }
     case 'VEST': {
-      const v = Math.min(q, pos.unvestedQty)
-      pos.unvestedQty -= v
-      pos.vestedQty += v
+      // 仅为兼容历史 RSU 审计流水；该分类已由华为股票替代，不再改变持仓。
       break
     }
     case 'REVERSAL': {

@@ -20,7 +20,7 @@ describe('CSV 导入解析', () => {
     expect(r.tx?.type).toBe('BUY')
   })
 
-  it('中文类型别名：存入 / 估值 / 归属', () => {
+  it('中文类型别名：存入 / 估值；归属已停用', () => {
     const rows = parseCsvRows(
       [
         { 日期: '2026-01-15', 账户: '华泰证券', 代码: 'CASH-CNY', 类型: '存入', 金额: '30000' },
@@ -29,8 +29,10 @@ describe('CSV 导入解析', () => {
       ],
       lookup,
     )
-    expect(rows.map((r) => r.tx?.type)).toEqual(['DEPOSIT', 'VALUATION', 'VEST'])
-    expect(rows.every((r) => r.ok)).toBe(true)
+    expect(rows.slice(0, 2).map((r) => r.tx?.type)).toEqual(['DEPOSIT', 'VALUATION'])
+    expect(rows.slice(0, 2).every((r) => r.ok)).toBe(true)
+    expect(rows[2].ok).toBe(false)
+    expect(rows[2].errors.join()).toContain('类型无法识别')
   })
 
   it('金额带 ¥ 与千分位也可解析', () => {

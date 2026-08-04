@@ -5,7 +5,7 @@ import { getSession, getSessionOrThrow } from './session'
 import { foldTransactions, type LedgerTx } from './engine/ledger'
 import { valuePositions, type ValuedPosition } from './engine/valuation'
 import { aggregate, type Metrics } from './engine/metrics'
-import { projectGoal, projectStreamGoal, monthsBetween, type ProjectionResult } from './engine/projection'
+import { projectFireGoal, monthsBetween, type FireProjectionResult } from './engine/projection'
 import type { ClassWeights } from './engine/covariance'
 import { generateInsights, type InsightDraft } from './engine/insights'
 import { annualized, dailyNetFlows, twrSeries, xirr, xirrFlowsFromTxs } from './engine/attribution'
@@ -19,6 +19,8 @@ import { mergePositionsByAsset } from './engine/merge'
 import { summarizeDailyPortfolio } from './engine/daily-pnl'
 import { buildSavingsOverview, type SavingsOverview } from './engine/savings'
 import type { QuoteData } from './market/provider'
+import { isPortfolioAssetClass } from './asset-classification'
+import { dateKeyAt } from './engine/watch-market'
 
 export interface LiabilityView {
   id: string
@@ -38,7 +40,7 @@ export interface EngineState {
   liabilities: LiabilityView[]
   netWorth: number // 总资产 − 总负债
   investable: number
-  ledgerTxs: TxInput[]
+  ledgerTxs: LedgerTx[]
 }
 
 export interface EngineQuote extends QuoteData {
@@ -130,7 +132,7 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
     valued,
     quotes,
     metrics,
-    txCount: txsRaw.filter((t) => !t.voidedAt).length,
+    txCount: txsRaw.filter((t) => !t.voidedAt && isPortfolioAssetClass(t.asset.cls)).length,
     liabilitiesTotal,
     liabilities,
     netWorth: metrics.netWorth - liabilitiesTotal,
@@ -147,6 +149,9 @@ export interface GoalView {
   targetDate: string
   annualSpend: number | null
   spendYears: number | null
+  retirementIncome: number
+  withdrawalRate: number
+  inflationRate: number
   metric: 'NET_WORTH' | 'INVESTABLE'
   monthlyContribution: number
   expectedReturn: number
@@ -154,7 +159,7 @@ export interface GoalView {
   note: string | null
   current: number
   monthsLeft: number
-  projection: ProjectionResult
+  projection: FireProjectionResult
 }
 
 export async function loadSavingsOverview(ctx: FamilyCtx, monthCount = 12): Promise<SavingsOverview> {
@@ -184,6 +189,7 @@ export async function loadSavingsOverview(ctx: FamilyCtx, monthCount = 12): Prom
 function classWeights(valued: ValuedPosition[], field: 'value' | 'investable'): ClassWeights {
   const w: ClassWeights = {}
   for (const p of valued) {
+    if (!isPortfolioAssetClass(p.asset.cls)) continue
     w[p.asset.cls] = (w[p.asset.cls] ?? 0) + p[field]
   }
   return w
@@ -196,7 +202,16 @@ export async function loadGoals(ctx: FamilyCtx, state: EngineState): Promise<Goa
   const investableW = classWeights(state.valued, 'investable')
   const grossW = classWeights(state.valued, 'value')
   return goals.map((g) => {
-    const target = Number(g.targetAmount)
+    const retirementIncome = Number(g.retirementIncome)
+    const withdrawalRate = g.withdrawalRate
+    const storedAnnualSpend = Number(g.annualSpend ?? 0)
+    const target = g.mode === 'STREAM'
+      ? Math.max(0, storedAnnualSpend - retirementIncome) / withdrawalRate
+      : Number(g.targetAmount)
+    const annualSpend = g.mode === 'STREAM'
+      ? storedAnnualSpend
+      : target * withdrawalRate + retirementIncome
+    const retirementYears = g.spendYears ?? 40
     const current = g.metric === 'NET_WORTH' ? state.netWorth : state.investable
     const monthsLeft = monthsBetween(now, g.targetDate)
     const common = {
@@ -206,24 +221,26 @@ export async function loadGoals(ctx: FamilyCtx, state: EngineState): Promise<Goa
       seed: [...g.id].reduce((s, c) => s + c.charCodeAt(0), 7),
       portfolioWeights: g.metric === 'NET_WORTH' ? grossW : investableW,
     }
-    const projection =
-      g.mode === 'STREAM'
-        ? projectStreamGoal({
-            current,
-            monthsAccum: monthsLeft,
-            annualSpend: Number(g.annualSpend ?? 0),
-            spendYears: g.spendYears ?? 0,
-            ...common,
-          })
-        : projectGoal({ current, target, months: monthsLeft, ...common })
+    const projection = projectFireGoal({
+      current,
+      fireNumberToday: target,
+      monthsToRetirement: monthsLeft,
+      withdrawalRate,
+      inflationRate: g.inflationRate,
+      retirementYears,
+      ...common,
+    })
     return {
       id: g.id,
       name: g.name,
       mode: g.mode,
       targetAmount: target,
       targetDate: g.targetDate.toISOString(),
-      annualSpend: g.annualSpend == null ? null : Number(g.annualSpend),
-      spendYears: g.spendYears,
+      annualSpend,
+      spendYears: retirementYears,
+      retirementIncome,
+      withdrawalRate,
+      inflationRate: g.inflationRate,
       metric: g.metric,
       monthlyContribution: Number(g.monthlyContribution),
       expectedReturn: g.expectedReturn,
@@ -255,13 +272,13 @@ export async function ensureInsights(
     loadSavingsOverview(ctx),
     db.insight.findMany({ orderBy: { createdAt: 'desc' }, take: 24 }),
   ])
-  const netWorth30dAgo = snaps.length >= 30 ? Number(snaps[30].netWorth) : snaps.length > 1 ? Number(snaps[snaps.length - 1].netWorth) : null
+  const netWorth30dAgo = snaps.length >= 30 ? Number(snaps[30].investable) : snaps.length > 1 ? Number(snaps[snaps.length - 1].investable) : null
   const prefs = await db.familyPrefs.findUnique({ where: { familyId: ctx.familyId } })
 
   const drafts: InsightDraft[] = generateInsights({
-    metrics: { ...state.metrics, netWorth: state.netWorth },
-    valued: state.valued,
-    goals: goals.map((g) => ({ name: g.name, target: g.targetAmount, projection: g.projection })),
+    metrics: { ...state.metrics, netWorth: state.investable },
+    valued: state.valued.filter((position) => isPortfolioAssetClass(position.asset.cls)),
+    goals: goals.map((g) => ({ name: g.name, target: g.projection.fireNumberAtRetirement, projection: g.projection })),
     netWorth30dAgo,
     now: new Date(),
     cashFloor: prefs?.cashFloor,
@@ -293,7 +310,7 @@ export async function ensureInsights(
     liabilities: state.liabilitiesTotal,
     goals: goals.map((goal) => ({
       name: goal.name,
-      target: goal.targetAmount,
+      target: goal.projection.fireNumberAtRetirement,
       monthsLeft: goal.monthsLeft,
       successProbability: goal.projection.successProb,
       requiredMonthly: goal.projection.requiredMonthly,
@@ -441,8 +458,8 @@ export interface SeriesPoint {
 }
 
 export interface Attribution {
-  contributions: number // 累计净投入
-  gain: number // 投资收益 = 净资产 − 净投入
+  contributions: number // 可投资组合累计净投入
+  gain: number // 可投资收益 = 可自由投资资产 − 净投入
   twrCumulative: number | null
   twrAnnualized: number | null
   xirr: number | null
@@ -468,6 +485,20 @@ export interface WatchData {
   series: SeriesPoint[]
 }
 
+function contributionsAtDates(series: SeriesPoint[], flows: Map<number, number>): number[] {
+  const entries = [...flows.entries()].sort((a, b) => a[0] - b[0])
+  let flowIndex = 0
+  let cumulative = 0
+  return series.map((point) => {
+    const day = Math.floor(new Date(`${point.date}T00:00:00Z`).getTime() / 86400000)
+    while (flowIndex < entries.length && entries[flowIndex][0] <= day) {
+      cumulative += entries[flowIndex][1]
+      flowIndex += 1
+    }
+    return cumulative
+  })
+}
+
 /** 看盘只装配持仓与财富轨迹，避免触发目标投影、洞察生成和完整收益归因。 */
 export async function getWatchData(): Promise<WatchData | null> {
   const ctx = await getSession()
@@ -488,10 +519,15 @@ export async function getWatchData(): Promise<WatchData | null> {
 
   const rates = await fxRates()
   const currencyRate = (currency: string) => currency === 'USD' ? rates.USDCNY : currency === 'HKD' ? rates.HKDCNY : 1
-  const flows = dailyNetFlows(state.ledgerTxs, currencyRate)
+  const portfolioTxs = state.ledgerTxs.filter((tx) => isPortfolioAssetClass(tx.assetClass))
+  const flows = dailyNetFlows(portfolioTxs, currencyRate)
+  const normalizedContributions = contributionsAtDates(series, flows)
+  series.forEach((point, index) => {
+    point.contributions = Math.round(normalizedContributions[index])
+  })
   const contributionsNow = [...flows.values()].reduce((sum, amount) => sum + amount, 0)
   const livePoint: SeriesPoint = {
-    date: new Date().toISOString().slice(0, 10),
+    date: dateKeyAt(new Date()),
     netWorth: Math.round(state.netWorth),
     investable: Math.round(state.investable),
     contributions: Math.round(contributionsNow),
@@ -522,10 +558,15 @@ export async function getDashboard(): Promise<DashboardData | null> {
   // 追加实时「今日」点
   const rates = await fxRates()
   const currencyRate = (cur: string) => (cur === 'USD' ? rates.USDCNY : cur === 'HKD' ? rates.HKDCNY : 1)
-  const flows = dailyNetFlows(state.ledgerTxs, currencyRate)
+  const portfolioTxs = state.ledgerTxs.filter((tx) => isPortfolioAssetClass(tx.assetClass))
+  const flows = dailyNetFlows(portfolioTxs, currencyRate)
+  const normalizedContributions = contributionsAtDates(series, flows)
+  series.forEach((point, index) => {
+    point.contributions = Math.round(normalizedContributions[index])
+  })
   const contributionsNow = [...flows.values()].reduce((a, b) => a + b, 0)
   const livePoint: SeriesPoint = {
-    date: new Date().toISOString().slice(0, 10),
+    date: dateKeyAt(new Date()),
     netWorth: Math.round(state.netWorth),
     investable: Math.round(state.investable),
     contributions: Math.round(contributionsNow),
@@ -542,15 +583,15 @@ export async function getDashboard(): Promise<DashboardData | null> {
 
   // 收益归因
   const twr = twrSeries(
-    series.map((p) => ({ date: new Date(p.date), netWorth: p.netWorth })),
+    series.map((p) => ({ date: new Date(p.date), netWorth: p.investable })),
     flows,
   )
   const lastTwr = twr.length > 0 ? twr[twr.length - 1].cumulative : null
   const days = series.length > 1 ? (new Date(series[series.length - 1].date).getTime() - new Date(series[0].date).getTime()) / 86400000 : 0
-  const xirrValue = xirr(xirrFlowsFromTxs(state.ledgerTxs, currencyRate), state.netWorth, new Date())
+  const xirrValue = xirr(xirrFlowsFromTxs(portfolioTxs, currencyRate), state.investable, new Date())
   const attribution: Attribution = {
     contributions: Math.round(contributionsNow),
-    gain: Math.round(state.netWorth - contributionsNow),
+    gain: Math.round(state.investable - contributionsNow),
     twrCumulative: lastTwr,
     twrAnnualized: lastTwr != null ? annualized(lastTwr, days) : null,
     xirr: xirrValue,
@@ -567,7 +608,9 @@ export async function getDashboard(): Promise<DashboardData | null> {
     asOf: q.asOf,
   }))
 
-  const mergedPositions = mergePositionsByAsset(state.valued).filter((v) => Math.abs(v.quantity) > 1e-9)
+  const mergedPositions = mergePositionsByAsset(
+    state.valued.filter((position) => isPortfolioAssetClass(position.asset.cls)),
+  ).filter((v) => Math.abs(v.quantity) > 1e-9)
   const quoteBySymbol = new Map(quotes.map((q) => [q.symbol, q]))
   const staticValueCny = mergedPositions
     .filter((v) => v.asset.manual || v.asset.cls === 'CASH' || v.asset.cls === 'REAL_ESTATE')

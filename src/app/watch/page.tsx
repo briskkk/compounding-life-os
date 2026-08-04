@@ -7,7 +7,7 @@ import { providerLabel } from '@/lib/market'
 import { marketChainLabel } from '@/lib/valuation-source'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { parseHoldingSort } from '@/lib/engine/holding-sort'
-import { periodPerformance } from '@/lib/engine/period-performance'
+import { isPortfolioAssetClass } from '@/lib/asset-classification'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,9 +17,9 @@ export default async function WatchPage({ searchParams }: { searchParams: Promis
 
   const state = watchData.state
   const rates = await fxRates()
-  const mergedPositions = mergePositionsByAsset(state.valued)
+  const mergedPositions = mergePositionsByAsset(state.valued.filter((position) => isPortfolioAssetClass(position.asset.cls)))
 
-  // 行情类持仓（股票/ETF/基金/黄金/RSU）——参与曲线与实时估值表
+  // 行情类持仓（股票/ETF/基金/黄金）——参与曲线与实时估值表
   const marketPositions = mergedPositions.filter(
     (v) => v.quantity > 1e-9 && !v.asset.manual && v.asset.cls !== 'CASH' && v.asset.cls !== 'REAL_ESTATE',
   )
@@ -47,6 +47,7 @@ export default async function WatchPage({ searchParams }: { searchParams: Promis
     (v) => Math.abs(v.quantity) > 1e-9 && (v.asset.manual || v.asset.cls === 'CASH' || v.asset.cls === 'REAL_ESTATE'),
   )
   const staticValueCny = staticPositions.reduce((s, v) => s + v.value, 0)
+  const staticInvestableValueCny = staticPositions.reduce((s, v) => s + v.investable, 0)
   const staticRows: StaticRow[] = staticPositions
     .map((v) => ({
       assetId: v.assetId,
@@ -61,21 +62,18 @@ export default async function WatchPage({ searchParams }: { searchParams: Promis
     }))
     .filter((row) => Math.abs(row.valueCny) >= 0.01)
 
-  const now = new Date()
-  const periods = [
-    periodPerformance(watchData.series, new Date(now.getFullYear(), now.getMonth(), 1), '本月'),
-    periodPerformance(watchData.series, new Date(now.getFullYear(), 0, 1), '今年'),
-    periodPerformance(watchData.series, new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()), '近一年'),
-  ]
-
   return (
     <WatchClient
       holdings={holdings}
       staticValueCny={staticValueCny}
+      staticInvestableValueCny={staticInvestableValueCny}
       staticRows={staticRows}
       provider={marketChainLabel(providerLabel()).label}
-      periods={periods}
-      liabilitiesTotal={state.liabilitiesTotal}
+      historySeries={watchData.series.map((point) => ({
+        date: point.date,
+        netWorth: point.investable,
+        contributions: point.contributions,
+      }))}
       currentContributions={watchData.series.at(-1)?.contributions ?? 0}
       initialSort={parseHoldingSort(sp.sort)}
     />

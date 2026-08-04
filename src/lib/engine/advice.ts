@@ -12,21 +12,21 @@ const DAY = 86400000
 export function assetAdvice(
   p: ValuedPosition,
   netWorth: number,
-  opts: { concentrationCeiling?: number; now?: Date } = {},
+  opts: { concentrationCeiling?: number; now?: Date; includeInvestmentPerformance?: boolean } = {},
 ): Advice[] {
   const ceiling = opts.concentrationCeiling ?? 0.25
   const now = opts.now ?? new Date()
   const out: Advice[] = []
   const weight = netWorth > 0 ? p.value / netWorth : 0
 
-  if (weight > ceiling) {
+  if (opts.includeInvestmentPerformance !== false && weight > ceiling) {
     out.push({
       severity: weight > ceiling * 1.5 ? 'ALERT' : 'WARN',
       text: `该资产占净资产 ${pct(weight)}，超过 ${pct(ceiling)} 集中度阈值，建议制定分批减持/再平衡计划。`,
     })
   }
 
-  if (p.unrealizedPct != null && p.costCny > 0) {
+  if (opts.includeInvestmentPerformance !== false && p.unrealizedPct != null && p.costCny > 0) {
     if (p.unrealizedPct <= -0.2) {
       out.push({
         severity: 'WARN',
@@ -35,13 +35,6 @@ export function assetAdvice(
     } else if (p.unrealizedPct >= 0.5) {
       out.push({ severity: 'INFO', text: `浮盈 ${pct(p.unrealizedPct)}，可考虑分批止盈、把部分收益落入口径更稳的资产。` })
     }
-  }
-
-  if (p.asset.cls === 'RSU' && p.unvestedQty > 0) {
-    out.push({
-      severity: 'INFO',
-      text: `尚有 ${p.unvestedQty.toLocaleString()} 股未归属，归属前不计入可自由投资资产；关注归属时间表与离职条款。`,
-    })
   }
 
   if ((p.asset.cls === 'REAL_ESTATE' || p.asset.manual) && p.value > 0) {

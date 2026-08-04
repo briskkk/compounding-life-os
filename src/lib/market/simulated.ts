@@ -22,7 +22,6 @@ const PROFILES: Record<string, Profile> = {
   '510300': { base: 3.9, mu: 0.05, sigma: 0.18 },
   '110022': { base: 2.4, mu: 0.06, sigma: 0.2 },
   AU9999: { base: 545, mu: 0.09, sigma: 0.13 },
-  'RSU-ACME': { base: 46, mu: 0.15, sigma: 0.5 },
 }
 
 function profileOf(symbol: string): Profile {

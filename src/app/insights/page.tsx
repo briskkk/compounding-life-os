@@ -36,7 +36,10 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
   const [analysisRun, prefs, registeredAssets] = await Promise.all([
     loadLatestInsightAnalysis(ctx),
     db.familyPrefs.findUnique({ where: { familyId: ctx.familyId } }),
-    db.asset.findMany({ select: { id: true, name: true, symbol: true } }),
+    db.asset.findMany({
+      where: { cls: { not: 'HUAWEI_STOCK' } },
+      select: { id: true, name: true, symbol: true },
+    }),
   ])
   const llm = llmStatus()
   const pendingInsights = insights.filter((insight) => !insight.acknowledgedAt)
@@ -122,7 +125,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
             <dl>
               <div><dt>当前现金水位</dt><dd>{fmtPct(state.metrics.cashRatio)}</dd></div>
               <div><dt>最大持仓权重</dt><dd>{topHolding ? fmtPct(topHolding.weight) : '—'}</dd></div>
-              <div><dt>最低目标概率</dt><dd>{fmtPct(lowestGoal)}</dd></div>
+              <div><dt>最低 FIRE 稳健度</dt><dd>{fmtPct(lowestGoal)}</dd></div>
               <div><dt>近月平均储蓄率</dt><dd>{fmtPct(savings.averageRate)}</dd></div>
             </dl>
           </aside>
@@ -133,7 +136,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
         <div><span>现金安全线</span><strong>{fmtPct(prefs?.cashFloor ?? 0.08)}</strong></div>
         <div><span>集中度阈值</span><strong>{fmtPct(prefs?.concentrationCeiling ?? 0.25)}</strong></div>
         <div><span>可持续月储蓄</span><strong>{savings.recordedMonths > 0 ? fmtCNY(savings.sustainableMonthlySavings) : '—'}</strong></div>
-        <div><span>目标路径</span><strong>{goals.length} 项</strong></div>
+        <div><span>FIRE 方案</span><strong>{goals.length} 项</strong></div>
       </section>
 
       <AssetAnalysisDialogue
@@ -147,10 +150,10 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
       <InsightsList initial={remaining} />
 
       <details className="insight-policy-details">
-        <summary><span><strong>策略阈值与生成说明</strong><small>现金安全线、集中度、回撤与目标概率</small></span><span>＋</span></summary>
+        <summary><span><strong>策略阈值与生成说明</strong><small>现金安全线、集中度、回撤与 FIRE 稳健度</small></span><span>＋</span></summary>
         <div className="mt-7">
           <LlmStatusCard status={llm} />
-          <PrefsForm initial={{ cashFloor: prefs?.cashFloor ?? 0.08, concentrationCeiling: prefs?.concentrationCeiling ?? 0.25, cashDragCeiling: prefs?.cashDragCeiling ?? 0.35, drawdownThreshold: prefs?.drawdownThreshold ?? 0.05, goalProbThreshold: prefs?.goalProbThreshold ?? 0.5 }} />
+          <PrefsForm initial={{ cashFloor: prefs?.cashFloor ?? 0.08, concentrationCeiling: prefs?.concentrationCeiling ?? 0.25, cashDragCeiling: prefs?.cashDragCeiling ?? 0.35, drawdownThreshold: prefs?.drawdownThreshold ?? 0.05, goalProbThreshold: prefs?.goalProbThreshold ?? 0.9 }} />
           <p className="mt-5 text-[14px] leading-7 text-ink-faint">发送给模型的内容仅包括组合聚合指标、目标预测、储蓄摘要与规则结论，不包含成员姓名、账户名称、交易备注或数据库标识。模型不能修改事实、金额、优先级或账本。</p>
         </div>
       </details>

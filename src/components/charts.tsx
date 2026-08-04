@@ -80,6 +80,110 @@ export function WealthChart({ data }: { data: WealthPoint[] }) {
   )
 }
 
+export interface PortfolioReturnDatum {
+  date: string
+  pct: number
+  amount: number
+  netWorth: number
+}
+
+function fmtCNYAxis(value: number): string {
+  const abs = Math.abs(value)
+  const sign = value < 0 ? '-' : ''
+  if (abs >= 1e8) return `${sign}¥${(abs / 1e8).toFixed(1)}亿`
+  if (abs >= 1e4) return `${sign}¥${(abs / 1e4).toFixed(0)}万`
+  return `${sign}¥${abs.toFixed(0)}`
+}
+
+function PortfolioReturnTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null
+  const point = payload[0].payload as PortfolioReturnDatum
+  return (
+    <div className="rounded border border-line bg-panel2 px-3 py-2 text-xs shadow-2xl">
+      <div className="num mb-1 text-ink-faint">{label}</div>
+      <div className="flex items-center gap-4 py-0.5">
+        <span className="text-ink-dim">累计收益率</span>
+        <span className="num ml-auto text-ink">{point.pct >= 0 ? '+' : ''}{(point.pct * 100).toFixed(2)}%</span>
+      </div>
+      <div className="flex items-center gap-4 py-0.5">
+        <span className="text-ink-dim">累计收益金额</span>
+        <span className="num ml-auto text-ink">{fmtCNY(point.amount, { sign: true })}</span>
+      </div>
+      <div className="flex items-center gap-4 py-0.5">
+        <span className="text-ink-dim">可投资资产</span>
+        <span className="num ml-auto text-ink">{fmtCNY(point.netWorth)}</span>
+      </div>
+    </div>
+  )
+}
+
+/** 任意区间的累计时间加权收益率与扣除净投入后的累计收益金额曲线。 */
+export function PortfolioReturnChart({ data }: { data: PortfolioReturnDatum[] }) {
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <ComposedChart data={data} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
+        <defs>
+          <linearGradient id="gPortfolioReturn" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={C.info} stopOpacity={0.18} />
+            <stop offset="100%" stopColor={C.info} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid stroke={C.line} strokeDasharray="2 8" vertical={false} />
+        <XAxis
+          dataKey="date"
+          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+          minTickGap={64}
+        />
+        <YAxis
+          yAxisId="rate"
+          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+          width={54}
+          domain={['auto', 'auto']}
+          tickFormatter={(value: number) => `${(value * 100).toFixed(1)}%`}
+        />
+        <YAxis
+          yAxisId="amount"
+          orientation="right"
+          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+          width={72}
+          domain={['auto', 'auto']}
+          tickFormatter={fmtCNYAxis}
+        />
+        <Tooltip content={<PortfolioReturnTooltip />} />
+        <ReferenceLine yAxisId="rate" y={0} stroke={C.inkFaint} strokeDasharray="4 7" />
+        <Area
+          yAxisId="rate"
+          type="monotone"
+          dataKey="pct"
+          name="累计收益率"
+          stroke={C.info}
+          strokeWidth={2.25}
+          fill="url(#gPortfolioReturn)"
+          dot={false}
+          isAnimationActive={false}
+        />
+        <Line
+          yAxisId="amount"
+          type="monotone"
+          dataKey="amount"
+          name="累计收益金额"
+          stroke={C.amber}
+          strokeWidth={1.75}
+          strokeDasharray="7 5"
+          dot={false}
+          isAnimationActive={false}
+        />
+      </ComposedChart>
+    </ResponsiveContainer>
+  )
+}
+
 export function Donut({ data }: { data: { name: string; value: number; color: string }[] }) {
   return (
     <ResponsiveContainer width="100%" height={168}>
@@ -263,7 +367,17 @@ export interface ProjectionDatum {
   target: number
 }
 
-export function ProjectionChart({ data, target, targetLabel = '目标' }: { data: ProjectionDatum[]; target: number; targetLabel?: string }) {
+export function ProjectionChart({
+  data,
+  target,
+  targetLabel = '目标',
+  dynamicTarget = false,
+}: {
+  data: ProjectionDatum[]
+  target: number
+  targetLabel?: string
+  dynamicTarget?: boolean
+}) {
   return (
     <ResponsiveContainer width="100%" height={240}>
       <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
@@ -281,7 +395,11 @@ export function ProjectionChart({ data, target, targetLabel = '目标' }: { data
         <Area dataKey="base" stackId="band" stroke="none" fill="transparent" isAnimationActive={false} name="base" />
         <Area dataKey="band" stackId="band" stroke="none" fill={C.info} fillOpacity={0.14} name="P10–P90 区间" isAnimationActive={false} />
         <Line type="monotone" dataKey="p50" name="中位路径" stroke={C.gold} strokeWidth={1.5} dot={false} />
-        <ReferenceLine y={target} stroke={C.up} strokeDasharray="4 6" label={{ value: targetLabel, fill: C.up, fontSize: 11, position: 'insideTopRight' }} />
+        {dynamicTarget ? (
+          <Line type="monotone" dataKey="target" name={targetLabel} stroke={C.up} strokeWidth={1.25} strokeDasharray="4 6" dot={false} isAnimationActive={false} />
+        ) : (
+          <ReferenceLine y={target} stroke={C.up} strokeDasharray="4 6" label={{ value: targetLabel, fill: C.up, fontSize: 11, position: 'insideTopRight' }} />
+        )}
       </ComposedChart>
     </ResponsiveContainer>
   )

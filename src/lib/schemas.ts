@@ -59,7 +59,7 @@ export const assetInputSchema = z.object({
     .max(20)
     .transform((s) => s.toUpperCase().trim()),
   name: z.string().min(1, '名称必填').max(60),
-  cls: z.enum(['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'REAL_ESTATE', 'RSU']),
+  cls: z.enum(['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'REAL_ESTATE', 'HUAWEI_STOCK']),
   currency: z.enum(['CNY', 'USD', 'HKD']).default('CNY'),
   tags: z.string().max(120).default(''),
   manual: z.boolean().default(false),
@@ -78,7 +78,10 @@ const goalBaseSchema = z.object({
   targetAmount: z.number().nonnegative().default(0),
   targetDate: z.coerce.date(),
   annualSpend: z.number().nonnegative().default(0),
-  spendYears: z.number().int().min(0).max(50).default(0),
+  spendYears: z.number().int().min(10).max(70).default(40),
+  retirementIncome: z.number().nonnegative().default(0),
+  withdrawalRate: z.number().min(0.02).max(0.08).default(0.04),
+  inflationRate: z.number().min(0).max(0.15).default(0.025),
   metric: z.enum(['NET_WORTH', 'INVESTABLE']),
   monthlyContribution: z.number().nonnegative().default(0),
   expectedReturn: z.number().min(-0.2).max(0.5).default(0.07),
@@ -87,11 +90,11 @@ const goalBaseSchema = z.object({
 })
 
 export const goalInputSchema = goalBaseSchema.superRefine((v, ctx) => {
-  if (v.mode === 'STREAM' && (v.annualSpend <= 0 || v.spendYears <= 0)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '支出流目标需要正的每年支出与支出年数', path: ['annualSpend'] })
+  if (v.mode === 'STREAM' && v.annualSpend <= 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '请填写预计年度退休支出', path: ['annualSpend'] })
   }
   if (v.mode === 'LUMP_SUM' && v.targetAmount <= 0) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '目标金额必须为正', path: ['targetAmount'] })
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'FIRE Number 必须为正', path: ['targetAmount'] })
   }
 })
 

@@ -2,7 +2,7 @@
 //   A 股 / 场内ETF：600519、510300（6 位数字）
 //   场外基金：110022、16xxxx（11/16 开头 6 位数字）
 //   港股：HK00700    美股：USAAPL（可选 .X 后缀，如 USBRK.B）
-//   其他（RSU-ACME、AU9999、CASH-CNY…）：真实源不覆盖，自动回落模拟源
+//   其他（AU9999、CASH-CNY…）：真实源不覆盖，自动回落模拟源
 export type Market = 'CN_A' | 'HK' | 'US' | 'FUND' | 'OTHER'
 
 export interface ParsedSymbol {

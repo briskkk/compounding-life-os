@@ -14,15 +14,8 @@ import { cx, fmtCNY, fmtDateTime, fmtMoney, fmtPct, fmtQty } from '@/lib/format'
 import type { PriceSource } from '@/lib/engine/types'
 import { MarketSourceTag, PositionSourceTag, ValuationLegend } from './valuation-source'
 import { HoldingSortSelect } from './holding-sort-select'
-
-export interface PeriodPerformance {
-  label: string
-  amount: number | null
-  pct: number | null
-  basisDate: string | null
-  baseNetWorth: number | null
-  baseContributions: number | null
-}
+import { PortfolioHistory } from './portfolio-history'
+import type { PerformancePoint } from '@/lib/engine/period-performance'
 
 export interface WatchHolding {
   assetId: string
@@ -67,19 +60,19 @@ const INTRADAY_TIME_FORMATTER = new Intl.DateTimeFormat('zh-CN', { hour: '2-digi
 export function WatchClient({
   holdings,
   staticValueCny,
+  staticInvestableValueCny,
   staticRows,
   provider,
-  periods,
-  liabilitiesTotal,
+  historySeries,
   currentContributions,
   initialSort,
 }: {
   holdings: WatchHolding[]
   staticValueCny: number
+  staticInvestableValueCny: number
   staticRows: StaticRow[]
   provider: string
-  periods: PeriodPerformance[]
-  liabilitiesTotal: number
+  historySeries: PerformancePoint[]
   currentContributions: number
   initialSort: HoldingSort
 }) {
@@ -229,19 +222,10 @@ export function WatchClient({
     }
   }, [rows, seriesMap, staticValueCny, todayKey])
 
-  const livePeriods = useMemo(() => {
-    const currentNetWorth = totalValue - liabilitiesTotal
-    return periods.map((period) => {
-      if (period.baseNetWorth == null || period.baseContributions == null) return period
-      const netFlow = currentContributions - period.baseContributions
-      const amount = currentNetWorth - period.baseNetWorth - netFlow
-      return {
-        ...period,
-        amount,
-        pct: period.baseNetWorth > 0 ? amount / period.baseNetWorth : null,
-      }
-    })
-  }, [currentContributions, liabilitiesTotal, periods, totalValue])
+  const liveInvestableValue = useMemo(
+    () => rows.reduce((sum, row) => sum + row.valueCny, 0) + staticInvestableValueCny,
+    [rows, staticInvestableValueCny],
+  )
 
   const displayRows = useMemo(() => sortHoldings([
     ...rows.map((row) => ({ ...row, kind: 'market' as const, name: row.name, valueCny: row.valueCny })),
@@ -278,25 +262,11 @@ export function WatchClient({
         </div>
       </section>
 
-      <section className="performance-strip" aria-label="阶段收益">
-        {livePeriods.map((period) => {
-          const value = period.amount ?? 0
-          return (
-            <div key={period.label}>
-              <div className="text-[15px] text-ink-faint">{period.label}涨跌</div>
-              <div className={cx('num mt-3 text-[26px]', period.amount == null ? 'text-ink-faint' : value >= 0 ? 'text-up' : 'text-down')}>
-                {period.amount == null ? '—' : fmtCNY(period.amount, { sign: true })}
-              </div>
-              <div className={cx('num mt-2 text-[14px]', period.pct == null ? 'text-ink-faint' : (period.pct ?? 0) >= 0 ? 'text-up' : 'text-down')}>
-                {period.pct == null ? '历史数据不足' : fmtPct(period.pct, { sign: true })}
-              </div>
-              {period.basisDate && <div className="mt-1 text-[12px] text-ink-faint">基准 {period.basisDate}</div>}
-            </div>
-          )
-        })}
-      </section>
-
-      <p className="-mt-6 text-[14px] text-ink-faint">阶段涨跌按净资产变化扣除同期净投入计算，口径与财富轨迹一致。</p>
+      <PortfolioHistory
+        series={historySeries}
+        liveValue={liveInvestableValue}
+        currentContributions={currentContributions}
+      />
 
       {/* 实时估值表 */}
       <Panel

@@ -1,11 +1,33 @@
 // 行情历史落库：PriceBar 按 (symbol, date) 去重，重建快照时优先读库
 import type { PrismaClient } from '@prisma/client'
+import type { Bar } from './provider'
 import { historySmart } from './index'
 import { eastmoneyFundProvider } from './eastmoney-fund'
 import { closeAt } from './simulated'
 import { parseSymbol } from './symbols'
 
 const DAY = 86400000
+
+/** 将已经取得的行情直接落库，避免页面为持久化重复请求同一段历史。 */
+export async function persistBars(
+  db: PrismaClient,
+  symbol: string,
+  bars: Bar[],
+  source: string,
+): Promise<number> {
+  if (bars.length === 0) return 0
+  const sorted = [...bars].sort((a, b) => a.date.getTime() - b.date.getTime())
+  await db.priceBar.deleteMany({
+    where: {
+      symbol,
+      date: { gte: sorted[0].date, lte: sorted.at(-1)!.date },
+    },
+  })
+  await db.priceBar.createMany({
+    data: sorted.map((bar) => ({ symbol, date: bar.date, close: bar.close, source })),
+  })
+  return sorted.length
+}
 
 /** 拉取并落库指定标的的历史日线（先清区间再批量写入，幂等） */
 export async function persistHistory(
@@ -20,7 +42,7 @@ export async function persistHistory(
     if (bars.length > 0) {
       await db.priceBar.deleteMany({ where: { symbol, date: { gte: from, lte: to } } })
       await db.priceBar.createMany({
-        data: bars.map((b) => ({ symbol, date: b.date, close: b.close, source })),
+        data: bars.map((bar) => ({ symbol, date: bar.date, close: bar.close, source })),
       })
     }
     results.push({ symbol, count: bars.length, source })

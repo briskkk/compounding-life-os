@@ -74,8 +74,6 @@ const TYPE_ALIASES: Record<string, TxType> = {
   transfer_out: 'TRANSFER_OUT',
   估值: 'VALUATION',
   valuation: 'VALUATION',
-  归属: 'VEST',
-  vest: 'VEST',
 }
 
 export const CSV_TEMPLATE = `日期,账户,代码,类型,数量,单价,金额,费用,备注
@@ -111,7 +109,7 @@ export function parseCsvRows(rows: Record<string, string>[], lookup: CsvLookup):
     if (!occurredAt || Number.isNaN(occurredAt.getTime())) errors.push('日期缺失或格式无效（期望 YYYY-MM-DD）')
 
     const type = mapped.type ? TYPE_ALIASES[mapped.type.toLowerCase()] ?? TYPE_ALIASES[mapped.type] : undefined
-    if (!type) errors.push(`类型无法识别：「${mapped.type ?? ''}」（支持 买入/卖出/分红/利息/费用/存入/取出/转入/转出/估值/归属）`)
+    if (!type) errors.push(`类型无法识别：「${mapped.type ?? ''}」（支持 买入/卖出/分红/利息/费用/存入/取出/转入/转出/估值）`)
 
     const accountId = mapped.account ? lookup.accountByName.get(mapped.account) : undefined
     if (!accountId) errors.push(`账户不存在：「${mapped.account ?? ''}」`)
@@ -128,7 +126,7 @@ export function parseCsvRows(rows: Record<string, string>[], lookup: CsvLookup):
     if ((type === 'BUY' || type === 'SELL') && amount == null && quantity != null && price != null) {
       amount = quantity * price
     }
-    const needsQty = type === 'BUY' || type === 'SELL' || type === 'TRANSFER_IN' || type === 'TRANSFER_OUT' || type === 'VEST'
+    const needsQty = type === 'BUY' || type === 'SELL' || type === 'TRANSFER_IN' || type === 'TRANSFER_OUT'
     if (needsQty && (quantity == null || quantity <= 0)) errors.push('数量必须为正数')
     if ((type === 'BUY' || type === 'SELL') && (price == null || price <= 0)) errors.push('单价必须为正数')
     if (amount == null || amount < 0) errors.push('金额缺失或为负数')

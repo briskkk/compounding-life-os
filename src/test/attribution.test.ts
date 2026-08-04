@@ -50,6 +50,20 @@ describe('收益归因', () => {
     expect(twr[3].cumulative).toBeCloseTo(0.1)
   })
 
+  it('华为股票估值变化不进入可投资资产 TWR', () => {
+    const totalNetWorth = [
+      { date: D('2025-01-01'), netWorth: 1000 },
+      { date: D('2025-01-02'), netWorth: 1500 },
+    ]
+    const investable = [
+      { date: D('2025-01-01'), netWorth: 1000 },
+      { date: D('2025-01-02'), netWorth: 1000 },
+    ]
+
+    expect(twrSeries(totalNetWorth, new Map()).at(-1)?.dailyReturn).toBeCloseTo(0.5)
+    expect(twrSeries(investable, new Map()).at(-1)?.dailyReturn).toBe(0)
+  })
+
   it('XIRR：单笔投入一年后 +10% → 年化约 10%', () => {
     const r = xirr([{ date: D('2025-01-01'), amount: -1000 }], 1100, D('2026-01-01'))
     expect(r).not.toBeNull()

@@ -45,17 +45,12 @@ export function valuePosition(
     price = mkt ?? (pos.quantity > 0 ? pos.costBasis / pos.quantity : null)
     priceSource = mkt != null ? 'MARKET' : 'COST'
     if (mkt != null) {
-      if (asset.cls === 'RSU') {
-        value = (pos.vestedQty + pos.unvestedQty) * mkt
-        investable = pos.vestedQty * mkt // 仅已归属部分可自由处置
-      } else {
-        value = pos.quantity * mkt
-        investable = value
-      }
+      value = pos.quantity * mkt
+      investable = value
     } else {
       // 无行情回落：以成本×汇率计值，保持人民币口径一致
       value = pos.costBasis * currencyRate(asset.currency)
-      investable = asset.cls === 'RSU' ? (pos.quantity > 0 ? (pos.vestedQty / pos.quantity) * value : 0) : value
+      investable = value
     }
   }
 

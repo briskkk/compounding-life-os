@@ -1,15 +1,17 @@
 import { defineConfig } from '@playwright/test'
 
-// 前置：npm run build（生产服务器承载 E2E，避免 dev 编译抖动）
+// `npm run test:e2e` 会先生成独立的 .next-e2e，并使用专用种子数据库。
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
-  retries: process.env.CI ? 1 : 0,
+  // 隔离环境应当确定性通过；不使用重试掩盖首轮失败。
+  retries: 0,
   use: { baseURL: 'http://localhost:3200' },
   webServer: {
-    command: 'LLM_DISABLED=1 npm run start -- -p 3200',
+    command: 'npm run start:e2e -- -p 3200',
     port: 3200,
-    reuseExistingServer: !process.env.CI,
+    // 不复用未知版本的残留服务，确保测试的就是本次构建。
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 })

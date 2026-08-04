@@ -116,11 +116,19 @@ clean_runtime() {
 }
 
 clean_next_cache() {
+  local dist_dir="$1"
   [[ "$PROJECT_ROOT" == */Portfolio ]] || fail "项目目录校验失败，拒绝清理缓存。"
   [[ -f "$PROJECT_ROOT/package.json" ]] || fail "未找到 package.json。"
-  mkdir -p "$PROJECT_ROOT/.next"
-  find "$PROJECT_ROOT/.next" -mindepth 1 -delete
-  log "已清理 .next，避免开发与生产产物混用"
+  case "$dist_dir" in
+    .next|.next-dev)
+      ;;
+    *)
+      fail "构建目录校验失败：${dist_dir}"
+      ;;
+  esac
+  mkdir -p "$PROJECT_ROOT/$dist_dir"
+  find "$PROJECT_ROOT/$dist_dir" -mindepth 1 -delete
+  log "已清理 ${dist_dir}"
 }
 
 show_status() {
@@ -170,14 +178,15 @@ trap 'exit 143' TERM
 stop_managed_service
 stop_project_listeners
 assert_port_available
-clean_next_cache
 
 if [[ "$MODE" == "production" ]]; then
+  clean_next_cache ".next"
   log "开始生产构建"
   npm run build
   log "生产服务启动于 http://localhost:$PORT"
   npm run start -- -p "$PORT" &
 else
+  clean_next_cache ".next-dev"
   log "开发服务启动于 http://localhost:$PORT"
   npm run dev -- -p "$PORT" &
 fi

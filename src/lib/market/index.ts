@@ -1,6 +1,6 @@
 // 行情路由：MARKET_PROVIDER 为逗号分隔的优先级链，如 "tencent,eastmoney-fund,sina"
 // 逐个尝试，首个成功者返回；真实市场标的全链失败 → 抛错（绝不伪造价格）；
-// 仅 OTHER 标的（RSU-ACME、AU9999 等非标代码）回落确定性模拟源
+// 仅 OTHER 标的（AU9999 等非标代码）回落确定性模拟源
 import { quoteAt, dailyCloses, PROVIDER_LABEL } from './simulated'
 import { tencentProvider } from './tencent'
 import { sinaProvider } from './sina'

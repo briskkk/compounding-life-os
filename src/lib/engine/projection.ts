@@ -31,6 +31,31 @@ export interface ProjectionResult {
   fundedRatio: number
 }
 
+export interface FireProjectionInput {
+  current: number
+  fireNumberToday: number
+  monthsToRetirement: number
+  monthlyContribution: number
+  withdrawalRate: number
+  inflationRate: number
+  retirementYears: number
+  annualReturn: number
+  volatility: number
+  seed?: number
+  sims?: number
+  portfolioWeights?: ClassWeights
+}
+
+export interface FireProjectionResult extends ProjectionResult {
+  accumulationSuccessProb: number
+  retirementSuccessProb: number
+  fireNumberToday: number
+  fireNumberAtRetirement: number
+  annualPortfolioSpendToday: number
+  coastFireNumber: number
+  estimatedFireMonths: number | null
+}
+
 function percentile(sorted: number[], q: number): number {
   if (sorted.length === 0) return 0
   const idx = (sorted.length - 1) * q
@@ -232,6 +257,129 @@ export function projectStreamGoal(input: StreamProjectionInput): ProjectionResul
     requiredMonthly,
     projectedMedian: points[months].p50,
     fundedRatio: nominalTarget > 0 ? current / nominalTarget : 1,
+  }
+}
+
+/**
+ * FIRE 计划同时验证两件事：
+ * 1. 退休日资产是否达到按通胀换算后的 FIRE Number；
+ * 2. 从真实积累路径出发，退休期间按通胀支取后是否始终不断供。
+ *
+ * fireNumberToday 与由它推导的年度组合支出均使用今日购买力口径。
+ */
+export function projectFireGoal(input: FireProjectionInput): FireProjectionResult {
+  const {
+    current,
+    monthlyContribution,
+    withdrawalRate,
+    inflationRate,
+    retirementYears,
+    annualReturn,
+    seed = 42,
+    sims = 1500,
+  } = input
+  const fireNumberToday = Math.max(0, input.fireNumberToday)
+  const months = Math.max(0, Math.round(input.monthsToRetirement))
+  const retirementMonths = Math.max(0, Math.round(retirementYears * 12))
+  const monthlyInflation = Math.pow(1 + inflationRate, 1 / 12) - 1
+  const monthlyReturn = Math.pow(1 + annualReturn, 1 / 12) - 1
+  const inflationFactor = Math.pow(1 + monthlyInflation, months)
+  const fireNumberAtRetirement = fireNumberToday * inflationFactor
+  const annualPortfolioSpendToday = fireNumberToday * withdrawalRate
+  const firstMonthlyDraw = annualPortfolioSpendToday * inflationFactor / 12
+  const byMonth: number[][] = Array.from({ length: months + 1 }, () => [])
+  const finals: number[] = []
+  const samplerOf = makeSampler({
+    annualReturn,
+    volatility: input.volatility,
+    portfolioWeights: input.portfolioWeights,
+    seed,
+  })
+  let accumulationSuccess = 0
+  let retirementSuccess = 0
+
+  for (let s = 0; s < sims; s++) {
+    const sample = samplerOf(s)
+    let value = current
+    byMonth[0].push(value)
+    for (let month = 1; month <= months; month++) {
+      value = value * (1 + sample()) + monthlyContribution
+      if (value < 0) value = 0
+      byMonth[month].push(value)
+    }
+    finals.push(value)
+    if (value >= fireNumberAtRetirement) accumulationSuccess++
+
+    let solvent = value > 0 || firstMonthlyDraw === 0
+    for (let month = 1; month <= retirementMonths; month++) {
+      const draw = firstMonthlyDraw * Math.pow(1 + monthlyInflation, month - 1)
+      value = value * (1 + sample()) - draw
+      if (value < 0) {
+        solvent = false
+        value = 0
+      }
+    }
+    if (solvent) retirementSuccess++
+  }
+
+  const points: ProjectionPoint[] = byMonth.map((values, month) => {
+    const sorted = [...values].sort((a, b) => a - b)
+    return {
+      month,
+      p10: percentile(sorted, 0.1),
+      p50: percentile(sorted, 0.5),
+      p90: percentile(sorted, 0.9),
+    }
+  })
+  const projectedMedian = points[months]?.p50 ?? current
+
+  const deterministicAtRetirement = (monthly: number) => {
+    let value = current
+    for (let month = 0; month < months; month++) value = value * (1 + monthlyReturn) + monthly
+    return value
+  }
+  let requiredMonthly = 0
+  if (months === 0) {
+    requiredMonthly = Math.max(0, fireNumberAtRetirement - current)
+  } else if (deterministicAtRetirement(0) < fireNumberAtRetirement) {
+    let lo = 0
+    let hi = Math.max(fireNumberAtRetirement / months, 1) * 4 + 1000
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2
+      if (deterministicAtRetirement(mid) >= fireNumberAtRetirement) hi = mid
+      else lo = mid
+    }
+    requiredMonthly = hi
+  }
+
+  let estimatedFireMonths: number | null = null
+  let estimatedValue = current
+  for (let month = 0; month <= 1200; month++) {
+    const target = fireNumberToday * Math.pow(1 + monthlyInflation, month)
+    if (estimatedValue >= target) {
+      estimatedFireMonths = month
+      break
+    }
+    estimatedValue = estimatedValue * (1 + monthlyReturn) + monthlyContribution
+  }
+
+  const coastFireNumber = months === 0
+    ? fireNumberToday
+    : fireNumberAtRetirement / Math.pow(1 + monthlyReturn, months)
+
+  return {
+    points,
+    successProb: retirementSuccess / sims,
+    accumulationSuccessProb: accumulationSuccess / sims,
+    retirementSuccessProb: retirementSuccess / sims,
+    requiredMonthly,
+    projectedMedian,
+    fundedRatio: fireNumberToday > 0 ? current / fireNumberToday : 1,
+    fireNumberToday,
+    fireNumberAtRetirement,
+    annualPortfolioSpendToday,
+    coastFireNumber,
+    estimatedFireMonths,
   }
 }
 

@@ -33,6 +33,8 @@ describe('协方差组合模拟', () => {
     expect(mix.sigma).toBeLessThan(0.28)
     expect(mix.mu).toBeCloseTo(0.075, 3)
     expect(CLASSES.length).toBe(CORR.length)
+    expect(CLASSES).not.toContain('HUAWEI_STOCK')
+    expect(CLASSES).not.toContain('RSU')
   })
 })
 

@@ -1,6 +1,6 @@
 // 引擎层共享类型 —— 与 Prisma schema 解耦，保持纯 TS 可测
 
-export type AssetClass = 'STOCK' | 'FUND' | 'ETF' | 'CASH' | 'GOLD' | 'REAL_ESTATE' | 'RSU'
+export type AssetClass = 'STOCK' | 'FUND' | 'ETF' | 'CASH' | 'GOLD' | 'REAL_ESTATE' | 'HUAWEI_STOCK'
 
 export type TxType =
   | 'BUY'

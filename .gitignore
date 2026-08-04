@@ -1,7 +1,12 @@
 node_modules
 .next
+.next-dev
+.next-e2e
 prisma/dev.db
 prisma/dev.db-journal
+prisma/e2e.db
+prisma/e2e.db-journal
+prisma/schema.e2e.prisma
 prisma/test.db
 prisma/schema.test.prisma
 prisma/generated

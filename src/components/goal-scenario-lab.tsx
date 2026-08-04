@@ -7,16 +7,16 @@ import { FormMsg, btnCls, btnGhostCls } from './fields'
 
 interface GoalScenarioLabProps {
   goalId: string
-  mode: 'LUMP_SUM' | 'STREAM'
-  targetAmount: number
+  fireNumberToday: number
   monthsLeft: number
   monthlyContribution: number
   sustainableMonthlySavings: number
   expectedReturn: number
+  inflationRate: number
   projectedMedian: number
   projectedP10: number
   projectedP90: number
-  successProbability: number
+  accumulationSuccessProbability: number
 }
 
 const money = (value: number) => `¥${Math.max(0, value).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`
@@ -44,31 +44,22 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
   const suggested = Math.max(props.monthlyContribution, Math.round(props.sustainableMonthlySavings / 500) * 500)
   const [monthly, setMonthly] = useState(suggested)
   const [delayMonths, setDelayMonths] = useState(0)
-  const [targetReduction, setTargetReduction] = useState(0)
   const [pending, setPending] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   const result = useMemo(() => {
-    if (props.mode === 'STREAM') {
-      return {
-        probability: props.successProbability,
-        median: props.projectedMedian,
-        target: props.targetAmount,
-        gap: Math.max(0, props.targetAmount - props.projectedMedian),
-      }
-    }
     const monthlyRate = Math.pow(1 + props.expectedReturn, 1 / 12) - 1
     const growthDelay = Math.pow(1 + monthlyRate, delayMonths)
     const extraMonthly = monthly - props.monthlyContribution
     const median = props.projectedMedian * growthDelay
       + extraMonthly * annuity(monthlyRate, props.monthsLeft + delayMonths)
       + monthly * annuity(monthlyRate, delayMonths)
-    const target = props.targetAmount * (1 - targetReduction)
+    const target = props.fireNumberToday * Math.pow(1 + props.inflationRate, (props.monthsLeft + delayMonths) / 12)
     const baseSigma = Math.max(1, (props.projectedP90 - props.projectedP10) / (2 * 1.28155))
     const sigma = baseSigma * growthDelay
     const probability = Math.max(0.01, Math.min(0.99, 1 - normalCdf((target - median) / sigma)))
     return { probability, median, target, gap: Math.max(0, target - median) }
-  }, [delayMonths, monthly, props, targetReduction])
+  }, [delayMonths, monthly, props])
 
   const maxMonthly = Math.max(15000, Math.ceil(Math.max(props.monthlyContribution, props.sustainableMonthlySavings) * 1.6 / 500) * 500)
 
@@ -78,11 +69,11 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
     const response = await applyGoalScenario(props.goalId, {
       monthlyContribution: monthly,
       delayMonths,
-      targetReduction,
+      targetReduction: 0,
     })
     setPending(false)
     if (response.ok) {
-      setMsg({ ok: true, text: '方案已应用，目标路径已重新计算' })
+      setMsg({ ok: true, text: '方案已应用，FIRE 路径已重新计算' })
       router.refresh()
     } else {
       setMsg({ ok: false, text: response.error })
@@ -94,7 +85,7 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
       <div className="goal-section-head">
         <div>
           <div className="eyebrow">Scenario lab</div>
-          <h2>调整方案，立即查看概率变化</h2>
+          <h2>调整投入与退休时间</h2>
         </div>
         <span>当前月投入 {money(props.monthlyContribution)}</span>
       </div>
@@ -102,8 +93,8 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
       <div className="goal-scenario-body">
         <div className="goal-scenario-copy">
           <span className="goal-status">推荐动作</span>
-          <h3>让目标投入与真实储蓄能力一致</h3>
-          <p>优先使用近三个月可持续净储蓄，避免建立无法长期执行的目标计划。</p>
+          <h3>让 FIRE 投入与真实储蓄能力一致</h3>
+          <p>优先使用近三个月可持续净储蓄。这里预估积累期变化，应用后会用完整蒙特卡洛路径重新验证退休期不断供概率。</p>
           <div className="flex flex-wrap gap-2">
             <button type="button" className={btnGhostCls} onClick={() => setMonthly(Math.max(0, Math.round(props.sustainableMonthlySavings / 500) * 500))}>
               采用储蓄能力 {money(props.sustainableMonthlySavings)}
@@ -121,18 +112,16 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
               <span>延后时间 <strong>{delayMonths} 个月</strong></span>
               <input type="range" min="0" max="36" step="6" value={delayMonths} onChange={(event) => setDelayMonths(Number(event.target.value))} />
             </label>
-            {props.mode === 'LUMP_SUM' && (
-              <label>
-                <span>目标调整 <strong>{targetReduction === 0 ? '0%' : `-${Math.round(targetReduction * 100)}%`}</strong></span>
-                <input type="range" min="0" max="0.2" step="0.05" value={targetReduction} onChange={(event) => setTargetReduction(Number(event.target.value))} />
-              </label>
-            )}
+            <div className="goal-scenario-assumption">
+              <span>当前积累达标概率</span>
+              <strong>{(props.accumulationSuccessProbability * 100).toFixed(1)}%</strong>
+            </div>
           </div>
 
           <div className="goal-scenario-results" aria-live="polite">
-            <div><span>新达成概率</span><strong>{(result.probability * 100).toFixed(1)}%</strong></div>
-            <div><span>预计到期金额</span><strong>{money(result.median)}</strong></div>
-            <div><span>中位资金缺口</span><strong>{money(result.gap)}</strong></div>
+            <div><span>新积累达标概率</span><strong>{(result.probability * 100).toFixed(1)}%</strong></div>
+            <div><span>预计退休资产</span><strong>{money(result.median)}</strong></div>
+            <div><span>退休时资金缺口</span><strong>{money(result.gap)}</strong></div>
           </div>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
             <FormMsg msg={msg} />

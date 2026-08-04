@@ -12,6 +12,7 @@ import { cx, fmtCNY, fmtDate, fmtMoney, fmtPct, fmtQty } from '@/lib/format'
 import { CLASS_COLORS } from '@/lib/colors'
 import { PositionSourceTag } from '@/components/valuation-source'
 import { positionDayPnlCny, summarizeAccountPositions } from '@/lib/engine/account-summary'
+import { isPortfolioAssetClass } from '@/lib/asset-classification'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,7 +37,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
     db.asset.findMany({ orderBy: { createdAt: 'asc' } }),
     loadEngineState(ctx),
     db.transaction.findMany({
-      where: { accountId },
+      where: { accountId, asset: { cls: { not: 'HUAWEI_STOCK' } } },
       include: { asset: true },
       orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
       take: 8,
@@ -45,10 +46,12 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
   if (!account) return notFound()
 
   const positions = state.valued
-    .filter((position) => position.accountId === account.id && (Math.abs(position.quantity) > 1e-9 || Math.abs(position.value) > 1e-9))
+    .filter((position) => position.accountId === account.id
+      && isPortfolioAssetClass(position.asset.cls)
+      && (Math.abs(position.quantity) > 1e-9 || Math.abs(position.value) > 1e-9))
     .sort((a, b) => b.value - a.value)
   const summary = summarizeAccountPositions(positions, (symbol) => state.quotes.get(symbol)?.prevCloseCny)
-  const accountWeight = state.metrics.netWorth > 0 ? summary.valueCny / state.metrics.netWorth : null
+  const accountWeight = state.metrics.portfolioValue > 0 ? summary.valueCny / state.metrics.portfolioValue : null
   const cashAccountIds = new Set(
     state.valued.filter((position) => position.asset.cls === 'CASH' && Math.abs(position.value) > 1e-9).map((position) => position.accountId),
   )
@@ -94,7 +97,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
         <Stat label="今日盈亏" en="DAY P&L" value={<DeltaAmount value={summary.dayPnlCny} />} hint="仅含有昨收行情的资产" />
         <Stat label="未实现盈亏" en="UNREALIZED" value={<DeltaAmount value={summary.unrealizedCny} />} />
         <Stat label="本账户现金" en="CASH" value={<span className="text-gold">{fmtCNY(summary.cashCny)}</span>} hint={sharedCashCny > 0 ? `另关联共享现金 ${fmtCNY(sharedCashCny)}` : '仅统计本账户持有现金'} />
-        <Stat label="家庭资产占比" en="WEIGHT" value={<span className="text-info">{fmtPct(accountWeight)}</span>} hint={`${summary.holdingCount} 项当前持仓`} />
+        <Stat label="投资组合占比" en="WEIGHT" value={<span className="text-info">{fmtPct(accountWeight)}</span>} hint={`${summary.holdingCount} 项当前持仓`} />
       </div>
 
       <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-3">
@@ -184,7 +187,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
                   settlementAccountId: account.settlementAccountId,
                   settlementAccountName: account.settlementAccount?.name ?? null,
                 }]}
-                assets={assets.filter((asset) => asset.currency === account.currency).map((asset) => ({
+                assets={assets.filter((asset) => asset.currency === account.currency && isPortfolioAssetClass(asset.cls)).map((asset) => ({
                   id: asset.id,
                   symbol: asset.symbol,
                   name: asset.name,

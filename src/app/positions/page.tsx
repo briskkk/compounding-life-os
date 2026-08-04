@@ -15,6 +15,7 @@ import type { AssetClass } from '@/lib/engine/types'
 import { PositionSourceTag, ValuationLegend, ValuationSourceSummary } from '@/components/valuation-source'
 import { parseHoldingSort, sortHoldings } from '@/lib/engine/holding-sort'
 import { HoldingSortSelect } from '@/components/holding-sort-select'
+import { isPortfolioAssetClass } from '@/lib/asset-classification'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,14 +34,14 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
   const m = state.metrics
 
   const allRows = state.valued
-    .filter((v) => Math.abs(v.quantity) > 1e-9 || v.value > 0)
+    .filter((v) => isPortfolioAssetClass(v.asset.cls) && (Math.abs(v.quantity) > 1e-9 || v.value > 0))
     .sort((a, b) => b.value - a.value)
   // 同一资产跨账户合并展示
   const mergedRows = mergePositionsByAsset(allRows)
   const groups = groupByTag(allRows, assetTags)
   const activeTag = sp.tag ?? null
   const activeSort = parseHoldingSort(sp.sort)
-  const classOrder: AssetClass[] = ['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'REAL_ESTATE', 'RSU']
+  const classOrder: AssetClass[] = ['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'REAL_ESTATE']
   const activeClass = classOrder.includes(sp.cls as AssetClass) ? sp.cls as AssetClass : null
   const positionRows = mergedRows.map((position) => {
     const quote = state.quotes.get(position.asset.symbol)
@@ -65,13 +66,13 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
 
   // 每个资产涉及的账户（合并展示用）
   const accountsByAsset = new Map<string, Set<string>>()
-  for (const v of state.valued) {
+  for (const v of allRows) {
     const set = accountsByAsset.get(v.assetId) ?? new Set<string>()
     set.add(v.accountId)
     accountsByAsset.set(v.assetId, set)
   }
 
-  const manualAssets = state.assets.filter((a) => a.manual || a.cls === 'REAL_ESTATE')
+  const manualAssets = state.assets.filter((a) => isPortfolioAssetClass(a.cls) && (a.manual || a.cls === 'REAL_ESTATE'))
   const totalHeld = mergedRows.reduce((sum, position) => sum + position.value, 0)
   const totalUnrealized = mergedRows.reduce((sum, position) => sum + position.unrealized, 0)
 
@@ -88,17 +89,17 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
         </div>
 
         <div>
-          <div className="grid grid-cols-3 gap-5 sm:grid-cols-4 xl:grid-cols-7">
+          <div className="grid grid-cols-3 gap-5 sm:grid-cols-4 xl:grid-cols-6">
             {classOrder.map((cls) => (
               <div key={cls}>
                 <div className="text-[14px] text-ink-faint">{ASSET_CLASS_LABEL[cls]}</div>
-                <div className="num mt-2 text-[16px] text-ink">{fmtPct(m.netWorth > 0 ? m.byClass[cls] / m.netWorth : 0)}</div>
+                <div className="num mt-2 text-[16px] text-ink">{fmtPct(totalHeld > 0 ? m.byClass[cls] / totalHeld : 0)}</div>
               </div>
             ))}
           </div>
           <div className="allocation-track mt-5">
             {classOrder.map((cls) => (
-              <div key={cls} style={{ width: `${m.netWorth > 0 ? (m.byClass[cls] / m.netWorth) * 100 : 0}%`, background: CLASS_COLORS[cls] }} />
+              <div key={cls} style={{ width: `${totalHeld > 0 ? (m.byClass[cls] / totalHeld) * 100 : 0}%`, background: CLASS_COLORS[cls] }} />
             ))}
           </div>
         </div>
@@ -192,7 +193,6 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
               </thead>
               <tbody className="divide-y divide-line/60">
                 {rows.map(({ position: p, dayPnlCny, dayPnlPct }) => {
-                  const restricted = p.asset.cls === 'RSU' && p.unvestedQty > 0
                   const illiquid = p.asset.cls === 'REAL_ESTATE' || p.asset.manual
                   return (
                     <tr key={`${p.accountId}:${p.assetId}`} className="transition-colors hover:bg-panel2/50">
@@ -224,7 +224,6 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                       </td>
                       <td className="num px-2 py-2.5 text-right text-ink">
                         {fmtQty(p.quantity)}
-                        {restricted && <div className="text-[12px] text-amber">未归属 {fmtQty(p.unvestedQty)}</div>}
                       </td>
                       <td className="num px-2 py-2.5 text-right text-ink-dim">
                         {fmtCNYExact(p.costCny)}
@@ -253,13 +252,11 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                         <div className="text-[12px] opacity-80">{fmtPct(p.unrealizedPct, { sign: true })}</div>
                       </td>
                       <td className="num px-2 py-2.5 text-right text-ink-dim">
-                        {fmtPct(m.netWorth > 0 ? p.value / m.netWorth : 0)}
+                        {fmtPct(totalHeld > 0 ? p.value / totalHeld : 0)}
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         {illiquid ? (
-                          <Tag tone="violet">不动产</Tag>
-                        ) : restricted ? (
-                          <Tag tone="amber">部分受限</Tag>
+                          <Tag tone="violet">低流动性</Tag>
                         ) : (
                           <Tag tone="down">可投资</Tag>
                         )}

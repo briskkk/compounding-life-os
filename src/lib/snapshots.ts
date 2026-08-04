@@ -7,6 +7,7 @@ import { cumulativeContributions, dailyNetFlows } from './engine/attribution'
 import type { AssetInfo, TxInput } from './engine/types'
 import { loadPriceSeries, priceAtFn } from './market/persist'
 import { cnyRateFor, fxRates } from './market/fx'
+import { isPortfolioAssetClass } from './asset-classification'
 
 const DAY = 86400000
 const MAX_DAYS = 1400
@@ -33,7 +34,7 @@ export function computeWealthSeries(
   currencyRate: (currency: string) => number = () => 1,
 ): WealthPoint[] {
   const assetMap = new Map(assets.map((a) => [a.id, a]))
-  const flows = dailyNetFlows(txs, currencyRate)
+  const flows = dailyNetFlows(txs.filter((tx) => isPortfolioAssetClass(tx.assetClass)), currencyRate)
   const endMs = Math.floor(to.getTime() / DAY) * DAY
   const requestedStartMs = Math.floor(from.getTime() / DAY) * DAY
   // 超过窗口时保留最近 MAX_DAYS，而不是从最早日期截取一段已经过时的历史。

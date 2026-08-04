@@ -23,5 +23,5 @@ export const CLASS_COLORS: Record<string, string> = {
   CASH: C.inkFaint,
   GOLD: C.gold,
   REAL_ESTATE: C.violet,
-  RSU: C.amber,
+  HUAWEI_STOCK: C.amber,
 }

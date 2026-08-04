@@ -14,9 +14,9 @@ The transaction ledger is the source of truth. Derive positions, snapshots, and 
 - `npm run dev` starts the development server at `http://localhost:3000`.
 - `npm test` runs Vitest once.
 - `npm run build` builds production output and checks TypeScript.
-- `npm run test:e2e` runs Playwright on port 3200; build and seed first.
+- `npm run test:e2e` prepares an isolated seeded SQLite database, builds to `.next-e2e`, and runs Playwright on port 3200.
 
-Do not run development, production, and E2E servers concurrently because they share `.next`.
+Development, production, and E2E use `.next-dev`, `.next`, and `.next-e2e` respectively. Keep their configured ports distinct; do not point two processes at the same dist directory.
 
 ## Coding Style & Naming Conventions
 
@@ -24,7 +24,7 @@ Use two-space indentation, single quotes, no semicolons, and trailing commas in 
 
 ## Testing Guidelines
 
-Vitest discovers `src/test/**/*.test.ts`; use descriptive, behavior-oriented names. Playwright specs use `e2e/*.spec.ts` for routes and workflows. There is no fixed coverage threshold, but behavioral changes should cover success paths and important edge cases. For UI or API changes, run `npm test` and `npm run build && npm run test:e2e`.
+Vitest discovers `src/test/**/*.test.ts`; use descriptive, behavior-oriented names. Playwright specs use `e2e/*.spec.ts` for routes and workflows. There is no fixed coverage threshold, but behavioral changes should cover success paths and important edge cases. For UI or API changes, run `npm test`, `npm run build`, and `npm run test:e2e`.
 
 ## Commit & Pull Request Guidelines
 

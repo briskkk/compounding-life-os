@@ -13,6 +13,7 @@ import { CLASS_COLORS } from '@/lib/colors'
 import { MarketSourceTag, PositionSourceTag } from '@/components/valuation-source'
 import { summarizeAccountPositions, type AccountPositionSummary } from '@/lib/engine/account-summary'
 import type { ValuedPosition } from '@/lib/engine/valuation'
+import { isPortfolioAssetClass } from '@/lib/asset-classification'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,11 +69,13 @@ export default async function AccountsPage({
   const valueByAsset = new Map<string, number>()
   const positionByAsset = new Map<string, ValuedPosition>()
   for (const position of state.valued) {
-    const accountPositions = positionsByAccount.get(position.accountId) ?? []
-    accountPositions.push(position)
-    positionsByAccount.set(position.accountId, accountPositions)
     valueByAsset.set(position.assetId, (valueByAsset.get(position.assetId) ?? 0) + position.value)
     if (!positionByAsset.has(position.assetId)) positionByAsset.set(position.assetId, position)
+    if (isPortfolioAssetClass(position.asset.cls)) {
+      const accountPositions = positionsByAccount.get(position.accountId) ?? []
+      accountPositions.push(position)
+      positionsByAccount.set(position.accountId, accountPositions)
+    }
   }
 
   const summaryByAccount = new Map(accounts.map((account) => {
@@ -97,6 +100,7 @@ export default async function AccountsPage({
   ))
   const latestActivityByAccount = new Map<string, Date>()
   for (const tx of state.ledgerTxs) {
+    if (!isPortfolioAssetClass(tx.assetClass)) continue
     const current = latestActivityByAccount.get(tx.accountId)
     if (!current || tx.occurredAt > current) latestActivityByAccount.set(tx.accountId, tx.occurredAt)
   }
@@ -112,7 +116,7 @@ export default async function AccountsPage({
       <PageHeader
         kicker="Custody & cash routing"
         title="账户中心"
-        description="跨账户的资产汇总，所有数字均从交易流水与最新估值推导。"
+        description="跨账户汇总可投资组合；华为股票在资产目录中作为长期资产独立维护。"
         right={(
           <div className="flex items-end gap-5">
             <div><div className="text-[14px] text-ink-faint">账户总资产</div><div className="num mt-2 text-[34px] text-ink">{fmtCNY(totalAssets)}</div></div>
@@ -276,6 +280,9 @@ export default async function AccountsPage({
                         <td className="px-2 py-2.5">
                           <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: CLASS_COLORS[asset.cls] }} />
                           <Link href={`/positions/${asset.id}`} className="text-ink hover:text-gold">{asset.name}</Link>
+                          {asset.cls === 'HUAWEI_STOCK' && (
+                            <div className="ml-3.5 mt-0.5 text-[11px] text-amber">长期资产 · 不进入持仓、流水和收益率</div>
+                          )}
                         </td>
                         <td className="px-2 py-2.5 text-ink-dim">{ASSET_CLASS_LABEL[asset.cls]}</td>
                         <td className="num px-2 py-2.5 text-right text-ink-dim">{quote ? fmtPrice(quote.price) : position?.price != null ? fmtPrice(position.price) : '—'}</td>

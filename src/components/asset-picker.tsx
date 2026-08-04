@@ -13,7 +13,7 @@ export interface PickerAsset {
   cls: string
 }
 
-const CLS_ORDER = ['STOCK', 'ETF', 'FUND', 'CASH', 'GOLD', 'RSU', 'REAL_ESTATE']
+const CLS_ORDER = ['STOCK', 'ETF', 'FUND', 'CASH', 'GOLD', 'HUAWEI_STOCK', 'REAL_ESTATE']
 
 export function AssetPicker({
   assets,

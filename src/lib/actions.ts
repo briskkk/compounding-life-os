@@ -485,7 +485,7 @@ export async function createAsset(input: unknown): Promise<ActionResult<{ id: st
   try {
     const ctx = await requireWrite()
     const data = assetInputSchema.parse(input)
-    const manual = data.cls === 'REAL_ESTATE' ? true : data.manual
+    const manual = data.cls === 'REAL_ESTATE' || data.cls === 'HUAWEI_STOCK' ? true : data.manual
     const tags = serializeTags(parseTags(data.tags))
     const asset = await prisma.$transaction(async (txDb) => {
       const created = await txDb.asset.create({ data: { ...data, tags, manual, familyId: ctx.familyId } })
@@ -556,14 +556,16 @@ export async function addLiabilityEntry(input: unknown): Promise<ActionResult<{ 
   }
 }
 
-// ---------- 目标 ----------
+// ---------- FIRE 计划 ----------
 
 export async function createGoal(input: unknown): Promise<ActionResult<{ id: string }>> {
   try {
     const ctx = await requireWrite()
     const data = goalInputSchema.parse(input)
-    // 支出流目标的名义金额 = 年支出 × 年数（用于展示与进度口径）
-    const targetAmount = data.mode === 'STREAM' ? data.annualSpend * data.spendYears : data.targetAmount
+    // 支出反推模式：FIRE Number = 需要由组合承担的年度支出 / 安全提取率。
+    const targetAmount = data.mode === 'STREAM'
+      ? Math.max(0, data.annualSpend - data.retirementIncome) / data.withdrawalRate
+      : data.targetAmount
     const goal = await prisma.$transaction(async (txDb) => {
       const created = await txDb.goal.create({ data: { ...data, targetAmount, familyId: ctx.familyId } })
       await txDb.insight.deleteMany({ where: { familyId: ctx.familyId } })
@@ -583,8 +585,13 @@ export async function updateGoal(id: string, input: unknown): Promise<ActionResu
     const ctx = await requireWrite()
     const data = goalUpdateSchema.parse(input)
     const patch: Record<string, unknown> = { ...data }
-    if (data.mode === 'STREAM' && data.annualSpend != null && data.spendYears != null) {
-      patch.targetAmount = data.annualSpend * data.spendYears
+    if (
+      data.mode === 'STREAM'
+      && data.annualSpend != null
+      && data.retirementIncome != null
+      && data.withdrawalRate != null
+    ) {
+      patch.targetAmount = Math.max(0, data.annualSpend - data.retirementIncome) / data.withdrawalRate
     }
     await prisma.$transaction(async (txDb) => {
       const updated = await txDb.goal.updateMany({ where: { id, familyId: ctx.familyId }, data: patch })

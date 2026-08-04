@@ -19,7 +19,7 @@ const FIELDS: { key: keyof PrefsValues; label: string; hint: string }[] = [
   { key: 'concentrationCeiling', label: '集中度阈值（%）', hint: '单一资产占净资产超过此比例触发警示' },
   { key: 'cashDragCeiling', label: '现金拖累线（%）', hint: '现金占比超过此比例提示再投资' },
   { key: 'drawdownThreshold', label: '回撤警示线（%）', hint: '30 日净资产回撤超过此比例触发警示' },
-  { key: 'goalProbThreshold', label: '目标概率线（%）', hint: '目标达成概率低于此值触发警示' },
+  { key: 'goalProbThreshold', label: 'FIRE 稳健线（%）', hint: '退休全周期不断供概率低于此值触发警示' },
 ]
 
 export function PrefsForm({ initial }: { initial: PrefsValues }) {

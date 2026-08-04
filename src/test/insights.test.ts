@@ -5,6 +5,7 @@ import type { ValuedPosition } from '@/lib/engine/valuation'
 
 const metrics: Metrics = {
   netWorth: 100_000,
+  portfolioValue: 100_000,
   investable: 100_000,
   realizedPnl: 0,
   unrealizedPnl: 0,
@@ -15,10 +16,10 @@ const metrics: Metrics = {
     ETF: 0,
     CASH: 20_000,
     GOLD: 0,
+    HUAWEI_STOCK: 0,
     REAL_ESTATE: 0,
-    RSU: 0,
   },
-  liquidity: { cash: 20_000, market: 80_000, restricted: 0, illiquid: 0 },
+  liquidity: { cash: 20_000, market: 80_000, illiquid: 0 },
   holdings: [{ symbol: 'TEST', name: '测试资产', cls: 'STOCK', value: 80_000, weight: 0.8 }],
   concentration: { symbol: 'TEST', name: '测试资产', cls: 'STOCK', value: 80_000, weight: 0.8 },
 }

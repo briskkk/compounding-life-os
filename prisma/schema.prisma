@@ -87,7 +87,7 @@ enum AssetClass {
   CASH
   GOLD
   REAL_ESTATE
-  RSU
+  HUAWEI_STOCK
 }
 
 model Asset {
@@ -235,11 +235,14 @@ model Goal {
   familyId            String
   family              FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
   name                String
-  mode                GoalMode    @default(LUMP_SUM) // LUMP_SUM 一次性目标 / STREAM 支出流目标
+  mode                GoalMode    @default(LUMP_SUM) // FIRE：LUMP_SUM 直接设 FIRE Number / STREAM 按退休支出反推
   targetAmount        Decimal
   targetDate          DateTime
-  annualSpend         Decimal? // STREAM：自 targetDate 起每年支出
-  spendYears          Int? // STREAM：支出年数
+  annualSpend         Decimal? // STREAM：今日购买力口径的年度退休支出
+  spendYears          Int? // 退休资金规划年数
+  retirementIncome    Decimal     @default(0) // 今日购买力口径的年度稳定退休收入
+  withdrawalRate      Float       @default(0.04) // 初始安全提取率
+  inflationRate       Float       @default(0.025) // 长期年化通胀假设
   metric              GoalMetric  @default(INVESTABLE)
   monthlyContribution Decimal     @default(0)
   expectedReturn      Float       @default(0.07)
@@ -259,7 +262,7 @@ model FamilyPrefs {
   concentrationCeiling Float       @default(0.25) // 单一资产集中度阈值
   cashDragCeiling      Float       @default(0.35) // 现金拖累线
   drawdownThreshold    Float       @default(0.05) // 30 日回撤警示线
-  goalProbThreshold    Float       @default(0.5) // 目标达成概率警示线
+  goalProbThreshold    Float       @default(0.9) // FIRE 全周期不断供概率警示线
 }
 
 model Snapshot {

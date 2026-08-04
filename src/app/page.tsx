@@ -17,12 +17,11 @@ export default async function OverviewPage() {
   const m = d.state.metrics
   const leadInsight = d.insights[0]
   const valuationRows = mergePositionsByAsset(d.state.valued)
-  const liqTotal = m.liquidity.cash + m.liquidity.market + m.liquidity.restricted + m.liquidity.illiquid
+  const liqTotal = m.liquidity.cash + m.liquidity.market + m.liquidity.illiquid
   const liqSegs = [
     { label: '现金', value: m.liquidity.cash, color: C.teal },
     { label: '高流动性证券', value: m.liquidity.market, color: C.info },
-    { label: '受限资产', value: m.liquidity.restricted, color: C.amber },
-    { label: '不动产及其他', value: m.liquidity.illiquid, color: C.violet },
+    { label: '长期及低流动性资产', value: m.liquidity.illiquid, color: C.violet },
   ]
 
   return (
@@ -52,8 +51,8 @@ export default async function OverviewPage() {
             <div className="mb-4 flex items-center justify-between gap-4"><div className="eyebrow">财富轨迹</div><div className="text-[14px] text-ink-faint">更新至 {fmtDate(new Date())}</div></div>
             <WealthChart data={d.series} />
             <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-ink-faint">
-              <span>净投入 <strong className="num font-normal text-ink">{fmtCNY(d.attribution.contributions)}</strong></span>
-              <span>投资收益 <strong className={cx('num font-normal', d.attribution.gain >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(d.attribution.gain, { sign: true })}</strong></span>
+              <span>可投资净投入 <strong className="num font-normal text-ink">{fmtCNY(d.attribution.contributions)}</strong></span>
+              <span>可投资收益 <strong className={cx('num font-normal', d.attribution.gain >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(d.attribution.gain, { sign: true })}</strong></span>
               <span>TWR 年化 <strong className="num font-normal text-ink">{fmtPct(d.attribution.twrAnnualized, { sign: true })}</strong></span>
               <span>XIRR <strong className="num font-normal text-ink">{fmtPct(d.attribution.xirr, { sign: true })}</strong></span>
             </div>
@@ -77,10 +76,10 @@ export default async function OverviewPage() {
           </div>
           <div>
             <div className="text-[15px] text-ink-faint">事实源</div>
-            <div className="mt-3 text-[20px] text-ink">交易流水 · 已核对</div>
+            <div className="mt-3 text-[20px] text-ink">账本记录 · 已核对</div>
           </div>
           <div>
-            <div className="text-[15px] text-ink-faint">投资收益</div>
+            <div className="text-[15px] text-ink-faint">可投资收益</div>
             <div className={cx('num mt-3 text-[24px]', d.attribution.gain >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(d.attribution.gain, { sign: true })}</div>
           </div>
           <div>
@@ -156,8 +155,8 @@ export default async function OverviewPage() {
         </Panel>
       </section>
 
-      <Panel title="目标路径" en="GOAL PATHS">
-        {d.goals.length === 0 ? <Empty>尚未设定目标</Empty> : (
+      <Panel title="FIRE 路径" en="FINANCIAL INDEPENDENCE">
+        {d.goals.length === 0 ? <Empty>尚未设定 FIRE 计划</Empty> : (
           <div className="quiet-list">
             {d.goals.map((goal) => (
               <div key={goal.id} className="grid gap-5 py-5 md:grid-cols-[1fr_0.75fr] md:items-center">

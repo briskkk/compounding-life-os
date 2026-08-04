@@ -236,11 +236,16 @@ export function AssetForm() {
           ))}
         </select>
       </Field>
-      {cls !== 'REAL_ESTATE' && cls !== 'CASH' && (
+      {cls !== 'REAL_ESTATE' && cls !== 'CASH' && cls !== 'HUAWEI_STOCK' && (
         <label className="flex items-center gap-2 text-xs text-ink-dim">
           <input name="manual" type="checkbox" className="accent-[#c8a24a]" />
           手动估值（不接入行情源）
         </label>
+      )}
+      {cls === 'HUAWEI_STOCK' && (
+        <p className="rounded-lg border border-amber/30 bg-amber/5 px-3 py-2 text-[13px] leading-relaxed text-ink-dim">
+          华为股票按长期低流动性资产管理，固定使用手动估值，不接入公开股票行情。
+        </p>
       )}
       <FormMsg msg={msg} />
       <button type="submit" disabled={pending} className={btnCls}>

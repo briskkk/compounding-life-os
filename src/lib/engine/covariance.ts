@@ -14,21 +14,21 @@ export const CLASS_PARAMS: Record<AssetClass, ClassParam> = {
   CASH: { mu: 0.015, sigma: 0.002 },
   GOLD: { mu: 0.07, sigma: 0.13 },
   REAL_ESTATE: { mu: 0.03, sigma: 0.06 },
-  RSU: { mu: 0.1, sigma: 0.45 },
+  // 华为股票默认由手动估值进入净资产，不对非公开股价作收益假设。
+  HUAWEI_STOCK: { mu: 0, sigma: 0.002 },
 }
 
-export const CLASSES: AssetClass[] = ['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'REAL_ESTATE', 'RSU']
+export const CLASSES: AssetClass[] = ['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'REAL_ESTATE']
 
 /** 类别相关矩阵（顺序同 CLASSES） */
 export const CORR: number[][] = [
-  // STOCK  FUND   ETF   CASH  GOLD   RE     RSU
-  [1, 0.85, 0.88, 0, 0.1, 0.2, 0.6],
-  [0.85, 1, 0.9, 0, 0.12, 0.18, 0.55],
-  [0.88, 0.9, 1, 0, 0.1, 0.18, 0.55],
-  [0, 0, 0, 1, 0, 0, 0],
-  [0.1, 0.12, 0.1, 0, 1, 0.15, 0.08],
-  [0.2, 0.18, 0.18, 0, 0.15, 1, 0.12],
-  [0.6, 0.55, 0.55, 0, 0.08, 0.12, 1],
+  // STOCK  FUND   ETF   CASH  GOLD   RE
+  [1, 0.85, 0.88, 0, 0.1, 0.2],
+  [0.85, 1, 0.9, 0, 0.12, 0.18],
+  [0.88, 0.9, 1, 0, 0.1, 0.18],
+  [0, 0, 0, 1, 0, 0],
+  [0.1, 0.12, 0.1, 0, 1, 0.15],
+  [0.2, 0.18, 0.18, 0, 0.15, 1],
 ]
 
 /** Cholesky 分解：A = L·Lᵀ（返回下三角 L） */

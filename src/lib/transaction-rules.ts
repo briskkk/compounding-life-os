@@ -36,8 +36,8 @@ export function assertTransactionRules(
   if ((draft.type === 'DEPOSIT' || draft.type === 'WITHDRAW') && asset.cls !== 'CASH') {
     throw new Error('存入 / 取出只能记在现金资产上')
   }
-  if (draft.type === 'VEST' && asset.cls !== 'RSU') {
-    throw new Error('归属流水只能记在受限股资产上')
+  if (draft.type === 'VEST') {
+    throw new Error('归属流水已停用；华为股票请使用买入、分红和估值流水')
   }
   if (draft.type === 'VALUATION' && asset.cls !== 'REAL_ESTATE' && !asset.manual) {
     throw new Error('估值流水只能记在手动估值资产上')
@@ -57,41 +57,26 @@ export function assertTransactionRules(
   if ((draft.type === 'SELL' || draft.type === 'TRANSFER_OUT') && (draft.quantity ?? 0) > available.quantity + EPSILON) {
     throw new Error(`数量不足：当前可用 ${available.quantity}，请求 ${draft.quantity ?? 0}`)
   }
-  if (draft.type === 'VEST' && (draft.quantity ?? 0) > available.unvestedQty + EPSILON) {
-    throw new Error(`未归属数量不足：当前 ${available.unvestedQty}，请求 ${draft.quantity ?? 0}`)
-  }
 }
 
-/** 校验完整时间线，防止补录历史流水后让任意时点出现超卖或超额归属。 */
+/** 校验完整时间线，防止补录历史流水后让任意时点出现超卖。 */
 export function assertTransactionTimeline(txs: TimelineTransaction[], asset: TransactionAsset): void {
   const sorted = txs
     .filter((tx) => !tx.voidedAt)
     .sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime() || (a.sequence ?? 0) - (b.sequence ?? 0))
   let quantity = 0
-  let vested = 0
-  let unvested = 0
 
   for (const tx of sorted) {
     const q = tx.quantity ?? 0
     if (tx.type === 'BUY') {
       quantity += q
-      if (asset.cls === 'RSU') unvested += q
     } else if (tx.type === 'TRANSFER_IN') {
       quantity += q
-      if (asset.cls === 'RSU') vested += q
     } else if (tx.type === 'SELL' || tx.type === 'TRANSFER_OUT') {
-      const available = asset.cls === 'RSU' ? vested : quantity
-      if (q > available + EPSILON) {
-        throw new Error(`数量不足：${tx.occurredAt.toISOString().slice(0, 10)} 可用 ${available}，请求 ${q}`)
+      if (q > quantity + EPSILON) {
+        throw new Error(`数量不足：${tx.occurredAt.toISOString().slice(0, 10)} 可用 ${quantity}，请求 ${q}`)
       }
       quantity -= q
-      if (asset.cls === 'RSU') vested -= q
-    } else if (tx.type === 'VEST') {
-      if (q > unvested + EPSILON) {
-        throw new Error(`未归属数量不足：${tx.occurredAt.toISOString().slice(0, 10)} 可归属 ${unvested}，请求 ${q}`)
-      }
-      unvested -= q
-      vested += q
     }
   }
 }

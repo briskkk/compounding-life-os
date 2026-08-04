@@ -24,12 +24,27 @@ describe('财富快照窗口', () => {
     expect(points[0].contributions).toBe(10000)
     expect(points.at(-1)?.contributions).toBe(15000)
   })
+
+  it('华为股票外部资金流不进入可投资组合累计净投入', () => {
+    const assets: AssetInfo[] = [
+      { id: 'cash', symbol: 'CASH-CNY', name: '现金', cls: 'CASH', manual: false, currency: 'CNY' },
+      { id: 'huawei', symbol: 'HUAWEI-ESOP', name: '华为股票', cls: 'HUAWEI_STOCK', manual: true, currency: 'CNY' },
+    ]
+    const txs: LedgerTx[] = [
+      { accountId: 'a', assetId: 'cash', type: 'DEPOSIT', quantity: null, price: null, amount: 10000, fee: 0, occurredAt: D('2026-01-01T00:00:00Z'), assetClass: 'CASH' },
+      { accountId: 'a', assetId: 'huawei', type: 'DEPOSIT', quantity: null, price: null, amount: 50000, fee: 0, occurredAt: D('2026-01-02T00:00:00Z'), assetClass: 'HUAWEI_STOCK' },
+    ]
+
+    const points = computeWealthSeries(txs, assets, [], D('2026-01-01T00:00:00Z'), D('2026-01-02T00:00:00Z'), () => undefined)
+
+    expect(points.at(-1)?.contributions).toBe(10000)
+  })
 })
 
 describe('历史行情来源', () => {
-  it('真实市场标的缺数据时不伪造，非标准资产仍可使用设计内模拟价', () => {
+  it('真实市场标的缺数据时不伪造，黄金非标资产仍可使用设计内模拟价', () => {
     const priceAt = priceAtFn(new Map())
     expect(priceAt('600519', D('2025-01-10T00:00:00Z'))).toBeUndefined()
-    expect(priceAt('RSU-ACME', D('2025-01-10T00:00:00Z'))).toBeGreaterThan(0)
+    expect(priceAt('AU9999', D('2025-01-10T00:00:00Z'))).toBeGreaterThan(0)
   })
 })

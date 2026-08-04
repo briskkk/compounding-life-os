@@ -8,12 +8,14 @@ import { persistHistory } from '../src/lib/market/persist'
 import { rebuildSnapshots } from '../src/lib/snapshots'
 import { recordAudit } from '../src/lib/audit'
 
-// 显式锚定当前工作目录的 dev.db（符号链接 node_modules 时，相对路径可能解析到别处）
-const prisma = new PrismaClient({ datasourceUrl: `file:${path.resolve('prisma/dev.db')}` })
+// 默认写入 dev.db；自动化环境可显式指定独立数据库，绝不覆盖开发数据。
+const DB_PATH = process.env.SEED_DATABASE_PATH
+  ? path.resolve(process.env.SEED_DATABASE_PATH)
+  : path.resolve('prisma/dev.db')
+const prisma = new PrismaClient({ datasourceUrl: `file:${DB_PATH}` })
 
 // 破坏性操作前自动备份
-const DB_PATH = path.resolve('prisma/dev.db')
-if (fs.existsSync(DB_PATH)) {
+if (process.env.SEED_SKIP_BACKUP !== '1' && fs.existsSync(DB_PATH)) {
   fs.mkdirSync(path.resolve('backups'), { recursive: true })
   const target = path.resolve('backups', `pre-seed-${Date.now()}.db`)
   fs.copyFileSync(DB_PATH, target)
@@ -64,10 +66,10 @@ async function main() {
     tt: await prisma.account.create({ data: { familyId: fid, name: '天天基金', type: 'FUND', institution: '天天基金' } }),
     prop: await prisma.account.create({ data: { familyId: fid, name: '自住房产', type: 'PROPERTY' } }),
     gold: await prisma.account.create({ data: { familyId: fid, name: '黄金积存', type: 'BANK', institution: '招商银行' } }),
-    rsu: await prisma.account.create({ data: { familyId: fid, name: '公司 RSU 计划', type: 'OTHER' } }),
+    huawei: await prisma.account.create({ data: { familyId: fid, name: '华为持股计划', type: 'OTHER' } }),
   }
   await prisma.account.updateMany({
-    where: { id: { in: [mk.ht.id, mk.tt.id, mk.prop.id, mk.gold.id, mk.rsu.id] } },
+    where: { id: { in: [mk.ht.id, mk.tt.id, mk.prop.id, mk.gold.id, mk.huawei.id] } },
     data: { settlementAccountId: mk.cmb.id },
   })
   const at = {
@@ -78,7 +80,7 @@ async function main() {
     fund: await prisma.asset.create({ data: { familyId: fid, symbol: '110022', name: '易方达消费行业', cls: 'FUND' } }),
     gold: await prisma.asset.create({ data: { familyId: fid, symbol: 'AU9999', name: '黄金 Au99.99', cls: 'GOLD' } }),
     home: await prisma.asset.create({ data: { familyId: fid, symbol: 'HOME-01', name: '自住房产 · 滨江', cls: 'REAL_ESTATE', manual: true } }),
-    rsu: await prisma.asset.create({ data: { familyId: fid, symbol: 'RSU-ACME', name: 'ACME 受限股', cls: 'RSU' } }),
+    huawei: await prisma.asset.create({ data: { familyId: fid, symbol: 'HUAWEI-ESOP', name: '华为 ESOP', cls: 'HUAWEI_STOCK', manual: true } }),
   }
 
   console.log('· 登记房贷…')
@@ -89,7 +91,7 @@ async function main() {
   type TxSeed = {
     accountId: string
     assetId: string
-    type: 'BUY' | 'SELL' | 'DIVIDEND' | 'INTEREST' | 'FEE' | 'DEPOSIT' | 'WITHDRAW' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'VALUATION' | 'VEST'
+    type: 'BUY' | 'SELL' | 'DIVIDEND' | 'INTEREST' | 'FEE' | 'DEPOSIT' | 'WITHDRAW' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'VALUATION'
     quantity?: number
     price?: number
     amount?: number
@@ -198,11 +200,11 @@ async function main() {
     push({ accountId: mk.prop.id, assetId: at.home.id, type: 'VALUATION', amount: v, occurredAt: d(ymd), note: '季度估值' })
   }
 
-  // RSU：授予 4800，季度归属 300
-  push({ accountId: mk.rsu.id, assetId: at.rsu.id, type: 'BUY', quantity: 4800, price: 0, amount: 0, occurredAt: d('2025-01-05'), note: '入职授予' })
-  for (const ym of ['2025-04', '2025-07', '2025-10', '2026-01', '2026-04', '2026-07']) {
-    push({ accountId: mk.rsu.id, assetId: at.rsu.id, type: 'VEST', quantity: 300, occurredAt: d(`${ym}-01`), note: '季度归属' })
-  }
+  // 华为股票：按年度购买、分红与最新内部价格手动估值。
+  push({ accountId: mk.huawei.id, assetId: at.huawei.id, type: 'BUY', quantity: 10_000, price: 7.85, amount: 78_500, occurredAt: d('2025-03-01'), note: '2025 年度购股' })
+  push({ accountId: mk.huawei.id, assetId: at.huawei.id, type: 'DIVIDEND', amount: 15_000, occurredAt: d('2026-01-31'), note: '2025 年度分红' })
+  push({ accountId: mk.huawei.id, assetId: at.huawei.id, type: 'BUY', quantity: 5_000, price: 8.10, amount: 40_500, occurredAt: d('2026-03-01'), note: '2026 年度购股' })
+  push({ accountId: mk.huawei.id, assetId: at.huawei.id, type: 'VALUATION', amount: 121_500, occurredAt: d('2026-03-01'), note: '按 2026 年内部股价估值' })
 
   await prisma.transaction.createMany({
     data: txs.map((t) => ({
@@ -238,16 +240,16 @@ async function main() {
   console.log('· 创建目标与策略阈值…')
   await prisma.goal.createMany({
     data: [
-      { familyId: fid, name: '子女教育金', mode: 'STREAM', annualSpend: 300_000, spendYears: 6, targetAmount: 1_800_000, targetDate: d('2031-07-01'), metric: 'INVESTABLE', monthlyContribution: 8000, expectedReturn: 0.06, volatility: 0.12, note: '2031 年起每年 30 万 × 6 年' },
-      { familyId: fid, name: '财务自由 · 可投资 1000 万', targetAmount: 10_000_000, targetDate: d('2038-12-31'), metric: 'INVESTABLE', monthlyContribution: 15000, expectedReturn: 0.07, volatility: 0.16, note: '可自由投资口径' },
+      { familyId: fid, name: '3000 万 FIRE', mode: 'LUMP_SUM', targetAmount: 30_000_000, targetDate: d('2038-12-31'), spendYears: 50, retirementIncome: 0, withdrawalRate: 0.035, inflationRate: 0.025, metric: 'INVESTABLE', monthlyContribution: 25_000, expectedReturn: 0.07, volatility: 0.16, note: '目标金额按今日购买力口径' },
+      { familyId: fid, name: '支出反推方案', mode: 'STREAM', annualSpend: 600_000, spendYears: 45, retirementIncome: 100_000, withdrawalRate: 0.04, inflationRate: 0.025, targetAmount: 12_500_000, targetDate: d('2042-12-31'), metric: 'INVESTABLE', monthlyContribution: 20_000, expectedReturn: 0.07, volatility: 0.16, note: '年度退休支出 60 万，其中稳定收入 10 万' },
     ],
   })
   await prisma.familyPrefs.create({
-    data: { familyId: fid, cashFloor: 0.08, concentrationCeiling: 0.25, cashDragCeiling: 0.35, drawdownThreshold: 0.05, goalProbThreshold: 0.5 },
+    data: { familyId: fid, cashFloor: 0.08, concentrationCeiling: 0.25, cashDragCeiling: 0.35, drawdownThreshold: 0.05, goalProbThreshold: 0.9 },
   })
 
   console.log('· 行情历史落库…')
-  const results = await persistHistory(prisma, ['600519', '300750', '510300', '110022', 'AU9999', 'RSU-ACME'], d('2024-12-01'), new Date())
+  const results = await persistHistory(prisma, ['600519', '300750', '510300', '110022', 'AU9999'], d('2024-12-01'), new Date())
   console.log(`  ✓ ${results.map((r) => `${r.symbol}:${r.count}@${r.source}`).join(' ')}`)
 
   console.log('· 重建财富轨迹快照…')

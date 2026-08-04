@@ -24,7 +24,7 @@ describe('多市场代码解析', () => {
   })
 
   it('非标代码 → OTHER（回落模拟源）', () => {
-    expect(parseSymbol('RSU-ACME').market).toBe('OTHER')
+    expect(parseSymbol('HUAWEI-ESOP').market).toBe('OTHER')
     expect(parseSymbol('AU9999').market).toBe('OTHER')
     expect(parseSymbol('CASH-CNY').market).toBe('OTHER')
   })

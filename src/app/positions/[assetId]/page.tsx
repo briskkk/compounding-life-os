@@ -7,10 +7,11 @@ import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { Empty, Panel, Tag } from '@/components/ui'
 import { CandleChart, PriceLineChart } from '@/components/charts'
+import { AssetHistory } from '@/components/asset-history'
 import { AssetMetaForm } from '@/components/asset-meta-form'
 import { ReverseButton } from '@/components/reverse-button'
 import { historySmart } from '@/lib/market'
-import { persistHistory } from '@/lib/market/persist'
+import { persistBars } from '@/lib/market/persist'
 import { dailyCloses, PROVIDER_LABEL } from '@/lib/market/simulated'
 import { parseSymbol } from '@/lib/market/symbols'
 import { assetAdvice } from '@/lib/engine/advice'
@@ -27,6 +28,12 @@ import { TxForm } from '@/components/tx-form'
 import { AssetIntelligence } from '@/components/asset-intelligence'
 import { loadAssetJudgment } from '@/lib/ai/asset-intelligence'
 import { llmStatus } from '@/lib/ai/llm'
+import { isLongTermAssetClass } from '@/lib/asset-classification'
+import {
+  buildAssetPerformanceSeries,
+  type AssetNavPoint,
+} from '@/lib/engine/asset-performance'
+import { dateKeyAt } from '@/lib/engine/watch-market'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +45,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
 
   const asset = await db.asset.findFirst({ where: { id: assetId } })
   if (!asset) return notFound()
+  const isLongTermAsset = isLongTermAssetClass(asset.cls)
 
   const [state, accounts, intelligence] = await Promise.all([
     loadEngineState(ctx),
@@ -79,20 +87,26 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
 
   // 价格走势（统一人民币口径）：
   // 真实市场标的 —— 实时链路拉取并自愈落库，失败再读 PriceBar 中的真实源数据；绝不展示模拟序列
-  // 非真实标的（RSU-ACME 等）—— 确定性模拟序列是其设计内数据源
+  // 非真实标的（AU9999 等）—— 确定性模拟序列是其设计内数据源
   let chartData: { date: string; close: number }[] = []
   let ohlcData: { date: string; open: number; close: number; high: number; low: number }[] = []
+  let historyPrices: AssetNavPoint[] = []
   let chartSource: string | null = null
   if (isMarket) {
-    const from = new Date(Date.now() - 200 * 86400000)
+    const from = new Date(Date.now() - 1400 * 86400000)
     const to = new Date()
     if (parseSymbol(asset.symbol).market !== 'OTHER') {
       const live = await historySmart(asset.symbol, from, to)
       if (live.source !== PROVIDER_LABEL && live.bars.length > 0) {
         chartSource = live.source
-        const hasOhlc = live.bars.every((b) => b.open != null && b.high != null && b.low != null)
+        historyPrices = live.bars.map((bar) => ({
+          date: bar.date.toISOString().slice(0, 10),
+          nav: bar.close,
+        }))
+        const visibleBars = live.bars.slice(-180)
+        const hasOhlc = visibleBars.every((b) => b.open != null && b.high != null && b.low != null)
         if (hasOhlc) {
-          ohlcData = live.bars.map((b) => ({
+          ohlcData = visibleBars.map((b) => ({
             date: b.date.toISOString().slice(0, 10),
             open: b.open!,
             close: b.close,
@@ -100,9 +114,9 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
             low: b.low!,
           }))
         } else {
-          chartData = live.bars.map((b) => ({ date: b.date.toISOString().slice(0, 10), close: Math.round(b.close * 10000) / 10000 }))
+          chartData = visibleBars.map((b) => ({ date: b.date.toISOString().slice(0, 10), close: Math.round(b.close * 10000) / 10000 }))
         }
-        await persistHistory(prisma, [asset.symbol], from, to) // 自愈落库，后续快照使用真实历史
+        await persistBars(prisma, asset.symbol, live.bars, live.source) // 自愈落库，后续快照使用真实历史
       } else {
         const stored = await prisma.priceBar.findMany({
           where: { symbol: asset.symbol, source: { not: PROVIDER_LABEL }, date: { gte: from } },
@@ -110,17 +124,57 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
         })
         if (stored.length > 0) {
           chartSource = stored[0].source
-          chartData = stored.map((b) => ({ date: b.date.toISOString().slice(0, 10), close: Math.round(Number(b.close) * 10000) / 10000 }))
+          historyPrices = stored.map((bar) => ({
+            date: bar.date.toISOString().slice(0, 10),
+            nav: Number(bar.close),
+          }))
+          chartData = stored.slice(-180).map((b) => ({ date: b.date.toISOString().slice(0, 10), close: Math.round(Number(b.close) * 10000) / 10000 }))
         }
       }
     } else {
       chartSource = PROVIDER_LABEL
-      chartData = dailyCloses(asset.symbol, from, to).map((b) => ({
+      const simulatedBars = dailyCloses(asset.symbol, from, to)
+      historyPrices = simulatedBars.map((bar) => ({
+        date: bar.date.toISOString().slice(0, 10),
+        nav: bar.close,
+      }))
+      chartData = simulatedBars.slice(-180).map((b) => ({
         date: b.date.toISOString().slice(0, 10),
         close: Math.round(b.close * 10000) / 10000,
       }))
     }
   }
+
+  if (quote) {
+    const today = dateKeyAt(new Date())
+    historyPrices = [
+      ...historyPrices.filter((point) => point.date !== today),
+      { date: today, nav: quote.price },
+    ].sort((a, b) => a.date.localeCompare(b.date))
+  }
+
+  const inferredRate = quote && quote.price > 0
+    ? quote.priceCny / quote.price
+    : combined && combined.costBasis > 0
+      ? combined.costCny / combined.costBasis
+      : asset.currency === 'USD'
+        ? 6.77
+        : asset.currency === 'HKD'
+          ? 0.864
+          : 1
+  const assetHistory = buildAssetPerformanceSeries({
+    asset: {
+      id: asset.id,
+      symbol: asset.symbol,
+      name: asset.name,
+      cls: asset.cls,
+      manual: asset.manual,
+      currency: asset.currency,
+    },
+    transactions: state.ledgerTxs,
+    prices: historyPrices,
+    currencyRate: inferredRate,
+  })
 
   const txs = await db.transaction.findMany({
     where: { assetId: asset.id },
@@ -130,9 +184,13 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
   })
 
   const prefs = await db.familyPrefs.findUnique({ where: { familyId: ctx.familyId } })
-  const advice = combined ? assetAdvice(combined, state.netWorth, { concentrationCeiling: prefs?.concentrationCeiling }) : []
+  const advice = combined ? assetAdvice(combined, state.metrics.portfolioValue, {
+    concentrationCeiling: prefs?.concentrationCeiling,
+    includeInvestmentPerformance: !isLongTermAsset,
+  }) : []
   const tags = parseTags(asset.tags)
-  const weight = combined && state.netWorth > 0 ? combined.value / state.netWorth : 0
+  const weightBase = isLongTermAsset ? state.netWorth : state.metrics.portfolioValue
+  const weight = combined && weightBase > 0 ? combined.value / weightBase : 0
   const averageCostCny = combined && combined.quantity > 0 ? combined.costCny / combined.quantity : null
   const accountById = new Map(accounts.map((account) => [account.id, account]))
   const initialAccountId = positions[0]?.accountId
@@ -147,15 +205,15 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
 
   return (
     <div className="page-shell">
-      <Link href="/positions" className="text-xs tracking-wide text-ink-faint transition-colors hover:text-info">
-        ← 返回持仓
+      <Link href={isLongTermAsset ? '/accounts?view=assets' : '/positions'} className="text-xs tracking-wide text-ink-faint transition-colors hover:text-info">
+        ← {isLongTermAsset ? '返回长期资产目录' : '返回持仓'}
       </Link>
 
       <section className="grid gap-12 border-b border-line pb-12 xl:grid-cols-[0.55fr_1fr] xl:items-end">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <i className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: CLASS_COLORS[asset.cls] }} />
-            <span className="eyebrow">ASSET DETAIL · {asset.symbol}</span>
+            <span className="eyebrow">{isLongTermAsset ? 'LONG-TERM ASSET' : 'ASSET DETAIL'} · {asset.symbol}</span>
           </div>
           <h1 className="mt-5 text-4xl font-medium tracking-tight text-ink md:text-5xl">{asset.name}</h1>
           <div className="mt-7 flex flex-wrap items-center gap-2">
@@ -209,7 +267,9 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
                 {asset.cls === 'CASH'
                   ? '现金资产无价格走势'
                   : asset.manual || asset.cls === 'REAL_ESTATE'
-                    ? '手动估值资产无行情序列，可在流水页录入估值'
+                    ? isLongTermAsset
+                      ? '长期资产不接入行情，可在本页更新购股、分红和估值记录'
+                      : '手动估值资产无行情序列，可在流水页录入估值'
                     : '暂无真实历史数据 — 点击顶栏「↻ 行情」拉取历史日线'}
               </Empty>
             </div>
@@ -220,8 +280,8 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
       <section className="holding-overview" aria-labelledby="holding-overview-title">
         <header className="holding-overview-header">
           <div>
-            <div className="eyebrow">POSITION</div>
-            <h2 id="holding-overview-title">持仓概览</h2>
+            <div className="eyebrow">{isLongTermAsset ? 'LONG-TERM VALUE' : 'POSITION'}</div>
+            <h2 id="holding-overview-title">{isLongTermAsset ? '长期资产概览' : '持仓概览'}</h2>
           </div>
           <span>{positions.length} 个账户持有 · 人民币口径</span>
         </header>
@@ -230,12 +290,12 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
           <>
             <div className="holding-summary">
               <div className="holding-primary">
-                <span>当前持仓市值</span>
+                <span>{isLongTermAsset ? '当前长期资产价值' : '当前持仓市值'}</span>
                 <strong className="num">{fmtCNYExact(combined.value)}</strong>
                 <div className={cx('holding-return num', combined.unrealized >= 0 ? 'text-up' : 'text-down')}>
                   {fmtCNYExact(combined.unrealized, { sign: true })}
                   {combined.unrealizedPct != null && <span>{fmtPct(combined.unrealizedPct, { sign: true })}</span>}
-                  <small>未实现盈亏</small>
+                  <small>{isLongTermAsset ? '相对购股成本变化' : '未实现盈亏'}</small>
                 </div>
               </div>
 
@@ -256,9 +316,9 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
                   <small>人民币折算</small>
                 </div>
                 <div>
-                  <dt>组合占比</dt>
+                  <dt>{isLongTermAsset ? '净资产占比' : '组合占比'}</dt>
                   <dd className="num">{fmtPct(weight)}</dd>
-                  <small>占家庭净资产</small>
+                  <small>{isLongTermAsset ? '仅用于净资产观察' : '占投资组合'}</small>
                 </div>
               </dl>
             </div>
@@ -314,9 +374,16 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
         )}
       </section>
 
+      <AssetHistory
+        assetName={asset.name}
+        currency={asset.currency}
+        series={assetHistory}
+        longTerm={isLongTermAsset}
+      />
+
       {/* 投资建议横幅 */}
       {advice.length > 0 && (
-        <Panel title="投资建议" en="ADVICE" bodyClassName="py-2.5">
+        <Panel title={isLongTermAsset ? '长期资产提醒' : '投资建议'} en={isLongTermAsset ? 'LONG-TERM NOTES' : 'ADVICE'} bodyClassName="py-2.5">
           <div className="flex flex-wrap gap-x-8 gap-y-1.5">
             {advice.map((a, i) => (
               <span key={i} className="flex items-center gap-2 text-[14px] leading-relaxed text-ink-dim">
@@ -328,14 +395,16 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
         </Panel>
       )}
 
-      <AssetIntelligence
-        assetId={asset.id}
-        llm={llm}
-        initialAnalysis={intelligence.analysis}
-        refreshDue={intelligence.refreshDue}
-        nextRefreshAt={intelligence.nextRefreshAt}
-        canInteract={ctx.role !== 'VIEWER'}
-      />
+      {!isLongTermAsset && (
+        <AssetIntelligence
+          assetId={asset.id}
+          llm={llm}
+          initialAnalysis={intelligence.analysis}
+          refreshDue={intelligence.refreshDue}
+          nextRefreshAt={intelligence.nextRefreshAt}
+          canInteract={ctx.role !== 'VIEWER'}
+        />
+      )}
 
       {fundEst && (
         <Panel
@@ -408,19 +477,19 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
       <section className="asset-workspace" aria-labelledby="asset-workspace-title">
         <header className="asset-workspace-header">
           <div>
-            <div className="eyebrow">LEDGER WORKSPACE</div>
-            <h2 id="asset-workspace-title">资产流水</h2>
-            <p>新增交易会直接写入账本，并据此重新计算持仓、成本和收益。</p>
+            <div className="eyebrow">{isLongTermAsset ? 'LONG-TERM RECORDS' : 'LEDGER WORKSPACE'}</div>
+            <h2 id="asset-workspace-title">{isLongTermAsset ? '长期资产记录' : '资产流水'}</h2>
+            <p>{isLongTermAsset ? '记录年度购股、分红和内部估值；这些记录不进入通用流水与投资收益率。' : '新增交易会直接写入账本，并据此重新计算持仓、成本和收益。'}</p>
           </div>
-          <span>{txs.length} 条历史流水</span>
+          <span>{txs.length} 条{isLongTermAsset ? '历史记录' : '历史流水'}</span>
         </header>
 
         {ctx.role !== 'VIEWER' && (
           <div className="asset-form-surface" id="new-transaction">
             <div className="asset-form-intro">
-              <span>NEW TRANSACTION</span>
-              <h3>录入一笔新流水</h3>
-              <p>选择日期、类型和账户；买卖流水可由数量与单价自动计算金额。</p>
+              <span>{isLongTermAsset ? 'NEW RECORD' : 'NEW TRANSACTION'}</span>
+              <h3>{isLongTermAsset ? '新增长期资产记录' : '录入一笔新流水'}</h3>
+              <p>{isLongTermAsset ? '选择购股、卖出、分红或估值；不会联动投资账户现金。' : '选择日期、类型和账户；买卖流水可由数量与单价自动计算金额。'}</p>
             </div>
             <div className="asset-form-body">
               {compatibleAccounts.length > 0 ? (
@@ -450,7 +519,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
           </div>
         )}
 
-        <Panel title="流水明细" en="TRANSACTIONS" bodyClassName="p-0" right={<span className="num text-[13px] text-ink-faint">最近 {txs.length} 条</span>}>
+        <Panel title={isLongTermAsset ? '历史记录' : '流水明细'} en={isLongTermAsset ? 'RECORDS' : 'TRANSACTIONS'} bodyClassName="p-0" right={<span className="num text-[13px] text-ink-faint">最近 {txs.length} 条</span>}>
           {txs.length === 0 ? (
             <Empty>暂无流水</Empty>
           ) : (

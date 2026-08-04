@@ -12,7 +12,7 @@ export const TX_TYPE_LABEL: Record<TxType, string> = {
   TRANSFER_IN: '转入',
   TRANSFER_OUT: '转出',
   VALUATION: '估值',
-  VEST: '归属',
+  VEST: '历史归属',
   REVERSAL: '冲正',
 }
 
@@ -36,7 +36,7 @@ export const ASSET_CLASS_LABEL: Record<AssetClass, string> = {
   CASH: '现金',
   GOLD: '黄金',
   REAL_ESTATE: '房产',
-  RSU: '受限股',
+  HUAWEI_STOCK: '华为股票',
 }
 
 export const ACCOUNT_TYPE_LABEL: Record<string, string> = {
@@ -66,8 +66,8 @@ export const GOAL_METRIC_LABEL: Record<string, string> = {
 }
 
 export const GOAL_MODE_LABEL: Record<string, string> = {
-  LUMP_SUM: '一次性目标',
-  STREAM: '支出流目标',
+  LUMP_SUM: '直接设定 FIRE Number',
+  STREAM: '按退休支出反推',
 }
 
 export const CURRENCY_LABEL: Record<string, string> = {

@@ -10,7 +10,6 @@ const assets: AssetInfo[] = [
   { id: 'cash', symbol: 'CASH-CNY', name: '现金', cls: 'CASH', manual: false, currency: 'CNY' },
   { id: 'stock', symbol: '600519', name: '贵州茅台', cls: 'STOCK', manual: false, currency: 'CNY' },
   { id: 'house', symbol: 'HOME-01', name: '自住房产', cls: 'REAL_ESTATE', manual: true, currency: 'CNY' },
-  { id: 'rsu', symbol: 'RSU-ACME', name: '受限股', cls: 'RSU', manual: false, currency: 'CNY' },
 ]
 const assetMap = new Map(assets.map((a) => [a.id, a]))
 
@@ -19,23 +18,19 @@ const txs: LedgerTx[] = [
   { accountId: 'a', assetId: 'stock', type: 'BUY', quantity: 100, price: 1500, amount: 150_000, fee: 0, occurredAt: D('2025-01-02'), assetClass: 'STOCK' },
   { accountId: 'a', assetId: 'house', type: 'BUY', quantity: 1, price: 3_000_000, amount: 3_000_000, fee: 0, occurredAt: D('2025-01-03'), assetClass: 'REAL_ESTATE' },
   { accountId: 'a', assetId: 'house', type: 'VALUATION', quantity: null, price: null, amount: 3_300_000, fee: 0, occurredAt: D('2025-06-01'), assetClass: 'REAL_ESTATE' },
-  { accountId: 'a', assetId: 'rsu', type: 'BUY', quantity: 1000, price: 0, amount: 0, fee: 0, occurredAt: D('2025-01-04'), assetClass: 'RSU' },
-  { accountId: 'a', assetId: 'rsu', type: 'VEST', quantity: 250, price: null, amount: 0, fee: 0, occurredAt: D('2025-04-01'), assetClass: 'RSU' },
 ]
 
-const prices: Record<string, number> = { '600519': 1600, 'RSU-ACME': 50 }
+const prices: Record<string, number> = { '600519': 1600 }
 const valued = valuePositions(foldTransactions(txs), assetMap, (s) => prices[s])
 const metrics = aggregate(valued)
 
 describe('双口径估值', () => {
-  it('净资产 = 现金 + 股票市值 + 房产估值 + RSU 全部市值', () => {
-    // 100_000 + 100×1600 + 3_300_000 + 1000×50
-    expect(metrics.netWorth).toBe(100_000 + 160_000 + 3_300_000 + 50_000)
+  it('净资产 = 现金 + 股票市值 + 房产估值', () => {
+    expect(metrics.netWorth).toBe(100_000 + 160_000 + 3_300_000)
   })
 
-  it('可自由投资 = 现金 + 股票 + 已归属 RSU（房产与未归属除外）', () => {
-    // 100_000 + 160_000 + 250×50
-    expect(metrics.investable).toBe(100_000 + 160_000 + 12_500)
+  it('可自由投资 = 现金 + 股票（房产除外）', () => {
+    expect(metrics.investable).toBe(100_000 + 160_000)
   })
 
   it('房产取手动估值而非成本', () => {
@@ -45,8 +40,7 @@ describe('双口径估值', () => {
     expect(house.investable).toBe(0)
   })
 
-  it('流动性分桶：受限层 = RSU 未归属市值', () => {
-    expect(metrics.liquidity.restricted).toBe(37_500)
+  it('流动性分桶：房产计入低流动性资产', () => {
     expect(metrics.liquidity.illiquid).toBe(3_300_000)
     expect(metrics.liquidity.cash).toBe(100_000)
   })
@@ -59,11 +53,37 @@ describe('双口径估值', () => {
     const positions = foldTransactions([
       { accountId: 'a', assetId: 'stock', type: 'BUY', quantity: 40, price: 100, amount: 4000, fee: 0, occurredAt: D('2025-01-01'), assetClass: 'STOCK' },
       { accountId: 'b', assetId: 'stock', type: 'BUY', quantity: 40, price: 100, amount: 4000, fee: 0, occurredAt: D('2025-01-01'), assetClass: 'STOCK' },
-      { accountId: 'a', assetId: 'rsu', type: 'BUY', quantity: 60, price: 100, amount: 6000, fee: 0, occurredAt: D('2025-01-01'), assetClass: 'RSU' },
+      { accountId: 'a', assetId: 'house', type: 'BUY', quantity: 1, price: 6000, amount: 6000, fee: 0, occurredAt: D('2025-01-01'), assetClass: 'REAL_ESTATE' },
     ])
     const m = aggregate(valuePositions(positions, assetMap, () => 100))
     expect(m.concentration?.symbol).toBe('600519')
     expect(m.concentration?.value).toBe(8000)
+  })
+
+  it('华为股票独立归类、按手动估值计入净资产且不计入可自由投资', () => {
+    const huawei = new Map<string, AssetInfo>([
+      ['huawei', { id: 'huawei', symbol: 'HUAWEI-ESOP', name: '华为 ESOP', cls: 'HUAWEI_STOCK', manual: true, currency: 'CNY' }],
+    ])
+    const positions = foldTransactions([
+      { accountId: 'a', assetId: 'huawei', type: 'BUY', quantity: 100_000, price: 8, amount: 800_000, fee: 0, occurredAt: D('2025-03-01'), assetClass: 'HUAWEI_STOCK' },
+      { accountId: 'a', assetId: 'huawei', type: 'DIVIDEND', quantity: null, price: null, amount: 120_000, fee: 0, occurredAt: D('2026-01-31'), assetClass: 'HUAWEI_STOCK' },
+      { accountId: 'a', assetId: 'huawei', type: 'VALUATION', quantity: null, price: null, amount: 850_000, fee: 0, occurredAt: D('2026-03-01'), assetClass: 'HUAWEI_STOCK' },
+    ])
+    const [position] = valuePositions(positions, huawei, () => 99)
+    const result = aggregate([position])
+
+    expect(position.priceSource).toBe('MANUAL')
+    expect(position.value).toBe(850_000)
+    expect(position.investable).toBe(0)
+    expect(position.realizedPnl).toBe(120_000)
+    expect(result.netWorth).toBe(850_000)
+    expect(result.portfolioValue).toBe(0)
+    expect(result.realizedPnl).toBe(0)
+    expect(result.unrealizedPnl).toBe(0)
+    expect(result.byClass.HUAWEI_STOCK).toBe(850_000)
+    expect(result.byClass.STOCK).toBe(0)
+    expect(result.liquidity.illiquid).toBe(850_000)
+    expect(result.concentration).toBeNull()
   })
 })
 

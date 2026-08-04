@@ -19,7 +19,6 @@ const TONE_BY_TYPE: Partial<Record<TxType, 'up' | 'down' | 'gold' | 'info' | 'am
   DIVIDEND: 'gold',
   INTEREST: 'gold',
   VALUATION: 'info',
-  VEST: 'amber',
 }
 
 export default async function TransactionsPage({
@@ -35,9 +34,10 @@ export default async function TransactionsPage({
 
   const [accounts, assets] = await Promise.all([
     db.account.findMany({ include: { settlementAccount: true } }),
-    db.asset.findMany(),
+    db.asset.findMany({ where: { cls: { not: 'HUAWEI_STOCK' } } }),
   ])
   const where = {
+    asset: { cls: { not: 'HUAWEI_STOCK' as const } },
     ...(sp.account ? { accountId: sp.account } : {}),
     ...(sp.type ? { type: sp.type as TxType } : {}),
   }

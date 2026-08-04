@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-test('行情 API：返回混合源报价', async ({ request }) => {
+test('行情 API：返回完整报价结构', async ({ request }) => {
   const res = await request.get('/api/prices?symbols=600519,510300')
   expect(res.ok()).toBeTruthy()
   const json = await res.json()
