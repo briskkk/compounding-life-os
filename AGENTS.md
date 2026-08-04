@@ -10,7 +10,7 @@ The transaction ledger is the source of truth. Derive positions, snapshots, and 
 
 - `npm ci` installs locked dependencies and generates the Prisma client.
 - `npm run db:migrate` updates the local SQLite database.
-- `npm run db:init` creates an empty workspace; `npm run db:seed` replaces it with demo data.
+- `npm run db:init` creates an empty workspace (destructive, auto-backups first). Demo data exists only as an E2E fixture (`e2e/seed.ts`); there is no `db:seed` script.
 - `npm run dev` starts the development server at `http://localhost:3000`.
 - `npm test` runs Vitest once.
 - `npm run build` builds production output and checks TypeScript.

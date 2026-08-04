@@ -21,10 +21,12 @@ const TONE_BY_TYPE: Partial<Record<TxType, 'up' | 'down' | 'gold' | 'info' | 'am
   VALUATION: 'info',
 }
 
+const PAGE_SIZE = 100
+
 export default async function TransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ account?: string; type?: string; q?: string }>
+  searchParams: Promise<{ account?: string; type?: string; q?: string; page?: string }>
 }) {
   const sp = await searchParams
   const ctx = await getSession()
@@ -41,12 +43,27 @@ export default async function TransactionsPage({
     ...(sp.account ? { accountId: sp.account } : {}),
     ...(sp.type ? { type: sp.type as TxType } : {}),
   }
-  const txs = await db.transaction.findMany({
-    where,
-    include: { account: true, asset: true },
-    orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
-    take: 200,
-  })
+  const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1)
+  const [txs, total] = await Promise.all([
+    db.transaction.findMany({
+      where,
+      include: { account: true, asset: true },
+      orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+    }),
+    db.transaction.count({ where }),
+  ])
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const filterParams = new URLSearchParams()
+  if (sp.account) filterParams.set('account', sp.account)
+  if (sp.type) filterParams.set('type', sp.type)
+  const pageHref = (target: number) => {
+    const params = new URLSearchParams(filterParams)
+    if (target > 1) params.set('page', String(target))
+    const qs = params.toString()
+    return qs ? `/transactions?${qs}` : '/transactions'
+  }
 
   return (
     <div className="page-shell">
@@ -56,7 +73,7 @@ export default async function TransactionsPage({
         description="交易流水是组合的唯一事实源；筛选、导出、录入、批量导入与冲正能力全部保留。"
         right={(
           <div className="flex items-center gap-5">
-            <div><div className="text-[14px] text-ink-faint">交易笔数</div><div className="num mt-2 text-[28px] text-ink">{txs.length}</div></div>
+            <div><div className="text-[14px] text-ink-faint">交易笔数</div><div className="num mt-2 text-[28px] text-ink">{total}</div></div>
             {canWrite && <a href="#new-entry" className="inline-flex min-h-11 items-center rounded-lg bg-gold px-5 text-[14px] font-medium text-bg">新增流水</a>}
           </div>
         )}
@@ -67,7 +84,7 @@ export default async function TransactionsPage({
         title="交易流水"
         en="LEDGER · SOURCE OF TRUTH"
         bodyClassName="p-0"
-        right={<span className="num text-[12px] text-ink-faint">最近 {txs.length} 条</span>}
+        right={<span className="num text-[12px] text-ink-faint">{total > 0 ? `第 ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} 条 / 共 ${total} 条` : '共 0 条'}</span>}
       >
         {/* 筛选 */}
         <form className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3" method="GET">
@@ -101,7 +118,17 @@ export default async function TransactionsPage({
         </form>
 
         {txs.length === 0 ? (
-          <Empty>无匹配流水</Empty>
+          total > 0 ? (
+            <Empty action={{ href: pageHref(totalPages), label: '回到末页' }}>这一页没有流水</Empty>
+          ) : (
+            <Empty
+              action={sp.account || sp.type
+                ? { href: '/transactions', label: '清除筛选' }
+                : { href: '#new-entry', label: '录入第一笔流水' }}
+            >
+              {sp.account || sp.type ? '无匹配流水' : '暂无流水'}
+            </Empty>
+          )
         ) : (
           <div className="table-scroll">
           <table className="w-full text-[14px] whitespace-nowrap">
@@ -160,6 +187,21 @@ export default async function TransactionsPage({
               ))}
             </tbody>
           </table>
+          </div>
+        )}
+        {(total > PAGE_SIZE || page > 1) && (
+          <div className="flex items-center justify-between gap-4 border-t border-line px-4 py-3 text-[13px]">
+            {page > 1 ? (
+              <Link href={pageHref(page - 1)} className="text-ink-dim transition-colors hover:text-gold">← 上一页</Link>
+            ) : (
+              <span aria-disabled="true" className="text-ink-faint/50">← 上一页</span>
+            )}
+            <span className="num text-ink-faint">第 {page} / {totalPages} 页</span>
+            {page < totalPages ? (
+              <Link href={pageHref(page + 1)} className="text-ink-dim transition-colors hover:text-gold">下一页 →</Link>
+            ) : (
+              <span aria-disabled="true" className="text-ink-faint/50">下一页 →</span>
+            )}
           </div>
         )}
       </Panel>

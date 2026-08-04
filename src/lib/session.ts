@@ -25,6 +25,6 @@ export async function getSession(): Promise<FamilyCtx | null> {
 
 export async function getSessionOrThrow(): Promise<FamilyCtx> {
   const ctx = await getSession()
-  if (!ctx) throw new Error('尚未初始化家庭空间，请先运行 npm run db:seed')
+  if (!ctx) throw new Error('尚未初始化家庭空间，请先运行 npm run db:init')
   return ctx
 }

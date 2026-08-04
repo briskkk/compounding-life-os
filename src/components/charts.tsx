@@ -1,6 +1,7 @@
 'use client'
 
 // 图表组件（recharts，深色终端主题）
+import { useMemo, useState } from 'react'
 import {
   Area,
   Bar,
@@ -55,28 +56,62 @@ export interface WealthPoint {
   contributions: number
 }
 
-export function WealthChart({ data }: { data: WealthPoint[] }) {
+type WealthRange = '3M' | '1Y' | 'ALL'
+
+const WEALTH_RANGES: { key: WealthRange; months: number | null }[] = [
+  { key: '3M', months: 3 },
+  { key: '1Y', months: 12 },
+  { key: 'ALL', months: null },
+]
+
+export function WealthChart({ data, showRange = false }: { data: WealthPoint[]; showRange?: boolean }) {
+  const [range, setRange] = useState<WealthRange>('1Y')
+  const ranged = useMemo(() => {
+    const months = WEALTH_RANGES.find((r) => r.key === range)?.months ?? null
+    if (months == null || data.length < 2) return data
+    const cutoff = new Date(`${data[data.length - 1].date}T00:00:00`)
+    cutoff.setMonth(cutoff.getMonth() - months)
+    const result = data.filter((point) => new Date(`${point.date}T00:00:00`) >= cutoff)
+    return result.length >= 2 ? result : data
+  }, [data, range])
   return (
-    <ResponsiveContainer width="100%" height={340}>
-      <ComposedChart data={data} margin={{ top: 12, right: 4, bottom: 0, left: 4 }}>
-        <defs>
-          <linearGradient id="gNW" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={C.info} stopOpacity={0.18} />
-            <stop offset="100%" stopColor={C.info} stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <XAxis
-          dataKey="date"
-          tick={{ fill: C.inkFaint, fontSize: 11 }}
-          tickLine={false}
-          axisLine={false}
-          minTickGap={80}
-        />
-        <YAxis hide domain={['dataMin', 'dataMax']} />
-        <Tooltip content={<DarkTooltip />} />
-        <Area type="monotone" dataKey="netWorth" name="净资产" stroke={C.info} strokeWidth={2.25} fill="url(#gNW)" dot={false} isAnimationActive={false} />
-      </ComposedChart>
-    </ResponsiveContainer>
+    <div>
+      <ResponsiveContainer width="100%" height={340}>
+        <ComposedChart data={ranged} margin={{ top: 12, right: 4, bottom: 0, left: 4 }}>
+          <defs>
+            <linearGradient id="gNW" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={C.info} stopOpacity={0.18} />
+              <stop offset="100%" stopColor={C.info} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <XAxis
+            dataKey="date"
+            tick={{ fill: C.inkFaint, fontSize: 11 }}
+            tickLine={false}
+            axisLine={false}
+            minTickGap={80}
+          />
+          <YAxis hide domain={['dataMin', 'dataMax']} />
+          <Tooltip content={<DarkTooltip />} />
+          <Area type="monotone" dataKey="netWorth" name="净资产" stroke={C.info} strokeWidth={2.25} fill="url(#gNW)" dot={false} isAnimationActive={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+      {showRange && (
+        <div className="mt-5 flex justify-end gap-3 text-[15px]" role="group" aria-label="财富轨迹区间">
+          {WEALTH_RANGES.map(({ key }) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={range === key}
+              onClick={() => setRange(key)}
+              className={range === key ? 'rounded-lg bg-gold px-3 py-2 text-bg' : 'rounded-lg px-3 py-2 text-ink-faint transition-colors hover:text-ink'}
+            >
+              {key}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

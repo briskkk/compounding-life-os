@@ -165,7 +165,7 @@ export default async function AccountsPage({
               right={<span className="text-[12px] text-ink-faint">点击账户查看明细</span>}
             >
               {accounts.length === 0 ? (
-                <Empty>暂无账户</Empty>
+                <Empty action={{ href: '#new-account', label: '新建账户' }}>暂无账户</Empty>
               ) : (
                 <div className="table-scroll">
                   <table className="w-full text-[14px] whitespace-nowrap">
@@ -306,7 +306,8 @@ export default async function AccountsPage({
             </div>
           </Panel>
           {canWrite && (
-            <Panel title="登记资产" en="ADD ASSET">
+            <Panel title="登记资产" en="ADD ASSET" className="scroll-mt-6">
+              <div id="new-asset" />
               <AssetForm />
               <p className="mt-4 border-t border-line pt-3 text-[13px] leading-relaxed text-ink-faint">资产是全局标的目录；实际归属账户由交易流水决定。</p>
             </Panel>
@@ -323,7 +324,7 @@ export default async function AccountsPage({
           <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-3">
             <Panel title="负债列表" en="LIABILITY BOOK" className="xl:col-span-2" bodyClassName="p-0">
               {state.liabilities.length === 0 ? (
-                <Empty>暂无负债项目</Empty>
+                <Empty action={{ href: '#new-liability', label: '登记负债' }}>暂无负债项目</Empty>
               ) : (
                 <div className="divide-y divide-line/60">
                   {state.liabilities.map((liability) => (
@@ -343,7 +344,10 @@ export default async function AccountsPage({
             </Panel>
             {canWrite && (
               <div className="space-y-3">
-                <Panel title="登记负债" en="ADD LIABILITY"><LiabilityForm /></Panel>
+                <Panel title="登记负债" en="ADD LIABILITY" className="scroll-mt-6">
+                  <div id="new-liability" />
+                  <LiabilityForm />
+                </Panel>
                 <Panel title="放款 / 还款 / 调整" en="LIABILITY ENTRY">
                   <LiabilityEntryForm liabilities={state.liabilities.map((liability) => ({ id: liability.id, name: liability.name }))} />
                 </Panel>

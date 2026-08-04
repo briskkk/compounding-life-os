@@ -28,7 +28,7 @@ try {
     e2eSchemaPath,
     '--skip-generate',
   ], { cwd: root, stdio: 'inherit' })
-  execFileSync(process.execPath, ['--import', 'tsx', 'prisma/seed.ts'], {
+  execFileSync(process.execPath, ['--import', 'tsx', 'e2e/seed.ts'], {
     cwd: root,
     stdio: 'inherit',
     env: {
@@ -36,7 +36,6 @@ try {
       MARKET_PROVIDER: 'simulated',
       LLM_DISABLED: '1',
       SEED_DATABASE_PATH: databasePath,
-      SEED_SKIP_BACKUP: '1',
     },
   })
 } finally {

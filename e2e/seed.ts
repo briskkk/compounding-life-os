@@ -1,26 +1,19 @@
-// 种子数据 v2：家庭空间 + 现金闭环流水 + 房贷负债 + 行情落库 + 快照
+// E2E 夹具数据：家庭空间 + 现金闭环流水 + 房贷负债 + 行情落库 + 快照
+// 仅供 scripts/prepare-e2e.mjs 调用；必须显式指定 SEED_DATABASE_PATH，绝不触碰 dev.db。
 import { PrismaClient } from '@prisma/client'
 import { randomUUID } from 'node:crypto'
-import fs from 'node:fs'
 import path from 'node:path'
 import { closeAt } from '../src/lib/market/simulated'
 import { persistHistory } from '../src/lib/market/persist'
 import { rebuildSnapshots } from '../src/lib/snapshots'
 import { recordAudit } from '../src/lib/audit'
 
-// 默认写入 dev.db；自动化环境可显式指定独立数据库，绝不覆盖开发数据。
-const DB_PATH = process.env.SEED_DATABASE_PATH
-  ? path.resolve(process.env.SEED_DATABASE_PATH)
-  : path.resolve('prisma/dev.db')
-const prisma = new PrismaClient({ datasourceUrl: `file:${DB_PATH}` })
-
-// 破坏性操作前自动备份
-if (process.env.SEED_SKIP_BACKUP !== '1' && fs.existsSync(DB_PATH)) {
-  fs.mkdirSync(path.resolve('backups'), { recursive: true })
-  const target = path.resolve('backups', `pre-seed-${Date.now()}.db`)
-  fs.copyFileSync(DB_PATH, target)
-  console.log(`· 已自动备份当前库 → ${path.relative(process.cwd(), target)}`)
+const DB_PATH = process.env.SEED_DATABASE_PATH ? path.resolve(process.env.SEED_DATABASE_PATH) : null
+if (!DB_PATH) {
+  console.error('E2E 夹具必须通过 SEED_DATABASE_PATH 显式指定目标数据库，已中止。')
+  process.exit(1)
 }
+const prisma = new PrismaClient({ datasourceUrl: `file:${DB_PATH}` })
 
 const d = (s: string) => new Date(`${s}T10:00:00+08:00`)
 

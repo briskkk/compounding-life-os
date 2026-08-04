@@ -1,4 +1,5 @@
 // 终端 UI 原语（server-safe）
+import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { cx, fmtCNY, fmtPct, toneOf } from '@/lib/format'
 
@@ -133,8 +134,20 @@ export function Bar({ ratio, className }: { ratio: number; className?: string })
   )
 }
 
-export function Empty({ children }: { children: ReactNode }) {
-  return <div className="flex h-24 items-center justify-center text-sm text-ink-faint">{children}</div>
+export function Empty({ children, action }: { children: ReactNode; action?: { href: string; label: string } }) {
+  return (
+    <div className="flex min-h-24 flex-col items-center justify-center gap-4 py-5 text-sm text-ink-faint">
+      <div>{children}</div>
+      {action && (
+        <Link
+          href={action.href}
+          className="inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-[14px] text-ink-dim transition-colors hover:border-ink-faint hover:text-ink"
+        >
+          {action.label}
+        </Link>
+      )}
+    </div>
+  )
 }
 
 export function SetupScreen() {
@@ -143,7 +156,7 @@ export function SetupScreen() {
       <div className="num text-xl text-gold">FW·OS</div>
       <p className="mt-4 text-sm text-ink-dim">家庭空间尚未初始化</p>
       <p className="mt-2 text-xs text-ink-faint">
-        运行 <code className="rounded bg-panel2 px-1.5 py-0.5 text-gold">npm run db:seed</code> 生成演示数据后刷新
+        运行 <code className="rounded bg-panel2 px-1.5 py-0.5 text-gold">npm run db:init</code> 创建空白家庭空间后刷新
       </p>
     </div>
   )

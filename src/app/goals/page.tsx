@@ -196,7 +196,7 @@ export default async function GoalsPage() {
           <div><div className="eyebrow">FIRE scenarios</div><h2>全部 FIRE 方案</h2></div>
           <a href="#new-goal">新建方案</a>
         </div>
-        {goalViews.length === 0 ? <Empty>尚未建立 FIRE 计划</Empty> : (
+        {goalViews.length === 0 ? <Empty action={{ href: '#new-goal', label: '新建方案' }}>尚未建立 FIRE 计划</Empty> : (
           <div className="goal-portfolio-list">
             {goalViews.map(({ goal }) => {
               const status = fireStatus(goal.projection.retirementSuccessProb)

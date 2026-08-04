@@ -158,7 +158,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
           )}
         >
           {rows.length === 0 ? (
-            <Empty>暂无持仓 — 先录入流水</Empty>
+            <Empty action={{ href: '/transactions#new-entry', label: '录入流水' }}>暂无持仓 — 先录入流水</Empty>
           ) : (
             <>
               <ValuationToggle

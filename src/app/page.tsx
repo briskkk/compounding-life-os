@@ -1,5 +1,10 @@
 // 总览：净资产主叙事 + 财富轨迹 + 渐进式完整分析
+import Link from 'next/link'
 import { getDashboard } from '@/lib/queries'
+import { prisma } from '@/lib/db'
+import { scopedDb } from '@/lib/scoped'
+import { verifyChain } from '@/lib/audit'
+import { insightHref } from '@/lib/insight-href'
 import { Bar, Empty, Panel, SetupScreen, Tag } from '@/components/ui'
 import { WealthChart } from '@/components/charts'
 import { C } from '@/lib/colors'
@@ -13,6 +18,20 @@ export const dynamic = 'force-dynamic'
 export default async function OverviewPage() {
   const d = await getDashboard()
   if (!d) return <SetupScreen />
+  const chain = await verifyChain(prisma, d.ctx.familyId)
+
+  const db = scopedDb(prisma, d.ctx)
+  const [accountCount, registeredAssetCount] = await Promise.all([
+    db.account.count(),
+    // 现金资产随账户/流水由系统生成，只有非现金资产才算用户主动登记
+    db.asset.count({ where: { cls: { not: 'CASH' } } }),
+  ])
+  const setupSteps = [
+    { done: accountCount > 0, title: '建立账户', why: '银行卡、券商或房产，资产需要托管位置', href: '/accounts#new-account', action: '新建账户 →' },
+    { done: registeredAssetCount > 0, title: '登记资产', why: '股票、基金代码自动识别行情，房产等走手动估值', href: '/accounts?view=assets#new-asset', action: '登记资产 →' },
+    { done: d.state.txCount > 0, title: '录入首笔流水', why: '手工录入一笔，或用 CSV 批量导入历史', href: '/transactions#new-entry', action: '录入流水 →' },
+  ]
+  const setupDone = setupSteps.every((step) => step.done)
 
   const m = d.state.metrics
   const leadInsight = d.insights[0]
@@ -26,6 +45,26 @@ export default async function OverviewPage() {
 
   return (
     <div className="page-shell">
+      {!setupDone && (
+        <Panel title="起步清单" en="GETTING STARTED">
+          <div className="quiet-list">
+            {setupSteps.map((step, index) => (
+              <div key={step.title} className="grid gap-3 py-4 md:grid-cols-[40px_1fr_auto] md:items-center">
+                <span className={cx('num text-[20px]', step.done ? 'text-down' : 'text-ink-faint')}>
+                  {step.done ? '✓' : String(index + 1).padStart(2, '0')}
+                </span>
+                <div>
+                  <div className={step.done ? 'text-ink-faint' : 'font-medium text-ink'}>{step.title}</div>
+                  <p className="mt-1 text-[14px] text-ink-faint">{step.why}</p>
+                </div>
+                {!step.done && (
+                  <Link href={step.href} className="text-[14px] text-gold transition-colors hover:text-ink">{step.action}</Link>
+                )}
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
       <section className="space-y-12">
         <div className="hero-grid overview-hero">
           <div className="overview-narrative">
@@ -49,18 +88,12 @@ export default async function OverviewPage() {
           </div>
           <div className="chart-surface">
             <div className="mb-4 flex items-center justify-between gap-4"><div className="eyebrow">财富轨迹</div><div className="text-[14px] text-ink-faint">更新至 {fmtDate(new Date())}</div></div>
-            <WealthChart data={d.series} />
+            <WealthChart data={d.series} showRange />
             <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-ink-faint">
               <span>可投资净投入 <strong className="num font-normal text-ink">{fmtCNY(d.attribution.contributions)}</strong></span>
               <span>可投资收益 <strong className={cx('num font-normal', d.attribution.gain >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(d.attribution.gain, { sign: true })}</strong></span>
               <span>TWR 年化 <strong className="num font-normal text-ink">{fmtPct(d.attribution.twrAnnualized, { sign: true })}</strong></span>
               <span>XIRR <strong className="num font-normal text-ink">{fmtPct(d.attribution.xirr, { sign: true })}</strong></span>
-            </div>
-            <div className="mt-5 flex justify-end gap-3 text-[15px] text-ink-faint">
-              <span className="rounded-lg px-3 py-2">1D</span>
-              <span className="rounded-lg px-3 py-2">1M</span>
-              <span className="rounded-lg bg-gold px-3 py-2 text-bg">1Y</span>
-              <span className="rounded-lg px-3 py-2">ALL</span>
             </div>
           </div>
         </div>
@@ -76,7 +109,9 @@ export default async function OverviewPage() {
           </div>
           <div>
             <div className="text-[15px] text-ink-faint">事实源</div>
-            <div className="mt-3 text-[20px] text-ink">账本记录 · 已核对</div>
+            <Link href="/audit" className={cx('mt-3 block text-[20px] transition-colors hover:text-gold', chain.ok ? 'text-ink' : 'text-up')}>
+              {!chain.ok ? '审计链断裂 · 待检查' : chain.count > 0 ? `审计链完整 · ${chain.count} 条` : '账本记录 · 尚无留痕'}
+            </Link>
           </div>
           <div>
             <div className="text-[15px] text-ink-faint">可投资收益</div>
@@ -113,7 +148,7 @@ export default async function OverviewPage() {
                   </div>
                   <p className="mt-2 text-[15px] leading-7 text-ink-faint">{insight.body}</p>
                 </div>
-                {insight.action && <span className="text-[14px] text-gold">查看 →</span>}
+                {insight.action && <Link href={insightHref(insight.kind)} className="text-[14px] text-gold transition-colors hover:text-ink">前往处理 →</Link>}
               </div>
             ))}
           </div>
@@ -139,7 +174,7 @@ export default async function OverviewPage() {
         </Panel>
 
         <Panel title="风险敞口" en="RISK EXPOSURE">
-          {m.holdings.length === 0 ? <Empty>暂无持仓</Empty> : (
+          {m.holdings.length === 0 ? <Empty action={{ href: '/transactions#new-entry', label: '录入流水' }}>暂无持仓</Empty> : (
             <div className="quiet-list">
               {m.holdings.slice(0, 5).map((holding) => (
                 <div key={holding.symbol} className="py-3">
@@ -156,7 +191,7 @@ export default async function OverviewPage() {
       </section>
 
       <Panel title="FIRE 路径" en="FINANCIAL INDEPENDENCE">
-        {d.goals.length === 0 ? <Empty>尚未设定 FIRE 计划</Empty> : (
+        {d.goals.length === 0 ? <Empty action={{ href: '/goals', label: '建立 FIRE 计划' }}>尚未设定 FIRE 计划</Empty> : (
           <div className="quiet-list">
             {d.goals.map((goal) => (
               <div key={goal.id} className="grid gap-5 py-5 md:grid-cols-[1fr_0.75fr] md:items-center">

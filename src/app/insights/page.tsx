@@ -11,16 +11,10 @@ import { InsightsList } from '@/components/insights-list'
 import { LlmStatusCard } from '@/components/llm-status-card'
 import { AssetAnalysisDialogue, type AssetDialogueOption } from '@/components/asset-analysis-dialogue'
 import { loadAssetIntelligence } from '@/lib/ai/asset-intelligence'
+import { insightHref } from '@/lib/insight-href'
 import { fmtCNY, fmtPct } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
-
-function insightHref(kind?: string): string {
-  if (kind === 'GOAL_GAP' || kind === 'SAVINGS_RATE') return '/goals'
-  if (kind === 'CONCENTRATION' || kind === 'STALE_VALUATION') return '/positions'
-  if (kind === 'LIQUIDITY_LOW' || kind === 'CASH_DRAG') return '/accounts'
-  return '/insights'
-}
 
 export default async function InsightsPage({ searchParams }: { searchParams: Promise<{ asset?: string }> }) {
   const ctx = await getSession()

@@ -7,8 +7,6 @@ services:
     environment:
       # 行情源优先级链（可用 simulated 覆盖回模拟源）
       MARKET_PROVIDER: ${MARKET_PROVIDER:-tencent,eastmoney-fund,sina}
-      # 首次启动是否灌入演示数据：1 是 / 0 否
-      SEED_DEMO: ${SEED_DEMO:-1}
       # 可选 LLM 结构化洞察（DeepSeek / Kimi / OpenAI 兼容端点）
       LLM_PROVIDER: ${LLM_PROVIDER:-}
       LLM_API_KEY: ${LLM_API_KEY:-}

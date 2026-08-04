@@ -16,16 +16,11 @@
     "test:e2e": "npm run db:e2e && npm run build:e2e && playwright test",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
-    "db:seed": "tsx prisma/seed.ts",
     "db:e2e": "node scripts/prepare-e2e.mjs",
     "db:init": "tsx scripts/init-empty.ts",
     "db:backup": "tsx scripts/backup.ts",
     "db:restore": "tsx scripts/restore.ts",
-    "db:reset": "prisma migrate reset --force --skip-seed && tsx prisma/seed.ts",
     "postinstall": "prisma generate"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.6.0",
