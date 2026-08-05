@@ -73,16 +73,27 @@ find "$BACKUP_DIR" -name 'dev-*.db' -mtime +30 -delete
 echo "[$(date)] 备份完成: $BACKUP_DIR/dev-$TS.db ($(du -h "$BACKUP_DIR/dev-$TS.db" | cut -f1))"
 EOF
   chmod +x "$PROJECT_DIR/deploy/server-backup.sh"
-  ( crontab -l 2>/dev/null | grep -v server-backup.sh; \
-    echo "0 3 * * * /opt/family-wealth-os/deploy/server-backup.sh >> /var/log/fwos-backup.log 2>&1" ) | crontab -
+
+  # 用临时文件重建 crontab, 避免 pipefail 在空 crontab 下误清/误判
+  local tmp; tmp="$(mktemp)"
+  crontab -l 2>/dev/null | grep -v "server-backup.sh" > "$tmp" || true
+  echo "0 3 * * * /opt/family-wealth-os/deploy/server-backup.sh >> /var/log/fwos-backup.log 2>&1" >> "$tmp"
+  crontab "$tmp"
+  rm -f "$tmp"
 }
 log "==> 确保数据库备份脚本与每日 03:00 cron 仍在"
 ensure_backup
 
-# ---------- 7. 健康检查 ----------
+# ---------- 7. 健康检查 (带重试, 避免重启后短暂未就绪误判) ----------
 log "==> 健康检查"
-HTTP_APP=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 http://localhost:3000 || echo "000")
-HTTP_NGINX=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 http://127.0.0.1:80 || echo "000")
+HTTP_APP="000"; HTTP_NGINX="000"
+for i in $(seq 1 10); do
+  HTTP_APP=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 http://localhost:3000 || echo "000")
+  HTTP_NGINX=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 http://127.0.0.1:80 || echo "000")
+  if [ "$HTTP_APP" = "200" ] && [ "$HTTP_NGINX" = "200" ]; then break; fi
+  log "    第 $i 次未就绪 (app=$HTTP_APP nginx=$HTTP_NGINX), 3s 后重试"
+  sleep 3
+done
 echo "    应用(3000): $HTTP_APP | Nginx(80): $HTTP_NGINX"
 if [ "$HTTP_APP" = "200" ] && [ "$HTTP_NGINX" = "200" ]; then
   log "✅ 更新成功, 服务已就绪 — 访问 http://111.229.116.222"
