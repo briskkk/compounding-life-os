@@ -20,6 +20,8 @@ test('看盘页：资产排序、详情跳转与当前资产流水录入', async
   await expect(page).toHaveURL(/sort=dayPnl-asc/)
   await page.reload()
   await expect(page.getByLabel('看盘资产排序')).toHaveValue('dayPnl-asc')
+  // 客户端挂载后会拉取 /api/prices 并按最新价重排行序；等行情合并完成再取首行，避免点击目标在读取后换人
+  await page.waitForLoadState('networkidle')
 
   const firstAsset = page.locator('tbody a[href^="/positions/"]').first()
   await expect(firstAsset).toBeVisible()
