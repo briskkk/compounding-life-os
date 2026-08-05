@@ -267,16 +267,22 @@ model FamilyPrefs {
 }
 
 model Snapshot {
-  id            String      @id @default(cuid())
-  familyId      String
-  family        FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  date          DateTime
-  assets        Decimal     @default(0) // 总资产（未扣负债）
-  liabilities   Decimal     @default(0) // 总负债
-  netWorth      Decimal // = assets − liabilities
-  investable    Decimal // 可自由投资口径
-  contributions Decimal     @default(0) // 累计净投入（外部现金流）
-  createdAt     DateTime    @default(now())
+  id                  String      @id @default(cuid())
+  familyId            String
+  family              FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  date                DateTime
+  assets              Decimal     @default(0) // 总资产（未扣负债）
+  liabilities         Decimal     @default(0) // 总负债
+  netWorth            Decimal // = assets − liabilities
+  investable          Decimal // 可自由投资口径
+  contributions       Decimal     @default(0) // 累计净投入（外部现金流）
+  valuationStatus     String      @default("LEGACY") // SETTLED / PARTIAL / CLOSED / NO_UPDATE / FLOW_ONLY
+  valuationCoverage   Float? // 获得估值日新价格的行情资产市值占比
+  freshValue          Decimal     @default(0) // 当日获得新价格的行情资产市值
+  pricedValue         Decimal     @default(0) // 行情类可投资资产市值
+  latestValuationDate DateTime? // 本快照所含最新估值日期
+  valuationDetails    String      @default("[]") // JSON：沿用旧价格或缺价格的资产
+  createdAt           DateTime    @default(now())
 
   @@unique([familyId, date])
 }

@@ -65,4 +65,34 @@ describe('阶段收益', () => {
     expect(result.endDate).toBeNull()
     expect(result.amount).toBeNull()
   })
+
+  it('休市快照保留余额但不产生零收益观察，下一交易日承接累计收益', () => {
+    const series = [
+      { date: '2026-07-31', netWorth: 100, contributions: 100, valuationStatus: 'SETTLED' as const },
+      { date: '2026-08-01', netWorth: 100, contributions: 100, valuationStatus: 'CLOSED' as const },
+      { date: '2026-08-02', netWorth: 100, contributions: 100, valuationStatus: 'CLOSED' as const },
+      { date: '2026-08-03', netWorth: 110, contributions: 100, valuationStatus: 'SETTLED' as const },
+    ]
+
+    const weekend = performanceBetween(series, '2026-08-01', '2026-08-02')
+    expect(weekend.amount).toBeNull()
+    expect(weekend.pct).toBeNull()
+    expect(weekend.curve.slice(1).map((point) => point.dailyAmount)).toEqual([null, null])
+
+    const throughMonday = performanceBetween(series, '2026-08-01', '2026-08-03')
+    expect(throughMonday.amount).toBe(10)
+    expect(throughMonday.pct).toBeCloseTo(0.1)
+    expect(throughMonday.curve.map((point) => point.dailyPct)).toEqual([null, null, null, 0.1])
+  })
+
+  it('部分估值仍给出临时收益并保留覆盖率', () => {
+    const result = performanceBetween([
+      { date: '2026-08-03', netWorth: 100, contributions: 100, valuationStatus: 'SETTLED' as const, valuationCoverage: 1 },
+      { date: '2026-08-04', netWorth: 105, contributions: 100, valuationStatus: 'PARTIAL' as const, valuationCoverage: 0.75 },
+    ], '2026-08-04', '2026-08-04')
+
+    expect(result.amount).toBe(5)
+    expect(result.curve.at(-1)?.valuationStatus).toBe('PARTIAL')
+    expect(result.curve.at(-1)?.valuationCoverage).toBe(0.75)
+  })
 })

@@ -39,6 +39,76 @@ describe('财富快照窗口', () => {
 
     expect(points.at(-1)?.contributions).toBe(10000)
   })
+
+  it('区分休市沿用价格与交易日新估值', () => {
+    const assets: AssetInfo[] = [
+      { id: 'etf', symbol: '510300', name: '沪深300ETF', cls: 'ETF', manual: false, currency: 'CNY' },
+    ]
+    const txs: LedgerTx[] = [
+      { accountId: 'a', assetId: 'etf', type: 'BUY', quantity: 10, price: 10, amount: 100, fee: 0, occurredAt: D('2026-07-31T00:00:00Z'), assetClass: 'ETF' },
+    ]
+    const priceAt = (_symbol: string, date: Date) => date >= D('2026-08-03T00:00:00Z') ? 11 : 10
+    const observationAt = (_symbol: string, date: Date) => ({
+      close: priceAt(_symbol, date),
+      valuationDate: date >= D('2026-08-03T00:00:00Z') ? '2026-08-03' : '2026-07-31',
+      source: 'TEST',
+    })
+
+    const points = computeWealthSeries(
+      txs,
+      assets,
+      [],
+      D('2026-07-31T00:00:00Z'),
+      D('2026-08-03T00:00:00Z'),
+      priceAt,
+      () => 1,
+      observationAt,
+    )
+
+    expect(points.map((point) => point.valuationStatus)).toEqual(['SETTLED', 'CLOSED', 'CLOSED', 'SETTLED'])
+    expect(points[1].valuationCoverage).toBe(0)
+    expect(points[3].valuationCoverage).toBe(1)
+  })
+
+  it('部分标的净值滞后时记录覆盖率与待更新明细', () => {
+    const assets: AssetInfo[] = [
+      { id: 'cn', symbol: '510300', name: '国内ETF', cls: 'ETF', manual: false, currency: 'CNY' },
+      { id: 'qdii', symbol: '040046', name: 'QDII基金', cls: 'FUND', manual: false, currency: 'CNY' },
+    ]
+    const txs: LedgerTx[] = assets.map((asset) => ({
+      accountId: 'a',
+      assetId: asset.id,
+      type: 'BUY' as const,
+      quantity: 10,
+      price: 10,
+      amount: 100,
+      fee: 0,
+      occurredAt: D('2026-08-04T00:00:00Z'),
+      assetClass: asset.cls,
+    }))
+    const observationAt = (symbol: string) => ({
+      close: 10,
+      valuationDate: symbol === '510300' ? '2026-08-04' : '2026-08-03',
+      source: 'TEST',
+    })
+
+    const [point] = computeWealthSeries(
+      txs,
+      assets,
+      [],
+      D('2026-08-04T00:00:00Z'),
+      D('2026-08-04T00:00:00Z'),
+      () => 10,
+      () => 1,
+      observationAt,
+    )
+
+    expect(point.valuationStatus).toBe('PARTIAL')
+    expect(point.valuationCoverage).toBe(0.5)
+    expect(JSON.parse(point.valuationDetails)).toEqual([
+      expect.objectContaining({ symbol: '040046', valuationDate: '2026-08-03' }),
+    ])
+  })
 })
 
 describe('历史行情来源', () => {

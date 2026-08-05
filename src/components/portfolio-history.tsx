@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import {
   performanceBetween,
   performancePresetRange,
+  type PerformanceCurvePoint,
   type PerformancePoint,
   type PerformancePreset,
 } from '@/lib/engine/period-performance'
@@ -28,6 +29,35 @@ function signedPct(value: number): string {
   return `${value > 0 ? '+' : ''}${(value * 100).toFixed(2)}%`
 }
 
+function valuationStatusText(point: Pick<PerformanceCurvePoint, 'valuationStatus' | 'valuationCoverage'>): string {
+  if (point.valuationStatus === 'SETTLED') {
+    const coverage = point.valuationCoverage == null ? null : Math.round(point.valuationCoverage * 100)
+    return coverage != null && coverage < 100 ? `已结算 · ${coverage}%更新` : '已结算'
+  }
+  if (point.valuationStatus === 'PARTIAL') {
+    const coverage = point.valuationCoverage == null ? null : Math.round(point.valuationCoverage * 100)
+    return coverage == null ? '部分估值' : `部分估值 ${coverage}%`
+  }
+  if (point.valuationStatus === 'CLOSED') return '休市'
+  if (point.valuationStatus === 'NO_UPDATE') return '无新估值'
+  if (point.valuationStatus === 'FLOW_ONLY') return '仅资金流'
+  if (point.valuationStatus === 'LIVE') return '实时估算'
+  return '历史口径'
+}
+
+function valuationStatusTitle(point: PerformanceCurvePoint): string {
+  if (point.valuationGaps && point.valuationGaps.length > 0) {
+    return point.valuationGaps
+      .map((gap) => {
+        if (gap.reason === 'MARKET_CLOSED') return `${gap.name}：市场休市，沿用 ${gap.valuationDate ?? '最近估值'}`
+        return `${gap.name}：${gap.valuationDate ? `暂沿用 ${gap.valuationDate}` : '缺少官方估值'}`
+      })
+      .join('\n')
+  }
+  if (point.valuationStatus === 'CLOSED' && point.latestValuationDate) return `休市，价格沿用至 ${point.latestValuationDate}`
+  return valuationStatusText(point)
+}
+
 export function PortfolioHistory({
   series,
   liveValue,
@@ -42,8 +72,16 @@ export function PortfolioHistory({
   const todayKey = dateKeyAt(new Date())
   const liveSeries = useMemo(() => {
     const next = [...series]
-    const livePoint = { date: todayKey, netWorth: liveValue, contributions: currentContributions }
     const todayIndex = next.findIndex((point) => point.date === todayKey)
+    const livePoint: PerformancePoint = {
+      ...(todayIndex >= 0 ? next[todayIndex] : {}),
+      date: todayKey,
+      netWorth: liveValue,
+      contributions: currentContributions,
+      valuationStatus: todayIndex >= 0 && ['CLOSED', 'FLOW_ONLY'].includes(next[todayIndex].valuationStatus ?? '')
+        ? next[todayIndex].valuationStatus
+        : 'LIVE',
+    }
     if (todayIndex >= 0) next[todayIndex] = livePoint
     else next.push(livePoint)
     return next.sort((a, b) => a.date.localeCompare(b.date))
@@ -93,6 +131,9 @@ export function PortfolioHistory({
   const hasHistory = performance.endDate != null
   // 首点是期初计算基准，没有“当日”收益；明细只展示其后的真实日变化。
   const recentRows = performance.curve.slice(1).slice(-20).reverse()
+  const unsettledRows = performance.curve.filter((point) => point.valuationStatus === 'PARTIAL' || point.valuationStatus === 'NO_UPDATE')
+  const endPoint = performance.curve.at(-1)
+  const hasReturnObservations = performance.curve.some((point) => point.dailyPct != null)
 
   // 风险三指标与基准对齐：与所选区间同口径，随周期切换即时重算
   const risk = useMemo(() => riskMetrics(performance.curve), [performance])
@@ -227,6 +268,10 @@ export function PortfolioHistory({
               <strong className="num">{performance.endNetWorth == null ? '—' : fmtCNY(performance.endNetWorth)}</strong>
             </div>
             <div>
+              <span>期末估值状态</span>
+              <strong>{endPoint ? valuationStatusText(endPoint) : '—'}</strong>
+            </div>
+            <div>
               <span>同期{activeBenchmark?.label ?? '基准'}</span>
               <strong className={cx('num', benchmarkTotal == null ? 'text-ink-faint' : benchmarkTotal >= 0 ? 'text-up' : 'text-down')}>
                 {benchmarkTotal == null ? '—' : signedPct(benchmarkTotal)}
@@ -252,6 +297,12 @@ export function PortfolioHistory({
             </div>
           </div>
 
+          {unsettledRows.length > 0 && (
+            <p className="history-valuation-warning" role="status">
+              当前区间有 {unsettledRows.length} 个估值日尚未完全结算；部分基金或 QDII 仍沿用旧净值，金额会在官方净值补齐后重算。
+            </p>
+          )}
+
           <div className="history-chart-surface">
             <div className="history-chart-legend">
               <span className="history-legend-item">
@@ -269,7 +320,7 @@ export function PortfolioHistory({
                 </span>
               )}
             </div>
-            {performance.curve.length > 1 ? (
+            {hasReturnObservations ? (
               <div
                 role="img"
                 aria-label={`${performance.startDate} 至 ${performance.endDate}，累计时间加权收益率 ${pct == null ? '无法计算' : signedPct(pct)}，累计收益金额 ${amount == null ? '无法计算' : fmtCNY(amount, { sign: true })}`}
@@ -277,7 +328,7 @@ export function PortfolioHistory({
                 <PortfolioReturnChart data={chartData} benchmarkLabel={activeBenchmark?.label ?? '基准'} />
               </div>
             ) : (
-              <div className="history-chart-empty">该区间只有一个快照，收益为 0。</div>
+              <div className="history-chart-empty">该区间没有新的有效估值，收益记为“—”。</div>
             )}
           </div>
 
@@ -287,12 +338,26 @@ export function PortfolioHistory({
               <div className="table-scroll">
                 <table>
                   <thead>
-                    <tr><th>日期</th><th>当日收益率</th><th>当日收益金额</th><th>可投资资产</th></tr>
+                    <tr><th>日期</th><th>估值状态</th><th>当日收益率</th><th>当日收益金额</th><th>可投资资产</th></tr>
                   </thead>
                   <tbody>
                     {recentRows.map((point) => (
                       <tr key={point.date}>
                         <td className="num">{point.date}</td>
+                        <td>
+                          <span
+                            className={`valuation-status valuation-status-${(point.valuationStatus ?? 'LEGACY').toLowerCase()}`}
+                            title={valuationStatusTitle(point)}
+                          >
+                            {valuationStatusText(point)}
+                          </span>
+                          {point.valuationGaps && point.valuationGaps.some((gap) => gap.reason !== 'MARKET_CLOSED') && (
+                            <small>{point.valuationGaps.filter((gap) => gap.reason !== 'MARKET_CLOSED').length} 项待更新</small>
+                          )}
+                          {point.valuationStatus === 'CLOSED' && point.latestValuationDate && (
+                            <small>沿用至 {point.latestValuationDate}</small>
+                          )}
+                        </td>
                         <td className="num">{point.dailyPct == null ? '—' : signedPct(point.dailyPct)}</td>
                         <td className={cx('num', point.dailyAmount == null ? 'text-ink-faint' : point.dailyAmount >= 0 ? 'text-up' : 'text-down')}>
                           {point.dailyAmount == null ? '—' : fmtCNY(point.dailyAmount, { sign: true })}
@@ -307,7 +372,7 @@ export function PortfolioHistory({
           )}
 
           <p className="history-method-note">
-            明细按相邻快照计算当日收益，并扣除当天存入与取出；曲线收益率再将每日结果链式计算，避免大额出入金扭曲表现。期初基准为 {performance.basisDate ?? '—'} 收盘快照。
+            明细按相邻有效估值快照计算收益，并扣除期间存入与取出；休市、无新估值和仅资金流日期保留余额记录，但收益显示为“—”，不进入波动率与夏普样本。部分估值为临时结果，待基金或 QDII 官方净值补齐后回填。期初基准为 {performance.basisDate ?? '—'} 估值快照。
             最大回撤为区间内净值峰值到谷底的最大跌幅；波动率按日收益样本标准差 × √252 年化；夏普比率的无风险利率按 {`${(RISK_FREE_ANNUAL * 100).toFixed(0)}%`} 假设。
           </p>
         </>

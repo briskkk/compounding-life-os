@@ -1,6 +1,7 @@
 import { foldTransactions, type LedgerTx } from './ledger'
 import { dateKeyAt } from './watch-market'
 import type { AssetInfo } from './types'
+import type { ValuationGap, ValuationStatus } from './valuation-status'
 
 const DAY = 86400000
 const MAX_DAYS = 1400
@@ -8,6 +9,8 @@ const MAX_DAYS = 1400
 export interface AssetNavPoint {
   date: string
   nav: number
+  source?: string
+  valuationStatus?: ValuationStatus
 }
 
 export interface AssetPerformancePoint {
@@ -16,6 +19,20 @@ export interface AssetPerformancePoint {
   contributions: number
   quantity: number
   nav: number | null
+  valuationStatus: ValuationStatus
+  valuationCoverage: number | null
+  latestValuationDate: string | null
+  valuationGaps: ValuationGap[]
+}
+
+/** 行情时间统一归属到北京时间自然估值日，避免基金本地零点被 UTC 截成前一天。 */
+export function toAssetNavPoint(
+  date: Date,
+  nav: number,
+  source?: string,
+  valuationStatus?: ValuationStatus,
+): AssetNavPoint {
+  return { date: dateKeyAt(date), nav, source, valuationStatus }
 }
 
 function utcDate(key: string): Date {
@@ -96,6 +113,8 @@ export function buildAssetPerformanceSeries({
 
   let priceIndex = 0
   let lastMarketNav: number | null = null
+  let lastMarketDate: string | null = null
+  let lastPriceStatus: ValuationStatus | undefined
   let cumulativeFlow = 0
   const result: AssetPerformancePoint[] = []
 
@@ -103,6 +122,8 @@ export function buildAssetPerformanceSeries({
     const date = shiftDateKey(startKey, index)
     while (priceIndex < sortedPrices.length && sortedPrices[priceIndex].date <= date) {
       lastMarketNav = sortedPrices[priceIndex].nav
+      lastMarketDate = sortedPrices[priceIndex].date
+      lastPriceStatus = sortedPrices[priceIndex].valuationStatus
       priceIndex += 1
     }
 
@@ -130,9 +151,46 @@ export function buildAssetPerformanceSeries({
       netWorth = costBasis * currencyRate
     }
 
-    for (const tx of transactionsByDate.get(date) ?? []) {
+    const dailyTxs = transactionsByDate.get(date) ?? []
+    for (const tx of dailyTxs) {
       cumulativeFlow += transactionFlow(tx, nav, currencyRate, asset.cls)
     }
+
+    const hasReturnEvent = dailyTxs.some((tx) => ['DIVIDEND', 'INTEREST', 'FEE', 'VALUATION'].includes(tx.type))
+    const hasAssetFlow = dailyTxs.some((tx) => Math.abs(transactionFlow(tx, nav, currencyRate, asset.cls)) >= 0.005)
+    const weekend = utcDate(date).getUTCDay() === 0 || utcDate(date).getUTCDay() === 6
+    const nextMarketDate = sortedPrices[priceIndex]?.date ?? null
+    const hasFreshPrice = lastMarketDate === date
+    const confirmedClosed = nextMarketDate != null && nextMarketDate > date
+    const latestManualValuation = positions.reduce<Date | null>(
+      (latest, position) => position.lastValuationAt && (!latest || position.lastValuationAt > latest)
+        ? position.lastValuationAt
+        : latest,
+      null,
+    )
+    let valuationStatus: ValuationStatus
+    if (asset.cls === 'CASH' || asset.manual || asset.cls === 'REAL_ESTATE') {
+      valuationStatus = hasReturnEvent ? 'SETTLED' : hasAssetFlow ? 'FLOW_ONLY' : 'NO_UPDATE'
+    } else if (hasFreshPrice) {
+      valuationStatus = lastPriceStatus ?? 'SETTLED'
+    } else if (hasReturnEvent) {
+      valuationStatus = 'PARTIAL'
+    } else if (hasAssetFlow) {
+      valuationStatus = 'FLOW_ONLY'
+    } else if (weekend || confirmedClosed) {
+      valuationStatus = 'CLOSED'
+    } else {
+      valuationStatus = 'NO_UPDATE'
+    }
+    const valuationGaps: ValuationGap[] = !hasFreshPrice && !asset.manual && asset.cls !== 'CASH' && asset.cls !== 'REAL_ESTATE'
+      ? [{
+          symbol: asset.symbol,
+          name: asset.name,
+          valuationDate: lastMarketDate,
+          valueCny: Math.round(netWorth),
+          reason: lastMarketNav == null ? 'NO_PRICE' : valuationStatus === 'CLOSED' ? 'MARKET_CLOSED' : 'PENDING',
+        }]
+      : []
 
     result.push({
       date,
@@ -140,6 +198,12 @@ export function buildAssetPerformanceSeries({
       contributions: cumulativeFlow,
       quantity,
       nav,
+      valuationStatus,
+      valuationCoverage: hasFreshPrice ? 1 : 0,
+      latestValuationDate: asset.manual && latestManualValuation
+        ? dateKeyAt(latestManualValuation)
+        : lastMarketDate,
+      valuationGaps,
     })
   }
 

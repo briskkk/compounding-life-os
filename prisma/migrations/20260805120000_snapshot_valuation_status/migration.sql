@@ -1,0 +1,6 @@
+ALTER TABLE "Snapshot" ADD COLUMN "valuationStatus" TEXT NOT NULL DEFAULT 'LEGACY';
+ALTER TABLE "Snapshot" ADD COLUMN "valuationCoverage" REAL;
+ALTER TABLE "Snapshot" ADD COLUMN "freshValue" DECIMAL NOT NULL DEFAULT 0;
+ALTER TABLE "Snapshot" ADD COLUMN "pricedValue" DECIMAL NOT NULL DEFAULT 0;
+ALTER TABLE "Snapshot" ADD COLUMN "latestValuationDate" DATETIME;
+ALTER TABLE "Snapshot" ADD COLUMN "valuationDetails" TEXT NOT NULL DEFAULT '[]';

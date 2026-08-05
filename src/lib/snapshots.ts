@@ -5,9 +5,10 @@ import { valuePositions } from './engine/valuation'
 import { totalLiabilities, type LiabilityEntryInput } from './engine/liabilities'
 import { cumulativeContributions, dailyNetFlows } from './engine/attribution'
 import type { AssetInfo, TxInput } from './engine/types'
-import { loadPriceSeries, priceAtFn } from './market/persist'
+import { loadPriceSeries, priceAtFn, priceObservationAtFn, type PriceObservation } from './market/persist'
 import { cnyRateFor, fxRates } from './market/fx'
 import { isPortfolioAssetClass } from './asset-classification'
+import type { ValuationGap, ValuationStatus } from './engine/valuation-status'
 
 const DAY = 86400000
 const MAX_DAYS = 1400
@@ -19,9 +20,16 @@ export interface WealthPoint {
   netWorth: number
   investable: number
   contributions: number
+  valuationStatus: ValuationStatus
+  valuationCoverage: number | null
+  freshValue: number
+  pricedValue: number
+  latestValuationDate: string | null
+  valuationDetails: string
 }
 
 export type PriceAtFn = (symbol: string, date: Date) => number | undefined
+export type PriceObservationAtFn = (symbol: string, date: Date) => PriceObservation | undefined
 
 /** 纯计算：流水 + 负债条目 → 逐日五元组序列（可测试，价格函数注入） */
 export function computeWealthSeries(
@@ -32,6 +40,7 @@ export function computeWealthSeries(
   to: Date,
   priceAt: PriceAtFn,
   currencyRate: (currency: string) => number = () => 1,
+  observationAt?: PriceObservationAtFn,
 ): WealthPoint[] {
   const assetMap = new Map(assets.map((a) => [a.id, a]))
   const flows = dailyNetFlows(txs.filter((tx) => isPortfolioAssetClass(tx.assetClass)), currencyRate)
@@ -47,6 +56,11 @@ export function computeWealthSeries(
     .filter(([day]) => day < startDay)
     .reduce((sum, [, amount]) => sum + amount, 0)
   const contributions = cumulativeContributions(dates, flows).map((amount) => amount + contributionCarry)
+  const returnEventDays = new Set(
+    txs
+      .filter((tx) => !tx.voidedAt && ['DIVIDEND', 'INTEREST', 'FEE'].includes(tx.type))
+      .map((tx) => Math.floor(tx.occurredAt.getTime() / DAY)),
+  )
 
   return dates.map((date, i) => {
     const positions = foldTransactions(txs, date)
@@ -58,6 +72,68 @@ export function computeWealthSeries(
       investable += v.investable
     }
     const liab = totalLiabilities(liabilityEntries, date)
+    const valuationDate = date.toISOString().slice(0, 10)
+    const byAsset = new Map<string, { symbol: string; name: string; value: number; observation?: PriceObservation }>()
+    for (const position of valued) {
+      if (
+        position.asset.cls === 'CASH'
+        || position.asset.cls === 'REAL_ESTATE'
+        || position.asset.manual
+        || !isPortfolioAssetClass(position.asset.cls)
+        || Math.abs(position.investable) < 0.005
+      ) continue
+      const current = byAsset.get(position.assetId) ?? {
+        symbol: position.asset.symbol,
+        name: position.asset.name,
+        value: 0,
+        observation: observationAt?.(position.asset.symbol, date),
+      }
+      current.value += position.investable
+      byAsset.set(position.assetId, current)
+    }
+    let freshValue = 0
+    let pricedValue = 0
+    let freshAssetCount = 0
+    const gaps: ValuationGap[] = []
+    let pendingGapCount = 0
+    let latestValuationDate: string | null = null
+    const weekend = date.getUTCDay() === 0 || date.getUTCDay() === 6
+    for (const item of byAsset.values()) {
+      const absoluteValue = Math.abs(item.value)
+      pricedValue += absoluteValue
+      const priceDate = item.observation?.valuationDate ?? null
+      if (priceDate && (!latestValuationDate || priceDate > latestValuationDate)) latestValuationDate = priceDate
+      if (priceDate === valuationDate) {
+        freshValue += absoluteValue
+        freshAssetCount += 1
+      } else {
+        const confirmedClosed = item.observation?.nextValuationDate != null
+          && item.observation.nextValuationDate > valuationDate
+        const reason: ValuationGap['reason'] = !item.observation
+          ? 'NO_PRICE'
+          : confirmedClosed || weekend
+            ? 'MARKET_CLOSED'
+            : 'PENDING'
+        if (reason !== 'MARKET_CLOSED') pendingGapCount += 1
+        gaps.push({
+          symbol: item.symbol,
+          name: item.name,
+          valuationDate: priceDate,
+          valueCny: Math.round(item.value),
+          reason,
+        })
+      }
+    }
+    const currentDay = Math.floor(date.getTime() / DAY)
+    const hasExternalFlow = Math.abs(flows.get(currentDay) ?? 0) >= 0.005
+    const hasReturnEvent = returnEventDays.has(currentDay)
+    let valuationStatus: ValuationStatus
+    if (!observationAt) valuationStatus = 'LEGACY'
+    else if (pricedValue < 0.005) valuationStatus = hasReturnEvent ? 'SETTLED' : hasExternalFlow ? 'FLOW_ONLY' : weekend ? 'CLOSED' : 'NO_UPDATE'
+    else if (freshAssetCount === 0) valuationStatus = hasReturnEvent ? 'PARTIAL' : hasExternalFlow ? 'FLOW_ONLY' : pendingGapCount === 0 || weekend ? 'CLOSED' : 'NO_UPDATE'
+    else if (pendingGapCount > 0) valuationStatus = 'PARTIAL'
+    else valuationStatus = 'SETTLED'
+    const valuationCoverage = pricedValue > 0 ? freshValue / pricedValue : null
     return {
       date,
       assets: Math.round(assetsTotal),
@@ -65,6 +141,12 @@ export function computeWealthSeries(
       netWorth: Math.round(assetsTotal - liab),
       investable: Math.round(investable),
       contributions: Math.round(contributions[i]),
+      valuationStatus,
+      valuationCoverage,
+      freshValue: Math.round(freshValue),
+      pricedValue: Math.round(pricedValue),
+      latestValuationDate,
+      valuationDetails: JSON.stringify(gaps),
     }
   })
 }
@@ -116,6 +198,7 @@ export async function rebuildSnapshots(db: PrismaClient, familyId: string): Prom
   const symbols = assetsRaw.filter((a) => !a.manual && a.cls !== 'CASH' && a.cls !== 'REAL_ESTATE').map((a) => a.symbol)
   const priceMap = await loadPriceSeries(db, symbols)
   const basePriceAt = priceAtFn(priceMap)
+  const observationAt = priceObservationAtFn(priceMap)
   const rates = await fxRates()
   const priceAt: PriceAtFn = (symbol, date) => {
     const v = basePriceAt(symbol, date)
@@ -124,7 +207,7 @@ export async function rebuildSnapshots(db: PrismaClient, familyId: string): Prom
 
   const from = txsRaw[0].occurredAt
   const currencyRate = (cur: string) => (cur === 'USD' ? rates.USDCNY : cur === 'HKD' ? rates.HKDCNY : 1)
-  const points = computeWealthSeries(txs, assets, entries, from, new Date(), priceAt, currencyRate)
+  const points = computeWealthSeries(txs, assets, entries, from, new Date(), priceAt, currencyRate, observationAt)
   await db.snapshot.createMany({
     data: points.map((p) => ({
       familyId,
@@ -134,6 +217,12 @@ export async function rebuildSnapshots(db: PrismaClient, familyId: string): Prom
       netWorth: p.netWorth,
       investable: p.investable,
       contributions: p.contributions,
+      valuationStatus: p.valuationStatus,
+      valuationCoverage: p.valuationCoverage,
+      freshValue: p.freshValue,
+      pricedValue: p.pricedValue,
+      latestValuationDate: p.latestValuationDate ? new Date(`${p.latestValuationDate}T00:00:00Z`) : null,
+      valuationDetails: p.valuationDetails,
     })),
   })
   return points.length

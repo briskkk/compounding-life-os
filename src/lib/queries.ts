@@ -22,6 +22,7 @@ import { buildSavingsOverview, type SavingsOverview } from './engine/savings'
 import type { QuoteData } from './market/provider'
 import { isPortfolioAssetClass } from './asset-classification'
 import { dateKeyAt } from './engine/watch-market'
+import type { ValuationGap, ValuationStatus } from './engine/valuation-status'
 
 export interface LiabilityView {
   id: string
@@ -466,6 +467,33 @@ export interface SeriesPoint {
   contributions: number
   assets: number
   liabilities: number
+  valuationStatus: ValuationStatus
+  valuationCoverage: number | null
+  latestValuationDate: string | null
+  valuationGaps: ValuationGap[]
+}
+
+function parseValuationGaps(value: string): ValuationGap[] {
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function snapshotValuationFields(snapshot: {
+  valuationStatus: string
+  valuationCoverage: number | null
+  latestValuationDate: Date | null
+  valuationDetails: string
+}): Pick<SeriesPoint, 'valuationStatus' | 'valuationCoverage' | 'latestValuationDate' | 'valuationGaps'> {
+  return {
+    valuationStatus: snapshot.valuationStatus as ValuationStatus,
+    valuationCoverage: snapshot.valuationCoverage,
+    latestValuationDate: snapshot.latestValuationDate?.toISOString().slice(0, 10) ?? null,
+    valuationGaps: parseValuationGaps(snapshot.valuationDetails),
+  }
 }
 
 export interface Attribution {
@@ -554,6 +582,7 @@ export async function getWatchData(): Promise<WatchData | null> {
     contributions: Number(snapshot.contributions),
     assets: Number(snapshot.assets),
     liabilities: Number(snapshot.liabilities),
+    ...snapshotValuationFields(snapshot),
   }))
 
   const rates = await fxRates()
@@ -565,6 +594,7 @@ export async function getWatchData(): Promise<WatchData | null> {
     point.contributions = Math.round(normalizedContributions[index])
   })
   const contributionsNow = [...flows.values()].reduce((sum, amount) => sum + amount, 0)
+  const existingToday = series.at(-1)?.date === dateKeyAt(new Date()) ? series.at(-1) : null
   const livePoint: SeriesPoint = {
     date: dateKeyAt(new Date()),
     netWorth: Math.round(state.netWorth),
@@ -572,6 +602,12 @@ export async function getWatchData(): Promise<WatchData | null> {
     contributions: Math.round(contributionsNow),
     assets: Math.round(state.metrics.netWorth),
     liabilities: Math.round(state.liabilitiesTotal),
+    valuationStatus: existingToday?.valuationStatus === 'CLOSED' || existingToday?.valuationStatus === 'FLOW_ONLY'
+      ? existingToday.valuationStatus
+      : 'LIVE',
+    valuationCoverage: existingToday?.valuationCoverage ?? null,
+    latestValuationDate: existingToday?.latestValuationDate ?? dateKeyAt(new Date()),
+    valuationGaps: existingToday?.valuationGaps ?? [],
   }
   if (series.at(-1)?.date === livePoint.date) series[series.length - 1] = livePoint
   else series.push(livePoint)
@@ -593,6 +629,7 @@ export async function getDashboard(): Promise<DashboardData | null> {
     contributions: Number(s.contributions),
     assets: Number(s.assets),
     liabilities: Number(s.liabilities),
+    ...snapshotValuationFields(s),
   }))
   // 追加实时「今日」点
   const rates = await fxRates()
@@ -604,6 +641,7 @@ export async function getDashboard(): Promise<DashboardData | null> {
     point.contributions = Math.round(normalizedContributions[index])
   })
   const contributionsNow = [...flows.values()].reduce((a, b) => a + b, 0)
+  const existingToday = series.at(-1)?.date === dateKeyAt(new Date()) ? series.at(-1) : null
   const livePoint: SeriesPoint = {
     date: dateKeyAt(new Date()),
     netWorth: Math.round(state.netWorth),
@@ -611,6 +649,12 @@ export async function getDashboard(): Promise<DashboardData | null> {
     contributions: Math.round(contributionsNow),
     assets: Math.round(state.metrics.netWorth),
     liabilities: Math.round(state.liabilitiesTotal),
+    valuationStatus: existingToday?.valuationStatus === 'CLOSED' || existingToday?.valuationStatus === 'FLOW_ONLY'
+      ? existingToday.valuationStatus
+      : 'LIVE',
+    valuationCoverage: existingToday?.valuationCoverage ?? null,
+    latestValuationDate: existingToday?.latestValuationDate ?? dateKeyAt(new Date()),
+    valuationGaps: existingToday?.valuationGaps ?? [],
   }
   // 快照重建可能已经写入今日数据；实时点应覆盖今日快照，避免财富轨迹出现同日双点。
   if (series.at(-1)?.date === livePoint.date) series[series.length - 1] = livePoint

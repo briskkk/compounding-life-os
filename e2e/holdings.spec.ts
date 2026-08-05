@@ -32,6 +32,7 @@ test('看盘页：资产排序、详情跳转与当前资产流水录入', async
   await expect(page.getByLabel('账户持仓明细')).toBeVisible()
   await expect(page.getByRole('heading', { name: '资产历史收益' })).toBeVisible()
   await page.getByText(/查看最近 .* 个资产快照/).click()
+  await expect(page.getByRole('columnheader', { name: '估值状态' })).toBeVisible()
   await expect(page.getByRole('columnheader', { name: '当日持仓' })).toBeVisible()
   await expect(page.getByRole('columnheader', { name: '当日净值/价格' })).toBeVisible()
   await expect(page.getByRole('columnheader', { name: '当日市值' })).toBeVisible()

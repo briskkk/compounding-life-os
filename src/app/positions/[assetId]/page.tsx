@@ -31,9 +31,11 @@ import { llmStatus } from '@/lib/ai/llm'
 import { isLongTermAssetClass } from '@/lib/asset-classification'
 import {
   buildAssetPerformanceSeries,
+  toAssetNavPoint,
   type AssetNavPoint,
 } from '@/lib/engine/asset-performance'
 import { dateKeyAt } from '@/lib/engine/watch-market'
+import type { ValuationStatus } from '@/lib/engine/valuation-status'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,22 +101,19 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
       const live = await historySmart(asset.symbol, from, to)
       if (live.source !== PROVIDER_LABEL && live.bars.length > 0) {
         chartSource = live.source
-        historyPrices = live.bars.map((bar) => ({
-          date: bar.date.toISOString().slice(0, 10),
-          nav: bar.close,
-        }))
+        historyPrices = live.bars.map((bar) => toAssetNavPoint(bar.date, bar.close, live.source))
         const visibleBars = live.bars.slice(-180)
         const hasOhlc = visibleBars.every((b) => b.open != null && b.high != null && b.low != null)
         if (hasOhlc) {
           ohlcData = visibleBars.map((b) => ({
-            date: b.date.toISOString().slice(0, 10),
+            date: dateKeyAt(b.date),
             open: b.open!,
             close: b.close,
             high: b.high!,
             low: b.low!,
           }))
         } else {
-          chartData = visibleBars.map((b) => ({ date: b.date.toISOString().slice(0, 10), close: Math.round(b.close * 10000) / 10000 }))
+          chartData = visibleBars.map((b) => ({ date: dateKeyAt(b.date), close: Math.round(b.close * 10000) / 10000 }))
         }
         await persistBars(prisma, asset.symbol, live.bars, live.source) // 自愈落库，后续快照使用真实历史
       } else {
@@ -124,22 +123,16 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
         })
         if (stored.length > 0) {
           chartSource = stored[0].source
-          historyPrices = stored.map((bar) => ({
-            date: bar.date.toISOString().slice(0, 10),
-            nav: Number(bar.close),
-          }))
-          chartData = stored.slice(-180).map((b) => ({ date: b.date.toISOString().slice(0, 10), close: Math.round(Number(b.close) * 10000) / 10000 }))
+          historyPrices = stored.map((bar) => toAssetNavPoint(bar.date, Number(bar.close), bar.source))
+          chartData = stored.slice(-180).map((b) => ({ date: dateKeyAt(b.date), close: Math.round(Number(b.close) * 10000) / 10000 }))
         }
       }
     } else {
       chartSource = PROVIDER_LABEL
       const simulatedBars = dailyCloses(asset.symbol, from, to)
-      historyPrices = simulatedBars.map((bar) => ({
-        date: bar.date.toISOString().slice(0, 10),
-        nav: bar.close,
-      }))
+      historyPrices = simulatedBars.map((bar) => toAssetNavPoint(bar.date, bar.close, PROVIDER_LABEL))
       chartData = simulatedBars.slice(-180).map((b) => ({
-        date: b.date.toISOString().slice(0, 10),
+        date: dateKeyAt(b.date),
         close: Math.round(b.close * 10000) / 10000,
       }))
     }
@@ -147,9 +140,15 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
 
   if (quote) {
     const today = dateKeyAt(new Date())
+    const quoteDate = quote.tradingDate ?? today
+    const quoteStatus: ValuationStatus = asset.cls === 'FUND' && quote.source === 'EASTMONEY-FUND'
+      ? 'SETTLED'
+      : quoteDate === today
+        ? 'LIVE'
+        : 'SETTLED'
     historyPrices = [
-      ...historyPrices.filter((point) => point.date !== today),
-      { date: today, nav: quote.price },
+      ...historyPrices.filter((point) => point.date !== quoteDate),
+      { date: quoteDate, nav: quote.price, source: quote.source, valuationStatus: quoteStatus },
     ].sort((a, b) => a.date.localeCompare(b.date))
   }
 

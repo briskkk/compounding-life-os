@@ -1,9 +1,14 @@
 import { dateKeyAt } from './watch-market'
+import { isReturnObservation, type ValuationGap, type ValuationStatus } from './valuation-status'
 
 export interface PerformancePoint {
   date: string
   netWorth: number
   contributions: number
+  valuationStatus?: ValuationStatus
+  valuationCoverage?: number | null
+  latestValuationDate?: string | null
+  valuationGaps?: ValuationGap[]
 }
 
 export type PerformancePreset =
@@ -28,6 +33,10 @@ export interface PerformanceCurvePoint {
   dailyPct: number | null
   dailyAmount: number | null
   netWorth: number
+  valuationStatus?: ValuationStatus
+  valuationCoverage?: number | null
+  latestValuationDate?: string | null
+  valuationGaps?: ValuationGap[]
 }
 
 export interface PeriodPerformanceResult {
@@ -149,14 +158,19 @@ export function performanceBetween(
     dailyPct: null,
     dailyAmount: null,
     netWorth: base.netWorth,
+    valuationStatus: base.valuationStatus,
+    valuationCoverage: base.valuationCoverage,
+    latestValuationDate: base.latestValuationDate,
+    valuationGaps: base.valuationGaps,
   }]
 
   for (let index = 1; index < rangePoints.length; index++) {
     const previous = rangePoints[index - 1]
     const current = rangePoints[index]
     const flow = current.contributions - previous.contributions
-    const dailyAmount = current.netWorth - previous.netWorth - flow
-    const dailyPct = previous.netWorth > 0 ? dailyAmount / previous.netWorth : null
+    const observesReturn = isReturnObservation(current.valuationStatus)
+    const dailyAmount = observesReturn ? current.netWorth - previous.netWorth - flow : null
+    const dailyPct = dailyAmount != null && previous.netWorth > 0 ? dailyAmount / previous.netWorth : null
     if (dailyPct != null && Number.isFinite(dailyPct)) {
       cumulativeFactor *= 1 + dailyPct
       validReturnPeriods += 1
@@ -164,16 +178,22 @@ export function performanceBetween(
     curve.push({
       date: current.date,
       pct: cumulativeFactor - 1,
-      amount: current.netWorth - base.netWorth - (current.contributions - base.contributions),
+      amount: observesReturn
+        ? current.netWorth - base.netWorth - (current.contributions - base.contributions)
+        : curve.at(-1)?.amount ?? 0,
       dailyPct: dailyPct != null && Number.isFinite(dailyPct) ? dailyPct : null,
       dailyAmount,
       netWorth: current.netWorth,
+      valuationStatus: current.valuationStatus,
+      valuationCoverage: current.valuationCoverage,
+      latestValuationDate: current.latestValuationDate,
+      valuationGaps: current.valuationGaps,
     })
   }
 
   return {
     label,
-    amount,
+    amount: rangePoints.length === 1 ? 0 : validReturnPeriods > 0 ? curve.at(-1)?.amount ?? amount : null,
     pct: rangePoints.length === 1 ? 0 : validReturnPeriods > 0 ? cumulativeFactor - 1 : null,
     basisDate: base.date,
     startDate: firstInRange?.date ?? base.date,

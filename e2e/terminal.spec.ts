@@ -34,6 +34,7 @@ test('看盘页：历史收益支持预设周期与自定义日期', async ({ pa
   await page.getByText(/查看最近 \d+ 个快照明细/).click()
   await expect(page.getByRole('columnheader', { name: '当日收益率' })).toBeVisible()
   await expect(page.getByRole('columnheader', { name: '当日收益金额' })).toBeVisible()
+  await expect(page.getByRole('columnheader', { name: '估值状态' })).toBeVisible()
   await page.getByRole('button', { name: '近一年', exact: true }).click()
   await expect(page.getByRole('button', { name: '近一年', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: '自定义', exact: true }).click()

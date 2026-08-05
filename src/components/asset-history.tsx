@@ -5,6 +5,7 @@ import type { AssetPerformancePoint } from '@/lib/engine/asset-performance'
 import {
   performanceBetween,
   performancePresetRange,
+  type PerformanceCurvePoint,
   type PerformancePreset,
 } from '@/lib/engine/period-performance'
 import { cx, fmtCNY, fmtMoney, fmtQty } from '@/lib/format'
@@ -23,6 +24,23 @@ const PRESETS: { value: PerformancePreset; label: string }[] = [
 
 function signedPct(value: number): string {
   return `${value > 0 ? '+' : ''}${(value * 100).toFixed(2)}%`
+}
+
+function assetValuationStatusText(point: Pick<PerformanceCurvePoint, 'valuationStatus'>): string {
+  if (point.valuationStatus === 'SETTLED') return '已结算'
+  if (point.valuationStatus === 'PARTIAL') return '部分估值'
+  if (point.valuationStatus === 'CLOSED') return '休市'
+  if (point.valuationStatus === 'NO_UPDATE') return '无新估值'
+  if (point.valuationStatus === 'FLOW_ONLY') return '仅资金流'
+  if (point.valuationStatus === 'LIVE') return '实时估算'
+  return '历史口径'
+}
+
+function assetValuationStatusTitle(point: PerformanceCurvePoint): string {
+  const gap = point.valuationGaps?.[0]
+  if (gap?.reason === 'MARKET_CLOSED') return `休市，沿用 ${gap.valuationDate ?? '最近估值'}`
+  if (gap) return gap.valuationDate ? `暂沿用 ${gap.valuationDate}` : '缺少官方估值'
+  return assetValuationStatusText(point)
 }
 
 export function AssetHistory({
@@ -89,6 +107,9 @@ export function AssetHistory({
   const amount = performance.amount
   const pct = performance.pct
   const hasHistory = performance.endDate != null
+  const endPoint = performance.curve.at(-1)
+  const unsettledRows = performance.curve.filter((point) => point.valuationStatus === 'PARTIAL' || point.valuationStatus === 'NO_UPDATE')
+  const hasReturnObservations = performance.curve.some((point) => point.dailyPct != null)
 
   return (
     <section className="portfolio-history asset-history" aria-labelledby="asset-history-title">
@@ -192,7 +213,17 @@ export function AssetHistory({
               <span>期末市值</span>
               <strong className="num">{performance.endNetWorth == null ? '—' : fmtCNY(performance.endNetWorth)}</strong>
             </div>
+            <div>
+              <span>期末估值状态</span>
+              <strong>{endPoint ? assetValuationStatusText(endPoint) : '—'}</strong>
+            </div>
           </div>
+
+          {unsettledRows.length > 0 && (
+            <p className="history-valuation-warning" role="status">
+              当前区间有 {unsettledRows.length} 个日期尚无新估值；收益会在官方价格或净值补齐后归入其实际估值日。
+            </p>
+          )}
 
           <div className="history-chart-surface">
             <div className="history-chart-legend">
@@ -205,7 +236,7 @@ export function AssetHistory({
                 累计收益金额（右轴）
               </span>
             </div>
-            {performance.curve.length > 1 ? (
+            {hasReturnObservations ? (
               <div
                 role="img"
                 aria-label={`${assetName} 从 ${performance.startDate} 至 ${performance.endDate}，累计收益率 ${pct == null ? '无法计算' : signedPct(pct)}，收益金额 ${amount == null ? '无法计算' : fmtCNY(amount, { sign: true })}`}
@@ -213,7 +244,7 @@ export function AssetHistory({
                 <PortfolioReturnChart data={performance.curve} />
               </div>
             ) : (
-              <div className="history-chart-empty">该区间只有一个可计算快照。</div>
+              <div className="history-chart-empty">该区间没有新的有效估值，收益记为“—”。</div>
             )}
           </div>
 
@@ -225,6 +256,7 @@ export function AssetHistory({
                   <thead>
                     <tr>
                       <th>日期</th>
+                      <th>估值状态</th>
                       <th>当日收益率</th>
                       <th>当日收益金额</th>
                       <th>当日持仓</th>
@@ -236,6 +268,17 @@ export function AssetHistory({
                     {recentRows.map((point) => (
                       <tr key={point.date}>
                         <td className="num">{point.date}</td>
+                        <td>
+                          <span
+                            className={`valuation-status valuation-status-${(point.valuationStatus ?? 'LEGACY').toLowerCase()}`}
+                            title={assetValuationStatusTitle(point)}
+                          >
+                            {assetValuationStatusText(point)}
+                          </span>
+                          {point.valuationStatus === 'CLOSED' && point.latestValuationDate && (
+                            <small>沿用至 {point.latestValuationDate}</small>
+                          )}
+                        </td>
                         <td className="num">{point.dailyPct == null ? '—' : signedPct(point.dailyPct)}</td>
                         <td className={cx('num', point.dailyAmount == null ? 'text-ink-faint' : point.dailyAmount >= 0 ? 'text-up' : 'text-down')}>
                           {point.dailyAmount == null ? '—' : fmtCNY(point.dailyAmount, { sign: true })}
@@ -252,7 +295,7 @@ export function AssetHistory({
           )}
 
           <p className="history-method-note">
-            当日收益已扣除买卖、转入转出等资金流，并计入分红、利息与费用；持仓为当日收盘后的账本数量，净值/价格使用当日或此前最近可用行情。
+            收益按资产自身的交易日或官方净值日期归属，并扣除买卖、转入转出等资金流；休市、无新估值和仅资金流日期保留持仓记录，但收益显示为“—”，不作为 0% 收益参与统计。基金与 QDII 使用官方净值日期，美股使用交易所交易日。
           </p>
         </>
       ) : (

@@ -275,16 +275,22 @@ model FamilyPrefs {
 }
 
 model Snapshot {
-  id            String      @id @default(cuid())
-  familyId      String
-  family        FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  date          DateTime
-  assets        Decimal     @default(0)
-  liabilities   Decimal     @default(0)
-  netWorth      Decimal
-  investable    Decimal
-  contributions Decimal     @default(0)
-  createdAt     DateTime    @default(now())
+  id                  String      @id @default(cuid())
+  familyId            String
+  family              FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  date                DateTime
+  assets              Decimal     @default(0)
+  liabilities         Decimal     @default(0)
+  netWorth            Decimal
+  investable          Decimal
+  contributions       Decimal     @default(0)
+  valuationStatus     String      @default("LEGACY")
+  valuationCoverage   Float?
+  freshValue          Decimal     @default(0)
+  pricedValue         Decimal     @default(0)
+  latestValuationDate DateTime?
+  valuationDetails    String      @default("[]")
+  createdAt           DateTime    @default(now())
 
   @@unique([familyId, date])
 }
