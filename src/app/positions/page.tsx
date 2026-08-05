@@ -7,7 +7,6 @@ import { scopedDb } from '@/lib/scoped'
 import { Empty, Panel, SetupScreen, Tag } from '@/components/ui'
 import { ValuationToggle } from '@/components/valuation-toggle'
 import { groupByTag, parseTags } from '@/lib/engine/groups'
-import { allocationDrift, DRIFT_BAND, type AllocationSlice } from '@/lib/engine/allocation'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { ASSET_CLASS_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtCNYExact, fmtPct, fmtPrice, fmtQty } from '@/lib/format'
@@ -25,27 +24,14 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
   const ctx = await getSession()
   if (!ctx) return <SetupScreen />
   const db = scopedDb(prisma, ctx)
-  const [state, accounts, assetsRaw, prefs] = await Promise.all([
+  const [state, accounts, assetsRaw] = await Promise.all([
     loadEngineState(ctx),
     db.account.findMany(),
     db.asset.findMany(),
-    db.familyPrefs.findUnique({ where: { familyId: ctx.familyId } }),
   ])
   const accountName = new Map(accounts.map((a) => [a.id, a.name]))
   const assetTags = new Map(assetsRaw.map((a) => [a.id, parseTags(a.tags)]))
   const m = state.metrics
-  // 目标配置以 JSON 字符串存储；坏数据按未配置处理
-  let targetAllocation: Record<string, number> | null = null
-  if (prefs?.targetAllocation) {
-    try {
-      targetAllocation = JSON.parse(prefs.targetAllocation) as Record<string, number>
-    } catch {
-      targetAllocation = null
-    }
-  }
-  const driftByClass = new Map<AssetClass, AllocationSlice>(
-    targetAllocation ? allocationDrift(m.byClass, targetAllocation).map((s) => [s.cls, s]) : [],
-  )
 
   const allRows = state.valued
     .filter((v) => isPortfolioAssetClass(v.asset.cls) && (Math.abs(v.quantity) > 1e-9 || v.value > 0))
@@ -107,21 +93,10 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
         <div>
           <div className="grid grid-cols-3 gap-5 sm:grid-cols-4 xl:grid-cols-6">
             {classOrder.map((cls) => {
-              const drift = driftByClass.get(cls)
               return (
                 <div key={cls}>
                   <div className="text-[14px] text-ink-faint">{ASSET_CLASS_LABEL[cls]}</div>
                   <div className="num mt-2 text-[16px] text-ink">{fmtPct(totalHeld > 0 ? m.byClass[cls] / totalHeld : 0)}</div>
-                  {drift && (
-                    <div className={cx(
-                      'num mt-1 text-[12px]',
-                      Math.abs(drift.drift) <= DRIFT_BAND ? 'text-ink-faint' : drift.drift < 0 ? 'text-down' : 'text-up',
-                    )}>
-                      {Math.abs(drift.drift) <= DRIFT_BAND
-                        ? `目标 ${fmtPct(drift.target)}·达标`
-                        : `目标 ${fmtPct(drift.target)}·${drift.drift < 0 ? '低配' : '超配'}${fmtPct(Math.abs(drift.drift))}`}
-                    </div>
-                  )}
                 </div>
               )
             })}
@@ -131,11 +106,6 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
               <div key={cls} style={{ width: `${totalHeld > 0 ? (m.byClass[cls] / totalHeld) * 100 : 0}%`, background: CLASS_COLORS[cls] }} />
             ))}
           </div>
-          {!targetAllocation && (
-            <div className="mt-3">
-              <Link href="/insights" className="text-[13px] text-ink-faint hover:text-ink">在洞察页设定目标配置 →</Link>
-            </div>
-          )}
         </div>
       </section>
 

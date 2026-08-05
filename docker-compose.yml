@@ -7,13 +7,6 @@ services:
     environment:
       # 行情源优先级链（可用 simulated 覆盖回模拟源）
       MARKET_PROVIDER: ${MARKET_PROVIDER:-tencent,eastmoney-fund,sina}
-      # 可选 LLM 结构化洞察（DeepSeek / Kimi / OpenAI 兼容端点）
-      LLM_PROVIDER: ${LLM_PROVIDER:-}
-      LLM_API_KEY: ${LLM_API_KEY:-}
-      LLM_BASE_URL: ${LLM_BASE_URL:-}
-      LLM_MODEL: ${LLM_MODEL:-}
-      LLM_THINKING: ${LLM_THINKING:-disabled}
-      LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-30000}
     volumes:
       - fwos-data:/app/prisma
     restart: unless-stopped

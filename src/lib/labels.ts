@@ -54,12 +54,6 @@ export const ROLE_LABEL: Record<string, string> = {
   VIEWER: '只读',
 }
 
-export const SEVERITY_LABEL: Record<string, string> = {
-  INFO: '提示',
-  WARN: '关注',
-  ALERT: '警示',
-}
-
 export const GOAL_METRIC_LABEL: Record<string, string> = {
   NET_WORTH: '净资产口径',
   INVESTABLE: '可自由投资口径',

@@ -104,14 +104,6 @@ cp .env.example .env
 ```bash
 # 行情数据源（腾讯 + 天天基金 + 新浪）
 MARKET_PROVIDER=tencent,eastmoney-fund,sina
-
-# LLM 配置（可选，按需填写）
-LLM_PROVIDER=deepseek
-LLM_API_KEY=your_api_key_here
-LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL=deepseek-chat
-LLM_THINKING=disabled
-LLM_TIMEOUT_MS=30000
 ```
 
 ### 4.3 构建并启动

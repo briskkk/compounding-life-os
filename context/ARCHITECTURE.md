@@ -1,0 +1,66 @@
+---
+status: canonical
+owner: project-maintainers
+last_verified: 2026-08-05
+---
+
+# 系统架构
+
+## 运行时概览
+
+```mermaid
+flowchart LR
+  U["浏览器 · React 19"] --> N["Next.js 15 App Router"]
+  N --> P["页面查询 · Server Actions · Route Handlers"]
+  P --> S["会话与 Family Scope"]
+  P --> E["纯 TypeScript 领域引擎"]
+  P --> M["行情与基金适配器"]
+  S --> D["Prisma"]
+  E --> D
+  M --> D
+  D --> Q["SQLite 本地事实库"]
+  D -.生产迁移.-> G["PostgreSQL + RLS"]
+  M --> X["腾讯 · 天天基金 · Sina"]
+```
+
+## 分层与依赖方向
+
+1. `src/app/`：路由、服务端页面和 HTTP 边界。页面通过查询装配函数取数，写操作走 Server Actions。
+2. `src/components/`：React UI 和表单。客户端组件不直接访问数据库。
+3. `src/lib/queries.ts`：将会话、数据库、领域引擎、行情和投影装配成页面 View Model。
+4. `src/lib/actions.ts`：输入校验、权限、事务写入、审计、快照刷新和路径 revalidation。
+5. `src/lib/engine/`：与 Prisma 解耦的确定性纯函数。允许依赖共享 engine types，不应依赖 React、Next 或数据库。
+6. `src/lib/market/`：外部行情、符号解析、基金估值和 `PriceBar` 持久化。
+7. `prisma/`：SQLite 事实 schema、PostgreSQL 镜像 schema、SQLite 迁移和 PostgreSQL RLS。
+
+正常依赖方向是 `app/components → queries/actions → engine/market → Prisma/external services`。领域引擎不能反向依赖页面、Prisma 或网络。
+
+## 核心数据流
+
+### 写入流水
+
+表单/API 输入 → Zod → `requireWrite` → 家庭/账户/资产/时间线校验 → Prisma 事务 → 可选现金结算腿 → 审计链 → 重建快照 → revalidate 页面。
+
+### 读取组合
+
+当前成员 cookie → `FamilyCtx` → family-scoped 查询 → 过滤已冲正流水 → `foldTransactions` → 行情/手动值/成本估值 → 聚合净资产、可投资资产和风险指标 → 服务端页面。
+
+### 刷新行情
+
+市场资产目录 → 基金官方净值或真实 provider chain → `PriceBar` 幂等落库 → 清理历史模拟 K 线 → 全量重建当前家庭快照 → 记录审计。
+
+## 数据库策略
+
+- 开发/单家庭默认 SQLite：`prisma/schema.prisma`，数据库为 `prisma/dev.db`。
+- 正式多家庭可使用 `prisma/schema.postgres.prisma` 生成独立 PG Client，并应用 `prisma/rls.sql`。
+- SQLite 迁移只新增目录，不能改写已应用 migration。
+- `PriceBar`、`FundEstimate`、`FundCalibration` 是全局行情数据；其余主要业务表是家庭作用域。
+
+## 构建隔离
+
+- 开发：`.next-dev`，默认端口 3000。
+- 生产：`.next`，默认端口 3000。
+- E2E：`.next-e2e`，专用 SQLite 数据库，端口 3200，`MARKET_PROVIDER=simulated`。
+
+不得让两个进程共享同一个 dist 目录。
+

@@ -23,7 +23,6 @@
 - 📈 **只用真实行情** — A股/港股/美股/基金免费行情链（腾讯 · 天天基金 · 新浪）；拉取失败宁可留空，**绝不展示模拟价格**
 - 🧮 **双口径净资产** — 「净资产」回答你家底有多厚，「可自由投资」回答你真正能调配的钱有多少，房产与内部持股自动隔离
 - 🎯 **FIRE 不是许愿** — 1500 条协方差蒙特卡洛路径，同时验证「退休时钱攒够」和「退休后不断供」两个概率
-- 🧭 **目标配置再平衡** — 设定六类资产目标权重，偏离超 ±5% 自动给出具体买卖金额建议
 - 📏 **风险一目了然** — 任意区间的最大回撤、年化波动率、夏普比率，基准可选沪深300 / 上证指数 / 创业板指 / 科创50（真实行情，绝不回落模拟数据）
 - 🔍 **基金盘中估值引擎** — 官方净值公布前，按前十大重仓 + 回归自动选择的代理指数实时估算；净值一公布自动切换并校准误差
 - 🔐 **你的数据只属于你** — 全自托管，SHA-256 审计哈希链防篡改，PostgreSQL 部署可启用数据库原生行级权限
@@ -33,19 +32,18 @@
 | 持仓 · 六类资产一页看清 | 看盘 · 分钟级组合盈亏 |
 | :---: | :---: |
 | <img src="docs/screenshots/positions.png" alt="持仓页" width="440" /> | <img src="docs/screenshots/watch.png" alt="看盘页" width="440" /> |
-| **FIRE · 不断供概率是主角** | **洞察 · 今天的决策收件箱** |
-| <img src="docs/screenshots/fire.png" alt="FIRE 页" width="440" /> | <img src="docs/screenshots/insights.png" alt="洞察页" width="440" /> |
+| **FIRE · 不断供概率是主角** | |
+| <img src="docs/screenshots/fire.png" alt="FIRE 页" width="440" /> | |
 
-## 🧭 八个页面，各管一件事
+## 🧭 七个页面，各管一件事
 
 | 页面 | 它回答的问题 |
 | --- | --- |
-| 📊 **总览** | 家底多少？今天一句话需要知道什么？ |
+| 📊 **总览** | 家底多少？净资产、现金流与目标一屏看清 |
 | 💼 **持仓** | 钱在哪些资产上？当日/持有盈亏、自定义分组聚合 |
 | 📉 **看盘** | 此刻组合在涨还是跌？任意区间的 TWR、四指数基准对比与回撤/波动率/夏普 |
 | 🧾 **流水** | 每一笔钱从哪来到哪去？录入、CSV 导入导出、冲正留痕 |
 | 🔥 **FIRE** | 我的自由计划稳健吗？差多少、每月要补多少 |
-| 💡 **洞察** | 规则引擎 + 可选 LLM：风险、机会、建议动作（事实永远在本地算） |
 | 🏦 **账户** | 各托管账户的资产分布与资金结算关系、负债管理 |
 | 🧷 **审计** | 哈希链还完整吗？谁在什么时候改了什么 |
 
@@ -105,14 +103,8 @@ npm run build && npm run start
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
 | `MARKET_PROVIDER` | `tencent,eastmoney-fund,sina`（未配置时同样为真实链） | 行情源优先级链；模拟源只在显式写入 `simulated` 时启用 |
-| `LLM_PROVIDER` | 自动识别 | `deepseek` / `kimi` / `openai` / `custom` |
-| `LLM_API_KEY` | 空 | 未配置时洞察自动回落确定性规则引擎，功能不缺 |
-| `LLM_BASE_URL` / `LLM_MODEL` | 供应商默认 | 如 DeepSeek `https://api.deepseek.com` / `deepseek-v4-flash` |
-| `LLM_THINKING` / `LLM_TIMEOUT_MS` | `disabled` / `30000` | 思考模式开关与单次超时 |
 | `BRAND_NAME` / `BRAND_NAME_EN` | `家庭财富终端` / `Family Wealth OS` | 顶栏与浏览器标题里的产品品牌名，按部署覆盖 |
 | `DATABASE_URL` | — | PostgreSQL 部署时的连接串 |
-
-> 🔒 发送给 LLM 的只有脱敏聚合事实与规则结论——成员姓名、账户名称、交易备注、数据库标识永不离库；模型不能修改账本。
 
 ## 📐 数据口径（读数字前先看这里）
 
@@ -135,15 +127,15 @@ npm run db:restore -- backups/fwos-时间戳.db   # 恢复前自动再备份当�
 ## 🛠️ 开发
 
 ```bash
-npm test            # 175 个 Vitest 用例（引擎 / 归因 / 协方差 / 投影 / CSV / RLS / 审计）
+npm test            # 207 个 Vitest 用例（引擎 / 归因 / 协方差 / 投影 / CSV / RLS / 审计）
 npm run build       # 生产构建 + TypeScript 检查 → .next
-npm run test:e2e    # 独立建库 + 构建 → .next-e2e，16 个 Playwright 用例
+npm run test:e2e    # 独立建库 + 构建 → .next-e2e，18 个 Playwright 用例
 ```
 
 ```
-src/lib/engine/    纯 TS 领域引擎：账本折叠 / 估值 / 归因 / 投影 / 协方差 / 洞察
+src/lib/engine/    纯 TS 领域引擎：账本折叠 / 估值 / 归因 / 投影 / 协方差
 src/lib/market/    行情：Provider 接口 + 腾讯/新浪/基金源 + PriceBar 落库
-src/app/           八个页面 + API          e2e/    Playwright 用例与演示夹具
+src/app/           七个页面 + API          e2e/    Playwright 用例与演示夹具
 prisma/            双 schema（SQLite + Postgres）/ 原生 RLS / 迁移
 ```
 
@@ -155,10 +147,11 @@ prisma/            双 schema（SQLite + Postgres）/ 原生 RLS / 迁移
 - 成员切换无密码，仅用于演示行级权限；正式使用请接入真实 IdP
 - SQLite 适合单家庭自托管；多人同时写入请迁 PostgreSQL
 - 流水变更会全量重建逐日快照（当前规模 <1s；数万条后建议改增量）
-- 洞察与预测为量化提示，**不构成投资建议**
+- FIRE 预测为量化提示，**不构成投资建议**
 
 ## 📚 更多文档
 
+- [项目上下文](context/README.md) — AI/开发者统一认知基线、当前状态、代码地图与决策索引
 - [设计系统](design-system/family-wealth-os/MASTER.md) — 视觉 token 与页面叙事规范
 - [部署到腾讯云](DEPLOY-TENCENT-CLOUD.md) — 生产环境完整 walkthrough
 - [AGENTS.md](AGENTS.md) — 仓库约定与协作规范

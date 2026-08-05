@@ -9,7 +9,6 @@ const shots = [
   { path: '/positions', name: 'positions.png', full: false },
   { path: '/watch', name: 'watch.png', full: false },
   { path: '/goals', name: 'fire.png', full: false },
-  { path: '/insights', name: 'insights.png', full: false },
 ]
 
 const browser = await chromium.launch()

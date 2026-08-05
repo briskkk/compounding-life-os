@@ -34,7 +34,6 @@ try {
     env: {
       ...process.env,
       MARKET_PROVIDER: 'simulated',
-      LLM_DISABLED: '1',
       SEED_DATABASE_PATH: databasePath,
     },
   })

@@ -39,6 +39,4 @@ test('看盘页：资产排序、详情跳转与当前资产流水录入', async
   await expect(page.getByRole('heading', { name: '录入一笔新流水' })).toBeVisible()
   await expect(page.getByRole('button', { name: '写入账本' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '简介', exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '资产判断', exact: true })).toBeVisible()
-  await expect(page.getByLabel('提问', { exact: true })).toHaveCount(0)
 })

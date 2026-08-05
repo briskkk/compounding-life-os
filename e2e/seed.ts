@@ -31,13 +31,11 @@ async function main() {
   console.log('· 清空旧数据…')
   await prisma.$transaction([
     prisma.auditLog.deleteMany(),
-    prisma.insight.deleteMany(),
     prisma.snapshot.deleteMany(),
     prisma.transaction.deleteMany(),
     prisma.liabilityEntry.deleteMany(),
     prisma.liability.deleteMany(),
     prisma.goal.deleteMany(),
-    prisma.familyPrefs.deleteMany(),
     prisma.asset.deleteMany(),
     prisma.account.deleteMany(),
     prisma.member.deleteMany(),
@@ -230,15 +228,12 @@ async function main() {
   })
   console.log(`  ✓ 房贷 + ${entries.length} 条负债条目`)
 
-  console.log('· 创建目标与策略阈值…')
+  console.log('· 创建目标…')
   await prisma.goal.createMany({
     data: [
       { familyId: fid, name: '3000 万 FIRE', mode: 'LUMP_SUM', targetAmount: 30_000_000, targetDate: d('2038-12-31'), spendYears: 50, retirementIncome: 0, withdrawalRate: 0.035, inflationRate: 0.025, metric: 'INVESTABLE', monthlyContribution: 25_000, expectedReturn: 0.07, volatility: 0.16, note: '目标金额按今日购买力口径' },
       { familyId: fid, name: '支出反推方案', mode: 'STREAM', annualSpend: 600_000, spendYears: 45, retirementIncome: 100_000, withdrawalRate: 0.04, inflationRate: 0.025, targetAmount: 12_500_000, targetDate: d('2042-12-31'), metric: 'INVESTABLE', monthlyContribution: 20_000, expectedReturn: 0.07, volatility: 0.16, note: '年度退休支出 60 万，其中稳定收入 10 万' },
     ],
-  })
-  await prisma.familyPrefs.create({
-    data: { familyId: fid, cashFloor: 0.08, concentrationCeiling: 0.25, cashDragCeiling: 0.35, drawdownThreshold: 0.05, goalProbThreshold: 0.9 },
   })
 
   console.log('· 行情历史落库…')

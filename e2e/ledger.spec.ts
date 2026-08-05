@@ -33,13 +33,3 @@ test('资产选择器：打开不闪关、搜索过滤、键盘选中', async ({
   await expect(page.locator('form div.cursor-text input')).toHaveCount(0)
   await expect(page.locator('form div.cursor-text span').first()).toContainText('·')
 })
-
-test('洞察页：阈值配置面板', async ({ page }) => {
-  await page.goto('/insights')
-  await expect(page.getByText('Decision inbox', { exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '资产研究台', exact: true })).toBeVisible()
-  await expect(page.getByLabel('选择资产')).toBeVisible()
-  await page.getByText('策略阈值与生成说明', { exact: true }).click()
-  await page.getByRole('button', { name: '调整阈值' }).click()
-  await expect(page.getByText('现金安全线（%）')).toBeVisible()
-})

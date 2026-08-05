@@ -33,7 +33,7 @@ This file is the implementation source of truth derived from the approved high-f
 
 ## Navigation
 
-- Always expose all eight routes: 总览、持仓、看盘、流水、FIRE、洞察、账户、审计.
+- Always expose all seven routes: 总览、持仓、看盘、流水、FIRE、账户、审计.
 - Desktop: one centered horizontal row. Mobile: wrap into two rows; do not hide routes in a menu.
 - Active route uses blue text and a 2px underline.
 
@@ -48,12 +48,11 @@ This file is the implementation source of truth derived from the approved high-f
 
 ## Page narratives
 
-- 总览: net worth + one-sentence insight + wealth trajectory.
+- 总览: net worth + one-sentence summary + wealth trajectory.
 - 持仓: total value + allocation strip + holdings table.
 - 看盘: daily P&L + intraday chart + queryable historical TWR/return amount + market/position list.
 - 流水: provenance headline + filters + chronological ledger.
 - FIRE: dominant retirement-survival probability + accumulation confidence band + FIRE Number assumptions.
-- 洞察: one lead thesis + evidence + ranked secondary insights.
 - 账户: total balance + account-type tabs + institution list.
 - 审计: verification state + chronological chain.
 - 资产详情: asset identity/value + price chart + key metrics + holdings and history.

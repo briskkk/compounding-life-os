@@ -6,7 +6,6 @@ test('终端首页：五大核心模块与双口径', async ({ page }) => {
   await expect(page.getByText('流动性水位', { exact: true })).toBeVisible()
   await expect(page.getByText('风险敞口')).toBeVisible()
   await expect(page.getByText('FIRE 路径')).toBeVisible()
-  await expect(page.getByText('今日行动建议')).toBeVisible()
   // 双口径与负债
   await expect(page.getByText('可自由投资资产', { exact: true })).toBeVisible()
   await expect(page.getByText(/负债率/).first()).toBeVisible()

@@ -11,11 +11,13 @@
 | 位置 | 是否 git 仓库 | 说明 |
 |------|--------------|------|
 | **本地 Mac** `/Users/hua/Projects/Portfolio` | ✅ 是 | `origin` = `git@github.com:briskkk/family-wealth-os.git`，分支 `main` |
-| **腾讯云服务器** `/opt/family-wealth-os` | ❌ 否 | 代码是 **rsync 上传**的，没有 `.git` |
+| **腾讯云服务器** `/opt/family-wealth-os` | ✅ 是 | `origin` = `git@github.com:briskkk/family-wealth-os.git`，分支 `main`，已配 GitHub Deploy Key（`~/.ssh/fwos_deploy`） |
 
-这意味着：**服务器不能直接 `git pull`**。目前的标准更新路径是「本地 Mac 拉 GitHub → rsync 推服务器 → 重建容器」。
+现在**两条更新路径都可用**，任选其一：
+- **路径 A（服务器为中心，推荐）**：SSH 上服务器直接 `bash deploy/server-update.sh` —— 拉 GitHub → 重建 → **自动修复 schema 同步坑**（见第 2 节）。
+- **路径 B（Mac 为中心）**：本地 `bash deploy/update.sh` —— Mac 拉 GitHub → rsync 推服务器 → 重建（详见第 1 节）。
 
-> ⚠️ 本地工作区当前有未提交改动（如 `.env.example`、`README.md` 等）。更新前需决定：一起提交上线，还是先 `git stash` 暂存。详见第 1 节。
+> ⚠️ 路径 A 依赖服务器直连 GitHub；国内网络偶发超时则退回路径 B。两条路径都**保留**服务器的 `.env`、数据库、备份，不会误覆盖。
 
 ---
 
@@ -72,34 +74,33 @@ cat /home/ubuntu/.ssh/fwos_deploy.pub
 - Key：粘贴上面的公钥
 - 勾选 **Allow write access** 留空（只读即可）
 
-### 2.3 把服务器目录变成 git 仓库
-当前 `/opt/family-wealth-os` 是 rsync 来的、无 `.git`。最干净的做法是**重新 clone 覆盖**：
+### 2.3 服务器已是 git 仓库（已完成配置）
+部署密钥生成、`~/.ssh/config` 指向 `fwos_deploy`、GitHub Deploy Key 添加、目录 `git clone` —— **这些你已完成**，`/opt/family-wealth-os` 现在是干净的 `main` 分支 git 仓库。无需重复 2.1/2.2。
+
+### 2.4 之后更新只需（服务器上一键）
 ```bash
-# 备份服务器特有的文件
-cp /opt/family-wealth-os/.env /tmp/fwos.env.bak
-cp /opt/family-wealth-os/deploy/server-backup.sh /tmp/server-backup.sh.bak
-
-# 重新 clone（用刚生成的部署密钥）
-cd /opt
-sudo -u ubuntu git clone git@github.com:briskkk/family-wealth-os.git family-wealth-os-new
-sudo mv family-wealth-os family-wealth-os-old
-sudo mv family-wealth-os-new family-wealth-os
-sudo chown -R ubuntu:ubuntu /opt/family-wealth-os
-
-# 还原服务器特有文件
-cp /tmp/fwos.env.bak /opt/family-wealth-os/.env
-cp /tmp/server-backup.sh.bak /opt/family-wealth-os/deploy/server-backup.sh
-chmod +x /opt/family-wealth-os/deploy/server-backup.sh
-```
-
-### 2.4 之后更新只需（服务器上）
-```bash
+# SSH 登录服务器后:
 cd /opt/family-wealth-os
-git pull --ff-only
-docker compose up -d --build
+bash deploy/server-update.sh
 ```
+脚本自动完成：检查环境 → 备份 `.env` → `git reset --hard origin/main`（服务器严格镜像远程）→ `docker compose up -d --build` → **强制同步最新 schema 到卷并执行 `db push`**（修复「schema 不同步导致 500」的根因）→ 重启容器 → 确保备份脚本/cron 仍在 → 健康检查。
 
-> ⚠️ **中国服务器访问 GitHub 可能不稳定**（SSH 偶发超时）。遇此情况退回第 1 节的 Mac 流程（Mac 拉 GitHub 通常顺畅，再 rsync 推过去）。这也是当前默认采用 Mac 流程的原因。
+> ⚠️ **不要**只用裸 `git pull && docker compose up -d --build`（旧版 2.4 写法）。入口脚本 `scripts/docker-entrypoint.sh` 只在 `/app/prisma/schema.prisma` **不存在时**才从 `dist` 复制，而该文件位于 Docker 卷中、首次部署后永久保留 —— 裸更新会让新字段永远加不进库，页面报 `Application error: a server-side exception`（Digest 2410232802）。`server-update.sh` 已内置修复，千万别省。
+
+### 2.5 永久治本（可选）
+若要彻底摆脱每次脚本补 schema，把入口脚本里
+```sh
+if [ ! -f /app/prisma/schema.prisma ]; then
+  cp /app/schema.prisma.dist /app/prisma/schema.prisma
+fi
+```
+改为**无条件复制**（删掉 `if`）：
+```sh
+cp /app/schema.prisma.dist /app/prisma/schema.prisma
+```
+改完 `git commit` 推到 GitHub，之后 `server-update.sh` 拉取重建即自动生效，连 schema 补偿步骤都可省。
+
+> 💡 **中国服务器访问 GitHub 可能不稳定**（SSH 偶发超时）。若 `git fetch` 失败，退回第 1 节的 Mac 流程（Mac 拉 GitHub 通常顺畅，再 rsync 推过去）。
 
 ---
 
@@ -121,7 +122,7 @@ ssh ubuntu@111.229.116.222 'sudo tail -50 /var/log/nginx/error.log'
 ```bash
 ssh ubuntu@111.229.116.222 'docker exec -it family-wealth-os-app-1 sh'
 # 容器内：看进程、环境变量、文件
-#   env | grep -E 'MARKET|LLM|SEED'
+#   env | grep -E 'MARKET|SEED'
 #   ls -la /app/prisma
 ```
 
@@ -165,7 +166,7 @@ ssh ubuntu@111.229.116.222 'sudo ufw status'          # 确认 22/80/443 开放
 | 公网打不开 / 502 | 容器没起来或 Nginx 反代失败 | `docker ps` 看容器状态；`docker compose logs app` 查启动报错；`sudo nginx -t` |
 | 改了代码不生效 | 忘了重建镜像 | 必须 `docker compose up -d --build`（不是 `restart`） |
 | 构建卡在拉 `node:22-alpine` | Docker Hub 限流 | 已配腾讯云镜像加速；若仍慢，查 `/etc/docker/daemon.json` 的 registry-mirrors |
-| 启动报 schema 不一致 | 模型改了但库没迁移 | 容器入口用 `prisma db push` 自动同步；若涉及破坏性变更会报错，按日志处理 |
+| 访问报 `Application error: a server-side exception`（日志 `PrismaClientKnownRequestError` P2022：某列 does not exist） | **代码更新后模型加了字段，但数据库缺列**。真凶：入口脚本 `scripts/docker-entrypoint.sh` 只在 `/app/prisma/schema.prisma` **不存在时**才从 `/app/schema.prisma.dist` 复制；而 `/app/prisma` 是挂载的 Docker 卷（你的真实数据库在那），里面已有一份**旧 schema**，于是 `prisma db push` 永远用旧 schema，新列永远加不进去 | **临时修复**（数据不丢，列可空时安全）：`docker exec family-wealth-os-app-1 cp /app/schema.prisma.dist /app/prisma/schema.prisma` 然后 `docker exec family-wealth-os-app-1 npx prisma db push --skip-generate --schema /app/prisma/schema.prisma`，最后 `docker restart family-wealth-os-app-1`。**根治**：把 entrypoint 的 `if [ ! -f ... ]; then cp ...; fi` 改成无条件 `cp /app/schema.prisma.dist /app/prisma/schema.prisma`，重建镜像——之后每次更新只要 schema 变了就自动同步（**走"服务器直连 GitHub"更新路线时尤其必须做**，否则每次 pull 新代码都会再 500）。验证列是否加上：`docker exec family-wealth-os-app-1 node -e "require('/app/node_modules/@prisma/client')" … \`PRAGMA table_info(表名)\``（require 必须绝对路径，否则在 /tmp 下找不到模块） |
 | 应用读不到配置 | `.env` 没上传/权限错 | 服务器 `/opt/family-wealth-os/.env` 应存在且 `600`；`MARKET_PROVIDER` 等已设 |
 | 数据"丢了" | 误连了空库 / 卷被重建 | 先查 `/opt/backups/` 与卷内 `dev.db.bak-pre-*`；需要时按第 5 节恢复 |
 | 磁盘满 | 悬空镜像堆积 | `docker image prune -f`；检查 `/opt/backups` 是否过大 |

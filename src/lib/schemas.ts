@@ -115,18 +115,6 @@ export const savingsEntryInputSchema = z.object({
   note: z.string().max(200).nullable().default(null),
 })
 
-export const prefsInputSchema = z.object({
-  cashFloor: z.number().min(0).max(1),
-  concentrationCeiling: z.number().min(0.01).max(1),
-  cashDragCeiling: z.number().min(0.01).max(1),
-  drawdownThreshold: z.number().min(0.01).max(0.9),
-  goalProbThreshold: z.number().min(0.01).max(1),
-  targetAllocation: z
-    .record(z.enum(['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'REAL_ESTATE']), z.number().min(0).max(1))
-    .nullable()
-    .optional(),
-})
-
 export const liabilityInputSchema = z.object({
   name: z.string().min(1, '名称必填').max(40),
   type: z.enum(['MORTGAGE', 'CAR_LOAN', 'CONSUMER', 'OTHER']),

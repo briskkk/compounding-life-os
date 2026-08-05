@@ -26,35 +26,29 @@ enum Role {
 }
 
 model FamilySpace {
-  id                String             @id @default(cuid())
-  name              String
-  baseCurrency      String             @default("CNY")
-  createdAt         DateTime           @default(now())
-  members           Member[]
-  prefs             FamilyPrefs?
-  accounts          Account[]
-  assets            Asset[]
-  transactions      Transaction[]
-  liabilities       Liability[]
-  liabilityEntries  LiabilityEntry[]
-  goals             Goal[]
-  savingsEntries    SavingsEntry[]
-  snapshots         Snapshot[]
-  insights          Insight[]
-  insightAnalyses   InsightAnalysis[]
-  assetAnalyses     AssetAnalysis[]
-  assetChatMessages AssetChatMessage[]
-  auditLogs         AuditLog[]
+  id               String           @id @default(cuid())
+  name             String
+  baseCurrency     String           @default("CNY")
+  createdAt        DateTime         @default(now())
+  members          Member[]
+  accounts         Account[]
+  assets           Asset[]
+  transactions     Transaction[]
+  liabilities      Liability[]
+  liabilityEntries LiabilityEntry[]
+  goals            Goal[]
+  savingsEntries   SavingsEntry[]
+  snapshots        Snapshot[]
+  auditLogs        AuditLog[]
 }
 
 model Member {
-  id                String             @id @default(cuid())
-  familyId          String
-  family            FamilySpace        @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  name              String
-  role              Role               @default(MEMBER)
-  createdAt         DateTime           @default(now())
-  assetChatMessages AssetChatMessage[]
+  id        String      @id @default(cuid())
+  familyId  String
+  family    FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name      String
+  role      Role        @default(MEMBER)
+  createdAt DateTime    @default(now())
 
   @@index([familyId])
 }
@@ -100,20 +94,18 @@ enum AssetClass {
 }
 
 model Asset {
-  id           String             @id @default(cuid())
+  id           String        @id @default(cuid())
   familyId     String
-  family       FamilySpace        @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  family       FamilySpace   @relation(fields: [familyId], references: [id], onDelete: Cascade)
   symbol       String
   name         String
   cls          AssetClass
-  manual       Boolean            @default(false)
-  currency     String             @default("CNY")
-  tags         String             @default("")
+  manual       Boolean       @default(false)
+  currency     String        @default("CNY")
+  tags         String        @default("")
   note         String?
-  createdAt    DateTime           @default(now())
+  createdAt    DateTime      @default(now())
   transactions Transaction[]
-  analyses     AssetAnalysis[]
-  chatMessages AssetChatMessage[]
 
   @@unique([familyId, symbol])
   @@index([familyId])
@@ -205,7 +197,7 @@ model LiabilityEntry {
   @@index([familyId, occurredAt])
 }
 
-// ---------- 目标 / 阈值 / 快照 / 洞察 / 审计 ----------
+// ---------- 目标 / 快照 / 审计 ----------
 
 enum GoalMetric {
   NET_WORTH
@@ -262,18 +254,6 @@ model Goal {
   @@index([familyId])
 }
 
-model FamilyPrefs {
-  id                   String      @id @default(cuid())
-  familyId             String      @unique
-  family               FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  cashFloor            Float       @default(0.08)
-  concentrationCeiling Float       @default(0.25)
-  cashDragCeiling      Float       @default(0.35)
-  drawdownThreshold    Float       @default(0.05)
-  goalProbThreshold    Float       @default(0.9)
-  targetAllocation     String? // JSON：六类资产目标权重，如 {"STOCK":0.4,...}
-}
-
 model Snapshot {
   id                  String      @id @default(cuid())
   familyId            String
@@ -293,98 +273,6 @@ model Snapshot {
   createdAt           DateTime    @default(now())
 
   @@unique([familyId, date])
-}
-
-enum Severity {
-  INFO
-  WARN
-  ALERT
-}
-
-model Insight {
-  id             String           @id @default(cuid())
-  familyId       String
-  family         FamilySpace      @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  analysisRunId  String?
-  analysisRun    InsightAnalysis? @relation(fields: [analysisRunId], references: [id], onDelete: SetNull)
-  kind           String
-  severity       Severity         @default(INFO)
-  title          String
-  body           String
-  action         String?
-  analysis       String?
-  evidence       String?
-  confidence     Float?
-  acknowledgedAt DateTime?
-  createdAt      DateTime         @default(now())
-
-  @@index([familyId])
-  @@index([analysisRunId])
-}
-
-model InsightAnalysis {
-  id               String      @id @default(cuid())
-  familyId         String
-  family           FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  provider         String
-  model            String
-  promptVersion    String
-  summary          String
-  risks            String
-  opportunities    String
-  sourceSnapshotAt DateTime
-  createdAt        DateTime    @default(now())
-  insights         Insight[]
-
-  @@index([familyId, createdAt])
-}
-
-model AssetAnalysis {
-  id               String      @id @default(cuid())
-  familyId         String
-  family           FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  assetId          String
-  asset            Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  provider         String
-  model            String
-  promptVersion    String
-  periodKey        String
-  stance           String
-  headline         String
-  summary          String
-  observations     String
-  risks            String
-  watchItems       String
-  actions          String
-  confidence       Float
-  context          String
-  sourceSnapshotAt DateTime
-  createdAt        DateTime    @default(now())
-
-  @@unique([familyId, assetId, periodKey])
-  @@index([familyId, assetId, createdAt])
-}
-
-enum AssetChatRole {
-  USER
-  ASSISTANT
-}
-
-model AssetChatMessage {
-  id        String        @id @default(cuid())
-  familyId  String
-  family    FamilySpace   @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  assetId   String
-  asset     Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  memberId  String
-  member    Member        @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  role      AssetChatRole
-  content   String
-  provider  String?
-  model     String?
-  createdAt DateTime      @default(now())
-
-  @@index([familyId, assetId, memberId, createdAt])
 }
 
 model AuditLog {

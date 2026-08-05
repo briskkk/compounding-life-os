@@ -24,13 +24,11 @@ async function main() {
   console.log('· 清空种子数据…')
   await prisma.$transaction([
     prisma.auditLog.deleteMany(),
-    prisma.insight.deleteMany(),
     prisma.snapshot.deleteMany(),
     prisma.transaction.deleteMany(),
     prisma.liabilityEntry.deleteMany(),
     prisma.liability.deleteMany(),
     prisma.goal.deleteMany(),
-    prisma.familyPrefs.deleteMany(),
     prisma.asset.deleteMany(),
     prisma.account.deleteMany(),
     prisma.member.deleteMany(),
@@ -41,7 +39,6 @@ async function main() {
   const fam = await prisma.familySpace.create({ data: { name: '秦人集合' } })
   const fid = fam.id
   const me = await prisma.member.create({ data: { familyId: fid, name: '华哥', role: 'OWNER' } })
-  await prisma.familyPrefs.create({ data: { familyId: fid } })
 
   console.log('· 重建账户…')
   const hsbc = await prisma.account.create({ data: { familyId: fid, name: '汇丰投资', type: 'BROKERAGE', institution: '汇丰', currency: 'USD' } })

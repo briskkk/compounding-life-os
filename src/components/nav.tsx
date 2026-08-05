@@ -10,7 +10,6 @@ const LINKS = [
   { href: '/watch', label: '看盘' },
   { href: '/transactions', label: '流水' },
   { href: '/goals', label: 'FIRE' },
-  { href: '/insights', label: '洞察' },
   { href: '/accounts', label: '账户' },
   { href: '/audit', label: '审计' },
 ]

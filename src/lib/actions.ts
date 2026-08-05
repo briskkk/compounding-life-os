@@ -19,7 +19,6 @@ import {
   goalUpdateSchema,
   liabilityEntryInputSchema,
   liabilityInputSchema,
-  prefsInputSchema,
   savingsEntryInputSchema,
   txInputSchema,
 } from './schemas'
@@ -31,7 +30,6 @@ import { foldTransactions, type LedgerTx } from './engine/ledger'
 import { parseTags, serializeTags } from './engine/groups'
 import { persistFundHistory, persistHistory } from './market/persist'
 import { assertTransactionRules, assertTransactionTimeline, type TransactionDraft } from './transaction-rules'
-import { checkLlmConnection } from './ai/llm'
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T; warning?: string }
@@ -569,7 +567,6 @@ export async function createGoal(input: unknown): Promise<ActionResult<{ id: str
       : data.targetAmount
     const goal = await prisma.$transaction(async (txDb) => {
       const created = await txDb.goal.create({ data: { ...data, targetAmount, familyId: ctx.familyId } })
-      await txDb.insight.deleteMany({ where: { familyId: ctx.familyId } })
       await audit(ctx, 'CREATE', 'Goal', created.id, `${data.name} ${data.targetAmount}`, txDb)
       return created
     })
@@ -597,7 +594,6 @@ export async function updateGoal(id: string, input: unknown): Promise<ActionResu
     await prisma.$transaction(async (txDb) => {
       const updated = await txDb.goal.updateMany({ where: { id, familyId: ctx.familyId }, data: patch })
       if (updated.count === 0) throw new Error('目标不存在或不属于当前家庭')
-      await txDb.insight.deleteMany({ where: { familyId: ctx.familyId } })
       await audit(ctx, 'UPDATE', 'Goal', id, JSON.stringify(data), txDb)
     })
     revalidatePath('/goals')
@@ -614,7 +610,6 @@ export async function deleteGoal(id: string): Promise<ActionResult> {
     await prisma.$transaction(async (txDb) => {
       const deleted = await txDb.goal.deleteMany({ where: { id, familyId: ctx.familyId } })
       if (deleted.count === 0) throw new Error('目标不存在或不属于当前家庭')
-      await txDb.insight.deleteMany({ where: { familyId: ctx.familyId } })
       await audit(ctx, 'DELETE', 'Goal', id, null, txDb)
     })
     revalidatePath('/goals')
@@ -645,7 +640,6 @@ export async function applyGoalScenario(id: string, input: unknown): Promise<Act
           targetAmount,
         },
       })
-      await txDb.insight.deleteMany({ where: { familyId: ctx.familyId } })
       await audit(
         ctx,
         'UPDATE',
@@ -656,7 +650,6 @@ export async function applyGoalScenario(id: string, input: unknown): Promise<Act
       )
     })
     revalidatePath('/goals')
-    revalidatePath('/insights')
     revalidatePath('/')
     return { ok: true }
   } catch (e) {
@@ -694,7 +687,6 @@ export async function upsertSavingsEntry(input: unknown): Promise<ActionResult<{
           note: data.note,
         },
       })
-      await txDb.insight.deleteMany({ where: { familyId: ctx.familyId } })
       await audit(
         ctx,
         'UPSERT',
@@ -706,7 +698,6 @@ export async function upsertSavingsEntry(input: unknown): Promise<ActionResult<{
       return saved
     })
     revalidatePath('/goals')
-    revalidatePath('/insights')
     revalidatePath('/')
     return { ok: true, data: { id: entry.id } }
   } catch (e) {
@@ -714,86 +705,7 @@ export async function upsertSavingsEntry(input: unknown): Promise<ActionResult<{
   }
 }
 
-// ---------- 洞察 / 行情 ----------
-
-/** 更新家庭策略阈值并立即重算洞察 */
-export async function updatePrefs(input: unknown): Promise<ActionResult> {
-  try {
-    const ctx = await requireWrite()
-    const data = prefsInputSchema.parse(input)
-    // 目标配置：非空时六项必须齐全且合计为 100%（±1% 容差），存库前序列化为 JSON 字符串
-    let targetAllocation: string | null = null
-    if (data.targetAllocation) {
-      const entries = Object.entries(data.targetAllocation)
-      const sum = entries.reduce((s, [, w]) => s + w, 0)
-      if (entries.length !== 6 || sum < 0.99 || sum > 1.01) {
-        return { ok: false, error: '目标配置合计需为 100%' }
-      }
-      targetAllocation = JSON.stringify(data.targetAllocation)
-    }
-    const { targetAllocation: _omit, ...thresholds } = data
-    const payload = { ...thresholds, targetAllocation }
-    await prisma.$transaction(async (txDb) => {
-      await txDb.familyPrefs.upsert({
-        where: { familyId: ctx.familyId },
-        create: { ...payload, familyId: ctx.familyId },
-        update: payload,
-      })
-      await txDb.insight.deleteMany({ where: { familyId: ctx.familyId } })
-      await audit(ctx, 'UPDATE', 'FamilyPrefs', ctx.familyId, JSON.stringify(payload), txDb)
-    })
-    revalidatePath('/insights')
-    revalidatePath('/')
-    return { ok: true }
-  } catch (e) {
-    return fail(e)
-  }
-}
-
-export async function regenerateInsights(): Promise<ActionResult> {
-  try {
-    const ctx = await requireWrite()
-    await prisma.$transaction(async (txDb) => {
-      await txDb.insight.deleteMany({ where: { familyId: ctx.familyId } })
-      await audit(ctx, 'REGENERATE', 'Insight', null, null, txDb)
-    })
-    revalidatePath('/insights')
-    revalidatePath('/')
-    return { ok: true }
-  } catch (e) {
-    return fail(e)
-  }
-}
-
-export async function testLlmConnection(): Promise<ActionResult<{ model?: string; message: string }>> {
-  try {
-    await getSessionOrThrow()
-    const result = await checkLlmConnection()
-    if (!result.ok) return { ok: false, error: result.message }
-    return { ok: true, data: { model: result.model, message: result.message } }
-  } catch (e) {
-    return fail(e)
-  }
-}
-
-export async function acknowledgeInsight(id: string): Promise<ActionResult> {
-  try {
-    const ctx = await requireWrite()
-    await prisma.$transaction(async (txDb) => {
-      const updated = await txDb.insight.updateMany({
-        where: { id, familyId: ctx.familyId },
-        data: { acknowledgedAt: new Date() },
-      })
-      if (updated.count === 0) throw new Error('洞察不存在或不属于当前家庭')
-      await audit(ctx, 'ACKNOWLEDGE', 'Insight', id, null, txDb)
-    })
-    revalidatePath('/insights')
-    revalidatePath('/')
-    return { ok: true }
-  } catch (e) {
-    return fail(e)
-  }
-}
+// ---------- 行情 ----------
 
 /** 刷新行情：历史日线落库 + 重建快照 */
 export async function refreshPrices(): Promise<ActionResult<{ symbol: string; count: number; source: string }[]>> {

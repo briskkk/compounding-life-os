@@ -1,5 +1,11 @@
 # Repository Guidelines
 
+## Required Project Context
+
+Before starting a task, read `context/AI_INSTRUCTIONS.md`, then follow the startup order in `context/README.md`. The canonical context and accepted ADRs define shared project knowledge across coding agents. Do not rely on chat history or this file alone, and always inspect task-relevant code before editing.
+
+If a task explicitly changes an accepted decision, document the replacement ADR and update `context/DECISIONS.md`. Current user instructions still define the task; existing uncommitted changes belong to the user and must be preserved.
+
 ## Project Structure & Module Organization
 
 This is a strict-TypeScript Next.js 15 application. Routes and API handlers live in `src/app/`; React components are in `src/components/`. Put calculations in `src/lib/engine/`, market adapters in `src/lib/market/`, unit tests in `src/test/`, and browser tests in `e2e/`. Prisma schemas, migrations, RLS policy, and seeds live in `prisma/`; operational utilities are under `scripts/`.
@@ -32,4 +38,4 @@ History uses Conventional Commit prefixes, currently `feat:`, followed by a conc
 
 ## Security & Configuration
 
-Never commit database files, backups, API keys, or connection strings. Pass configuration such as `DATABASE_URL`, `MARKET_PROVIDER`, and `OPENAI_API_KEY` through the environment. Preserve family scoping, authorization checks, and audit-chain behavior when changing data access.
+Never commit database files, backups, API keys, or connection strings. Pass configuration such as `DATABASE_URL`, `MARKET_PROVIDER`, and `BRAND_NAME` through the environment. Preserve family scoping, authorization checks, and audit-chain behavior when changing data access.

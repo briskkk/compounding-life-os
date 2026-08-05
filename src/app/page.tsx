@@ -4,11 +4,10 @@ import { getDashboard } from '@/lib/queries'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { verifyChain } from '@/lib/audit'
-import { insightHref } from '@/lib/insight-href'
 import { Bar, Empty, Panel, SetupScreen, Tag } from '@/components/ui'
 import { WealthChart } from '@/components/charts'
 import { C } from '@/lib/colors'
-import { GOAL_METRIC_LABEL, SEVERITY_LABEL } from '@/lib/labels'
+import { GOAL_METRIC_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtDate, fmtPct } from '@/lib/format'
 import { ValuationSourceSummary } from '@/components/valuation-source'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
@@ -34,7 +33,6 @@ export default async function OverviewPage() {
   const setupDone = setupSteps.every((step) => step.done)
 
   const m = d.state.metrics
-  const leadInsight = d.insights[0]
   const valuationRows = mergePositionsByAsset(d.state.valued)
   const liqTotal = m.liquidity.cash + m.liquidity.market + m.liquidity.illiquid
   const liqSegs = [
@@ -79,10 +77,10 @@ export default async function OverviewPage() {
             <div>
               <div className="eyebrow">Today, in one sentence</div>
               <h2 className="mt-4 max-w-xl text-[clamp(2rem,3.8vw,3.4rem)] font-medium leading-[1.18] tracking-[-0.05em] text-ink">
-                {leadInsight?.title ?? '今天没有需要特别处理的事项。'}
+                净资产、现金流与目标，一屏看清。
               </h2>
               <p className="mt-6 max-w-xl text-[16px] leading-8 text-ink-faint">
-                {leadInsight?.body ?? '组合保持在既定路径上，资产结构与现金水位没有触发新的提醒。'}
+                所有数字由账本重放推导，跟随行情实时更新。
               </p>
             </div>
           </div>
@@ -135,24 +133,6 @@ export default async function OverviewPage() {
           value: position.value,
         }))}
       />
-
-      <Panel title="今日行动建议" en="TODAY'S ACTIONS">
-          <div className="quiet-list">
-            {d.insights.slice(0, 5).map((insight, index) => (
-              <div key={insight.id} className="grid gap-3 py-5 md:grid-cols-[40px_1fr_auto] md:items-start">
-                <span className="num text-[20px] text-ink-faint">{String(index + 1).padStart(2, '0')}</span>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-ink">{insight.title}</span>
-                    <Tag tone={insight.severity === 'ALERT' ? 'up' : insight.severity === 'WARN' ? 'amber' : 'info'}>{SEVERITY_LABEL[insight.severity]}</Tag>
-                  </div>
-                  <p className="mt-2 text-[15px] leading-7 text-ink-faint">{insight.body}</p>
-                </div>
-                {insight.action && <Link href={insightHref(insight.kind)} className="text-[14px] text-accent transition-colors hover:text-ink">前往处理 →</Link>}
-              </div>
-            ))}
-          </div>
-      </Panel>
 
       <section className="grid gap-12 xl:grid-cols-2">
         <Panel title="流动性水位" en="LIQUIDITY LEVELS">

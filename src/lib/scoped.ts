@@ -18,12 +18,7 @@ const SCOPED_MODELS = new Set([
   'LiabilityEntry',
   'Goal',
   'SavingsEntry',
-  'FamilyPrefs',
   'Snapshot',
-  'Insight',
-  'InsightAnalysis',
-  'AssetAnalysis',
-  'AssetChatMessage',
   'AuditLog',
 ])
 

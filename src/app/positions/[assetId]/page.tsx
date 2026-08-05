@@ -1,4 +1,4 @@
-// 资产详情：实时行情 / 价格走势 / 持仓摘要 / 介绍与标签 / 流水明细 / 投资建议
+// 资产详情：实时行情 / 价格走势 / 持仓摘要 / 介绍与标签 / 流水明细
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/session'
@@ -14,7 +14,6 @@ import { historySmart } from '@/lib/market'
 import { persistBars } from '@/lib/market/persist'
 import { dailyCloses, PROVIDER_LABEL } from '@/lib/market/simulated'
 import { parseSymbol } from '@/lib/market/symbols'
-import { assetAdvice } from '@/lib/engine/advice'
 import { parseTags } from '@/lib/engine/groups'
 import { fundEstimate, calibrateFund } from '@/lib/market/fund-engine'
 import { calibratedConfidencePct } from '@/lib/engine/fund-calibrate'
@@ -25,9 +24,6 @@ import { cx, fmtCNY, fmtCNYExact, fmtDate, fmtDateTime, fmtMoney, fmtPct, fmtQty
 import { C, CLASS_COLORS } from '@/lib/colors'
 import { MarketSourceTag, PositionSourceTag } from '@/components/valuation-source'
 import { TxForm } from '@/components/tx-form'
-import { AssetIntelligence } from '@/components/asset-intelligence'
-import { loadAssetJudgment } from '@/lib/ai/asset-intelligence'
-import { llmStatus } from '@/lib/ai/llm'
 import { isLongTermAssetClass } from '@/lib/asset-classification'
 import {
   buildAssetPerformanceSeries,
@@ -49,14 +45,13 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
   if (!asset) return notFound()
   const isLongTermAsset = isLongTermAssetClass(asset.cls)
 
-  const [state, accounts, intelligence] = await Promise.all([
+  const [state, accounts] = await Promise.all([
     loadEngineState(ctx),
     db.account.findMany({ include: { settlementAccount: true }, orderBy: { createdAt: 'asc' } }),
-    loadAssetJudgment(ctx, assetId),
   ])
   const positions = state.valued.filter((v) => v.assetId === asset.id)
 
-  // 跨账户汇总为单一视图（用于摘要与建议）
+  // 跨账户汇总为单一视图（用于摘要）
   const combined: ValuedPosition | null =
     positions.length === 0
       ? null
@@ -182,11 +177,6 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
     take: 100,
   })
 
-  const prefs = await db.familyPrefs.findUnique({ where: { familyId: ctx.familyId } })
-  const advice = combined ? assetAdvice(combined, state.metrics.portfolioValue, {
-    concentrationCeiling: prefs?.concentrationCeiling,
-    includeInvestmentPerformance: !isLongTermAsset,
-  }) : []
   const tags = parseTags(asset.tags)
   const weightBase = isLongTermAsset ? state.netWorth : state.metrics.portfolioValue
   const weight = combined && weightBase > 0 ? combined.value / weightBase : 0
@@ -200,7 +190,6 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
   const fundEst = asset.cls === 'FUND' ? await fundEstimate(asset.symbol) : null
   const fundCalib = asset.cls === 'FUND' ? await calibrateFund(asset.symbol) : null
   const fundConf = fundEst && fundCalib ? calibratedConfidencePct(fundEst.estimate.confidencePct, fundCalib.summary) : null
-  const llm = llmStatus()
 
   return (
     <div className="page-shell">
@@ -379,31 +368,6 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
         series={assetHistory}
         longTerm={isLongTermAsset}
       />
-
-      {/* 投资建议横幅 */}
-      {advice.length > 0 && (
-        <Panel title={isLongTermAsset ? '长期资产提醒' : '投资建议'} en={isLongTermAsset ? 'LONG-TERM NOTES' : 'ADVICE'} bodyClassName="py-2.5">
-          <div className="flex flex-wrap gap-x-8 gap-y-1.5">
-            {advice.map((a, i) => (
-              <span key={i} className="flex items-center gap-2 text-[14px] leading-relaxed text-ink-dim">
-                <i className={cx('inline-block h-1.5 w-1.5 shrink-0 rounded-full', a.severity === 'ALERT' ? 'bg-up' : a.severity === 'WARN' ? 'bg-amber' : 'bg-info')} />
-                {a.text}
-              </span>
-            ))}
-          </div>
-        </Panel>
-      )}
-
-      {!isLongTermAsset && (
-        <AssetIntelligence
-          assetId={asset.id}
-          llm={llm}
-          initialAnalysis={intelligence.analysis}
-          refreshDue={intelligence.refreshDue}
-          nextRefreshAt={intelligence.nextRefreshAt}
-          canInteract={ctx.role !== 'VIEWER'}
-        />
-      )}
 
       {fundEst && (
         <Panel
