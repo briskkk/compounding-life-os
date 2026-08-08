@@ -96,3 +96,82 @@ describe('阶段收益', () => {
     expect(result.curve.at(-1)?.valuationCoverage).toBe(0.75)
   })
 })
+
+describe('资金加权收益率（Modified Dietz）', () => {
+  it('无外部资金流时与时间加权收益率一致', () => {
+    const result = performanceBetween([
+      { date: '2026-07-31', netWorth: 100, contributions: 100 },
+      { date: '2026-08-01', netWorth: 110, contributions: 100 },
+      { date: '2026-08-02', netWorth: 99, contributions: 100 },
+      { date: '2026-08-03', netWorth: 108.9, contributions: 100 },
+    ], '2026-08-01', '2026-08-03')
+
+    expect(result.curve.map((point) => point.mwrPct)).toEqual(result.curve.map((point) => point.pct))
+    expect(result.curve.at(-1)?.mwrPct).toBeCloseTo(0.089)
+  })
+
+  it('区间中途一笔入金按日中点加权，与手工 Dietz 计算一致', () => {
+    const result = performanceBetween([
+      { date: '2026-07-31', netWorth: 100, contributions: 100 },
+      { date: '2026-08-01', netWorth: 110, contributions: 100 },
+      { date: '2026-08-02', netWorth: 220, contributions: 200 },
+    ], '2026-08-01', '2026-08-02')
+
+    // 08-01: r = 10 / 100 = 0.1
+    // 08-02: r = (220 − 110 − 100) / (110 + 100 × 0.5) = 10 / 160 = 0.0625
+    expect(result.curve[1].mwrPct).toBeCloseTo(0.1)
+    expect(result.curve[2].mwrPct).toBeCloseTo(1.1 * 1.0625 - 1)
+    // TWR 不受资金流时间影响：1.1 × (1 + 10/110) − 1 = 0.2
+    expect(result.curve[2].pct).toBeCloseTo(0.2)
+    expect(result.curve[2].mwrPct).toBeLessThan(result.curve[2].pct)
+  })
+
+  it('同样的收益，入金越早资金加权收益率越低（权重效应方向）', () => {
+    // 期初入金：100 + 100 入金 → 赚 10
+    const early = performanceBetween([
+      { date: '2026-07-31', netWorth: 100, contributions: 100 },
+      { date: '2026-08-01', netWorth: 200, contributions: 200 },
+      { date: '2026-08-02', netWorth: 210, contributions: 200 },
+    ], '2026-08-01', '2026-08-02')
+    // 期末入金：100 → 赚 10 → +100 入金
+    const late = performanceBetween([
+      { date: '2026-07-31', netWorth: 100, contributions: 100 },
+      { date: '2026-08-01', netWorth: 110, contributions: 100 },
+      { date: '2026-08-02', netWorth: 210, contributions: 200 },
+    ], '2026-08-01', '2026-08-02')
+
+    expect(early.amount).toBe(10)
+    expect(late.amount).toBe(10)
+    // early: r1 = 0 / 150 = 0, r2 = 10 / 200 = 0.05 → 0.05
+    expect(early.curve.at(-1)?.mwrPct).toBeCloseTo(0.05)
+    // late: r1 = 10 / 100 = 0.1, r2 = 0 / 160 = 0 → 0.1
+    expect(late.curve.at(-1)?.mwrPct).toBeCloseTo(0.1)
+    expect(early.curve.at(-1)!.mwrPct).toBeLessThan(late.curve.at(-1)!.mwrPct)
+  })
+
+  it('分母非正当日跳过资金加权计算并沿用前值，不影响时间加权', () => {
+    const result = performanceBetween([
+      { date: '2026-07-31', netWorth: 100, contributions: 100 },
+      { date: '2026-08-01', netWorth: 90, contributions: -900 },
+    ], '2026-08-01', '2026-08-01')
+
+    // 分母 = 100 + (−1000) × 0.5 = −400 ≤ 0 → 当日 Dietz 跳过
+    expect(result.curve.at(-1)?.mwrPct).toBe(0)
+    // TWR 仍按 V_{d-1} 计算：(90 − 100 + 1000) / 100 = 9.9
+    expect(result.curve.at(-1)?.dailyPct).toBeCloseTo(9.9)
+    expect(result.curve.at(-1)?.pct).toBeCloseTo(9.9)
+  })
+
+  it('休市与仅资金流日记为空并沿用前值，下一观察日承接', () => {
+    const result = performanceBetween([
+      { date: '2026-07-31', netWorth: 100, contributions: 100, valuationStatus: 'SETTLED' as const },
+      { date: '2026-08-01', netWorth: 150, contributions: 150, valuationStatus: 'FLOW_ONLY' as const },
+      { date: '2026-08-02', netWorth: 165, contributions: 150, valuationStatus: 'SETTLED' as const },
+    ], '2026-08-01', '2026-08-02')
+
+    expect(result.curve[1].dailyPct).toBeNull()
+    expect(result.curve[1].mwrPct).toBe(0)
+    // 仅资金流日的入金已并入余额：r = (165 − 150 − 0) / 150 = 0.1
+    expect(result.curve[2].mwrPct).toBeCloseTo(0.1)
+  })
+})

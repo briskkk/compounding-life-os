@@ -32,6 +32,8 @@ export interface PerformanceCurvePoint {
   amount: number
   dailyPct: number | null
   dailyAmount: number | null
+  /** 累计资金加权收益率（Modified Dietz 逐日链式，出入金按当日中点权重 0.5）。 */
+  mwrPct: number
   netWorth: number
   valuationStatus?: ValuationStatus
   valuationCoverage?: number | null
@@ -120,6 +122,8 @@ function emptyResult(label: string): PeriodPerformanceResult {
  * 任意历史区间收益：
  * - 收益金额 = 期末可投资资产 − 期初可投资资产 − 同期净投入
  * - 收益率 = 每日 (Vd − Vd-1 − Fd) / Vd-1 链式复利（TWR）
+ * - 资金加权收益率 = 每日 Modified Dietz：(Vd − Vd-1 − Fd) / (Vd-1 + Fd × 0.5) 链式复利；
+ *   流水按当日中午记账取权重 0.5，分母非正当日跳过并沿用前值，非收益观察日与 dailyPct 同样记空。
  *
  * 区间起日使用它之前最近一个快照作期初基准，避免把起日内的资金流误判为收益。
  */
@@ -150,6 +154,7 @@ export function performanceBetween(
   const netFlow = end.contributions - base.contributions
   const amount = end.netWorth - base.netWorth - netFlow
   let cumulativeFactor = 1
+  let mwrCumulativeFactor = 1
   let validReturnPeriods = 0
   const curve: PerformanceCurvePoint[] = [{
     date: base.date,
@@ -157,6 +162,7 @@ export function performanceBetween(
     amount: 0,
     dailyPct: null,
     dailyAmount: null,
+    mwrPct: 0,
     netWorth: base.netWorth,
     valuationStatus: base.valuationStatus,
     valuationCoverage: base.valuationCoverage,
@@ -175,6 +181,12 @@ export function performanceBetween(
       cumulativeFactor *= 1 + dailyPct
       validReturnPeriods += 1
     }
+    // Modified Dietz：当日净出入金按日中点（权重 0.5）计入分母；分母非正当日跳过，沿用累计值。
+    const mwrDenominator = previous.netWorth + flow * 0.5
+    const mwrDailyPct = dailyAmount != null && mwrDenominator > 0 ? dailyAmount / mwrDenominator : null
+    if (mwrDailyPct != null && Number.isFinite(mwrDailyPct)) {
+      mwrCumulativeFactor *= 1 + mwrDailyPct
+    }
     curve.push({
       date: current.date,
       pct: cumulativeFactor - 1,
@@ -183,6 +195,7 @@ export function performanceBetween(
         : curve.at(-1)?.amount ?? 0,
       dailyPct: dailyPct != null && Number.isFinite(dailyPct) ? dailyPct : null,
       dailyAmount,
+      mwrPct: mwrCumulativeFactor - 1,
       netWorth: current.netWorth,
       valuationStatus: current.valuationStatus,
       valuationCoverage: current.valuationCoverage,

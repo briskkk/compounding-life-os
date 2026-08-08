@@ -48,11 +48,11 @@ This file is the implementation source of truth derived from the approved high-f
 
 ## Page narratives
 
-- 总览: net worth + one-sentence summary + wealth trajectory.
+- 总览: net worth + day change & 30-day delta + wealth trajectory.
 - 持仓: total value + allocation strip + holdings table.
-- 看盘: daily P&L + intraday chart + queryable historical TWR/return amount + market/position list.
+- 看盘: daily P&L + intraday chart + queryable historical performance (tabbed chart: 收益率曲线 with TWR + Modified-Dietz MWR + benchmark, 累计收益曲线, 资产趋势) + market/position list.
 - 流水: provenance headline + filters + chronological ledger.
-- FIRE: dominant retirement-survival probability + accumulation confidence band + FIRE Number assumptions.
+- FIRE: dominant funding progress (当前资产 / FIRE Number) + secondary retirement-survival probability (amber when below the warning zone) + accumulation confidence band + FIRE Number assumptions + estimated FIRE date vs plan + sustainable-savings scenario (不断供概率 · 预计日期). Multiple plans are mutually-exclusive scenarios sharing one asset pool, not additive goals.
 - 账户: total balance + account-type tabs + institution list.
 - 审计: verification state + chronological chain.
 - 资产详情: asset identity/value + price chart + key metrics + holdings and history.

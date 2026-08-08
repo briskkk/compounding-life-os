@@ -19,11 +19,13 @@ import {
 } from 'recharts'
 import { C } from '@/lib/colors'
 import { fmtCNY, fmtPrice } from '@/lib/format'
+import { niceTicks } from '@/lib/engine/axis-ticks'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 /** Y 轴格式化：万/亿以上缩写；<10 按净值惯例 4 位小数；其余 2 位小数 */
 function fmtAxis(v: number): string {
+  if (v === 0) return '0'
   const abs = Math.abs(v)
   if (abs >= 1e8) return `${(v / 1e8).toFixed(2)}亿`
   if (abs >= 1e4) return `${(v / 1e4).toFixed(0)}万`
@@ -120,6 +122,7 @@ export interface PortfolioReturnDatum {
   pct: number
   amount: number
   netWorth: number
+  mwrPct?: number | null
   benchPct?: number | null
 }
 
@@ -161,6 +164,23 @@ function PortfolioReturnTooltip({ active, payload, label, benchmarkLabel = '基�
 
 /** 任意区间的累计时间加权收益率与扣除净投入后的累计收益金额曲线。 */
 export function PortfolioReturnChart({ data, benchmarkLabel = '基准' }: { data: PortfolioReturnDatum[]; benchmarkLabel?: string }) {
+  // 显式刻度：窄区间下 recharts 自动刻度格式化后会重名
+  let pctLo = 0
+  let pctHi = 0
+  let amtLo = 0
+  let amtHi = 0
+  for (const d of data) {
+    if (d.pct < pctLo) pctLo = d.pct
+    if (d.pct > pctHi) pctHi = d.pct
+    if (d.benchPct != null) {
+      if (d.benchPct < pctLo) pctLo = d.benchPct
+      if (d.benchPct > pctHi) pctHi = d.benchPct
+    }
+    if (d.amount < amtLo) amtLo = d.amount
+    if (d.amount > amtHi) amtHi = d.amount
+  }
+  const pctTicks = niceTicks(pctLo, pctHi)
+  const amtTicks = niceTicks(amtLo, amtHi)
   return (
     <ResponsiveContainer width="100%" height={280}>
       <ComposedChart data={data} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
@@ -185,6 +205,7 @@ export function PortfolioReturnChart({ data, benchmarkLabel = '基准' }: { data
           axisLine={false}
           width={54}
           domain={['auto', 'auto']}
+          ticks={pctTicks}
           tickFormatter={(value: number) => `${(value * 100).toFixed(1)}%`}
         />
         <YAxis
@@ -195,6 +216,7 @@ export function PortfolioReturnChart({ data, benchmarkLabel = '基准' }: { data
           axisLine={false}
           width={72}
           domain={['auto', 'auto']}
+          ticks={amtTicks}
           tickFormatter={fmtCNYAxis}
         />
         <Tooltip content={<PortfolioReturnTooltip benchmarkLabel={benchmarkLabel} />} />
@@ -240,6 +262,173 @@ export function PortfolioReturnChart({ data, benchmarkLabel = '基准' }: { data
   )
 }
 
+function PortfolioPctTooltip({ active, payload, label, benchmarkLabel = '基准' }: any) {
+  if (!active || !payload?.length) return null
+  const point = payload[0].payload as PortfolioReturnDatum
+  return (
+    <div className="rounded border border-line bg-panel2 px-3 py-2 text-xs shadow-2xl">
+      <div className="num mb-1 text-ink-faint">{label}</div>
+      <div className="flex items-center gap-4 py-0.5">
+        <span className="text-ink-dim">时间加权收益率</span>
+        <span className="num ml-auto text-ink">{point.pct >= 0 ? '+' : ''}{(point.pct * 100).toFixed(2)}%</span>
+      </div>
+      {point.mwrPct != null && (
+        <div className="flex items-center gap-4 py-0.5">
+          <span className="text-ink-dim">资金加权收益率</span>
+          <span className="num ml-auto text-ink">{point.mwrPct >= 0 ? '+' : ''}{(point.mwrPct * 100).toFixed(2)}%</span>
+        </div>
+      )}
+      {point.benchPct != null && (
+        <div className="flex items-center gap-4 py-0.5">
+          <span className="text-ink-dim">{benchmarkLabel}基准</span>
+          <span className="num ml-auto text-violet">{point.benchPct >= 0 ? '+' : ''}{(point.benchPct * 100).toFixed(2)}%</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** 单百分比轴：时间加权 vs 资金加权（Modified Dietz）vs 基准的累计收益率曲线。 */
+export function PortfolioPctChart({ data, benchmarkLabel = '基准' }: { data: PortfolioReturnDatum[]; benchmarkLabel?: string }) {
+  // 显式刻度：窄区间下 recharts 自动刻度格式化后会重名
+  let pctLo = 0
+  let pctHi = 0
+  for (const d of data) {
+    if (d.pct < pctLo) pctLo = d.pct
+    if (d.pct > pctHi) pctHi = d.pct
+    if (d.mwrPct != null) {
+      if (d.mwrPct < pctLo) pctLo = d.mwrPct
+      if (d.mwrPct > pctHi) pctHi = d.mwrPct
+    }
+    if (d.benchPct != null) {
+      if (d.benchPct < pctLo) pctLo = d.benchPct
+      if (d.benchPct > pctHi) pctHi = d.benchPct
+    }
+  }
+  const pctTicks = niceTicks(pctLo, pctHi)
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <ComposedChart data={data} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
+        <defs>
+          <linearGradient id="gPortfolioPct" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={C.info} stopOpacity={0.18} />
+            <stop offset="100%" stopColor={C.info} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid stroke={C.line} strokeDasharray="2 8" vertical={false} />
+        <XAxis
+          dataKey="date"
+          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+          minTickGap={64}
+        />
+        <YAxis
+          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+          width={54}
+          domain={['auto', 'auto']}
+          ticks={pctTicks}
+          tickFormatter={(value: number) => `${(value * 100).toFixed(1)}%`}
+        />
+        <Tooltip content={<PortfolioPctTooltip benchmarkLabel={benchmarkLabel} />} />
+        <ReferenceLine y={0} stroke={C.inkFaint} strokeDasharray="4 7" />
+        <Area
+          type="monotone"
+          dataKey="pct"
+          name="时间加权"
+          stroke={C.info}
+          strokeWidth={2.25}
+          fill="url(#gPortfolioPct)"
+          dot={false}
+          isAnimationActive={false}
+        />
+        {data.some((d) => d.mwrPct != null) && (
+          <Line
+            type="monotone"
+            dataKey="mwrPct"
+            name="资金加权"
+            stroke={C.amber}
+            strokeWidth={1.75}
+            dot={false}
+            isAnimationActive={false}
+          />
+        )}
+        {data.some((d) => d.benchPct != null) && (
+          <Line
+            type="monotone"
+            dataKey="benchPct"
+            name={`${benchmarkLabel}基准`}
+            stroke={C.violet}
+            strokeWidth={1.5}
+            strokeDasharray="4 4"
+            dot={false}
+            connectNulls
+            isAnimationActive={false}
+          />
+        )}
+      </ComposedChart>
+    </ResponsiveContainer>
+  )
+}
+
+/** 单金额轴曲线：累计收益金额（amber）或可投资资产（info）随区间变化。 */
+export function PortfolioMoneyChart({ data, dataKey, name }: { data: PortfolioReturnDatum[]; dataKey: 'amount' | 'netWorth'; name: string }) {
+  const color = dataKey === 'amount' ? C.amber : C.info
+  const gradientId = `gPortfolioMoney-${dataKey}`
+  // 显式刻度：窄区间下 recharts 自动刻度格式化后会重名
+  let lo = 0
+  let hi = 0
+  for (const d of data) {
+    const value = d[dataKey]
+    if (value < lo) lo = value
+    if (value > hi) hi = value
+  }
+  const ticks = niceTicks(lo, hi)
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <ComposedChart data={data} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.18} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid stroke={C.line} strokeDasharray="2 8" vertical={false} />
+        <XAxis
+          dataKey="date"
+          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+          minTickGap={64}
+        />
+        <YAxis
+          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+          width={72}
+          domain={['auto', 'auto']}
+          ticks={ticks}
+          tickFormatter={fmtCNYAxis}
+        />
+        <Tooltip content={<DarkTooltip />} />
+        {dataKey === 'amount' && <ReferenceLine y={0} stroke={C.inkFaint} strokeDasharray="4 7" />}
+        <Area
+          type="monotone"
+          dataKey={dataKey}
+          name={name}
+          stroke={color}
+          strokeWidth={2.25}
+          fill={`url(#${gradientId})`}
+          dot={false}
+          isAnimationActive={false}
+        />
+      </ComposedChart>
+    </ResponsiveContainer>
+  )
+}
+
 export function Donut({ data }: { data: { name: string; value: number; color: string }[] }) {
   return (
     <ResponsiveContainer width="100%" height={168}>
@@ -256,6 +445,14 @@ export function Donut({ data }: { data: { name: string; value: number; color: st
 }
 
 export function PriceLineChart({ data, color = C.accent }: { data: { date: string; close: number }[]; color?: string }) {
+  // 显式刻度：净值类窄价格区间下自动刻度格式化后会重名
+  let lo = Infinity
+  let hi = -Infinity
+  for (const d of data) {
+    if (d.close < lo) lo = d.close
+    if (d.close > hi) hi = d.close
+  }
+  const ticks = niceTicks(lo, hi)
   return (
     <ResponsiveContainer width="100%" height={220}>
       <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
@@ -273,6 +470,7 @@ export function PriceLineChart({ data, color = C.accent }: { data: { date: strin
           axisLine={false}
           width={64}
           domain={['auto', 'auto']}
+          ticks={ticks}
           tickFormatter={fmtAxis}
         />
         <Tooltip content={<DarkTooltip money={false} />} />
@@ -321,6 +519,8 @@ export function IntradayChart({ data }: { data: IntradayDatum[] }) {
   const span = hi - lo
   const pad = span > 0 ? span * 0.15 : Math.max(Math.abs(hi || lo) * 0.1, 100)
   const domain: [number, number] = [lo - pad, hi + pad]
+  // 显式漂亮数刻度：窄盈亏域下 recharts 自动刻度经 fmtCNY 格式化后会重名/错位
+  const ticks = niceTicks(domain[0], domain[1])
   return (
     <ResponsiveContainer width="100%" height={260}>
       <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
@@ -335,9 +535,10 @@ export function IntradayChart({ data }: { data: IntradayDatum[] }) {
           tick={{ fill: C.inkFaint, fontSize: 12 }}
           tickLine={false}
           axisLine={false}
-          width={72}
+          width={84}
           domain={domain}
-          tickFormatter={(v: number) => fmtCNY(v)}
+          ticks={ticks}
+          tickFormatter={(v: number) => fmtCNY(v, { compact: true })}
         />
         <Tooltip content={<IntradayTooltip />} />
         <ReferenceLine y={0} stroke={C.line} />
@@ -402,12 +603,20 @@ function CandleTooltip({ active, payload, label }: any) {
 export function CandleChart({ data, color = C.accent }: { data: CandleDatum[]; color?: string }) {
   void color
   const ranged = data.map((d) => ({ ...d, range: [d.low, d.high] }))
+  // 显式刻度：净值类窄价格区间下自动刻度格式化后会重名
+  let lo = Infinity
+  let hi = -Infinity
+  for (const d of data) {
+    if (d.low < lo) lo = d.low
+    if (d.high > hi) hi = d.high
+  }
+  const ticks = niceTicks(lo, hi)
   return (
     <ResponsiveContainer width="100%" height={240}>
       <ComposedChart data={ranged} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid stroke={C.line} strokeDasharray="2 8" vertical={false} />
         <XAxis dataKey="date" tick={{ fill: C.inkFaint, fontSize: 11 }} tickLine={false} axisLine={{ stroke: C.line }} minTickGap={60} />
-        <YAxis domain={['auto', 'auto']} tick={{ fill: C.inkFaint, fontSize: 11 }} tickLine={false} axisLine={false} width={64} tickFormatter={fmtAxis} />
+        <YAxis domain={['auto', 'auto']} tick={{ fill: C.inkFaint, fontSize: 11 }} tickLine={false} axisLine={false} width={64} ticks={ticks} tickFormatter={fmtAxis} />
         <Tooltip content={<CandleTooltip />} />
         <Bar dataKey="range" shape={<CandleShape />} isAnimationActive={false} maxBarSize={8} />
       </ComposedChart>
