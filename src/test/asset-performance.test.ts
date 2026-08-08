@@ -17,7 +17,6 @@ function tx(partial: Partial<LedgerTx> & Pick<LedgerTx, 'type'>): LedgerTx {
   return {
     accountId: 'account-1',
     assetId: 'asset-1',
-    type: partial.type,
     quantity: null,
     price: null,
     amount: 0,

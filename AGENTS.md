@@ -15,6 +15,7 @@ The transaction ledger is the source of truth. Derive positions, snapshots, and 
 ## Build, Test, and Development Commands
 
 - `npm ci` installs locked dependencies and generates the Prisma client.
+- Only ever run `prisma generate` against the default `prisma/schema.prisma`. The generated client bakes in the schema's datasource URL; generating from `schema.test.prisma` (which exists only for `db push --skip-generate` in the Vitest global setup) silently repoints the dev app at `test.db`.
 - `npm run db:migrate` updates the local SQLite database.
 - `npm run db:init` creates an empty workspace (destructive, auto-backups first). Demo data exists only as an E2E fixture (`e2e/seed.ts`); there is no `db:seed` script.
 - `npm run dev` starts the development server at `http://localhost:3000`.

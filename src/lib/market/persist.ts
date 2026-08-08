@@ -18,16 +18,22 @@ export async function persistBars(
   source: string,
 ): Promise<number> {
   if (bars.length === 0) return 0
-  const sorted = [...bars].sort((a, b) => a.date.getTime() - b.date.getTime())
-  await db.priceBar.deleteMany({
-    where: {
-      symbol,
-      date: { gte: sorted[0].date, lte: sorted.at(-1)!.date },
-    },
-  })
-  await db.priceBar.createMany({
-    data: sorted.map((bar) => ({ symbol, date: bar.date, close: bar.close, source })),
-  })
+  // 同一 (symbol, date) 去重（保留最后一条），防止 createMany 内部自撞唯一约束
+  const byDay = new Map<number, Bar>()
+  for (const bar of bars) byDay.set(bar.date.getTime(), bar)
+  const sorted = [...byDay.values()].sort((a, b) => a.date.getTime() - b.date.getTime())
+  // 删除 + 写入包在同一事务：并发自愈落库时两批操作不会交错，避免唯一约束竞争
+  await db.$transaction([
+    db.priceBar.deleteMany({
+      where: {
+        symbol,
+        date: { gte: sorted[0].date, lte: sorted.at(-1)!.date },
+      },
+    }),
+    db.priceBar.createMany({
+      data: sorted.map((bar) => ({ symbol, date: bar.date, close: bar.close, source })),
+    }),
+  ])
   return sorted.length
 }
 
@@ -42,10 +48,15 @@ export async function persistHistory(
   for (const symbol of symbols) {
     const { bars, source } = await historySmart(symbol, from, to)
     if (bars.length > 0) {
-      await db.priceBar.deleteMany({ where: { symbol, date: { gte: from, lte: to } } })
-      await db.priceBar.createMany({
-        data: bars.map((bar) => ({ symbol, date: bar.date, close: bar.close, source })),
-      })
+      const byDay = new Map<number, Bar>()
+      for (const bar of bars) byDay.set(bar.date.getTime(), bar)
+      const unique = [...byDay.values()]
+      await db.$transaction([
+        db.priceBar.deleteMany({ where: { symbol, date: { gte: from, lte: to } } }),
+        db.priceBar.createMany({
+          data: unique.map((bar) => ({ symbol, date: bar.date, close: bar.close, source })),
+        }),
+      ])
     }
     results.push({ symbol, count: bars.length, source })
   }
@@ -63,12 +74,19 @@ export async function persistFundHistory(
   for (const symbol of symbols) {
     try {
       const bars = await eastmoneyFundProvider.history(symbol, from, to)
-      await db.priceBar.deleteMany({ where: { symbol, date: { gte: from, lte: to } } })
-      if (bars.length > 0) {
-        await db.priceBar.createMany({
-          data: bars.map((b) => ({ symbol, date: b.date, close: b.close, source: 'EASTMONEY-FUND' })),
-        })
-      }
+      const byDay = new Map<number, Bar>()
+      for (const bar of bars) byDay.set(bar.date.getTime(), bar)
+      const unique = [...byDay.values()]
+      await db.$transaction([
+        db.priceBar.deleteMany({ where: { symbol, date: { gte: from, lte: to } } }),
+        ...(unique.length > 0
+          ? [
+              db.priceBar.createMany({
+                data: unique.map((b) => ({ symbol, date: b.date, close: b.close, source: 'EASTMONEY-FUND' })),
+              }),
+            ]
+          : []),
+      ])
       results.push({ symbol, count: bars.length, source: 'EASTMONEY-FUND' })
     } catch {
       results.push({ symbol, count: 0, source: 'EASTMONEY-FUND' })
