@@ -6,7 +6,7 @@ import { GoalForm } from '@/components/goal-form'
 import { GoalEditDialog } from '@/components/goal-edit-dialog'
 import { GoalScenarioLab } from '@/components/goal-scenario-lab'
 import { SavingsCheckIn } from '@/components/savings-check-in'
-import { fmtCNY, fmtDate, fmtPct } from '@/lib/format'
+import { fmtCNY, fmtDate, fmtMonth, fmtPct, firePaceNote } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,12 +16,8 @@ function fireStatus(probability: number): { label: string; tone: 'amber' | 'info
   return { label: '计划稳健', tone: 'down' }
 }
 
-function addMonths(date: Date, months: number | null): string {
-  if (months == null) return '当前假设下尚未达到'
-  if (months === 0) return '现在'
-  const result = new Date(date)
-  result.setMonth(result.getMonth() + months)
-  return fmtDate(result.toISOString())
+function monthFrom(now: Date, months: number): string {
+  return fmtMonth(new Date(now.getFullYear(), now.getMonth() + months, 1))
 }
 
 function planMethod(goal: GoalView): string {
@@ -32,10 +28,11 @@ export default async function GoalsPage() {
   const ctx = await getSession()
   if (!ctx) return <SetupScreen />
   const state = await loadEngineState(ctx)
-  const [goals, savings] = await Promise.all([
-    loadGoals(ctx, state),
-    loadSavingsOverview(ctx),
-  ])
+  const savings = await loadSavingsOverview(ctx)
+  const sustainable = Math.max(0, savings.sustainableMonthlySavings)
+  const goals = await loadGoals(ctx, state, {
+    sustainableMonthlySavings: savings.recordedMonths > 0 ? sustainable : undefined,
+  })
   const now = new Date()
   const goalViews = goals.map((goal) => {
     const data: ProjectionDatum[] = goal.projection.points
@@ -60,7 +57,6 @@ export default async function GoalsPage() {
     label: `${Number(month.month.slice(5))}月`,
     rate: month.savingsRate,
   }))
-  const sustainable = Math.max(0, savings.sustainableMonthlySavings)
 
   return (
     <div className="page-shell goals-page">
@@ -79,13 +75,18 @@ export default async function GoalsPage() {
             <Tag tone="info">主方案 · {planMethod(primary.goal)}</Tag>
             <h2>{primary.goal.name}</h2>
             <div className="goal-probability">
-              <span>退休全周期不断供概率</span>
-              <strong>{fmtPct(primary.goal.projection.retirementSuccessProb)}</strong>
+              <span>完成度 · 当前资产 / FIRE Number</span>
+              <strong>{fmtPct(Math.min(primary.goal.projection.fundedRatio, 9.99))}</strong>
             </div>
             <div className="goal-context">
               <span>FIRE Number <strong>{fmtCNY(primary.goal.targetAmount)}</strong></span>
               <span>当前资产 <strong>{fmtCNY(primary.goal.current)}</strong></span>
-              <span>完成度 <strong>{fmtPct(Math.min(primary.goal.projection.fundedRatio, 9.99))}</strong></span>
+              <span>
+                退休全周期不断供概率{' '}
+                <strong className={primary.goal.projection.retirementSuccessProb < 0.7 ? 'text-amber' : undefined}>
+                  {fmtPct(primary.goal.projection.retirementSuccessProb)}
+                </strong>
+              </span>
             </div>
             <div className="flex flex-wrap gap-2">
               <a href="#scenario-lab" className="inline-flex min-h-11 items-center rounded-lg border border-accent bg-accent px-4 py-2 text-[14px] font-medium text-bg">优化 FIRE 路径</a>
@@ -127,13 +128,23 @@ export default async function GoalsPage() {
         <section className="fire-dashboard" aria-labelledby="fire-dashboard-title">
           <div className="goal-section-head">
             <div><div className="eyebrow">FIRE dashboard</div><h2 id="fire-dashboard-title">一眼看清自由进度与执行缺口</h2></div>
-            <span>金额均为今日购买力；退休时目标会按通胀调整</span>
+            <span>路径与目标均为名义口径；目标线已按通胀逐年上调</span>
           </div>
           <div className="fire-metric-grid">
             <div><span>退休日积累达标概率</span><strong>{fmtPct(primary.goal.projection.accumulationSuccessProb)}</strong><small>到 {fmtDate(primary.goal.targetDate)} 达到 {fmtCNY(primary.goal.projection.fireNumberAtRetirement)}</small></div>
-            <div><span>预计 FIRE 日期</span><strong>{addMonths(now, primary.goal.projection.estimatedFireMonths)}</strong><small>按当前投入与期望收益估算</small></div>
+            <div><span>预计 FIRE 日期</span><strong>{primary.goal.projection.estimatedFireMonths != null ? monthFrom(now, primary.goal.projection.estimatedFireMonths) : '—'}</strong><small>{firePaceNote(primary.goal.projection.estimatedFireMonths, primary.goal.monthsLeft)}</small></div>
             <div><span>每月所需投入</span><strong>{fmtCNY(primary.goal.projection.requiredMonthly)}</strong><small>{primary.goal.projection.requiredMonthly <= sustainable ? '当前可持续储蓄可以覆盖' : `比近月可持续储蓄高 ${fmtCNY(primary.goal.projection.requiredMonthly - sustainable)}`}</small></div>
             <div><span>Coast FIRE 门槛</span><strong>{fmtCNY(primary.goal.projection.coastFireNumber)}</strong><small>{primary.goal.current >= primary.goal.projection.coastFireNumber ? '已经达到：不再投入也有望按时达标' : `距离门槛 ${fmtCNY(primary.goal.projection.coastFireNumber - primary.goal.current)}`}</small></div>
+            {(() => {
+              const alt = primary.goal.sustainableProjection
+              return (
+                <div>
+                  <span>按可持续投入</span>
+                  <strong>{alt ? `不断供概率 ${fmtPct(alt.retirementSuccessProb)} · 预计 ${alt.estimatedFireMonths != null ? monthFrom(now, alt.estimatedFireMonths) : '—'}` : '—'}</strong>
+                  <small>{alt ? `投入 ${fmtCNY(sustainable)}/月（近月可持续）的情形` : '记录首个月度收支后，即可校准此情形'}</small>
+                </div>
+              )
+            })()}
             <div><span>年度退休支出</span><strong>{fmtCNY(primary.goal.annualSpend ?? 0)}</strong><small>其中组合承担 {fmtCNY(primary.goal.projection.annualPortfolioSpendToday)} / 年</small></div>
             <div><span>关键假设</span><strong>{fmtPct(primary.goal.withdrawalRate)} 提取率</strong><small>{primary.goal.spendYears} 年退休期 · {fmtPct(primary.goal.inflationRate)} 通胀</small></div>
           </div>
@@ -192,6 +203,7 @@ export default async function GoalsPage() {
           <div><div className="eyebrow">FIRE scenarios</div><h2>全部 FIRE 方案</h2></div>
           <a href="#new-goal">新建方案</a>
         </div>
+        <p className="mt-2 text-[13px] leading-relaxed text-ink-faint">备选方案与主方案共用同一资产池，用于互斥比较，不会叠加计算。</p>
         {goalViews.length === 0 ? <Empty action={{ href: '#new-goal', label: '新建方案' }}>尚未建立 FIRE 计划</Empty> : (
           <div className="goal-portfolio-list">
             {goalViews.map(({ goal }) => {

@@ -160,6 +160,8 @@ export interface GoalView {
   current: number
   monthsLeft: number
   projection: FireProjectionResult
+  /** 以近月可持续投入替换计划投入的平行投影；未提供可持续投入时为 null */
+  sustainableProjection: FireProjectionResult | null
 }
 
 export async function loadSavingsOverview(ctx: FamilyCtx, monthCount = 12): Promise<SavingsOverview> {
@@ -195,7 +197,11 @@ function classWeights(valued: ValuedPosition[], field: 'value' | 'investable'): 
   return w
 }
 
-export async function loadGoals(ctx: FamilyCtx, state: EngineState): Promise<GoalView[]> {
+export async function loadGoals(
+  ctx: FamilyCtx,
+  state: EngineState,
+  opts: { sustainableMonthlySavings?: number } = {},
+): Promise<GoalView[]> {
   const db = scopedDb(prisma, ctx)
   const goals = await db.goal.findMany({ orderBy: { targetDate: 'asc' } })
   const now = new Date()
@@ -214,22 +220,23 @@ export async function loadGoals(ctx: FamilyCtx, state: EngineState): Promise<Goa
     const retirementYears = g.spendYears ?? 40
     const current = g.metric === 'NET_WORTH' ? state.netWorth : state.investable
     const monthsLeft = monthsBetween(now, g.targetDate)
-    const common = {
-      monthlyContribution: Number(g.monthlyContribution),
-      annualReturn: g.expectedReturn,
-      volatility: g.volatility,
-      seed: [...g.id].reduce((s, c) => s + c.charCodeAt(0), 7),
-      portfolioWeights: g.metric === 'NET_WORTH' ? grossW : investableW,
-    }
-    const projection = projectFireGoal({
+    const baseInput = {
       current,
       fireNumberToday: target,
       monthsToRetirement: monthsLeft,
       withdrawalRate,
       inflationRate: g.inflationRate,
       retirementYears,
-      ...common,
-    })
+      monthlyContribution: Number(g.monthlyContribution),
+      annualReturn: g.expectedReturn,
+      volatility: g.volatility,
+      seed: [...g.id].reduce((s, c) => s + c.charCodeAt(0), 7),
+      portfolioWeights: g.metric === 'NET_WORTH' ? grossW : investableW,
+    }
+    const projection = projectFireGoal(baseInput)
+    const sustainableProjection = opts.sustainableMonthlySavings != null
+      ? projectFireGoal({ ...baseInput, monthlyContribution: opts.sustainableMonthlySavings })
+      : null
     return {
       id: g.id,
       name: g.name,
@@ -249,6 +256,7 @@ export async function loadGoals(ctx: FamilyCtx, state: EngineState): Promise<Goa
       current,
       monthsLeft,
       projection,
+      sustainableProjection,
     }
   })
 }
