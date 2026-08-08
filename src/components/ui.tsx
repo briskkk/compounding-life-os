@@ -75,7 +75,7 @@ export function Stat({
         <span className="text-sm text-ink-faint">{label}</span>
         {en && <span className="text-[13px] tracking-[0.18em] text-ink-faint">{en}</span>}
       </div>
-      <div className="num mt-2 text-[28px] leading-none font-medium tracking-[-0.045em]">{value}</div>
+      <div className="num mt-2 text-[28px] leading-none font-medium tracking-[-0.045em] max-sm:text-[17px]">{value}</div>
       {sub && <div className="mt-2 text-sm">{sub}</div>}
       {hint && <div className="mt-1.5 text-[15px] text-ink-faint">{hint}</div>}
     </div>

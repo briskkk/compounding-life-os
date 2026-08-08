@@ -32,7 +32,7 @@
 | 持仓 · 六类资产一页看清 | 看盘 · 分钟级组合盈亏 |
 | :---: | :---: |
 | <img src="docs/screenshots/positions.png" alt="持仓页" width="440" /> | <img src="docs/screenshots/watch.png" alt="看盘页" width="440" /> |
-| **FIRE · 不断供概率是主角** | |
+| **FIRE · 完成度是主角** | |
 | <img src="docs/screenshots/fire.png" alt="FIRE 页" width="440" /> | |
 
 ## 🧭 七个页面，各管一件事

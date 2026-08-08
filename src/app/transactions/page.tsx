@@ -73,9 +73,9 @@ export default async function TransactionsPage({
         title="每一笔变化，都有出处。"
         description="交易流水是组合的唯一事实源；筛选、导出、录入、批量导入与冲正能力全部保留。"
         right={(
-          <div className="flex items-center gap-5">
+          <div className="flex flex-wrap items-center gap-5">
             <div><div className="text-[14px] text-ink-faint">交易笔数</div><div className="num mt-2 text-[28px] text-ink">{total}</div></div>
-            {canWrite && <a href="#new-entry" className="inline-flex min-h-11 items-center rounded-lg bg-accent px-5 text-[14px] font-medium text-bg">新增流水</a>}
+            {canWrite && <a href="#new-entry" className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-accent px-5 text-[14px] font-medium whitespace-nowrap text-bg">新增流水</a>}
           </div>
         )}
       />
@@ -141,9 +141,9 @@ export default async function TransactionsPage({
                   <td
                     className={cx(
                       'num px-2 py-2 text-right',
-                      t.type === 'SELL' || t.type === 'DIVIDEND' || t.type === 'DEPOSIT' || t.type === 'INTEREST'
+                      t.type === 'DIVIDEND' || t.type === 'DEPOSIT' || t.type === 'INTEREST'
                         ? 'text-up'
-                        : t.type === 'BUY' || t.type === 'WITHDRAW' || t.type === 'FEE'
+                        : t.type === 'WITHDRAW' || t.type === 'FEE'
                           ? 'text-down'
                           : 'text-ink',
                     )}

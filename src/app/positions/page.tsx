@@ -79,8 +79,8 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
   const heldAccountCount = new Set(allRows.map((v) => v.accountId)).size
 
   return (
-    <div className="page-shell">
-      <section className="hero-grid border-b border-line pb-10">
+    <div className="page-shell positions-shell">
+      <section className="hero-grid border-b border-line pb-6">
         <div>
           <div className="eyebrow">投资组合总资产（元）</div>
           <h1 className="num hero-number mt-4" aria-label={`持仓总市值 ${fmtCNY(totalHeld)}`}>{fmtCNY(totalHeld)}</h1>

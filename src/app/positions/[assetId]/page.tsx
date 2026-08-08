@@ -277,16 +277,6 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
         {combined ? (
           <>
             <div className="holding-summary">
-              <div className="holding-primary">
-                <span>{isLongTermAsset ? '当前长期资产价值' : '当前持仓市值'}</span>
-                <strong className="num">{fmtCNYExact(combined.value)}</strong>
-                <div className={cx('holding-return num', combined.unrealized >= 0 ? 'text-up' : 'text-down')}>
-                  {fmtCNYExact(combined.unrealized, { sign: true })}
-                  {combined.unrealizedPct != null && <span>{fmtPct(combined.unrealizedPct, { sign: true })}</span>}
-                  <small>{isLongTermAsset ? '相对购股成本变化' : '未实现盈亏'}</small>
-                </div>
-              </div>
-
               <dl className="holding-facts">
                 <div>
                   <dt>持有数量</dt>
@@ -299,16 +289,28 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
                   <small>账本移动平均成本</small>
                 </div>
                 <div>
-                  <dt>每份平均成本</dt>
-                  <dd className="num">{averageCostCny != null ? fmtCNYExact(averageCostCny) : '—'}</dd>
-                  <small>人民币折算</small>
+                  <dt>{isLongTermAsset ? '相对购股成本变化' : '未实现盈亏'}</dt>
+                  <dd className={cx('num', combined.unrealized >= 0 ? 'text-up' : 'text-down')}>
+                    {fmtCNYExact(combined.unrealized, { sign: true })}
+                  </dd>
+                  <small>{combined.unrealizedPct != null ? fmtPct(combined.unrealizedPct, { sign: true }) : '—'}</small>
                 </div>
                 <div>
                   <dt>{isLongTermAsset ? '净资产占比' : '组合占比'}</dt>
                   <dd className="num">{fmtPct(weight)}</dd>
                   <small>{isLongTermAsset ? '仅用于净资产观察' : '占投资组合'}</small>
                 </div>
+                <div>
+                  <dt>每份平均成本</dt>
+                  <dd className="num">{averageCostCny != null ? fmtCNYExact(averageCostCny) : '—'}</dd>
+                  <small>人民币折算</small>
+                </div>
               </dl>
+
+              <div className="holding-primary holding-primary-quiet">
+                <span>{isLongTermAsset ? '当前长期资产价值' : '当前持仓市值'}</span>
+                <strong className="num">{fmtCNYExact(combined.value)}</strong>
+              </div>
             </div>
 
             <div className="account-holdings" aria-label="账户持仓明细">

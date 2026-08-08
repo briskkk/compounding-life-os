@@ -73,15 +73,12 @@ export default async function OverviewPage() {
                 {(d.marketDayPnl ?? 0) >= 0 ? '↑' : '↓'} {fmtCNY(Math.abs(d.marketDayPnl ?? 0))}
                 <span className="mx-2">·</span>{fmtPct(d.marketDayPnlPct, { sign: true })} 今日
               </div>
-            </div>
-            <div>
-              <div className="eyebrow">Today, in one sentence</div>
-              <h2 className="mt-4 max-w-xl text-[clamp(2rem,3.8vw,3.4rem)] font-medium leading-[1.18] tracking-[-0.05em] text-ink">
-                净资产、现金流与目标，一屏看清。
-              </h2>
-              <p className="mt-6 max-w-xl text-[16px] leading-8 text-ink-faint">
-                所有数字由账本重放推导，跟随行情实时更新。
-              </p>
+              {d.delta30d != null && d.state.netWorth - d.delta30d > 0 && (
+                <div className="num mt-3 text-[15px] text-ink-faint">
+                  近 30 日 {fmtPct(d.delta30d / (d.state.netWorth - d.delta30d), { sign: true })}
+                  <span className="mx-1.5">·</span>{fmtCNY(d.delta30d, { sign: true })}
+                </div>
+              )}
             </div>
           </div>
           <div className="chart-surface">
@@ -99,11 +96,11 @@ export default async function OverviewPage() {
         <div className="metric-band" aria-label="关键财富摘要">
           <div>
             <div className="text-[15px] text-ink-faint">可自由投资资产</div>
-            <div className="num mt-3 text-[24px] text-ink">{fmtCNY(d.state.investable)}</div>
+            <div className="num mt-3 text-[24px] text-ink max-sm:text-[19px]">{fmtCNY(d.state.investable)}</div>
           </div>
           <div>
             <div className="text-[15px] text-ink-faint">现金水位</div>
-            <div className="num mt-3 text-[24px] text-ink">{fmtPct(m.cashRatio)}</div>
+            <div className="num mt-3 text-[24px] text-ink max-sm:text-[19px]">{fmtPct(m.cashRatio)}</div>
           </div>
           <div>
             <div className="text-[15px] text-ink-faint">事实源</div>
@@ -113,15 +110,15 @@ export default async function OverviewPage() {
           </div>
           <div>
             <div className="text-[15px] text-ink-faint">可投资收益</div>
-            <div className={cx('num mt-3 text-[24px]', d.attribution.gain >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(d.attribution.gain, { sign: true })}</div>
+            <div className={cx('num mt-3 text-[24px] max-sm:text-[19px]', d.attribution.gain >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(d.attribution.gain, { sign: true })}</div>
           </div>
           <div>
             <div className="text-[15px] text-ink-faint">负债率</div>
-            <div className="num mt-3 text-[24px] text-ink">{fmtPct(m.netWorth > 0 ? d.state.liabilitiesTotal / m.netWorth : 0)}</div>
+            <div className="num mt-3 text-[24px] text-ink max-sm:text-[19px]">{fmtPct(m.netWorth > 0 ? d.state.liabilitiesTotal / m.netWorth : 0)}</div>
           </div>
           <div>
             <div className="text-[15px] text-ink-faint">净资产构成</div>
-            <div className="num mt-3 text-[18px] leading-relaxed text-ink">总资产 {fmtCNY(m.netWorth)}<br /><span className="text-ink-faint">负债 {fmtCNY(d.state.liabilitiesTotal)}</span></div>
+            <div className="num mt-3 text-[18px] leading-relaxed text-ink max-sm:text-[15px]">总资产 {fmtCNY(m.netWorth)}<br /><span className="text-ink-faint">负债 {fmtCNY(d.state.liabilitiesTotal)}</span></div>
           </div>
         </div>
       </section>

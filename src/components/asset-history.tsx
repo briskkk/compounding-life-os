@@ -225,28 +225,28 @@ export function AssetHistory({
             </p>
           )}
 
-          <div className="history-chart-surface">
-            <div className="history-chart-legend">
-              <span className="history-legend-item">
-                <i className="history-legend-rate" aria-hidden="true" />
-                累计时间加权收益率（左轴）
-              </span>
-              <span className="history-legend-item">
-                <i className="history-legend-amount" aria-hidden="true" />
-                累计收益金额（右轴）
-              </span>
-            </div>
-            {hasReturnObservations ? (
+          {hasReturnObservations ? (
+            <div className="history-chart-surface">
+              <div className="history-chart-legend">
+                <span className="history-legend-item">
+                  <i className="history-legend-rate" aria-hidden="true" />
+                  累计时间加权收益率（左轴）
+                </span>
+                <span className="history-legend-item">
+                  <i className="history-legend-amount" aria-hidden="true" />
+                  累计收益金额（右轴）
+                </span>
+              </div>
               <div
                 role="img"
                 aria-label={`${assetName} 从 ${performance.startDate} 至 ${performance.endDate}，累计收益率 ${pct == null ? '无法计算' : signedPct(pct)}，收益金额 ${amount == null ? '无法计算' : fmtCNY(amount, { sign: true })}`}
               >
                 <PortfolioReturnChart data={performance.curve} />
               </div>
-            ) : (
-              <div className="history-chart-empty">该区间没有新的有效估值，收益记为“—”。</div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <p className="history-chart-empty">该区间没有新的有效估值，收益记为“—”。</p>
+          )}
 
           {recentRows.length > 0 && (
             <details className="history-details asset-history-details">

@@ -118,9 +118,9 @@ export default async function AccountsPage({
         title="账户中心"
         description="跨账户汇总可投资组合；华为股票在资产目录中作为长期资产独立维护。"
         right={(
-          <div className="flex items-end gap-5">
+          <div className="flex flex-wrap items-end gap-5">
             <div><div className="text-[14px] text-ink-faint">账户总资产</div><div className="num mt-2 text-[34px] text-ink">{fmtCNY(totalAssets)}</div></div>
-            {canWrite && <a href="#new-account" className="inline-flex min-h-11 items-center rounded-lg bg-accent px-5 text-[14px] font-medium text-bg">＋ 新建账户</a>}
+            {canWrite && <a href="#new-account" className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-accent px-5 text-[14px] font-medium whitespace-nowrap text-bg">＋ 新建账户</a>}
           </div>
         )}
       />

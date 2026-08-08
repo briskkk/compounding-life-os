@@ -6,7 +6,7 @@ export const C = {
   line: '#30363B',
   ink: '#F3F5F7',
   inkDim: '#A9AFB5',
-  inkFaint: '#727A82',
+  inkFaint: '#8D959D',
   accent: '#79BFFF',
   up: '#FF7A3D',
   down: '#43C692',

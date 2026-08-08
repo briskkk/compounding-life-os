@@ -27,7 +27,7 @@ export function MemberSwitcher({ members, currentId }: { members: MemberOption[]
         })
       }
       className={cx(
-        'h-11 max-w-36 shrink rounded-lg border border-line bg-panel2 px-2.5 text-[14px] text-ink-dim outline-none transition-colors hover:border-ink-faint',
+        'h-11 max-w-36 shrink rounded-lg border border-line bg-panel2 px-2.5 text-[14px] text-ink-dim outline-none transition-colors hover:border-ink-faint max-sm:max-w-28 max-sm:px-2 max-sm:text-[13px]',
         pending && 'opacity-50',
       )}
       aria-label="切换成员"
