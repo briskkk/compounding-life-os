@@ -93,13 +93,13 @@ export function SavingsCheckIn({ month, income: initialIncome, spending: initial
           />
         </Field>
         <Field label="收入">
-          <input type="number" min="0" step="100" value={income} onChange={(event) => setIncome(Number(event.target.value))} className={inputCls} />
+          <input type="number" min="0" step="any" value={income} onChange={(event) => setIncome(Number(event.target.value))} className={inputCls} />
         </Field>
         <Field label="消费">
-          <input type="number" min="0" step="100" value={spending} onChange={(event) => setSpending(Number(event.target.value))} className={inputCls} />
+          <input type="number" min="0" step="any" value={spending} onChange={(event) => setSpending(Number(event.target.value))} className={inputCls} />
         </Field>
         <Field label="已转入储蓄或投资" className="md:col-span-2">
-          <input type="number" min="0" step="100" value={savedAmount} onChange={(event) => setSavedAmount(Number(event.target.value))} className={inputCls} />
+          <input type="number" min="0" step="any" value={savedAmount} onChange={(event) => setSavedAmount(Number(event.target.value))} className={inputCls} />
         </Field>
       </div>
 
