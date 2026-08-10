@@ -30,7 +30,8 @@ export interface Metrics {
   concentration: HoldingWeight | null // 最大单一非现金持仓
 }
 
-const ALL_CLASSES: AssetClass[] = ['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'HUAWEI_STOCK', 'REAL_ESTATE']
+/** 资产类别全量清单（composition 等按此顺序输出） */
+export const ALL_CLASSES: AssetClass[] = ['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'HUAWEI_STOCK', 'REAL_ESTATE']
 
 export function aggregate(valued: ValuedPosition[]): Metrics {
   const byClass = Object.fromEntries(ALL_CLASSES.map((c) => [c, 0])) as Record<AssetClass, number>

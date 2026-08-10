@@ -170,6 +170,7 @@ ssh ubuntu@111.229.116.222 'sudo ufw status'          # 确认 22/80/443 开放
 | 应用读不到配置 | `.env` 没上传/权限错 | 服务器 `/opt/family-wealth-os/.env` 应存在且 `600`；`MARKET_PROVIDER` 等已设 |
 | 数据"丢了" | 误连了空库 / 卷被重建 | 先查 `/opt/backups/` 与卷内 `dev.db.bak-pre-*`；需要时按第 5 节恢复 |
 | 磁盘满 | 悬空镜像堆积 | `docker image prune -f`；检查 `/opt/backups` 是否过大 |
+| 容器反复 `restarting` / 启动即 `Exited(1)`，日志 `Error: Use the --accept-data-loss flag ... drop the X table` | **破坏性 schema 变更**（新代码删表/删字段），`prisma db push` 检测到非空表将被删，非交互下直接退出 → `next start` 没跑 → 容器崩溃循环。**与上面的 P2022 正好相反**（那个是缺列，这个是要删表） | ① 先 `docker stop` + `docker update --restart=no` 停掉重启循环；② 备份数据库：`sudo cp /var/lib/docker/volumes/family-wealth-os_fwos-data/_data/dev.db /opt/backups/dev-pre-drop-时间戳.db`；③ 确认这些表是否真要删（通常是 AI 分析/洞察类派生数据，非核心账户/交易/资产）；④ 接受则一次性放行：`docker compose run --rm --entrypoint sh app -c "cp /app/schema.prisma.dist /app/prisma/schema.prisma && npx prisma db push --accept-data-loss --skip-generate"`；⑤ `docker compose up -d` 启动（入口 db push 此时 in sync 通过）；⑥ 恢复重启策略 `docker update --restart=unless-stopped family-wealth-os-app-1`。**切勿**把 `--accept-data-loss` 写进入口脚本长期生效（否则以后任何破坏性变更都会静默删数据）。备份永远在 `/opt/backups/` |
 
 ---
 

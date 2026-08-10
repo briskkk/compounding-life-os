@@ -1,0 +1,144 @@
+import { type NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/db'
+import { scopedDb } from '@/lib/scoped'
+import { getSession } from '@/lib/session'
+import type { FamilyCtx } from '@/lib/scoped'
+import { loadEngineState, contributionsAtDates } from '@/lib/queries'
+import { annualized, dailyNetFlows, twrSeries, xirr, xirrFlowsFromTxs } from '@/lib/engine/attribution'
+import { performanceBetween, performancePresetRange, type PerformancePoint } from '@/lib/engine/period-performance'
+import { riskMetrics } from '@/lib/engine/risk'
+import { fxRates } from '@/lib/market/fx'
+import { isPortfolioAssetClass } from '@/lib/asset-classification'
+import { dateKeyAt } from '@/lib/engine/watch-market'
+import type { ValuationStatus } from '@/lib/engine/valuation-status'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+/**
+ * GET /api/performance
+ *
+ * 本钱 Life Capital APP 的专用端点（与 /api/monthly-summary、/api/monthly-trend、
+ * /api/assets 互补）。只返回可投资组合的收益归因与风险指标，不暴露交易流水。
+ *
+ * 认证：Bearer Token (PORTFOLIO_API_KEY 环境变量)
+ * 与 Web UI 的 Cookie 会话并行，互不干扰。
+ *
+ * 口径（全部复用引擎现成函数，与总览页/看盘页一致，无新计算）：
+ * - contributions: 可投资组合累计净投入（dailyNetFlows 全量求和，四舍五入到整数）
+ * - investmentReturn: 投资收益 = 当前可自由投资资产 − 净投入（四舍五入到整数）
+ * - twrCumulative / twrAnnualized: twrSeries 链式复利累计值及其按实际天数年化
+ *   （与总览页 Attribution 同口径；快照序列以 investable 为净值，并追加实时「今日」点）
+ * - xirr: 外部现金流 + 当前可投资资产作终值的资金加权年化（二分法，无可行解为 null）
+ * - maxDrawdown / annualizedVolatility: performanceBetween 全区间 TWR 曲线
+ *   经 riskMetrics 计算（与看盘页风险卡同口径）；样本不足为 null
+ * - 比率字段保留引擎原精度，不做舍入
+ */
+export async function GET(req: NextRequest) {
+  // ── 认证 ──────────────────────────────────────────────
+  const authHeader = req.headers.get('authorization')
+  const token = authHeader?.replace(/^Bearer\s+/i, '')
+  const apiKey = process.env.PORTFOLIO_API_KEY
+
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: 'PORTFOLIO_API_KEY not configured' },
+      { status: 503 },
+    )
+  }
+
+  if (token !== apiKey) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401 },
+    )
+  }
+
+  // ── 获取家庭上下文 ────────────────────────────────────
+  // 优先用 Cookie 会话，回落到第一个 OWNER
+  let ctx: FamilyCtx | null = await getSession()
+  if (!ctx) {
+    const owner = await prisma.member.findFirst({
+      where: { role: 'OWNER' },
+      orderBy: { createdAt: 'asc' },
+    })
+    if (!owner) {
+      return NextResponse.json(
+        { error: 'No family space initialized' },
+        { status: 500 },
+      )
+    }
+    ctx = {
+      familyId: owner.familyId,
+      memberId: owner.id,
+      memberName: owner.name,
+      role: owner.role,
+    }
+  }
+
+  const db = scopedDb(prisma, ctx)
+
+  // ── 并行查询：实时引擎状态 + 全部快照 ─────────────────
+  const [state, snaps] = await Promise.all([
+    loadEngineState(ctx),
+    db.snapshot.findMany({ orderBy: { date: 'asc' } }),
+  ])
+
+  // ── 装配绩效序列（investable 为净值，含实时「今日」点）──
+  // 与看盘页 PortfolioHistory 的输入口径一致
+  const rates = await fxRates()
+  const currencyRate = (cur: string) => (cur === 'USD' ? rates.USDCNY : cur === 'HKD' ? rates.HKDCNY : 1)
+  const portfolioTxs = state.ledgerTxs.filter((tx) => isPortfolioAssetClass(tx.assetClass))
+  const flows = dailyNetFlows(portfolioTxs, currencyRate)
+
+  const series: PerformancePoint[] = snaps.map((s) => ({
+    date: s.date.toISOString().slice(0, 10),
+    netWorth: Number(s.investable),
+    contributions: 0,
+    valuationStatus: s.valuationStatus as ValuationStatus,
+  }))
+  const normalizedContributions = contributionsAtDates(series, flows)
+  series.forEach((point, index) => {
+    point.contributions = normalizedContributions[index]
+  })
+  const contributionsNow = [...flows.values()].reduce((sum, amount) => sum + amount, 0)
+
+  const todayKey = dateKeyAt(new Date())
+  const existingToday = series.at(-1)?.date === todayKey ? series.at(-1) : null
+  const livePoint: PerformancePoint = {
+    date: todayKey,
+    netWorth: state.investable,
+    contributions: contributionsNow,
+    valuationStatus: existingToday?.valuationStatus === 'CLOSED' || existingToday?.valuationStatus === 'FLOW_ONLY'
+      ? existingToday.valuationStatus
+      : 'LIVE',
+  }
+  if (existingToday) series[series.length - 1] = livePoint
+  else series.push(livePoint)
+
+  // ── 收益归因（与总览页 Attribution 同口径）─────────────
+  const twr = twrSeries(
+    series.map((p) => ({ date: new Date(p.date), netWorth: p.netWorth })),
+    flows,
+  )
+  const lastTwr = twr.length > 0 ? twr[twr.length - 1].cumulative : null
+  const days = series.length > 1
+    ? (new Date(series[series.length - 1].date).getTime() - new Date(series[0].date).getTime()) / 86400000
+    : 0
+  const xirrValue = xirr(xirrFlowsFromTxs(portfolioTxs, currencyRate), state.investable, new Date())
+
+  // ── 风险指标（全区间 TWR 曲线 → riskMetrics）───────────
+  const range = performancePresetRange('ALL', new Date(), series[0]?.date)
+  const performance = performanceBetween(series, range.startDate, range.endDate, range.label)
+  const risk = riskMetrics(performance.curve)
+
+  return NextResponse.json({
+    contributions: Math.round(contributionsNow),
+    investmentReturn: Math.round(state.investable - contributionsNow),
+    twrCumulative: lastTwr,
+    twrAnnualized: lastTwr != null ? annualized(lastTwr, days) : null,
+    xirr: xirrValue,
+    maxDrawdown: risk.maxDrawdown,
+    annualizedVolatility: risk.volatility,
+  })
+}

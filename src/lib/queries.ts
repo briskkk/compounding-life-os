@@ -324,7 +324,7 @@ export interface WatchData {
   series: SeriesPoint[]
 }
 
-function contributionsAtDates(series: SeriesPoint[], flows: Map<number, number>): number[] {
+export function contributionsAtDates(series: { date: string }[], flows: Map<number, number>): number[] {
   const entries = [...flows.entries()].sort((a, b) => a[0] - b[0])
   let flowIndex = 0
   let cumulative = 0

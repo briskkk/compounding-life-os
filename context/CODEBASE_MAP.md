@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-08-05
+last_verified: 2026-08-08
 ---
 
 # 代码地图
@@ -27,6 +27,10 @@ Route Handlers：
 - `src/app/api/intraday/route.ts`：股票/基金盘中曲线。
 - `src/app/api/lookup/route.ts`：资产代码查找。
 - `src/app/api/export/*/route.ts`：流水/快照 CSV。
+- `src/app/api/monthly-summary/route.ts`：本钱 App 专用，单月聚合（Bearer `PORTFOLIO_API_KEY` 认证，只读）。
+- `src/app/api/monthly-trend/route.ts`：本钱 App 专用，近 N 个月趋势（`?months=1..24`，默认 12）+ 负债真实余额（foldLiability），同一 Bearer 认证。
+- `src/app/api/assets/route.ts`：本钱 App 专用，资产构成（7 类全量 composition）+ 净资产曲线（最近 90 个快照日），同一 Bearer 认证。
+- `src/app/api/performance/route.ts`：本钱 App 专用，收益归因（净投入/投资收益/TWR 累计与年化/XIRR）+ 风险指标（最大回撤/年化波动率），纯装配引擎函数，同一 Bearer 认证。
 
 ## 服务端边界
 

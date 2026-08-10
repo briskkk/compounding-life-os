@@ -1,12 +1,67 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-08-05
+last_verified: 2026-08-08
 ---
 
 # AI 工作变更记录
 
 此文件记录由模型完成、且会影响后续模型理解的实质性工作。它不是产品发布日志，也不替代 Git 历史。
+
+## 2026-08-08 · 新增 /api/performance 端点
+
+### 新增事实
+
+- 新增 `src/app/api/performance/route.ts`：本钱 Life Capital App 的只读投资表现端点，`GET /api/performance`，认证与 family 解析完全复用 `/api/monthly-summary`（Bearer `PORTFOLIO_API_KEY`，cookie 会话回落第一个 OWNER）。
+- 返回 `contributions`（可投资组合累计净投入，dailyNetFlows 全量求和）与 `investmentReturn`（当前可自由投资资产 − 净投入），均四舍五入到整数。
+- 返回 `twrCumulative` / `twrAnnualized` / `xirr`：与总览页 Attribution 完全同口径——快照序列以 `investable` 为净值、按 `contributionsAtDates` 归一化净投入并追加实时「今日」点，`twrSeries` 链式复利取末值，`annualized` 按实际天数年化，`xirr` 以外部现金流 + 当前 investable 作终值（无可行解为 `null`）。
+- 返回 `maxDrawdown` / `annualizedVolatility`：`performanceBetween` 全区间（preset ALL）TWR 曲线经 `riskMetrics` 计算，与看盘页风险卡同口径；样本不足为 `null`。比率字段保留引擎原精度。
+- `queries.ts` 的 `contributionsAtDates` 改为导出，首参从 `SeriesPoint[]` 放宽为 `{ date: string }[]`（函数体未动，既有调用方行为不变）。
+- 纯装配端点，无新计算逻辑，未补测试（与 monthly-summary / monthly-trend / assets 一致，仓库无 API 路由测试先例）。
+
+### 修改文件
+
+- 新增 `src/app/api/performance/route.ts`；`src/lib/queries.ts`（导出 `contributionsAtDates` 并放宽参数类型）；更新 `context/CODEBASE_MAP.md` 的 Route Handlers 清单。
+
+### 未解决问题
+
+- 无。`npx tsc --noEmit` 通过且零报错（先存的 `src/test/asset-performance.test.ts(20,5)` TS2783 已不存在）。
+
+## 2026-08-06 · 新增 /api/assets 端点
+
+### 新增事实
+
+- 新增 `src/app/api/assets/route.ts`：本钱 Life Capital App 的只读资产构成端点，`GET /api/assets`，认证与 family 解析完全复用 `/api/monthly-summary`（Bearer `PORTFOLIO_API_KEY`，cookie 会话回落第一个 OWNER）。
+- 返回 `date`（最新快照日期，无快照回落当前日期）、`netWorth`/`investable`（来自 `loadEngineState`，与 Web UI 口径一致）、`cashRatio`（`Metrics.cashRatio` 透传）、`concentration`（`Metrics.concentration` 透传，`pct` 为其占投资组合权重；无持仓为 `null`）。
+- 返回 `composition[]`：7 类资产全量（按 `ALL_CLASSES` 顺序），`value` 为各类市值，`pct` = value / 总资产（`Metrics.netWorth` 毛口径，含房产/华为股票；top-level `netWorth` 为扣负债口径，两者差异属有意设计）。
+- 返回 `series[]`：最近 90 个快照日（升序）的 `netWorth`/`investable`。
+- `metrics.ts` 的 `ALL_CLASSES` 改为导出供 route 复用规范顺序（无行为变化）。
+- 纯装配端点，无新计算逻辑，未补测试（与 monthly-summary / monthly-trend 一致，仓库无 API 路由测试先例）。
+
+### 修改文件
+
+- 新增 `src/app/api/assets/route.ts`；`src/lib/engine/metrics.ts`（导出 `ALL_CLASSES`）；更新 `context/CODEBASE_MAP.md` 的 Route Handlers 清单。
+
+### 未解决问题
+
+- `npx tsc --noEmit` 仍仅有先于本次改动的报错：`src/test/asset-performance.test.ts(20,5)` TS2783，与本次改动无关。
+
+## 2026-08-06 · 新增 /api/monthly-trend 端点
+
+### 新增事实
+
+- 新增 `src/app/api/monthly-trend/route.ts`：本钱 Life Capital App 的只读趋势端点，`GET /api/monthly-trend?months=1..24`（默认 12，非法值回退默认），认证与 family 解析完全复用 `/api/monthly-summary`（Bearer `PORTFOLIO_API_KEY`，cookie 会话回落第一个 OWNER）。
+- 返回 `months[]`（升序）：收支与储蓄率来自 `loadSavingsOverview`（`savingsRate` 无记录为 `null`），`netWorth`/`investable`/`liabilitiesTotal` 取该月末最后一个 Snapshot，当月无快照回落最近之前的快照，完全没有为 0。
+- 返回 `liabilities[]` 全量负债：`balance` 用 `foldLiability` 折叠全部流水的真实余额（修正 monthly-summary `remainingAmount` 只算当月 DRAW 的口径缺陷），`monthlyPayment` 为当月 REPAY 合计或 `null`。
+- 纯装配端点，无新计算逻辑，未补测试（与 monthly-summary 一致；底层 `buildSavingsOverview`、`foldLiability` 已有测试覆盖）。
+
+### 修改文件
+
+- 新增 `src/app/api/monthly-trend/route.ts`；更新 `context/CODEBASE_MAP.md` 的 Route Handlers 清单。
+
+### 未解决问题
+
+- `npx tsc --noEmit` 存在一处先于本次改动的报错：`src/test/asset-performance.test.ts(20,5)` TS2783，与本次改动无关，未处理。
 
 ## 2026-08-05 · 移除洞察、建议与 LLM 层
 
