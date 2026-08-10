@@ -23,7 +23,7 @@ The transaction ledger is the source of truth. Derive positions, snapshots, and 
 - `npm run build` builds production output and checks TypeScript.
 - `npm run test:e2e` prepares an isolated seeded SQLite database, builds to `.next-e2e`, and runs Playwright on port 3200.
 
-Development, production, and E2E use `.next-dev`, `.next`, and `.next-e2e` respectively. Keep their configured ports distinct; do not point two processes at the same dist directory.
+Development, production, and E2E use `.next-dev`, `.next`, and `.next-e2e` respectively. Keep their configured ports distinct; do not point two processes at the same dist directory. The webpack filesystem cache is disabled in `next.config.ts` (`config.cache = false`) because it repeatedly served stale CSS after edits — do not re-enable without verifying the fix.
 
 ## Coding Style & Naming Conventions
 
