@@ -13,5 +13,7 @@ export default defineConfig({
     // 不复用未知版本的残留服务，确保测试的就是本次构建。
     reuseExistingServer: false,
     timeout: 120_000,
+    // App 专用 API 要求 Bearer 认证；e2e-test-key 仅供测试环境，与生产密钥无关。
+    env: { ...process.env, PORTFOLIO_API_KEY: 'e2e-test-key' },
   },
 })
