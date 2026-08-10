@@ -25,3 +25,6 @@ export const CLASS_COLORS: Record<string, string> = {
   REAL_ESTATE: C.violet,
   HUAWEI_STOCK: C.amber,
 }
+
+// 构成图切片配色：非类别维度按序取色（灰阶留给「未分类 / 未分组」切片）
+export const SLICE_PALETTE: string[] = [C.info, C.teal, C.violet, C.amber, C.up, C.down, C.inkDim]

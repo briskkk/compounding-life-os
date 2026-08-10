@@ -84,6 +84,16 @@ enum AssetClass {
   HUAWEI_STOCK
 }
 
+enum AssetStyle {
+  GROWTH
+  VALUE
+  BALANCED
+  QUANT
+  SECTOR_THEME
+  BROAD_INDEX
+  SECTOR_INDEX
+}
+
 model Asset {
   id           String        @id @default(cuid())
   familyId     String
@@ -91,6 +101,7 @@ model Asset {
   symbol       String
   name         String
   cls          AssetClass
+  style        AssetStyle? // 投资风格（仅行情类资产；null = 未分类）
   manual       Boolean       @default(false) // 手动估值资产（房产等）
   currency     String        @default("CNY")
   tags         String        @default("") // 自定义分组标签，逗号分隔（如 "美元基金,长期"）

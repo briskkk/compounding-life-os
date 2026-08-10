@@ -22,6 +22,15 @@ test('持仓页：类别汇总与明细表', async ({ page }) => {
   await expect(page.getByRole('button', { name: /^手动估值（房产等非行情资产）/ })).toBeVisible()
   await expect(page.locator('tbody tr').first()).toBeVisible()
   await expect(page.getByText('华为股票')).toHaveCount(0)
+  // 组合构成：位于总资产右侧，默认资产大类，可切换投资风格（种子资产未分类）与市场分组
+  const dims = page.getByRole('group', { name: '构成维度' })
+  await expect(dims).toBeVisible()
+  await expect(dims.getByRole('button', { name: '资产大类', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await dims.getByRole('button', { name: '投资风格', exact: true }).click()
+  await expect(dims.getByRole('button', { name: '投资风格', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByText('未分类', { exact: true }).first()).toBeVisible()
+  await dims.getByRole('button', { name: '市场分组', exact: true }).click()
+  await expect(page.getByText('未分组', { exact: true }).first()).toBeVisible()
 })
 
 test('看盘页：历史收益支持预设周期与自定义日期', async ({ page }) => {

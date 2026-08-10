@@ -70,6 +70,10 @@ export const assetUpdateSchema = z.object({
   name: z.string().min(1).max(60).optional(),
   tags: z.string().max(120).optional(),
   note: z.string().max(1000).nullable().optional(),
+  style: z
+    .enum(['GROWTH', 'VALUE', 'BALANCED', 'QUANT', 'SECTOR_THEME', 'BROAD_INDEX', 'SECTOR_INDEX'])
+    .nullable()
+    .optional(),
 })
 
 const goalBaseSchema = z.object({

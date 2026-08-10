@@ -1,5 +1,5 @@
 // 中文标签映射
-import type { AssetClass, TxType } from './engine/types'
+import type { AssetClass, AssetStyle, TxType } from './engine/types'
 
 export const TX_TYPE_LABEL: Record<TxType, string> = {
   BUY: '买入',
@@ -38,6 +38,18 @@ export const ASSET_CLASS_LABEL: Record<AssetClass, string> = {
   REAL_ESTATE: '房产',
   HUAWEI_STOCK: '华为股票',
 }
+
+export const ASSET_STYLE_LABEL: Record<AssetStyle, string> = {
+  GROWTH: '成长',
+  VALUE: '价值',
+  BALANCED: '均衡',
+  QUANT: '量化',
+  SECTOR_THEME: '行业主题',
+  BROAD_INDEX: '宽基指数',
+  SECTOR_INDEX: '行业指数',
+}
+
+export const UNCLASSIFIED_STYLE_LABEL = '未分类'
 
 export const ACCOUNT_TYPE_LABEL: Record<string, string> = {
   BROKERAGE: '证券账户',

@@ -498,7 +498,7 @@ export async function createAsset(input: unknown): Promise<ActionResult<{ id: st
   }
 }
 
-/** 更新资产（名称 / 标签 / 介绍） */
+/** 更新资产（名称 / 标签 / 介绍 / 投资风格） */
 export async function updateAsset(id: string, input: unknown): Promise<ActionResult> {
   try {
     const ctx = await requireWrite()

@@ -6,12 +6,14 @@ import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { Empty, Panel, SetupScreen, Tag } from '@/components/ui'
 import { ValuationToggle } from '@/components/valuation-toggle'
-import { groupByTag, parseTags } from '@/lib/engine/groups'
+import { groupByTag, parseTags, UNTAGGED } from '@/lib/engine/groups'
+import { groupByStyle, sumByKey, UNCLASSIFIED_STYLE_KEY } from '@/lib/engine/composition'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
-import { ASSET_CLASS_LABEL } from '@/lib/labels'
+import { ASSET_CLASS_LABEL, ASSET_STYLE_LABEL, UNCLASSIFIED_STYLE_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtCNYExact, fmtPct, fmtPrice, fmtQty } from '@/lib/format'
-import { CLASS_COLORS } from '@/lib/colors'
-import type { AssetClass } from '@/lib/engine/types'
+import { C, CLASS_COLORS, SLICE_PALETTE } from '@/lib/colors'
+import type { AssetClass, AssetStyle } from '@/lib/engine/types'
+import { CompositionChart, type CompositionDimension } from '@/components/composition-chart'
 import { PositionSourceTag, ValuationLegend, ValuationSourceSummary } from '@/components/valuation-source'
 import { parseHoldingSort, sortHoldings } from '@/lib/engine/holding-sort'
 import { HoldingSortSelect } from '@/components/holding-sort-select'
@@ -31,6 +33,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
   ])
   const accountName = new Map(accounts.map((a) => [a.id, a.name]))
   const assetTags = new Map(assetsRaw.map((a) => [a.id, parseTags(a.tags)]))
+  const assetStyles = new Map(assetsRaw.map((a) => [a.id, a.style as AssetStyle | null]))
   const m = state.metrics
 
   const allRows = state.valued
@@ -78,6 +81,49 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
   const heldClassCount = classOrder.filter((cls) => m.byClass[cls] > 0).length
   const heldAccountCount = new Set(allRows.map((v) => v.accountId)).size
 
+  // 组合构成：资产大类 / 投资风格 / 市场分组 三个维度的市值切片
+  const classSlices = sumByKey(mergedRows.map((p) => ({ key: p.asset.cls, value: p.value })))
+    .map((s) => ({
+      name: ASSET_CLASS_LABEL[s.key as AssetClass] ?? s.key,
+      value: s.value,
+      pct: s.pct,
+      color: CLASS_COLORS[s.key] ?? C.inkFaint,
+    }))
+  let styleColorIdx = 0
+  const styleSlices = groupByStyle(
+    mergedRows.map((p) => ({ assetId: p.assetId, cls: p.asset.cls, value: p.value })),
+    assetStyles,
+  ).map((s) => ({
+    name: s.key === UNCLASSIFIED_STYLE_KEY ? UNCLASSIFIED_STYLE_LABEL : (ASSET_STYLE_LABEL[s.key as AssetStyle] ?? s.key),
+    value: s.value,
+    pct: s.pct,
+    color: s.key === UNCLASSIFIED_STYLE_KEY ? C.inkFaint : SLICE_PALETTE[styleColorIdx++ % SLICE_PALETTE.length],
+  }))
+  let tagColorIdx = 0
+  const tagSlices = groups
+    .filter((g) => g.value > 0)
+    .map((g) => ({
+      name: g.tag,
+      value: g.value,
+      pct: totalHeld > 0 ? g.value / totalHeld : 0,
+      color: g.tag === UNTAGGED ? C.inkFaint : SLICE_PALETTE[tagColorIdx++ % SLICE_PALETTE.length],
+    }))
+  const compositionDimensions: CompositionDimension[] = [
+    { key: 'class', label: '资产大类', slices: classSlices },
+    {
+      key: 'style',
+      label: '投资风格',
+      caption: '仅统计股票 / 基金 / ETF；现金、黄金、房产、华为股票不参与风格构成。',
+      slices: styleSlices,
+    },
+    {
+      key: 'tag',
+      label: '市场分组',
+      caption: '按分组标签聚合；一个资产可属于多个分组，占比合计可能超过 100%。',
+      slices: tagSlices,
+    },
+  ]
+
   return (
     <div className="page-shell positions-shell">
       <section className="hero-grid border-b border-line pb-6">
@@ -91,21 +137,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
         </div>
 
         <div>
-          <div className="grid grid-cols-3 gap-5 sm:grid-cols-4 xl:grid-cols-6">
-            {classOrder.map((cls) => {
-              return (
-                <div key={cls}>
-                  <div className="text-[14px] text-ink-faint">{ASSET_CLASS_LABEL[cls]}</div>
-                  <div className="num mt-2 text-[16px] text-ink">{fmtPct(totalHeld > 0 ? m.byClass[cls] / totalHeld : 0)}</div>
-                </div>
-              )
-            })}
-          </div>
-          <div className="allocation-track mt-5">
-            {classOrder.map((cls) => (
-              <div key={cls} style={{ width: `${totalHeld > 0 ? (m.byClass[cls] / totalHeld) * 100 : 0}%`, background: CLASS_COLORS[cls] }} />
-            ))}
-          </div>
+          {mergedRows.length > 0 && <CompositionChart dimensions={compositionDimensions} />}
         </div>
       </section>
 

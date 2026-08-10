@@ -93,6 +93,16 @@ enum AssetClass {
   HUAWEI_STOCK
 }
 
+enum AssetStyle {
+  GROWTH
+  VALUE
+  BALANCED
+  QUANT
+  SECTOR_THEME
+  BROAD_INDEX
+  SECTOR_INDEX
+}
+
 model Asset {
   id           String        @id @default(cuid())
   familyId     String
@@ -100,6 +110,7 @@ model Asset {
   symbol       String
   name         String
   cls          AssetClass
+  style        AssetStyle?
   manual       Boolean       @default(false)
   currency     String        @default("CNY")
   tags         String        @default("")

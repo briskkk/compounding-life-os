@@ -2,6 +2,15 @@
 
 export type AssetClass = 'STOCK' | 'FUND' | 'ETF' | 'CASH' | 'GOLD' | 'REAL_ESTATE' | 'HUAWEI_STOCK'
 
+export type AssetStyle =
+  | 'GROWTH'
+  | 'VALUE'
+  | 'BALANCED'
+  | 'QUANT'
+  | 'SECTOR_THEME'
+  | 'BROAD_INDEX'
+  | 'SECTOR_INDEX'
+
 export type TxType =
   | 'BUY'
   | 'SELL'

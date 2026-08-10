@@ -6,16 +6,22 @@ import { useState, type FormEvent } from 'react'
 import { updateAsset } from '@/lib/actions'
 import { Field, FormMsg, btnCls, inputCls } from './fields'
 import { cx } from '@/lib/format'
+import { ASSET_STYLE_LABEL, UNCLASSIFIED_STYLE_LABEL } from '@/lib/labels'
+import type { AssetStyle } from '@/lib/engine/types'
 
 export function AssetMetaForm({
   assetId,
   initialTags,
   initialNote,
+  initialStyle = null,
+  showStyle = false,
   layout = 'compact',
 }: {
   assetId: string
   initialTags: string
   initialNote: string
+  initialStyle?: AssetStyle | null
+  showStyle?: boolean
   layout?: 'compact' | 'wide'
 }) {
   const router = useRouter()
@@ -30,6 +36,7 @@ export function AssetMetaForm({
     const res = await updateAsset(assetId, {
       tags: String(fd.get('tags') ?? ''),
       note: (fd.get('note') as string) || null,
+      ...(showStyle ? { style: ((fd.get('style') as string) || null) as AssetStyle | null } : {}),
     })
     setPending(false)
     if (res.ok) {
@@ -40,6 +47,16 @@ export function AssetMetaForm({
 
   return (
     <form onSubmit={onSubmit} className={layout === 'wide' ? 'meta-form-wide' : 'space-y-3'}>
+      {showStyle && (
+        <Field label="投资风格" className="meta-form-style">
+          <select name="style" defaultValue={initialStyle ?? ''} className={inputCls}>
+            <option value="">{UNCLASSIFIED_STYLE_LABEL}</option>
+            {Object.entries(ASSET_STYLE_LABEL).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+        </Field>
+      )}
       <Field label="分组标签（逗号分隔）" className="meta-form-tags">
         <input name="tags" defaultValue={initialTags} className={inputCls} placeholder="美元基金,长期" />
       </Field>

@@ -546,7 +546,14 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
             <p>标签用于组合分组；简介用于沉淀投资逻辑、目标仓位和跟踪要点。</p>
           </div>
           <div className="asset-form-body">
-            <AssetMetaForm layout="wide" assetId={asset.id} initialTags={asset.tags} initialNote={asset.note ?? ''} />
+            <AssetMetaForm
+              layout="wide"
+              assetId={asset.id}
+              initialTags={asset.tags}
+              initialNote={asset.note ?? ''}
+              initialStyle={asset.style}
+              showStyle={asset.cls === 'STOCK' || asset.cls === 'FUND' || asset.cls === 'ETF'}
+            />
           </div>
         </div>
       </section>
