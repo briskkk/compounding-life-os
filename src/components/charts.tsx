@@ -11,6 +11,7 @@ import {
   Line,
   Pie,
   PieChart,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -18,7 +19,7 @@ import {
   YAxis,
 } from 'recharts'
 import { C } from '@/lib/colors'
-import { fmtCNY, fmtPrice } from '@/lib/format'
+import { fmtCNY, fmtPrice, fmtQty } from '@/lib/format'
 import { niceTicks } from '@/lib/engine/axis-ticks'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -445,7 +446,40 @@ export function Donut({ data }: { data: { name: string; value: number; color: st
   )
 }
 
-export function PriceLineChart({ data, color = C.accent }: { data: { date: string; close: number }[]; color?: string }) {
+export interface TradeMarker {
+  date: string // YYYY-MM-DD（已吸附到图表内的交易日）
+  price: number // 交易单价（原币，与曲线同口径）
+  type: 'BUY' | 'SELL'
+  qty: number
+  amount: number
+  note?: string
+}
+
+/** 买卖点圆点：颜色区分买卖，SVG title 悬停显示交易摘要（ReferenceDot shape，闭包捕获交易） */
+function markerShape(m: TradeMarker) {
+  return (props: any) => {
+    const { cx, cy } = props
+    if (cx == null || cy == null) return <g />
+    const color = m.type === 'BUY' ? C.up : C.down
+    const label = m.type === 'BUY' ? '买入' : '卖出'
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={4.5} fill={color} stroke="#101214" strokeWidth={1.5} />
+        <title>{`${label} ${m.qty > 0 ? fmtQty(m.qty) : ''} @ ${fmtPrice(m.price)}${m.note ? ` · ${m.note}` : ''}`}</title>
+      </g>
+    )
+  }
+}
+
+export function PriceLineChart({
+  data,
+  color = C.accent,
+  markers = [],
+}: {
+  data: { date: string; close: number }[]
+  color?: string
+  markers?: TradeMarker[]
+}) {
   // 显式刻度：净值类窄价格区间下自动刻度格式化后会重名
   let lo = Infinity
   let hi = -Infinity
@@ -476,6 +510,9 @@ export function PriceLineChart({ data, color = C.accent }: { data: { date: strin
         />
         <Tooltip content={<DarkTooltip money={false} />} />
         <Area type="monotone" dataKey="close" name="收盘价" stroke={color} strokeWidth={1.5} fill="url(#gPx)" dot={false} />
+        {markers.map((m) => (
+          <ReferenceDot key={`${m.date}-${m.type}`} x={m.date} y={m.price} shape={markerShape(m)} />
+        ))}
       </ComposedChart>
     </ResponsiveContainer>
   )
@@ -601,7 +638,15 @@ function CandleTooltip({ active, payload, label }: any) {
   )
 }
 
-export function CandleChart({ data, color = C.accent }: { data: CandleDatum[]; color?: string }) {
+export function CandleChart({
+  data,
+  color = C.accent,
+  markers = [],
+}: {
+  data: CandleDatum[]
+  color?: string
+  markers?: TradeMarker[]
+}) {
   void color
   const ranged = data.map((d) => ({ ...d, range: [d.low, d.high] }))
   // 显式刻度：净值类窄价格区间下自动刻度格式化后会重名
@@ -620,11 +665,13 @@ export function CandleChart({ data, color = C.accent }: { data: CandleDatum[]; c
         <YAxis domain={['auto', 'auto']} tick={{ fill: C.inkFaint, fontSize: 11 }} tickLine={false} axisLine={false} width={64} ticks={ticks} tickFormatter={fmtAxis} />
         <Tooltip content={<CandleTooltip />} />
         <Bar dataKey="range" shape={<CandleShape />} isAnimationActive={false} maxBarSize={8} />
+        {markers.map((m) => (
+          <ReferenceDot key={`${m.date}-${m.type}`} x={m.date} y={m.price} shape={markerShape(m)} />
+        ))}
       </ComposedChart>
     </ResponsiveContainer>
   )
 }
-
 export interface ProjectionDatum {
   label: string
   base: number // 透明基座 = p10

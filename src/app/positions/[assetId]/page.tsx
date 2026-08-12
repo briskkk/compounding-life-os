@@ -6,7 +6,7 @@ import { loadEngineState } from '@/lib/queries'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { Empty, Panel, Tag } from '@/components/ui'
-import { CandleChart, PriceLineChart } from '@/components/charts'
+import { CandleChart, PriceLineChart, type TradeMarker } from '@/components/charts'
 import { AssetHistory } from '@/components/asset-history'
 import { AssetMetaForm } from '@/components/asset-meta-form'
 import { ReverseButton } from '@/components/reverse-button'
@@ -177,6 +177,48 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
     take: 100,
   })
 
+  // 买卖点：BUY/SELL 流水 → 行情曲线标记（吸附到图表内的交易日，超出 180 天范围的不显示）
+  const chartDates = new Set((ohlcData.length > 0 ? ohlcData : chartData).map((d) => d.date))
+  const sortedChartDates = [...chartDates].sort()
+  const tradeMarkers: TradeMarker[] = (() => {
+    const byDate = new Map<string, TradeMarker>()
+    for (const t of txs) {
+      if (t.type !== 'BUY' && t.type !== 'SELL') continue
+      if (t.voidedAt || t.price == null) continue
+      const rawDate = dateKeyAt(t.occurredAt)
+      const date = chartDates.has(rawDate)
+        ? rawDate
+        : (() => {
+            // 非交易日成交吸附到 ≤ 交易日的最远图表交易日（二分）
+            let lo = 0
+            let hi = sortedChartDates.length - 1
+            let best = -1
+            while (lo <= hi) {
+              const mid = (lo + hi) >> 1
+              if (sortedChartDates[mid] <= rawDate) {
+                best = mid
+                lo = mid + 1
+              } else {
+                hi = mid - 1
+              }
+            }
+            return best >= 0 ? sortedChartDates[best] : null
+          })()
+      if (date == null) continue
+      if (!byDate.has(date)) {
+        byDate.set(date, {
+          date,
+          price: Number(t.price),
+          type: t.type as 'BUY' | 'SELL',
+          qty: Number(t.quantity ?? 0),
+          amount: Number(t.amount),
+          note: t.note ?? undefined,
+        })
+      }
+    }
+    return [...byDate.values()]
+  })()
+
   const tags = parseTags(asset.tags)
   const weightBase = isLongTermAsset ? state.netWorth : state.metrics.portfolioValue
   const weight = combined && weightBase > 0 ? combined.value / weightBase : 0
@@ -246,9 +288,9 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
             )}
           </div>
           {ohlcData.length > 0 ? (
-            <CandleChart data={ohlcData} />
+            <CandleChart data={ohlcData} markers={tradeMarkers} />
           ) : chartData.length > 0 ? (
-            <PriceLineChart data={chartData} color={C.info} />
+            <PriceLineChart data={chartData} color={C.info} markers={tradeMarkers} />
           ) : (
             <div className="flex min-h-64 items-center border-y border-line">
               <Empty>
@@ -260,6 +302,19 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
                       : '手动估值资产无行情序列，可在流水页录入估值'
                     : '暂无真实历史数据 — 点击顶栏「↻ 行情」拉取历史日线'}
               </Empty>
+            </div>
+          )}
+          {tradeMarkers.length > 0 && (
+            <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[12px] text-ink-faint">
+              <span className="flex items-center gap-1.5">
+                <i className="inline-block h-2 w-2 rounded-full" style={{ background: C.up }} />
+                买入
+              </span>
+              <span className="flex items-center gap-1.5">
+                <i className="inline-block h-2 w-2 rounded-full" style={{ background: C.down }} />
+                卖出
+              </span>
+              <span>悬停圆点查看交易详情</span>
             </div>
           )}
         </div>
