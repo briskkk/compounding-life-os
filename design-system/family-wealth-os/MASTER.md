@@ -50,7 +50,7 @@ This file is the implementation source of truth derived from the approved high-f
 
 - 总览: net worth + day change & 30-day delta + wealth trajectory.
 - 持仓: total value + allocation strip + composition section (donut + legend, switchable across 资产大类 / 投资风格 / 市场分组) + holdings table.
-- 看盘: daily P&L + intraday chart + queryable historical performance (tabbed chart: 收益率曲线 with TWR + Modified-Dietz MWR + benchmark, 累计收益曲线, 资产趋势) + market/position list.
+- 看盘: daily P&L + intraday chart + queryable historical performance (tabbed chart: 收益率曲线 with TWR + Modified-Dietz MWR + benchmark, 累计收益曲线, 资产趋势) + returns calendar with 日收益/月收益/年收益 scopes (日收益: month grid or bar chart of signed daily P&L cells tinted up/down, 金额/收益率 toggle, dashed border for unsettled days, clickable days open a day-detail dialog with valuation gaps and same-day ledger transactions; 月收益: year grid of month totals jumping back to the day view; 年收益: tinted year rows; footers show period totals + benchmark comparison; replaces the old snapshot details table) + market/position list.
 - 流水: provenance headline + filters + chronological ledger.
 - FIRE: dominant funding progress (当前资产 / FIRE Number) + secondary retirement-survival probability (amber when below the warning zone) + accumulation confidence band + FIRE Number assumptions + estimated FIRE date vs plan + sustainable-savings scenario (不断供概率 · 预计日期). Multiple plans are mutually-exclusive scenarios sharing one asset pool, not additive goals.
 - 账户: total balance + account-type tabs + institution list.

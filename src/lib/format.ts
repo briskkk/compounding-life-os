@@ -40,6 +40,14 @@ export function fmtQty(n: number): string {
   return n.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
 }
 
+/** 带符号紧凑金额：万元以下取整（+¥2,043），万元以上 1 位小数的万（+¥1.2万）——收益日历单元格与合计 */
+export function fmtSignedCnyCompact(n: number): string {
+  const sign = n < 0 ? '-' : '+'
+  const abs = Math.abs(n)
+  if (abs >= 1e4) return `${sign}¥${(abs / 1e4).toFixed(1)}万`
+  return `${sign}¥${Math.round(abs).toLocaleString('zh-CN')}`
+}
+
 export function fmtPct(x: number | null, opts: { sign?: boolean } = {}): string {
   if (x == null || !Number.isFinite(x)) return '—'
   const sign = x > 0 && opts.sign ? '+' : ''
