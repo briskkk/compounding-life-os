@@ -1,9 +1,98 @@
 // 东财基金净值源（场外基金，11/16 开头 6 位代码）
-// 报价优先级：内部估值引擎（持仓+实时行情）→ 官方净值（T-1）
+// 报价优先级：官方盘中估值（FundValuationLast）→ 内部估值引擎 → 官方净值（T-1）
 import type { Bar, MarketDataProvider, QuoteData } from './provider'
 import { parseSymbol } from './symbols'
-import { fundEstimate } from './fund-engine'
+import { fundEstimate, CONFIDENCE_FLOOR } from './fund-engine'
 import { cnDayKey, fetchNavSeries, latestNav } from './fund-holdings'
+
+/**
+ * 盘中估值通道选择（纯函数，可测试）：
+ * 官方估值可用 → OFFICIAL；模型置信度 ≥ 正常阈值 → MODEL；
+ * 置信度在低置信区间 → MODEL_LOW（展示但前端弱化标注）；低于低置信下限 → NAV（回落官方净值）。
+ */
+export type EstimateChannel = 'OFFICIAL' | 'MODEL' | 'MODEL_LOW' | 'NAV'
+
+export function pickEstimateChannel(
+  official: OfficialFundEstimate | null,
+  modelConfidencePct: number | null,
+  modelFloorPct: number,
+  lowConfidenceFloorPct: number,
+): EstimateChannel {
+  if (official != null && official.gsz != null && official.gszzlPct != null) return 'OFFICIAL'
+  if (modelConfidencePct != null && modelConfidencePct >= modelFloorPct) return 'MODEL'
+  if (modelConfidencePct != null && modelConfidencePct >= lowConfidenceFloorPct) return 'MODEL_LOW'
+  return 'NAV'
+}
+
+/** 低于此置信度视为不可靠，回落官方净值不产出盘中估值（CONFIDENCE_FLOOR 见 fund-engine） */
+export const CONFIDENCE_MIN = 30
+
+// ---------- 官方盘中估值（FundValuationLast，天天基金 H5 新接口；旧 fundgz 已下线） ----------
+export interface OfficialFundEstimate {
+  symbol: string
+  /** 估算净值（部分主动型基金数据侧不再提供，为 null） */
+  gsz: number | null
+  /** 估算涨跌幅 % */
+  gszzlPct: number | null
+  /** 估值时间 'YYYY-MM-DD HH:mm'（北京时间） */
+  gztime: string | null
+  /** 上一单位净值 */
+  nav: number
+  /** 净值日期 YYYY-MM-DD */
+  pdate: string
+}
+
+const OFFICIAL_ESTIMATE_TTL = 60_000
+const officialEstimateCache = new Map<string, { at: number; data: OfficialFundEstimate | null }>()
+
+/** 解析 FundValuationLast 报文（纯函数，可测试） */
+export function parseOfficialEstimate(json: unknown, symbol: string): OfficialFundEstimate | null {
+  const row = (json as { data?: { GSZ?: number | null; GSZZL?: number | null; GZTIME?: string | null; NAV?: number; PDATE?: string }[] })
+    ?.data?.[0]
+  if (!row) return null
+  const gsz = typeof row.GSZ === 'number' && Number.isFinite(row.GSZ) ? row.GSZ : null
+  const gszzl = typeof row.GSZZL === 'number' && Number.isFinite(row.GSZZL) ? row.GSZZL : null
+  const nav = Number(row.NAV)
+  return {
+    symbol,
+    gsz,
+    gszzlPct: gszzl,
+    gztime: row.GZTIME ?? null,
+    nav: Number.isFinite(nav) && nav > 0 ? nav : 0,
+    pdate: row.PDATE ?? '',
+  }
+}
+
+async function fetchOfficialEstimate(symbol: string): Promise<OfficialFundEstimate | null> {
+  const qs = `FCODES=${symbol}&FIELDS=FCODE,SHORTNAME,GSZZL,GZTIME,GSZ,NAV,PDATE`
+  for (const host of ['https://fundcomapi.tiantianfunds.com', 'https://fundcomapi.eastmoney.com']) {
+    try {
+      const res = await fetch(`${host}/mm/newCore/FundValuationLast?${qs}`, { signal: AbortSignal.timeout(8000), cache: 'no-store' })
+      if (!res.ok) continue
+      const parsed = parseOfficialEstimate(await res.json(), symbol)
+      if (parsed) return parsed
+    } catch {
+      /* 尝试备用域名 */
+    }
+  }
+  return null
+}
+
+/** 官方盘中估值（60s 缓存；净值未公布时该接口可能返回 null 或 GSZ=null） */
+export async function officialFundEstimate(symbol: string): Promise<OfficialFundEstimate | null> {
+  const cached = officialEstimateCache.get(symbol)
+  if (cached && Date.now() - cached.at < OFFICIAL_ESTIMATE_TTL) return cached.data
+  const data = await fetchOfficialEstimate(symbol)
+  officialEstimateCache.set(symbol, { at: Date.now(), data })
+  return data
+}
+
+/** 'YYYY-MM-DD HH:mm' → ISO（北京时间） */
+export function gztimeToIso(gztime: string): string | null {
+  const iso = `${gztime.replace(' ', 'T')}+08:00`
+  const parsed = new Date(iso)
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null
+}
 
 /**
  * 盘中估值 / 盘后净值切换规则（纯函数，可测试）：
@@ -57,21 +146,45 @@ export const eastmoneyFundProvider: MarketDataProvider = {
       }
     }
 
-    // 盘中口径：官方净值未更新 → 内部估值引擎
-    const est = await fundEstimate(symbol)
-    if (est) {
+    // 盘中口径：官方估值优先（基于更全持仓）→ 内部模型（分档）→ 官方净值（滞后）
+    const [officialEstimate, modelEstimate] = await Promise.all([
+      officialFundEstimate(symbol),
+      fundEstimate(symbol),
+    ])
+    const channel = pickEstimateChannel(
+      officialEstimate ?? null,
+      modelEstimate?.estimate.confidencePct ?? null,
+      CONFIDENCE_FLOOR,
+      CONFIDENCE_MIN,
+    )
+    if (channel === 'OFFICIAL' && officialEstimate) {
       return {
         symbol,
-        price: Math.round(est.estimate.estimatedNav * 10000) / 10000,
-        prevClose: est.prevNav,
-        changePct: est.estimate.estimateReturnPct / 100,
+        price: Math.round(officialEstimate.gsz! * 10000) / 10000,
+        prevClose: officialEstimate.nav,
+        changePct: officialEstimate.gszzlPct! / 100,
+        asOf: officialEstimate.gztime != null
+          ? gztimeToIso(officialEstimate.gztime) ?? new Date().toISOString()
+          : new Date().toISOString(),
+        tradingDate: cnDayKey(new Date()),
+        source: 'EASTMONEY-ESTIMATE',
+      }
+    }
+    if ((channel === 'MODEL' || channel === 'MODEL_LOW') && modelEstimate) {
+      return {
+        symbol,
+        price: Math.round(modelEstimate.estimate.estimatedNav * 10000) / 10000,
+        prevClose: modelEstimate.prevNav,
+        changePct: modelEstimate.estimate.estimateReturnPct / 100,
         asOf: new Date().toISOString(),
         tradingDate: cnDayKey(new Date()),
         source: 'FUND-ENGINE',
+        // 低置信（30–50%）估值照常展示，前端用此字段弱化标注
+        confidencePct: modelEstimate.estimate.confidencePct,
       }
     }
 
-    // 双通道均不可用 → 最近的官方净值（可能滞后）
+    // 官方估值不可用 / 模型置信度低于下限 → 最近的官方净值（可能滞后）
     return {
       symbol,
       price: nav.nav,
@@ -85,7 +198,8 @@ export const eastmoneyFundProvider: MarketDataProvider = {
 
   async history(symbol: string, from: Date, to: Date): Promise<Bar[]> {
     const parsed = parseSymbol(symbol)
-    if (!/^\d{6}$/.test(parsed.code)) throw new Error(`基金净值源不支持：${symbol}`)
+    // 仅服务场外基金净值序列；场内 ETF/股票走行情 K 线源，避免净值折线冒充日 K
+    if (parsed.market !== 'FUND') throw new Error(`基金净值源仅服务场外基金：${symbol}`)
     const series = await fetchNavSeries(parsed.code)
     const out: Bar[] = []
     for (const p of series) {

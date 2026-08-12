@@ -1,6 +1,7 @@
 // 基金盘中估值编排：持仓画像 + 个股/指数实时行情 → 内部估值（不经过 index.ts，避免循环依赖）
 import { estimateFund, estimateLinkedFund, estimateMinuteSeries, type InternalEstimate } from '@/lib/engine/fund-estimate'
 import { buildCalibration, summarizeCalibration, type CalibrationPoint, type CalibrationSummary } from '@/lib/engine/fund-calibrate'
+import { calibratedConfidencePct } from '@/lib/engine/fund-calibrate'
 import { fundProfile, latestNav, fetchNavSeries, cnDayKey, type FundProfile } from './fund-holdings'
 import { tencentProvider, tencentQuoteMany } from './tencent'
 import { sinaProvider } from './sina'
@@ -9,6 +10,18 @@ import { parseSymbol, toTencentCode } from './symbols'
 import { bestFitIndex, closesToReturns } from '@/lib/engine/benchmark'
 import { CANDIDATE_INDICES, indexHistory, INDEX_SYMBOL } from './index-candidates'
 import { prisma } from '@/lib/db'
+
+/** 内部模型估值的置信度下限（%）：低于此值视为不可靠，不产出盘中估值 */
+export const CONFIDENCE_FLOOR = 50
+
+// QDII 指数型基金：重仓为海外市场（美股代码无法走系统报价链，且盘中无新鲜行情），
+// 用对应海外指数驱动估值（与联接基金同一模型：指数涨跌 × 权益仓位，置信=仓位）
+const QDII_INDEX_MAP: Record<string, { index: string; name: string }> = {
+  '021000': { index: 'USNDX', name: '纳斯达克100' },
+  '040046': { index: 'USNDX', name: '纳斯达克100' },
+  '014978': { index: 'USNDX', name: '纳斯达克100' },
+  '021778': { index: 'USNDX', name: '纳斯达克100' },
+}
 
 export async function stockChangePct(code: string): Promise<number | null> {
   for (const p of [tencentProvider, sinaProvider]) {
@@ -95,40 +108,65 @@ export async function residualIndexFor(symbol: string): Promise<string> {
   return code
 }
 
-/** 计算基金内部估值（60s 缓存） */
+/** 计算基金内部估值（60s 缓存）；置信度经历史校准误差衰减修正 */
 export async function fundEstimate(symbol: string): Promise<FundEstimateResult | null> {
   const cached = estimateCache.get(symbol)
   if (cached && Date.now() - cached.at < ESTIMATE_TTL) return cached.result
   try {
     const [profile, nav] = await Promise.all([fundProfile(symbol), latestNav(symbol)])
 
+    let estimate: InternalEstimate | null = null
+
     // 联接基金：目标 ETF 驱动（单目标高置信）
     if (profile.etfCode) {
       const etfChange = await stockChangePct(profile.etfCode)
-      const estimate = estimateLinkedFund({
+      estimate = estimateLinkedFund({
         etfCode: profile.etfCode,
         etfName: profile.etfName ?? profile.etfCode,
         etfChangePct: etfChange,
         weightPct: profile.equityRatioPct,
         prevNav: nav.nav,
       })
-      const result: FundEstimateResult = { estimate, prevNav: nav.nav, prevNavDate: nav.date, reportDate: profile.reportDate }
-      estimateCache.set(symbol, { at: Date.now(), result })
-      return result
     }
 
-    const codes = profile.holdings.map((h) => h.code)
-    const residIndex = await residualIndexFor(symbol)
-    const changes = await stockChangesBatch([...codes, residIndex])
-    const indexChange = changes.get(residIndex) ?? 0
-    const estimate = estimateFund({
-      holdings: profile.holdings,
-      equityRatioPct: profile.equityRatioPct,
-      indexChangePct: indexChange,
-      stockChanges: changes,
+    // QDII 指数型：海外指数驱动（重仓美股代码盘中无新鲜行情）
+    if (estimate == null) {
+      const qdii = QDII_INDEX_MAP[symbol]
+      if (qdii) {
+        const indexChange = await stockChangePct(qdii.index)
+        estimate = estimateLinkedFund({
+          etfCode: qdii.index,
+          etfName: qdii.name,
+          etfChangePct: indexChange,
+          weightPct: profile.equityRatioPct,
+          prevNav: nav.nav,
+        })
+      }
+    }
+
+    // 普通持仓驱动：重仓 A 股实时行情 + 残差指数
+    if (estimate == null) {
+      const codes = profile.holdings.map((h) => h.code)
+      const residIndex = await residualIndexFor(symbol)
+      const changes = await stockChangesBatch([...codes, residIndex])
+      const indexChange = changes.get(residIndex) ?? 0
+      estimate = estimateFund({
+        holdings: profile.holdings,
+        equityRatioPct: profile.equityRatioPct,
+        indexChangePct: indexChange,
+        stockChanges: changes,
+        prevNav: nav.nav,
+      })
+    }
+
+    if (estimate == null) return null
+    const confidencePct = await calibratedConfidence(symbol, estimate.confidencePct)
+    const result: FundEstimateResult = {
+      estimate: { ...estimate, confidencePct },
       prevNav: nav.nav,
-    })
-    const result: FundEstimateResult = { estimate, prevNav: nav.nav, prevNavDate: nav.date, reportDate: profile.reportDate }
+      prevNavDate: nav.date,
+      reportDate: profile.reportDate,
+    }
     estimateCache.set(symbol, { at: Date.now(), result })
     return result
   } catch {
@@ -136,10 +174,37 @@ export async function fundEstimate(symbol: string): Promise<FundEstimateResult |
   }
 }
 
-/** 分钟级估值序列：重仓股（A 股分钟线）+ 沪深300 分钟线合成 */
+/** 校准置信度 = 覆盖率 × 误差衰减；校准样本不足时不惩罚（模型太年轻） */
+async function calibratedConfidence(symbol: string, coveragePct: number): Promise<number> {
+  try {
+    const since = new Date(Date.now() - 30 * 86400000)
+    const rows = await prisma.fundCalibration.findMany({
+      where: { symbol, date: { gte: since } },
+      orderBy: { date: 'asc' },
+    })
+    if (rows.length === 0) return coveragePct
+    const points = rows.map((r) => ({
+      date: r.date.toISOString().slice(0, 10),
+      estReturn: r.estReturn,
+      officialReturn: r.officialReturn,
+      error: r.error,
+    }))
+    return calibratedConfidencePct(coveragePct, summarizeCalibration(points)).confidencePct
+  } catch {
+    return coveragePct
+  }
+}
+
+/** 分钟级估值序列：重仓股（A 股分钟线）+ 沪深300 分钟线合成；
+ *  低置信与 QDII 指数驱动基金不产出（避免把不可靠/海外隔夜口径画进当日曲线） */
 export async function fundEstimateMinuteSeries(symbol: string): Promise<{ points: IntradayPoint[]; prevClose: number | null; profile: FundProfile | null }> {
   const empty = { points: [], prevClose: null, profile: null }
   try {
+    // 置信度护栏：内部模型低于置信度下限时不产出分钟序列（回落到官方净值口径）
+    const est = await fundEstimate(symbol)
+    if (est && est.estimate.confidencePct < CONFIDENCE_FLOOR) return empty
+    if (QDII_INDEX_MAP[symbol] != null) return empty // 海外指数无 A 股分钟线，白天不画分时
+
     const [profile, nav] = await Promise.all([fundProfile(symbol), latestNav(symbol)])
 
     // 联接基金：目标 ETF 分钟线 × 仓位

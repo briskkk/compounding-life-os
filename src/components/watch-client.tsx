@@ -32,6 +32,8 @@ export interface WatchHolding {
   source: string | null
   fallbackValueCny: number
   priceSource: PriceSource
+  /** 基金模型估值的置信度（%）；低置信时来源列弱化标注。 */
+  confidencePct?: number | null
 }
 
 export interface StaticRow {
@@ -53,6 +55,7 @@ interface QuoteLite {
   tradingDate?: string
   rawPrice?: number
   rawPrevClose?: number
+  confidencePct?: number
 }
 
 const POLL_MS = 30_000
@@ -164,6 +167,7 @@ export function WatchClient({
       tradingDate,
       currentPortfolioDay,
       source: quote?.source ?? series?.source ?? holding.source ?? null,
+      confidencePct: quote?.confidencePct ?? holding.confidencePct ?? null,
     }
   }), [holdings, quotes, seriesMap, todayKey])
 
@@ -321,7 +325,11 @@ export function WatchClient({
                   )}
                 </td>
                 <td className="px-4 py-2.5 text-right">
-                  {r.source ? <MarketSourceTag source={r.source} showProvider /> : <PositionSourceTag priceSource={r.priceSource} />}
+                  {r.source ? (
+                    <MarketSourceTag source={r.source} showProvider confidencePct={r.confidencePct} />
+                  ) : (
+                    <PositionSourceTag priceSource={r.priceSource} />
+                  )}
                 </td>
               </tr>
             ) : (

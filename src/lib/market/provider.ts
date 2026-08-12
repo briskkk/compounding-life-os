@@ -16,6 +16,8 @@ export interface QuoteData {
   /** 报价对应的交易所交易日（YYYY-MM-DD），不能用请求时间代替。 */
   tradingDate?: string
   source: string
+  /** 模型估值的置信度（%）；仅基金盘中估值提供，用于前端低置信标注。 */
+  confidencePct?: number
 }
 
 export interface MarketDataProvider {

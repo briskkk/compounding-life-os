@@ -26,6 +26,7 @@ const PROVIDER_NAMES: Record<string, string> = {
   SINA: '新浪',
   YAHOO: 'Yahoo',
   'EASTMONEY-FUND': '东方财富',
+  'EASTMONEY-ESTIMATE': '东方财富',
   'FUND-ENGINE': '内部模型',
   SIMULATED: '模拟器',
 }
@@ -33,6 +34,16 @@ const PROVIDER_NAMES: Record<string, string> = {
 /** 将行情提供者映射为面向用户的估值口径，避免直接展示内部 source 代码。 */
 export function marketValuationSource(source: string | null | undefined): ValuationSourceMeta {
   const normalized = source?.trim().toUpperCase() ?? ''
+  if (normalized === 'EASTMONEY-ESTIMATE') {
+    return {
+      kind: 'MODEL_ESTIMATE',
+      label: '官方估值',
+      provider: PROVIDER_NAMES[normalized],
+      description: '东方财富基于基金持仓模型的盘中估算，非基金管理人公布的正式净值。',
+      tone: 'amber',
+      quality: 'estimated',
+    }
+  }
   if (normalized === 'EASTMONEY-FUND') {
     return {
       kind: 'OFFICIAL_NAV',

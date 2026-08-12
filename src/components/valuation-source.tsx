@@ -19,8 +19,29 @@ export function SourceTag({ meta, showProvider = false }: { meta: ValuationSourc
   )
 }
 
-export function MarketSourceTag({ source, showProvider = false }: { source: string | null | undefined; showProvider?: boolean }) {
-  return <SourceTag meta={marketValuationSource(source)} showProvider={showProvider} />
+/** 模型估值置信度分档（%）：低于此值视为低置信，来源列弱化标注 */
+const LOW_CONFIDENCE_FLOOR = 50
+
+export function MarketSourceTag({
+  source,
+  showProvider = false,
+  confidencePct,
+}: {
+  source: string | null | undefined
+  showProvider?: boolean
+  confidencePct?: number | null
+}) {
+  const meta = marketValuationSource(source)
+  const lowConfidence = confidencePct != null && confidencePct < LOW_CONFIDENCE_FLOOR
+  const display = lowConfidence
+    ? {
+        ...meta,
+        label: '低置信估算',
+        tone: 'dim' as const,
+        description: `${meta.description} 当前模型置信度 ${confidencePct}%，估算偏差可能较大。`,
+      }
+    : meta
+  return <SourceTag meta={display} showProvider={showProvider} />
 }
 
 export function PositionSourceTag({

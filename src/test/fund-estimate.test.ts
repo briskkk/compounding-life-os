@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { estimateFund, estimateLinkedFund, estimateMinuteSeries, type FundHolding } from '@/lib/engine/fund-estimate'
 import { parseHoldings, parseEquityRatio } from '@/lib/market/fund-holdings'
 import { bestFitIndex, closesToReturns, pearson } from '@/lib/engine/benchmark'
-
+import { CONFIDENCE_FLOOR } from '@/lib/market/fund-engine'
+import { CONFIDENCE_MIN, gztimeToIso, parseOfficialEstimate, pickEstimateChannel, type OfficialFundEstimate } from '@/lib/market/eastmoney-fund'
 const holdings: FundHolding[] = [
   { code: '600519', name: '贵州茅台', weightPct: 10 },
   { code: '000333', name: '美的集团', weightPct: 8 },
@@ -146,5 +147,61 @@ describe('东财基金报文解析', () => {
     expect(parseEquityRatio({ Datas: [{ FSRQ: '2026-06-30', GP: '87.19' }] })).toEqual({ equityRatioPct: 87.19, fundRatioPct: null, reportDate: '2026-06-30' })
     expect(parseEquityRatio({ Datas: [{ FSRQ: '2026-06-30', GP: '--', JJ: '93.5' }] })).toEqual({ equityRatioPct: null, fundRatioPct: 93.5, reportDate: '2026-06-30' })
     expect(parseEquityRatio({ Datas: [] })).toBeNull()
+  })
+})
+
+describe('官方盘中估值（FundValuationLast）', () => {
+  it('解析估值报文：有估值与无估值两类', () => {
+    const est = parseOfficialEstimate(
+      { data: [{ FCODE: '012348', GSZ: 0.6517, GSZZL: -1.04, GZTIME: '2026-08-12 11:13', NAV: 0.6586, PDATE: '2026-08-11' }] },
+      '012348',
+    )
+    expect(est).toEqual({
+      symbol: '012348',
+      gsz: 0.6517,
+      gszzlPct: -1.04,
+      gztime: '2026-08-12 11:13',
+      nav: 0.6586,
+      pdate: '2026-08-11',
+    })
+    // 主动型基金数据侧不再提供估值 → GSZ/GSZZL 为 null
+    const noEst = parseOfficialEstimate(
+      { data: [{ FCODE: '005094', GSZ: null, GSZZL: null, GZTIME: null, NAV: 5.9295, PDATE: '2026-08-11' }] },
+      '005094',
+    )
+    expect(noEst?.gsz).toBeNull()
+    expect(noEst?.gszzlPct).toBeNull()
+    expect(noEst?.nav).toBeCloseTo(5.9295)
+    expect(parseOfficialEstimate({ data: [] }, '110022')).toBeNull()
+  })
+
+  it('估值时间转 ISO（北京时间）', () => {
+    expect(gztimeToIso('2026-08-12 11:13')).toBe('2026-08-12T03:13:00.000Z')
+    expect(gztimeToIso('bad time')).toBeNull()
+  })
+})
+
+describe('盘中估值通道选择', () => {
+  it('官方估值可用 → OFFICIAL，即使模型置信度达标', () => {
+    const official: OfficialFundEstimate = { symbol: '012348', gsz: 0.6517, gszzlPct: -1.04, gztime: '2026-08-12 11:13', nav: 0.6586, pdate: '2026-08-11' }
+    expect(pickEstimateChannel(official, 94, CONFIDENCE_FLOOR, CONFIDENCE_MIN)).toBe('OFFICIAL')
+  })
+
+  it('官方无估值且模型置信度达标 → MODEL', () => {
+    const noEst: OfficialFundEstimate = { symbol: '005094', gsz: null, gszzlPct: null, gztime: null, nav: 5.9295, pdate: '2026-08-11' }
+    expect(pickEstimateChannel(noEst, 75, CONFIDENCE_FLOOR, CONFIDENCE_MIN)).toBe('MODEL')
+  })
+
+  it('置信度在低置信区间 → MODEL_LOW（展示但弱化标注）', () => {
+    const noEst: OfficialFundEstimate = { symbol: '010826', gsz: null, gszzlPct: null, gztime: null, nav: 2.24, pdate: '2026-08-11' }
+    expect(pickEstimateChannel(noEst, 43, CONFIDENCE_FLOOR, CONFIDENCE_MIN)).toBe('MODEL_LOW')
+    expect(pickEstimateChannel(noEst, 30, CONFIDENCE_FLOOR, CONFIDENCE_MIN)).toBe('MODEL_LOW')
+  })
+
+  it('置信度低于下限 → NAV（不展示不可靠估值）', () => {
+    const noEst: OfficialFundEstimate = { symbol: '021000', gsz: null, gszzlPct: null, gztime: null, nav: 2.3, pdate: '2026-08-11' }
+    expect(pickEstimateChannel(noEst, 29, CONFIDENCE_FLOOR, CONFIDENCE_MIN)).toBe('NAV')
+    expect(pickEstimateChannel(null, 29, CONFIDENCE_FLOOR, CONFIDENCE_MIN)).toBe('NAV')
+    expect(pickEstimateChannel(noEst, null, CONFIDENCE_FLOOR, CONFIDENCE_MIN)).toBe('NAV')
   })
 })
