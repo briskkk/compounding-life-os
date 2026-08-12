@@ -10,11 +10,20 @@ describe('niceTicks', () => {
     expect(new Set(labels).size).toBe(ticks.length)
   })
 
-  it('刻度落在数据范围内且覆盖 0 轴', () => {
+  it('刻度覆盖 0 轴且不越过数据范围过远', () => {
     const ticks = niceTicks(-17674.91, 62878.71)
-    expect(ticks[0]).toBeGreaterThanOrEqual(-17674.91)
-    expect(ticks[ticks.length - 1]).toBeLessThanOrEqual(62878.71)
+    const step = ticks[1] - ticks[0]
+    expect(ticks[0]).toBeGreaterThanOrEqual(-17674.91 - step)
+    expect(ticks[ticks.length - 1]).toBeLessThanOrEqual(62878.71 + step)
     expect(ticks).toContain(0)
+  })
+
+  it('负数据域不足一个步长时补出负刻度', () => {
+    // 数据最低点 -2.3% 落在 [-2.5%, 0] 内，首刻度被 ceil 到 0，应补一个 -2.5%
+    const ticks = niceTicks(-0.023, 0.0597)
+    expect(ticks).toContain(-0.025)
+    expect(ticks[ticks.length - 1]).toBeLessThanOrEqual(0.0597)
+    expect(ticks.length).toBeLessThanOrEqual(5)
   })
 
   it('步长取自 1/2/2.5/5×10ⁿ 阶梯', () => {

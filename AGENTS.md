@@ -23,7 +23,7 @@ The transaction ledger is the source of truth. Derive positions, snapshots, and 
 - `npm run build` builds production output and checks TypeScript.
 - `npm run test:e2e` prepares an isolated seeded SQLite database, builds to `.next-e2e`, and runs Playwright on port 3200.
 
-Development, production, and E2E use `.next-dev`, `.next`, and `.next-e2e` respectively. Keep their configured ports distinct; do not point two processes at the same dist directory. The webpack filesystem cache is disabled in `next.config.ts` (`config.cache = false`) because it repeatedly served stale CSS after edits — do not re-enable without verifying the fix.
+Development, production, and E2E use `.next-dev`, `.next`, and `.next-e2e` respectively. Keep their configured ports distinct; do not point two processes at the same dist directory. The webpack filesystem cache is disabled in `next.config.ts` (`config.cache = false`) because it repeatedly served stale CSS after edits — do not re-enable without verifying the fix. Even with the cache disabled, a long-running `next dev` can silently keep serving the `globals.css` compiled at startup (manifest updates but `.next-dev/static/css/app/layout.css` never recompiles, and `touch` does not trigger it). After editing `globals.css`, verify the compiled CSS or simply restart `npm run dev` — deleting `.next-dev/cache` alone is not enough.
 
 ## Coding Style & Naming Conventions
 

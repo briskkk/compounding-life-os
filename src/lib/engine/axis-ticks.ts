@@ -20,7 +20,10 @@ export function niceTicks(lo: number, hi: number): number[] {
   const step = RUNGS[idx] * mag
   const first = Math.ceil(lo / step - 1e-9)
   const last = Math.floor(hi / step + 1e-9)
+  // 负数据域但首个刻度被 ceil 到 -0/0（即 -step < lo < 0）时补一个负刻度，
+  // 否则收益率曲线等负区间没有任何标签。补格后不超过 5 个刻度才补。
+  const includeNegative = first === 0 && lo < 0 && last - first <= 3
   const ticks: number[] = []
-  for (let i = first; i <= last; i++) ticks.push(Number((i * step).toPrecision(12)))
+  for (let i = includeNegative ? first - 1 : first; i <= last; i++) ticks.push(Number((i * step).toPrecision(12)))
   return ticks
 }

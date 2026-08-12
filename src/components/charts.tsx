@@ -251,7 +251,7 @@ export function PortfolioReturnChart({ data, benchmarkLabel = '基准' }: { data
             name={`${benchmarkLabel}基准`}
             stroke={C.violet}
             strokeWidth={1.5}
-            strokeDasharray="4 4"
+            strokeDasharray="2 6"
             dot={false}
             connectNulls
             isAnimationActive={false}
@@ -351,6 +351,7 @@ export function PortfolioPctChart({ data, benchmarkLabel = '基准' }: { data: P
             name="资金加权"
             stroke={C.amber}
             strokeWidth={1.75}
+            strokeDasharray="5 4"
             dot={false}
             isAnimationActive={false}
           />
@@ -362,7 +363,7 @@ export function PortfolioPctChart({ data, benchmarkLabel = '基准' }: { data: P
             name={`${benchmarkLabel}基准`}
             stroke={C.violet}
             strokeWidth={1.5}
-            strokeDasharray="4 4"
+            strokeDasharray="2 6"
             dot={false}
             connectNulls
             isAnimationActive={false}
