@@ -6,6 +6,7 @@ import { quoteAt, dailyCloses, PROVIDER_LABEL } from './simulated'
 import { tencentProvider } from './tencent'
 import { sinaProvider } from './sina'
 import { eastmoneyFundProvider } from './eastmoney-fund'
+import { eastmoneyKlineProvider } from './eastmoney-kline'
 import { parseSymbol } from './symbols'
 import type { Bar, MarketDataProvider, QuoteData } from './provider'
 
@@ -23,12 +24,13 @@ const REGISTRY: Record<string, MarketDataProvider> = {
   tencent: tencentProvider,
   sina: sinaProvider,
   'eastmoney-fund': eastmoneyFundProvider,
+  'eastmoney-kline': eastmoneyKlineProvider,
   simulated: simulatedProvider,
 }
 
 /** 解析 MARKET_PROVIDER 为提供者链（未知项忽略；显式为空回落模拟源，未配置默认真实链） */
 export function providerChain(spec?: string): MarketDataProvider[] {
-  const raw = (spec ?? process.env.MARKET_PROVIDER ?? 'tencent,eastmoney-fund,sina')
+  const raw = (spec ?? process.env.MARKET_PROVIDER ?? 'tencent,eastmoney-kline,eastmoney-fund,sina')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)

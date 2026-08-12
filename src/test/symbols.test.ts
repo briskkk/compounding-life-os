@@ -58,14 +58,15 @@ describe('多市场代码解析', () => {
 
 describe('行情源优先级链', () => {
   it('按逗号解析并保持顺序', () => {
-    const chain = providerChain('tencent,eastmoney-fund,sina')
-    expect(chain.map((p) => p.label)).toEqual(['TENCENT', 'EASTMONEY-FUND', 'SINA'])
+    const chain = providerChain('tencent,eastmoney-kline,eastmoney-fund,sina')
+    expect(chain.map((p) => p.label)).toEqual(['TENCENT', 'EASTMONEY-KLINE', 'EASTMONEY-FUND', 'SINA'])
   })
 
   it('未知项被忽略，全未知/为空回落模拟源', () => {
     expect(providerChain('nonsense').map((p) => p.label)).toEqual(['SIMULATED'])
     expect(providerChain('').map((p) => p.label)).toEqual(['SIMULATED'])
     expect(providerChain('tencent,unknown').map((p) => p.label)).toEqual(['TENCENT'])
+    expect(providerChain('tencent,eastmoney-fund').map((p) => p.label)).toEqual(['TENCENT', 'EASTMONEY-FUND'])
   })
 })
 
@@ -78,7 +79,7 @@ describe('模拟数据底线：生产环境宁可缺省，绝不伪造', () => {
 
   it('未配置 MARKET_PROVIDER 时默认真实链，不含模拟源', () => {
     delete process.env.MARKET_PROVIDER
-    expect(providerChain().map((p) => p.label)).toEqual(['TENCENT', 'EASTMONEY-FUND', 'SINA'])
+    expect(providerChain().map((p) => p.label)).toEqual(['TENCENT', 'EASTMONEY-KLINE', 'EASTMONEY-FUND', 'SINA'])
     expect(simulatedAllowed()).toBe(false)
   })
 

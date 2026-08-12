@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "NEXT_DIST_DIR=.next-dev MARKET_PROVIDER=tencent,eastmoney-fund,sina next dev",
+    "dev": "NEXT_DIST_DIR=.next-dev MARKET_PROVIDER=tencent,eastmoney-kline,eastmoney-fund,sina next dev",
     "safe:dev": "./scripts/start-safe.sh dev",
     "build": "NEXT_DIST_DIR=.next next build",
-    "start": "NEXT_DIST_DIR=.next MARKET_PROVIDER=tencent,eastmoney-fund,sina next start",
+    "start": "NEXT_DIST_DIR=.next MARKET_PROVIDER=tencent,eastmoney-kline,eastmoney-fund,sina next start",
     "build:e2e": "NEXT_DIST_DIR=.next-e2e next build",
     "start:e2e": "NEXT_DIST_DIR=.next-e2e DATABASE_URL=file:prisma/e2e.db MARKET_PROVIDER=simulated next start",
     "safe:start": "./scripts/start-safe.sh production",
