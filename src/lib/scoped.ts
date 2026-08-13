@@ -7,6 +7,8 @@ export interface FamilyCtx {
   memberId: string
   memberName: string
   role: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'
+  /** 登录账号 id（改密等账号操作需要；未绑定账号的成员为空串） */
+  userId: string
 }
 
 const SCOPED_MODELS = new Set([

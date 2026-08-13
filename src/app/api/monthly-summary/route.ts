@@ -92,6 +92,7 @@ export async function GET(req: NextRequest) {
       memberId: owner.id,
       memberName: owner.name,
       role: owner.role,
+      userId: owner.userId ?? '',
     }
   }
 

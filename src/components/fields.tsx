@@ -6,10 +6,10 @@ export const inputCls =
   'min-h-11 w-full rounded-lg border border-line bg-panel2 px-3 py-2 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-accent'
 
 export const btnCls =
-  'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-accent bg-accent px-4 py-2 text-[14px] font-medium text-bg transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-40'
+  'inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-accent bg-accent px-4 py-2 text-[14px] font-medium text-bg transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-40'
 
 export const btnGhostCls =
-  'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-line bg-transparent px-4 py-2 text-[14px] text-ink-dim transition-colors hover:border-ink-faint hover:text-ink disabled:opacity-40'
+  'inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line bg-transparent px-4 py-2 text-[14px] text-ink-dim transition-colors hover:border-ink-faint hover:text-ink disabled:opacity-40'
 
 export function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (

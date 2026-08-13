@@ -1,4 +1,7 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
+import { headers } from 'next/headers'
+import { redirect } from 'next/navigation'
 import '@fontsource/jetbrains-mono/400.css'
 import '@fontsource/jetbrains-mono/500.css'
 import './globals.css'
@@ -6,7 +9,8 @@ import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { BRAND_NAME, BRAND_NAME_EN } from '@/lib/brand'
 import { Nav } from '@/components/nav'
-import { MemberSwitcher } from '@/components/member-switcher'
+import { FamilySwitcher, type FamilyOption } from '@/components/family-switcher'
+import { LogoutButton } from '@/components/user-menu'
 import { RefreshPricesButton } from '@/components/refresh-prices-button'
 import { Tag } from '@/components/ui'
 import { providerLabel } from '@/lib/market'
@@ -21,12 +25,22 @@ export const dynamic = 'force-dynamic'
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getSession()
-  const [family, members] = ctx
-    ? await Promise.all([
-        prisma.familySpace.findUnique({ where: { id: ctx.familyId } }),
-        prisma.member.findMany({ where: { familyId: ctx.familyId }, orderBy: { createdAt: 'asc' } }),
-      ])
-    : [null, []]
+  // cookie 存在但会话失效（过期/被删除）时兜底重定向登录页（middleware 只做存在性检查）
+  if (!ctx) {
+    const h = await headers()
+    const pathname = h.get('x-pathname')
+    if (pathname && pathname !== '/login') redirect('/login')
+  }
+  const family = ctx
+    ? await prisma.familySpace.findUnique({ where: { id: ctx.familyId } })
+    : null
+  // 当前账号所属的全部家庭（顶栏切换用）
+  const myFamilies: FamilyOption[] = ctx?.userId
+    ? (await prisma.user.findUnique({
+        where: { id: ctx.userId },
+        include: { members: { include: { family: true } } },
+      }))?.members.map((m) => ({ id: m.familyId, name: m.family.name, role: m.role })) ?? []
+    : []
 
   const today = new Date()
   const dateStr = today.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -51,18 +65,33 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Nav />
               </div>
 
-              <div className="flex min-w-0 flex-wrap items-center justify-end gap-3 max-sm:flex-nowrap max-sm:gap-2">
+              <div className="flex min-w-0 flex-wrap items-center justify-end gap-3 max-sm:gap-2">
                 <div className="hidden text-right xl:block">
                   <div className="text-[14px] font-medium text-ink">{family?.name ?? '未初始化'}</div>
                   <div className="num mt-0.5 text-[12px] tracking-[0.08em] text-ink-faint">{dateStr}</div>
                 </div>
                 <span className="hidden 2xl:inline-flex" title={marketChain.description}><Tag tone={marketChain.tone}>{marketChain.label}</Tag></span>
                 {ctx && ctx.role !== 'VIEWER' && <RefreshPricesButton />}
-                {ctx && members.length > 0 && (
-                  <MemberSwitcher
-                    members={members.map((m) => ({ id: m.id, name: m.name, role: m.role }))}
-                    currentId={ctx.memberId}
-                  />
+                {ctx ? (
+                  <>
+                    {myFamilies.length > 1 && (
+                      <FamilySwitcher families={myFamilies} currentFamilyId={ctx.familyId} />
+                    )}
+                    <span className="num flex h-11 shrink-0 items-center whitespace-nowrap rounded-lg border border-line bg-panel2 px-3 text-[13px] text-ink-dim max-sm:hidden">
+                      {ctx.memberName} · {ctx.role}
+                    </span>
+                    <Link
+                      href="/settings"
+                      className="flex h-11 shrink-0 items-center whitespace-nowrap rounded-lg border border-line px-3 text-[13px] text-ink-dim transition-colors hover:border-ink-faint hover:text-ink"
+                    >
+                      设置
+                    </Link>
+                    <LogoutButton />
+                  </>
+                ) : (
+                  <Link href="/login" className="flex h-11 shrink-0 items-center whitespace-nowrap rounded-lg border border-line px-3 text-[13px] text-ink transition-colors hover:border-ink-faint">
+                    登录
+                  </Link>
                 )}
               </div>
             </div>
