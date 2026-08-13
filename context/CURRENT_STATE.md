@@ -31,25 +31,31 @@ last_verified: 2026-08-05
 - 快照增加 `valuationStatus`、覆盖率、最新估值日和估值缺口详情。
 - 历史收益曲线按真正估值日期过滤休市、无更新和纯资金流观察点。
 - 生产启动脚本改为始终从构建产物同步 Prisma schema。
+- 基金估值：官方 `FundValuationLast` 优先、置信度三档（正常/低置信/回落净值）、QDII 纳指指数驱动、历史误差校准衰减。
+- 行情曲线：新增东财 K 线源兜底腾讯 WAF 拦截（ETF 恢复 K 线）；资产详情页 K 线/折线上叠加买卖点标记。
+- 身份认证 Phase 1：`User` + `Session` 双通道（网页 cookie / APP Bearer token）、scrypt 密码、`/login`、middleware 登录保护；替换"无密码切换成员"。
+- Phase 2 多家庭与设置：一个账号多个家庭、创建家庭、顶栏家庭切换器、家庭数据隔离；设置页（改邮箱 / 改密码 / 会话管理与吊销 / 最近登录 / 家庭信息与成员 / 数据导出）。
 
 ## 已知限制与风险
 
-1. 成员 cookie 无密码，仅适合单家庭/演示；正式多用户部署必须接真实 IdP。
+1. 单家庭阶段：一个账号目前对应一个家庭（Member.userId 1:1），多家庭与邀请协作在 Phase 2/3。
 2. SQLite schema 固定 `file:./dev.db`；PostgreSQL 使用独立 schema、迁移脚本和 RLS，两个 schema 需要人工保持同步。
 3. 流水变更后会全量重建最多 1400 天快照；数据量达到数万流水后应设计增量重建。
 4. 历史外汇汇率未逐日保存；历史快照使用刷新时的当前汇率折算 USD/HKD。
 5. 行情与基金端点依赖外部免费服务，存在限流、格式变化和暂时不可用风险。
-6. `PriceBar`、`FundEstimate`、`FundCalibration` 是全局共享市场数据，不带 `familyId`，不得误套家庭 RLS。
+6. `PriceBar`、`FundEstimate`、`FundCalibration`、`User`、`Session` 是全局共享数据，不带 `familyId`，不得误套家庭 RLS。
 
 ## 验证状态
 
-- `npm test`：2026-08-05 通过，38 个测试文件、207 个测试。
-- Playwright：代码中发现 18 个 E2E 用例；本次上下文建立时尚未执行完整 E2E。
-- `npm run build`：2026-08-05 通过，Next.js production build 与 TypeScript 检查成功。
+- `npm test`：2026-08-12 通过，40 个测试文件、246 个测试。
+- Playwright：44 个 E2E 用例通过（含登录 setup）。
+- `npm run build`：2026-08-12 通过。
 
 ## 下一步候选（尚未承诺）
 
-- 接入正式认证并收紧成员/家庭选择流程。
+- 多家庭：Member 拆 userId（1:1 → 1:N）、家庭切换器、创建家庭（Phase 2）。
+- 邀请协作：邀请码、成员管理页、角色管理、重置密码；APP 写 API 补齐（Phase 3）。
+- 移动端 APP（需求待办，见 PRODUCT_REQUIREMENTS 第 9 条）。
 - 为快照设计事件水位或按日增量重建策略。
 - 保存历史 FX 序列，明确汇兑收益归因。
 - 建立 SQLite/PostgreSQL schema 一致性自动检查。

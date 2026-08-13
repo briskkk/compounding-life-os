@@ -40,3 +40,8 @@ History uses Conventional Commit prefixes, currently `feat:`, followed by a conc
 ## Security & Configuration
 
 Never commit database files, backups, API keys, or connection strings. Pass configuration such as `DATABASE_URL`, `MARKET_PROVIDER`, and `BRAND_NAME` through the environment. Preserve family scoping, authorization checks, and audit-chain behavior when changing data access.
+
+## Operational Notes
+
+- Deleting rows from SQLite via `sqlite3` CLI does **not** cascade (foreign keys are off by default in that shell) and leaves orphaned `Member`/`Session` rows that break `User` includes (`family: null`). Clean up test fixtures through Prisma, or run `PRAGMA foreign_keys=ON;` first, then verify no orphans with `SELECT ... WHERE familyId NOT IN (SELECT id FROM FamilySpace)`.
+- `next dev` restart is required after `globals.css` edits and after schema/`prisma generate` changes (see the stale-CSS note above); a long-running dev server can serve stale modules even when component hot reload looks healthy.
