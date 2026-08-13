@@ -35,29 +35,28 @@ export const dynamic = 'force-dynamic'
  * - 比率字段保留引擎原精度，不做舍入
  */
 export async function GET(req: NextRequest) {
-  // ── 认证 ──────────────────────────────────────────────
-  const authHeader = req.headers.get('authorization')
-  const token = authHeader?.replace(/^Bearer\s+/i, '')
-  const apiKey = process.env.PORTFOLIO_API_KEY
-
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: 'PORTFOLIO_API_KEY not configured' },
-      { status: 503 },
-    )
-  }
-
-  if (token !== apiKey) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401 },
-    )
-  }
-
   // ── 获取家庭上下文 ────────────────────────────────────
-  // 优先用 Cookie 会话，回落到第一个 OWNER
+  // 优先用户会话（Cookie 或 Bearer token），无会话时回落到全局 PORTFOLIO_API_KEY
   let ctx: FamilyCtx | null = await getSession()
   if (!ctx) {
+    const apiKey = process.env.PORTFOLIO_API_KEY
+
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'PORTFOLIO_API_KEY not configured' },
+        { status: 503 },
+      )
+    }
+
+    const authHeader = req.headers.get('authorization')
+    const token = authHeader?.replace(/^Bearer\s+/i, '')
+    if (token !== apiKey) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 },
+      )
+    }
+
     const owner = await prisma.member.findFirst({
       where: { role: 'OWNER' },
       orderBy: { createdAt: 'asc' },

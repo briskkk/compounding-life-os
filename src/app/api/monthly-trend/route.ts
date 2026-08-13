@@ -32,24 +32,7 @@ export const dynamic = 'force-dynamic'
  *   - monthlyPayment: 当月 REPAY 合计，无还款为 null
  */
 export async function GET(req: NextRequest) {
-  // ── 认证 ──────────────────────────────────────────────
-  const authHeader = req.headers.get('authorization')
-  const token = authHeader?.replace(/^Bearer\s+/i, '')
-  const apiKey = process.env.PORTFOLIO_API_KEY
-
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: 'PORTFOLIO_API_KEY not configured' },
-      { status: 503 },
-    )
-  }
-
-  if (token !== apiKey) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401 },
-    )
-  }
+  // ── 认证与家庭上下文（用户会话优先，全局 key 兼容）────
 
   // ── 解析参数 ──────────────────────────────────────────
   const monthsParam = req.nextUrl.searchParams.get('months')
@@ -64,9 +47,27 @@ export async function GET(req: NextRequest) {
   const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
 
   // ── 获取家庭上下文 ────────────────────────────────────
-  // 优先用 Cookie 会话，回落到第一个 OWNER
+  // 优先用户会话（Cookie 或 Bearer token），无会话时回落到全局 PORTFOLIO_API_KEY
   let ctx: FamilyCtx | null = await getSession()
   if (!ctx) {
+    const apiKey = process.env.PORTFOLIO_API_KEY
+
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'PORTFOLIO_API_KEY not configured' },
+        { status: 503 },
+      )
+    }
+
+    const authHeader = req.headers.get('authorization')
+    const token = authHeader?.replace(/^Bearer\s+/i, '')
+    if (token !== apiKey) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 },
+      )
+    }
+
     const owner = await prisma.member.findFirst({
       where: { role: 'OWNER' },
       orderBy: { createdAt: 'asc' },

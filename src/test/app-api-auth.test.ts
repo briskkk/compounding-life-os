@@ -1,12 +1,18 @@
 // App 专用 API（/api/monthly-summary、/api/monthly-trend、/api/assets、/api/performance）的认证分支。
 // 503（未配置 PORTFOLIO_API_KEY）与 401（令牌缺失/错误）都在数据库访问之前返回，
 // 因此这里直接调用路由处理器即可，不触碰数据库；200 通路见 e2e/portfolio-api.spec.ts。
-import { afterAll, beforeEach, describe, expect, test } from 'vitest'
+import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { GET as monthlySummaryGET } from '@/app/api/monthly-summary/route'
 import { GET as monthlyTrendGET } from '@/app/api/monthly-trend/route'
 import { GET as assetsGET } from '@/app/api/assets/route'
 import { GET as performanceGET } from '@/app/api/performance/route'
+
+// 鉴权顺序改为「用户会话优先」后，handler 会先调用 getSession()；测试直接调用 handler
+// 没有 request scope，因此 mock 掉 getSession，让其回落到全局 PORTFOLIO_API_KEY 分支。
+vi.mock('@/lib/session', () => ({
+  getSession: async () => null,
+}))
 
 const ORIGINAL_KEY = process.env.PORTFOLIO_API_KEY
 const TEST_KEY = 'vitest-app-api-key'
