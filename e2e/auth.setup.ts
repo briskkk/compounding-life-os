@@ -10,6 +10,7 @@ setup('以种子账号登录并保存会话', async ({ page }) => {
   await page.getByLabel('邮箱').fill('e2e@test.local')
   await page.getByLabel('密码').fill('e2e-password')
   await page.getByRole('button', { name: '登录' }).click()
-  await expect(page).toHaveURL(/\/$/)
+  // CI 冷启动时登录请求与跳转可能较慢，给足超时（默认 expect 超时仅 5s）
+  await expect(page).toHaveURL(/\/$/, { timeout: 20_000 })
   await page.context().storageState({ path: STATE_PATH })
 })
