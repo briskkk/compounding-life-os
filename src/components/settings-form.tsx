@@ -349,16 +349,10 @@ function FamilyPanel({
         </form>
       </Card>
 
-      <Card title={`成员 · ${members.length}`} desc="角色与账号绑定状态">
+      <Card title={`成员 · ${members.length}`} desc={isOwner ? '可修改角色、移除与重置密码' : '角色与账号绑定状态'}>
         <ul className="flex flex-col">
           {members.map((m) => (
-            <li key={m.id} className="flex items-center justify-between gap-4 border-b border-line/50 py-2.5 text-[13px] last:border-b-0">
-              <span className="text-ink">
-                {m.name}
-                {m.current && <span className="ml-2 text-[12px] text-up">当前</span>}
-              </span>
-              <span className="text-ink-dim">{m.role}{m.email ? ` · ${m.email}` : ' · 未绑定'}</span>
-            </li>
+            <MemberManageRow key={m.id} member={m} isOwner={isOwner} />
           ))}
         </ul>
         <p className="mt-3 text-xs leading-relaxed text-ink-faint">
@@ -367,6 +361,10 @@ function FamilyPanel({
           ))}
         </p>
       </Card>
+
+      {isOwner && <InviteSection />}
+
+      <JoinFamilyCard />
 
       <Card title="创建新家庭" desc="创建后自动切换，家庭间数据完全隔离">
         <form onSubmit={createFamily} className="flex flex-col gap-3" noValidate>
@@ -378,6 +376,204 @@ function FamilyPanel({
         </form>
       </Card>
     </div>
+  )
+}
+
+function MemberManageRow({ member, isOwner }: { member: MemberRow; isOwner: boolean }) {
+  const router = useRouter()
+  const [resetOpen, setResetOpen] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [notice, setNotice] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
+
+  async function changeRole(nextRole: string) {
+    const res = await fetch(`/api/family/members/${member.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ role: nextRole }),
+    })
+    if (res.ok) router.refresh()
+    else setNotice(((await res.json()) as { error?: string }).error ?? '操作失败')
+  }
+
+  async function removeMember() {
+    if (!window.confirm(`确定移除成员「${member.name}」？其账号仍保留，但将无法访问本家庭数据。`)) return
+    const res = await fetch(`/api/family/members/${member.id}`, { method: 'DELETE' })
+    if (res.ok) router.refresh()
+    else setNotice(((await res.json()) as { error?: string }).error ?? '移除失败')
+  }
+
+  async function resetPassword(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setPending(true)
+    setNotice(null)
+    try {
+      const res = await fetch(`/api/family/members/${member.id}/reset-password`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ newPassword }),
+      })
+      const data = (await res.json()) as { ok: boolean; error?: string }
+      if (!res.ok || !data.ok) {
+        setNotice(data.error ?? '重置失败')
+        return
+      }
+      setResetOpen(false)
+      setNewPassword('')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <li className="flex flex-col gap-2 border-b border-line/50 py-2.5 text-[13px] last:border-b-0">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="text-ink">
+          {member.name}
+          {member.current && <span className="ml-2 text-[12px] text-up">当前</span>}
+        </span>
+        <span className="flex items-center gap-3">
+          {isOwner && !member.current ? (
+            <>
+              <select
+                value={member.role}
+                onChange={(e) => changeRole(e.target.value)}
+                className="min-h-9 rounded-lg border border-line bg-panel2 px-2 text-[13px] text-ink-dim outline-none"
+                aria-label={`${member.name} 角色`}
+              >
+                {['OWNER', 'ADMIN', 'MEMBER', 'VIEWER'].map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+              {member.email && (
+                <button type="button" onClick={() => setResetOpen((v) => !v)} className="text-ink-dim transition-colors hover:text-ink">重置密码</button>
+              )}
+              <button type="button" onClick={removeMember} className="text-amber transition-opacity hover:opacity-70">移除</button>
+            </>
+          ) : (
+            <span className="text-ink-dim">{member.role}{member.email ? ` · ${member.email}` : ' · 未绑定'}</span>
+          )}
+        </span>
+      </div>
+      {resetOpen && (
+        <form onSubmit={resetPassword} className="flex items-center gap-2">
+          <input type="password" required minLength={8} placeholder="新密码（至少 8 位）" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={inputCls} />
+          <button type="submit" disabled={pending} className={btnCls}>{pending ? '…' : '保存'}</button>
+        </form>
+      )}
+      {notice && <p role="alert" className="text-xs text-down">{notice}</p>}
+    </li>
+  )
+}
+
+function InviteSection() {
+  const router = useRouter()
+  const [role, setRole] = useState('MEMBER')
+  const [invites, setInvites] = useState<{ id: string; code: string; role: string; expiresAt: string }[] | null>(null)
+  const [generated, setGenerated] = useState<{ code: string } | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  async function refresh() {
+    const res = await fetch('/api/family/invites', { cache: 'no-store' })
+    const data = (await res.json()) as { ok: boolean; invites?: typeof invites }
+    if (data.ok) setInvites(data.invites ?? [])
+  }
+  useEffect(() => { void refresh() }, [])
+
+  async function createInvite() {
+    setNotice(null)
+    const res = await fetch('/api/family/invites', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ role }),
+    })
+    const data = (await res.json()) as { ok: boolean; error?: string; invite?: { code: string } }
+    if (!res.ok || !data.ok) {
+      setNotice(data.error ?? '生成失败')
+      return
+    }
+    setGenerated(data.invite ?? null)
+    void refresh()
+  }
+
+  async function revoke(inviteId: string) {
+    await fetch('/api/family/invites/revoke', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ inviteId }),
+    })
+    void refresh()
+  }
+
+  return (
+    <Card title="邀请成员" desc="生成 7 天有效的一次性邀请码，发给家人注册或登录后加入">
+      <div className="flex flex-wrap items-center gap-3">
+        <select value={role} onChange={(e) => setRole(e.target.value)} className="min-h-11 rounded-lg border border-line bg-panel2 px-2 text-[13px] text-ink-dim outline-none" aria-label="邀请角色">
+          {['MEMBER', 'ADMIN', 'VIEWER'].map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <button type="button" onClick={createInvite} className={btnCls}>生成邀请码</button>
+      </div>
+      {generated && (
+        <p className="mt-3 text-sm text-ink">
+          邀请码 <code className="num rounded bg-panel2 px-2 py-1 text-[15px] text-accent">{generated.code}</code>
+          <span className="ml-2 text-xs text-ink-faint">一次性 · 7 天有效</span>
+        </p>
+      )}
+      {invites != null && invites.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-1.5">
+          {invites.map((i) => (
+            <li key={i.id} className="flex items-center justify-between gap-4 rounded-lg border border-line px-3 py-2 text-[13px]">
+              <span className="num text-ink">{i.code}</span>
+              <span className="flex items-center gap-3 text-ink-dim">
+                {i.role} · {fmtDateTime(i.expiresAt)} 过期
+                <button type="button" onClick={() => revoke(i.id)} className="text-amber transition-opacity hover:opacity-70">撤销</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {notice && <p role="alert" className="mt-3 text-sm text-down">{notice}</p>}
+      <span className="hidden" data-invite-refresh />
+      <button type="button" className="hidden" onClick={() => router.refresh()} data-invite-refresh-btn />
+    </Card>
+  )
+}
+
+function JoinFamilyCard() {
+  const router = useRouter()
+  const [code, setCode] = useState('')
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
+  const [pending, setPending] = useState(false)
+
+  async function join(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setPending(true)
+    setNotice(null)
+    try {
+      const res = await fetch('/api/family/join', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+      const data = (await res.json()) as { ok: boolean; error?: string }
+      if (!res.ok || !data.ok) {
+        setNotice({ ok: false, text: data.error ?? '加入失败' })
+        return
+      }
+      setCode('')
+      setNotice({ ok: true, text: '已加入家庭' })
+      router.refresh()
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <Card title="加入家庭" desc="输入 OWNER 发出的邀请码，加入另一个家庭">
+      <form onSubmit={join} className="flex flex-col gap-3 sm:flex-row sm:items-center" noValidate>
+        <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="邀请码" className={inputCls} aria-label="加入家庭邀请码" />
+        <button type="submit" disabled={pending} className={btnCls}>{pending ? '加入中…' : '加入'}</button>
+      </form>
+      <Notice notice={notice} />
+    </Card>
   )
 }
 

@@ -48,3 +48,43 @@ test('多家庭：创建家庭、数据隔离与切换', async ({ browser }) => 
     await ctx.close()
   }
 })
+
+test('邀请：OWNER 生成邀请码，新成员带码注册自动加入', async ({ browser }) => {
+  // 独立会话：新注册 OWNER，不污染共享登录态
+  const ctx = await browser.newContext({ baseURL: 'http://localhost:3200' })
+  const owner = await ctx.newPage()
+  try {
+    const ts = Date.now().toString().slice(-6)
+    await owner.goto('/register')
+    await owner.getByLabel('邮箱').fill(`invite-owner-${ts}@test.local`)
+    await owner.getByLabel('密码（至少 8 位）').fill('owner-pass-123')
+    await owner.getByRole('button', { name: '注册' }).click()
+    await owner.waitForURL('**/onboarding')
+    await owner.getByLabel('家庭名称').fill(`邀请测试${ts}`)
+    await owner.getByRole('button', { name: /创建家庭/ }).click()
+    await owner.waitForURL('/')
+    // 生成邀请码
+    await owner.goto('/settings')
+    await owner.getByRole('tab', { name: '家庭' }).click()
+    await owner.getByRole('button', { name: '生成邀请码' }).click()
+    await expect(owner.locator('code')).toBeVisible()
+    const code = (await owner.locator('code').innerText()).trim()
+    // 新成员带码注册
+    const memberCtx = await browser.newContext({ baseURL: 'http://localhost:3200' })
+    const member = await memberCtx.newPage()
+    try {
+      await member.goto('/register')
+      await member.getByLabel('邮箱').fill(`invite-member-${ts}@test.local`)
+      await member.getByLabel('密码（至少 8 位）').fill('member-pass-123')
+      await member.getByLabel('邀请码（可选）').fill(code)
+      await member.getByRole('button', { name: '注册' }).click()
+      await member.waitForURL('/')
+      // 自动加入:顶栏显示家庭名
+      await expect(member.getByRole('banner')).toContainText(`邀请测试${ts}`)
+    } finally {
+      await memberCtx.close()
+    }
+  } finally {
+    await ctx.close()
+  }
+})

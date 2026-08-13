@@ -40,6 +40,19 @@ model Session {
   @@index([familyId])
 }
 
+// 家庭邀请码：OWNER 生成，受邀者注册或登录后凭码加入家庭
+model Invite {
+  id        String   @id @default(cuid())
+  familyId  String
+  code      String   @unique
+  role      Role     @default(MEMBER)
+  expiresAt DateTime
+  createdBy String
+  createdAt DateTime @default(now())
+
+  @@index([familyId])
+}
+
 model FamilySpace {
   id               String           @id @default(cuid())
   name             String

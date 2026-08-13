@@ -1,15 +1,17 @@
 // POST /api/family — 创建新家庭（当前账号成为 OWNER），并把会话切换到新家庭
 import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getSession, currentSessionToken } from '@/lib/session'
+import { getSession, hasSession, currentSessionToken } from '@/lib/session'
 import { recordAudit } from '@/lib/audit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
+  // 未加入家庭的账号也要能创建家庭：鉴权只要求有效会话
+  const session = await hasSession()
+  if (!session) return NextResponse.json({ ok: false, error: '未登录' }, { status: 401 })
   const ctx = await getSession()
-  if (!ctx || !ctx.userId) return NextResponse.json({ ok: false, error: '未登录' }, { status: 401 })
   let body: { name?: string }
   try {
     body = await req.json()
@@ -23,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   const family = await prisma.familySpace.create({ data: { name } })
   const member = await prisma.member.create({
-    data: { familyId: family.id, userId: ctx.userId, name: ctx.memberName, role: 'OWNER' },
+    data: { familyId: family.id, userId: session.userId, name: ctx?.memberName ?? '我', role: 'OWNER' },
   })
 
   // 切换当前会话到新家庭

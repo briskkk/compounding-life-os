@@ -44,4 +44,5 @@ Never commit database files, backups, API keys, or connection strings. Pass conf
 ## Operational Notes
 
 - Deleting rows from SQLite via `sqlite3` CLI does **not** cascade (foreign keys are off by default in that shell) and leaves orphaned `Member`/`Session` rows that break `User` includes (`family: null`). Clean up test fixtures through Prisma, or run `PRAGMA foreign_keys=ON;` first, then verify no orphans with `SELECT ... WHERE familyId NOT IN (SELECT id FROM FamilySpace)`.
+- Reproducing CI/other-platform issues in Docker must **not** share the host `node_modules`: `npm ci` inside a Linux container rewrites platform-specific binaries (e.g. esbuild) and breaks the host toolchain. Copy the repo into the container (or use a separate volume) and run `npm ci` there.
 - `next dev` restart is required after `globals.css` edits and after schema/`prisma generate` changes (see the stale-CSS note above); a long-running dev server can serve stale modules even when component hot reload looks healthy.

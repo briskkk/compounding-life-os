@@ -7,9 +7,10 @@ const SESSION_COOKIE = 'fw_session'
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
-  // 放行：登录页、所有 API、Next 内部资源、静态文件（带扩展名）
+  // 放行：登录/注册页、所有 API、Next 内部资源、静态文件（带扩展名）
   if (
     pathname === '/login' ||
+    pathname === '/register' ||
     pathname.startsWith('/api/') ||
     pathname.startsWith('/_next/') ||
     pathname.includes('.')

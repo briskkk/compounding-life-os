@@ -2,6 +2,7 @@
 
 // 登录页：POST /api/auth/login，成功设置会话后进入应用
 import { useState, type FormEvent } from 'react'
+import Link from 'next/link'
 import { inputCls, btnCls } from '@/components/fields'
 
 export default function LoginPage() {
@@ -70,6 +71,9 @@ export default function LoginPage() {
           {pending ? '登录中…' : '登录'}
         </button>
       </form>
+      <p className="text-sm text-ink-faint">
+        没有账号？<Link href="/register" className="text-accent hover:underline">注册</Link>
+      </p>
       <p className="text-xs leading-relaxed text-ink-faint">
         首次使用请先运行 <code className="rounded bg-panel2 px-1.5 py-0.5">npm run db:init</code> 创建 Owner 账号，
         或对已有数据运行 <code className="rounded bg-panel2 px-1.5 py-0.5">npm run auth:set-password</code> 设置密码。

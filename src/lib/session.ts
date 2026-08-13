@@ -56,6 +56,15 @@ export async function getSession(): Promise<FamilyCtx | null> {
   }
 }
 
+/** 是否有有效会话（不校验家庭归属；用于"登录但未加入家庭"的引导） */
+export async function hasSession(): Promise<{ userId: string; familyId: string } | null> {
+  const token = await sessionToken()
+  if (!token) return null
+  const session = await prisma.session.findUnique({ where: { token } })
+  if (!session || session.expiresAt.getTime() <= Date.now()) return null
+  return { userId: session.userId, familyId: session.familyId }
+}
+
 export async function getSessionOrThrow(): Promise<FamilyCtx> {
   const ctx = await getSession()
   if (!ctx) throw new Error('未登录')

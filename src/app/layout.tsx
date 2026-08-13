@@ -6,7 +6,7 @@ import '@fontsource/jetbrains-mono/400.css'
 import '@fontsource/jetbrains-mono/500.css'
 import './globals.css'
 import { prisma } from '@/lib/db'
-import { getSession } from '@/lib/session'
+import { getSession, hasSession } from '@/lib/session'
 import { BRAND_NAME, BRAND_NAME_EN } from '@/lib/brand'
 import { Nav } from '@/components/nav'
 import { FamilySwitcher, type FamilyOption } from '@/components/family-switcher'
@@ -29,7 +29,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   if (!ctx) {
     const h = await headers()
     const pathname = h.get('x-pathname')
-    if (pathname && pathname !== '/login') redirect('/login')
+    if (pathname && pathname !== '/login') {
+      // 有效会话但未加入任何家庭 → 引导加入/创建家庭
+      const session = await hasSession()
+      if (session && pathname !== '/onboarding') redirect('/onboarding')
+      else if (!session) redirect('/login')
+    }
   }
   const family = ctx
     ? await prisma.familySpace.findUnique({ where: { id: ctx.familyId } })
