@@ -15,16 +15,21 @@ function currentMonth(): string {
 
 test.describe('App API 认证（Bearer Token）', () => {
   for (const route of APP_ROUTES) {
-    test(`${route}：无 token 返回 401`, async ({ request }) => {
-      const res = await request.get(route)
+    test(`${route}：无凭证返回 401`, async ({ browser }) => {
+      // 独立无 cookie 的 context：storageState 登录态不得干扰"无凭证"断言
+      const context = await browser.newContext({ baseURL: 'http://localhost:3200', storageState: { cookies: [], origins: [] } })
+      const res = await context.request.get(route)
       expect(res.status()).toBe(401)
       const json = await res.json()
       expect(json.error).toBe('Unauthorized')
+      await context.close()
     })
 
-    test(`${route}：错误 token 返回 401`, async ({ request }) => {
-      const res = await request.get(route, { headers: { authorization: 'Bearer wrong-key' } })
+    test(`${route}：错误 token 返回 401`, async ({ browser }) => {
+      const context = await browser.newContext({ baseURL: 'http://localhost:3200', storageState: { cookies: [], origins: [] } })
+      const res = await context.request.get(route, { headers: { authorization: 'Bearer wrong-key' } })
       expect(res.status()).toBe(401)
+      await context.close()
     })
 
     test(`${route}：正确 token 返回 200`, async ({ request }) => {
