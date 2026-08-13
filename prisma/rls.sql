@@ -31,8 +31,9 @@ END $$;
 --    若希望家庭成员可见，可把 Policy 的 USING 改为：
 --    "familyId" = current_setting('app.family_id', true) OR "familyId" IS NULL
 -- 2. PriceBar 为全局行情数据，不启用 RLS。
--- 3. 推荐为应用建独立角色（不使用超级用户），RLS 才会生效：
+-- 3. User / Session 为全局认证数据，不启用 RLS（应用层会话校验后取 Member 角色）。
+-- 4. 推荐为应用建独立角色（不使用超级用户），RLS 才会生效：
 --    CREATE ROLE fwos_app LOGIN PASSWORD '...';
 --    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO fwos_app;
--- 4. 应用侧事务封装示例（Prisma $transaction 内第一条语句执行 SET LOCAL），
+-- 5. 应用侧事务封装示例（Prisma $transaction 内第一条语句执行 SET LOCAL），
 --    与应用层 scoped.ts 双保险共存，互不冲突。

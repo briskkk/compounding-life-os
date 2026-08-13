@@ -16,6 +16,30 @@ enum Role {
   VIEWER
 }
 
+// 账号：能登录的人（email + 密码哈希），不属于任何家庭
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  members      Member[]
+  sessions     Session[]
+}
+
+// 会话：双通道（网页 httpOnly cookie / APP Bearer token 共用 token 字段）
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  familyId  String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+}
+
 model FamilySpace {
   id               String           @id @default(cuid())
   name             String
@@ -37,11 +61,14 @@ model Member {
   id        String      @id @default(cuid())
   familyId  String
   family    FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
   role      Role        @default(MEMBER)
   createdAt DateTime    @default(now())
 
   @@index([familyId])
+  @@index([userId])
 }
 
 // ---------- 账户与资产 ----------

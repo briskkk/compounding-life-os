@@ -2,11 +2,10 @@
 
 // Server Actions：所有写操作入口 —— RLS 作用域 + 审计 + 快照重建
 import { revalidatePath } from 'next/cache'
-import { cookies } from 'next/headers'
 import type { Prisma, PrismaClient } from '@prisma/client'
 import { prisma } from './db'
 import { scopedDb, type FamilyCtx } from './scoped'
-import { getSessionOrThrow, MEMBER_COOKIE } from './session'
+import { getSessionOrThrow } from './session'
 import { recordAudit } from './audit'
 import { rebuildSnapshots } from './snapshots'
 import {
@@ -184,33 +183,7 @@ async function validateTransaction(
 
 // ---------- 会话 ----------
 
-export async function switchMember(memberId: string): Promise<ActionResult> {
-  try {
-    const current = await getSessionOrThrow()
-    const member = await prisma.member.findFirst({ where: { id: memberId, familyId: current.familyId } })
-    if (!member) return { ok: false, error: '成员不存在' }
-    const store = await cookies()
-    store.set(MEMBER_COOKIE, memberId, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-    })
-    await recordAudit(prisma, {
-      familyId: member.familyId,
-      actorId: current.memberId,
-      actorName: current.memberName,
-      action: 'SESSION_SWITCH',
-      entity: 'Member',
-      entityId: member.id,
-      detail: `切换为 ${member.name}（${member.role}）`,
-    })
-    revalidatePath('/')
-    return { ok: true }
-  } catch (e) {
-    return fail(e)
-  }
-}
+// 成员切换已由「账号密码登录 + 会话」取代（见 context/PLAN_AUTH_MOBILE.md），不再支持无密码切换身份
 
 // ---------- 流水 ----------
 

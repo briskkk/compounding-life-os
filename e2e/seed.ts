@@ -7,6 +7,7 @@ import { closeAt } from '../src/lib/market/simulated'
 import { persistHistory } from '../src/lib/market/persist'
 import { rebuildSnapshots } from '../src/lib/snapshots'
 import { recordAudit } from '../src/lib/audit'
+import { hashPassword } from '../src/lib/auth/password'
 
 const DB_PATH = process.env.SEED_DATABASE_PATH ? path.resolve(process.env.SEED_DATABASE_PATH) : null
 if (!DB_PATH) {
@@ -32,6 +33,8 @@ async function main() {
   await prisma.$transaction([
     prisma.auditLog.deleteMany(),
     prisma.snapshot.deleteMany(),
+    prisma.session.deleteMany(),
+    prisma.user.deleteMany(),
     prisma.transaction.deleteMany(),
     prisma.liabilityEntry.deleteMany(),
     prisma.liability.deleteMany(),
@@ -46,7 +49,11 @@ async function main() {
   console.log('· 创建家庭空间与成员…')
   const family = await prisma.familySpace.create({ data: { name: '沈家 · 财富空间' } })
   const fid = family.id
-  const shen = await prisma.member.create({ data: { familyId: fid, name: '沈砚', role: 'OWNER' } })
+  // E2E 登录账号（auth.setup 用它走 /login）
+  const e2eUser = await prisma.user.create({
+    data: { email: 'e2e@test.local', passwordHash: await hashPassword('e2e-password') },
+  })
+  const shen = await prisma.member.create({ data: { familyId: fid, userId: e2eUser.id, name: '沈砚', role: 'OWNER' } })
   await prisma.member.create({ data: { familyId: fid, name: '林知夏', role: 'ADMIN' } })
   await prisma.member.create({ data: { familyId: fid, name: '沈父', role: 'VIEWER' } })
 
