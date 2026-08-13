@@ -89,11 +89,13 @@ Family Wealth OS 的移动端客户端,独立新建项目(不在本仓库开发)
 
 ## 7. 本仓库需要配合的服务端改造(APP 开发前置/并行)
 
-| # | 事项 | 说明 |
-|---|---|---|
-| 1 | 只读 API 支持用户 token | assets/performance/monthly-summary/monthly-trend/export 现只认全局 key;需改为"用户 token 优先、全局 key 兼容" |
-| 2 | 新增深链路端点 | positions / transactions / goals / 资产详情(第 4.3 节) |
-| 3 | (可选)写 API | APP 若需录入流水/目标,需把 actions 核心逻辑抽 service 层暴露 POST API |
+> **触发约定(2026-08-13 确认)**:本节各项**不做预开发**,等 APP 开发到对应里程碑时再回到本仓库实施。实施时以此表为准。
+
+| # | 事项 | 触发里程碑 | 说明 |
+|---|---|---|---|
+| 1 | 只读 API 支持用户 token | M1 开工前 | assets/performance/monthly-summary/monthly-trend/export 现只认全局 key;需改为"用户 token 优先、全局 key 兼容" |
+| 2 | 新增深链路端点 | M2 开工前 | positions / transactions / goals / 资产详情(第 4.3 节) |
+| 3 | (可选)写 API | M4 需要时 | APP 若需录入流水/目标,需把 actions 核心逻辑抽 service 层暴露 POST API |
 
 ## 8. 分阶段里程碑
 
