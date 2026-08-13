@@ -43,11 +43,13 @@ export function PortfolioHistory({
   liveValue,
   currentContributions,
   benchmarks = [],
+  initialPreset,
 }: {
   series: PerformancePoint[]
   liveValue: number
   currentContributions: number
   benchmarks?: LoadedBenchmark[]
+  initialPreset?: string
 }) {
   const todayKey = dateKeyAt(new Date())
   const liveSeries = useMemo(() => {
@@ -69,7 +71,9 @@ export function PortfolioHistory({
 
   const earliestDate = liveSeries[0]?.date ?? todayKey
   const initialCustomRange = performancePresetRange('LAST_30_DAYS', new Date(), earliestDate)
-  const [preset, setPreset] = useState<PerformancePreset>('THIS_MONTH')
+  // 用户偏好：默认收益区间（设置页可配置；非法值回落到 THIS_MONTH）
+  const initialPresetKey = PRESETS.some((p) => p.value === initialPreset) ? (initialPreset as PerformancePreset) : 'THIS_MONTH'
+  const [preset, setPreset] = useState<PerformancePreset>(initialPresetKey)
   const [chartTab, setChartTab] = useState<ChartTab>('RETURN')
   const [customOpen, setCustomOpen] = useState(false)
   const [draftStart, setDraftStart] = useState(initialCustomRange.startDate)

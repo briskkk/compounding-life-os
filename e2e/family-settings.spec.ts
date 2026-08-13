@@ -88,3 +88,11 @@ test('邀请：OWNER 生成邀请码，新成员带码注册自动加入', async
     await ctx.close()
   }
 })
+
+test('偏好：看盘默认收益区间', async ({ page }) => {
+  await page.goto('/settings')
+  await page.getByLabel('默认收益区间').selectOption('THIS_YEAR')
+  await expect(page.locator('section', { hasText: '偏好' }).getByText('已保存')).toBeVisible()
+  await page.goto('/watch')
+  await expect(page.getByRole('button', { name: '今年', exact: true })).toHaveAttribute('aria-pressed', 'true')
+})

@@ -8,12 +8,18 @@ import { marketChainLabel } from '@/lib/valuation-source'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { parseHoldingSort } from '@/lib/engine/holding-sort'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
+import { getSession } from '@/lib/session'
+import { prisma } from '@/lib/db'
+import { parsePreferences } from '@/lib/preferences'
 
 export const dynamic = 'force-dynamic'
 
 export default async function WatchPage({ searchParams }: { searchParams: Promise<{ sort?: string }> }) {
-  const [watchData, sp] = await Promise.all([getWatchData(), searchParams])
+  const [watchData, sp, session] = await Promise.all([getWatchData(), searchParams, getSession()])
   if (!watchData) return <SetupScreen />
+  const defaultRange = session?.userId
+    ? parsePreferences((await prisma.user.findUnique({ where: { id: session.userId }, select: { preferences: true } }))?.preferences ?? null).defaultRange ?? null
+    : null
 
   const state = watchData.state
   const rates = await fxRates()
@@ -84,6 +90,7 @@ export default async function WatchPage({ searchParams }: { searchParams: Promis
       }))}
       currentContributions={watchData.series.at(-1)?.contributions ?? 0}
       initialSort={parseHoldingSort(sp.sort)}
+      defaultRange={defaultRange}
       benchmarks={benchmarks}
     />
   )

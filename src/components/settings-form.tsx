@@ -76,6 +76,7 @@ export function SettingsForm({
   email,
   familyName,
   baseCurrency,
+  defaultRange,
   members,
 }: {
   memberName: string
@@ -83,6 +84,7 @@ export function SettingsForm({
   email: string
   familyName: string
   baseCurrency: string
+  defaultRange?: string | null
   members: MemberRow[]
 }) {
   const [tab, setTab] = useState<Tab>('account')
@@ -114,9 +116,9 @@ export function SettingsForm({
         ))}
       </div>
 
-      {tab === 'account' && <AccountPanel email={email} />}
+      {tab === 'account' && <AccountPanel email={email} defaultRange={defaultRange ?? null} />}
       {tab === 'family' && <FamilyPanel familyName={familyName} baseCurrency={baseCurrency} members={members} role={role} />}
-      {tab === 'data' && <DataPanel />}
+      {tab === 'data' && <DataPanel role={role} familyName={familyName} />}
 
       <div className="mt-10">
         <Link href="/" className={btnGhostCls}>← 返回</Link>
@@ -127,7 +129,7 @@ export function SettingsForm({
 
 // ---------- 账号 ----------
 
-function AccountPanel({ email }: { email: string }) {
+function AccountPanel({ email, defaultRange }: { email: string; defaultRange: string | null }) {
   const [editing, setEditing] = useState<'none' | 'email' | 'password'>('none')
   return (
     <div className="flex flex-col gap-5" role="tabpanel">
@@ -160,7 +162,46 @@ function AccountPanel({ email }: { email: string }) {
       <Card title="最近登录" desc="来自审计链的登录记录">
         <LoginHistory />
       </Card>
+
+      <PreferenceCard defaultRange={defaultRange} />
     </div>
+  )
+}
+
+// 偏好：看盘页默认收益区间
+const RANGE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'THIS_WEEK', label: '本周' },
+  { value: 'THIS_MONTH', label: '本月' },
+  { value: 'THIS_YEAR', label: '今年' },
+  { value: 'LAST_7_DAYS', label: '近 7 日' },
+  { value: 'LAST_30_DAYS', label: '近 30 日' },
+  { value: 'LAST_YEAR', label: '近一年' },
+  { value: 'ALL', label: '全部' },
+]
+
+function PreferenceCard({ defaultRange }: { defaultRange: string | null }) {
+  const [range, setRange] = useState(defaultRange ?? 'THIS_MONTH')
+  const [notice, setNotice] = useState<string | null>(null)
+  async function save(next: string) {
+    setRange(next)
+    setNotice(null)
+    const res = await fetch('/api/account/preferences', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ defaultRange: next }),
+    })
+    const data = (await res.json()) as { ok: boolean }
+    if (data.ok) setNotice('已保存')
+  }
+  return (
+    <Card title="偏好" desc="看盘页历史收益的默认查询区间">
+      <div className="flex flex-wrap items-center gap-3">
+        <select value={range} onChange={(e) => save(e.target.value)} className="min-h-11 rounded-lg border border-line bg-panel2 px-2 text-[13px] text-ink-dim outline-none" aria-label="默认收益区间">
+          {RANGE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        {notice && <span className="text-[13px] text-up">{notice}</span>}
+      </div>
+    </Card>
   )
 }
 
@@ -579,7 +620,8 @@ function JoinFamilyCard() {
 
 // ---------- 数据 ----------
 
-function DataPanel() {
+function DataPanel({ role, familyName }: { role: string; familyName: string }) {
+  const isOwner = role === 'OWNER'
   return (
     <div className="flex flex-col gap-5" role="tabpanel">
       <Card title="数据导出" desc="导出当前家庭的数据（CSV）">
@@ -588,7 +630,92 @@ function DataPanel() {
           <Link href="/api/export/snapshots" className={btnGhostCls}>导出快照</Link>
         </div>
       </Card>
+      {isOwner && <BackupCard />}
+      {isOwner && <ResetCard familyName={familyName} />}
     </div>
+  )
+}
+
+function BackupCard() {
+  const [backups, setBackups] = useState<{ file: string; size: number; createdAt: string }[] | null>(null)
+  const [pending, setPending] = useState(false)
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
+  async function refresh() {
+    const res = await fetch('/api/admin/backup', { cache: 'no-store' })
+    const data = (await res.json()) as { ok: boolean; backups?: typeof backups }
+    if (data.ok) setBackups(data.backups ?? [])
+  }
+  useEffect(() => { void refresh() }, [])
+  async function backupNow() {
+    setPending(true)
+    setNotice(null)
+    try {
+      const res = await fetch('/api/admin/backup', { method: 'POST' })
+      const data = (await res.json()) as { ok: boolean; error?: string }
+      setNotice(data.ok ? { ok: true, text: '备份完成' } : { ok: false, text: data.error ?? '备份失败' })
+      if (data.ok) void refresh()
+    } finally {
+      setPending(false)
+    }
+  }
+  return (
+    <Card title="备份" desc="SQLite 在线一致快照，保留最近 30 份">
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={backupNow} disabled={pending} className={btnCls}>{pending ? '备份中…' : '立即备份'}</button>
+        <Notice notice={notice} />
+      </div>
+      {backups != null && backups.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-1.5 text-[13px] text-ink-dim">
+          {backups.slice(0, 5).map((b) => (
+            <li key={b.file} className="flex items-center justify-between gap-4">
+              <span className="num">{b.file}</span>
+              <span className="num">{Math.round(b.size / 1024)} KB · {fmtDateTime(b.createdAt)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  )
+}
+
+function ResetCard({ familyName }: { familyName: string }) {
+  const [confirm, setConfirm] = useState('')
+  const [pending, setPending] = useState(false)
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
+  async function reset() {
+    if (!window.confirm(`此操作将清空「${familyName}」的全部账本数据（流水/资产/账户/负债/目标），且不可撤销。备份将自动执行。确定继续？`)) return
+    setPending(true)
+    setNotice(null)
+    try {
+      const res = await fetch('/api/family/reset', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ confirm }),
+      })
+      const data = (await res.json()) as { ok: boolean; error?: string }
+      if (!res.ok || !data.ok) {
+        setNotice({ ok: false, text: data.error ?? '重置失败' })
+        return
+      }
+      setNotice({ ok: true, text: '家庭数据已清空' })
+      setConfirm('')
+    } finally {
+      setPending(false)
+    }
+  }
+  return (
+    <Card title="危险区" desc="清空当前家庭的全部账本数据（保留账号与家庭结构）">
+      <div className="flex flex-col gap-3">
+        <p className="text-[13px] text-ink-faint">输入家庭名称「<span className="text-ink">{familyName}</span>」以确认。</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={familyName} className={inputCls} aria-label="确认家庭名称" />
+          <button type="button" onClick={reset} disabled={pending || confirm !== familyName} className="inline-flex min-h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-down px-4 py-2 text-[14px] text-down disabled:opacity-40">
+            {pending ? '重置中…' : '清空家庭数据'}
+          </button>
+        </div>
+        <Notice notice={notice} />
+      </div>
+    </Card>
   )
 }
 

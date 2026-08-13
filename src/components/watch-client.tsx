@@ -70,6 +70,7 @@ export function WatchClient({
   historySeries,
   currentContributions,
   initialSort,
+  defaultRange,
   benchmarks,
 }: {
   holdings: WatchHolding[]
@@ -80,6 +81,7 @@ export function WatchClient({
   historySeries: PerformancePoint[]
   currentContributions: number
   initialSort: HoldingSort
+  defaultRange?: string | null
   benchmarks: LoadedBenchmark[]
 }) {
   const [seriesMap, setSeriesMap] = useState<Map<string, IntradaySeries>>(new Map())
@@ -274,6 +276,7 @@ export function WatchClient({
         liveValue={liveInvestableValue}
         currentContributions={currentContributions}
         benchmarks={benchmarks}
+        initialPreset={defaultRange ?? undefined}
       />
 
       {/* 实时估值表 */}

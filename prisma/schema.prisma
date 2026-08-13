@@ -22,6 +22,8 @@ model User {
   email        String    @unique
   passwordHash String
   createdAt    DateTime  @default(now())
+  /** 用户偏好（JSON）：如默认收益区间 */
+  preferences  String?
   members      Member[]
   sessions     Session[]
 }
