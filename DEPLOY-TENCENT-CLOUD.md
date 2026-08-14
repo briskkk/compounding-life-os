@@ -290,6 +290,23 @@ crontab -e
 0 3 * * * /opt/family-wealth-os/scripts/cron-backup.sh >> /var/log/backup.log 2>&1
 ```
 
+### 6.3 每日行情刷新（自动回填基金净值）
+
+场外基金官方净值 T+1 晚间公布（QDII T+2）。若不定期刷新，历史收益会一直停留在净值未公布时的"未结算"状态。建议每天上午自动刷新一次：
+
+```bash
+# 脚本已随仓库提供（deploy/server-refresh.sh），执行 server-update.sh 时会自动
+# 生成并注册每日 08:00 的 cron；手动设置方式：
+
+chmod +x /opt/family-wealth-os/deploy/server-refresh.sh
+
+crontab -e
+# 添加：
+0 8 * * * /opt/family-wealth-os/deploy/server-refresh.sh >> /var/log/fwos-refresh.log 2>&1
+```
+
+脚本行为：拉取全部基金官方净值与市场行情 → 重建 1400 天快照（等效页面「↻ 行情」），日志写入 `/var/log/fwos-refresh.log`。
+
 ---
 
 ## 七、生产环境数据库升级（可选）
