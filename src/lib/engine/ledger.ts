@@ -1,6 +1,12 @@
 // 账本折叠：交易流水是唯一事实源，持仓由流水重放推导
 import type { AssetClass, TxInput } from './types'
 
+/** 金额钳制：累加点统一保留 6 位小数，消除浮点累积漂移（分以下 4 位余量） */
+const MONEY_SCALE = 1e6
+export function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * MONEY_SCALE) / MONEY_SCALE
+}
+
 export interface Position {
   accountId: string
   assetId: string
@@ -35,30 +41,30 @@ export function applyTransaction(pos: Position, tx: TxInput, cls: AssetClass): v
   switch (tx.type) {
     case 'BUY': {
       pos.quantity += q
-      pos.costBasis += q * p + tx.fee
+      pos.costBasis = roundMoney(pos.costBasis + q * p + tx.fee)
       break
     }
     case 'SELL': {
       const unit = pos.quantity > 0 ? pos.costBasis / pos.quantity : 0
       const sellQ = Math.min(q, pos.quantity)
-      pos.realizedPnl += sellQ * p - tx.fee - unit * sellQ
+      pos.realizedPnl = roundMoney(pos.realizedPnl + sellQ * p - tx.fee - unit * sellQ)
       pos.quantity -= sellQ
-      pos.costBasis -= unit * sellQ
+      pos.costBasis = roundMoney(Math.max(0, pos.costBasis - unit * sellQ))
       break
     }
     case 'DEPOSIT': {
       pos.quantity += tx.amount
-      pos.costBasis += tx.amount
+      pos.costBasis = roundMoney(pos.costBasis + tx.amount)
       break
     }
     case 'WITHDRAW': {
       pos.quantity -= tx.amount
-      pos.costBasis = Math.max(0, pos.costBasis - tx.amount)
+      pos.costBasis = roundMoney(Math.max(0, pos.costBasis - tx.amount))
       break
     }
     case 'TRANSFER_IN': {
       pos.quantity += q
-      pos.costBasis += tx.amount // amount 携带转入成本
+      pos.costBasis = roundMoney(pos.costBasis + tx.amount) // amount 携带转入成本
       break
     }
     case 'TRANSFER_OUT': {
@@ -66,21 +72,21 @@ export function applyTransaction(pos: Position, tx: TxInput, cls: AssetClass): v
       const outQ = Math.min(q, pos.quantity)
       const carried = tx.amount > 0 ? tx.amount : unit * outQ
       pos.quantity -= outQ
-      pos.costBasis = Math.max(0, pos.costBasis - carried)
+      pos.costBasis = roundMoney(Math.max(0, pos.costBasis - carried))
       break
     }
     case 'DIVIDEND':
     case 'INTEREST': {
-      pos.realizedPnl += tx.amount - tx.fee
+      pos.realizedPnl = roundMoney(pos.realizedPnl + tx.amount - tx.fee)
       // 现金资产的利息/分红直接增加余额
       if (cls === 'CASH') {
         pos.quantity += tx.amount
-        pos.costBasis += tx.amount
+        pos.costBasis = roundMoney(pos.costBasis + tx.amount)
       }
       break
     }
     case 'FEE': {
-      pos.realizedPnl -= tx.amount
+      pos.realizedPnl = roundMoney(pos.realizedPnl - tx.amount)
       break
     }
     case 'VALUATION': {

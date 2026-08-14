@@ -12,7 +12,7 @@ let accA: string
 let accB: string
 
 function ctxOf(familyId: string, role: FamilyCtx['role'] = 'OWNER'): FamilyCtx {
-  return { familyId, memberId: 'm1', memberName: '测试', role }
+  return { familyId, memberId: 'm1', memberName: '测试', role, userId: 'u1' }
 }
 
 beforeAll(async () => {

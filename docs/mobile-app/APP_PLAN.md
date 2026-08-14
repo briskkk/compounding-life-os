@@ -1,7 +1,7 @@
 ---
-status: proposed
+status: canonical
 owner: project-maintainers
-last_verified: 2026-08-13
+last_verified: 2026-08-14
 ---
 
 # 移动端 APP — 独立项目启动文档
@@ -16,6 +16,8 @@ Family Wealth OS 的移动端客户端,独立新建项目(不在本仓库开发)
 - 设置:登录/登出、改密码、家庭切换
 
 **原则**:APP 展示的数字必须与网页同源同口径(共用本仓库的引擎与 API),不得在 APP 内重写计算。
+
+**实施现状(2026-08-14)**:项目位于 `~/Projects/Port-APP`,采用 **SwiftUI 原生 iOS**(非下文第 6 节的 Expo 建议——该节为早期选型,已由实现事实取代)。UI 骨架已完成:4 Tab(总览/持仓/看盘/账户)+ 中央「记一笔」FAB + 记录弹层 + 设置弹层 + Toast;`RootView` 的资产详情/FIRE 路由当前仍走 `MockData`,等待真实端点。v1.1 已接入真实服务端(默认 `http://111.229.116.222`),登录/总览/持仓/资产详情/记一笔/溯源均已对接本仓库 API。
 
 ## 2. 对接架构
 
@@ -43,31 +45,38 @@ Family Wealth OS 的移动端客户端,独立新建项目(不在本仓库开发)
 
 ## 4. API 清单
 
-### 4.1 已可用(用户级 token,即 login 返回的 token)
+> 2026-08-14 更新:以下端点**全部支持用户级 token**(Cookie 或 Bearer),并兼容全局 `PORTFOLIO_API_KEY`(回落首个 OWNER)。认证统一由 `src/lib/services/api-auth.ts` 的 `apiAuthCtx` 处理。
+
+### 4.1 实时行情与分时(用户级 token)
 
 | 端点 | 用途 | 响应要点 |
 |---|---|---|
-| `GET /api/prices?symbols=a,b` | 实时报价 | `quotes[]: { symbol, price, prevClose, changePct, asOf, tradingDate, source, rawPrice, rawPrevClose, confidencePct? }`(price 为人民币口径,rawPrice 为原币;基金含估值来源) |
-| `GET /api/intraday?symbols=a,b` | 分时曲线 | `series: { [symbol]: { points: [{t, price}], prevClose, source } }`;基金仅交易时段产出 |
+| `GET /api/prices?symbols=a,b` | 实时报价 | `quotes[]: { symbol, price, prevClose, changePct, asOf, tradingDate, source, rawPrice, rawPrevClose, confidencePct? }`(price 为人民币口径,rawPrice 为原币;基金含估值来源);30s 服务端缓存 |
+| `GET /api/intraday?symbols=a,b` | 分时曲线 | `series: { [symbol]: { points: [{t, price}], prevClose, source } }`;基金仅交易时段产出;20s 响应缓存 |
 
-### 4.2 已可用(全局只读 key,`PORTFOLIO_API_KEY` 环境变量)
-
-> ⚠️ 这些端点为 Life Capital APP 设计,鉴权是**全局 key**,不支持多成员。APP 多成员上线前需服务端补"用户 token 支持"(见第 7 节)。
+### 4.2 只读数据端点(用户级 token,兼容全局 key)
 
 | 端点 | 用途 | 响应要点 |
 |---|---|---|
+| `GET /api/mobile/summary` | 移动端总览/账户/FIRE 数据包 | 净资产/负债/账户/目标投影/账本哈希,一次拉取 |
+| `GET /api/positions` | 持仓明细 | 资产、数量、成本、市值、当日盈亏、来源 |
+| `GET /api/positions/[assetId]` | 资产详情 | 行情、K 线(120 日)、持仓、买卖点 |
 | `GET /api/assets` | 资产构成 | 7 类资产、占比、曲线 |
 | `GET /api/performance` | 区间收益归因与风险 | contributions / investmentReturn / twrCumulative / twrAnnualized / xirr / maxDrawdown / annualizedVolatility |
 | `GET /api/monthly-summary?month=` | 月度净资产汇总 | 聚合字段与口径 |
 | `GET /api/monthly-trend?months=` | 净资产/负债月度趋势 | 默认 12 个月 |
 | `GET /api/export/transactions` / `snapshots` | 数据导出(会话) | CSV 下载 |
 
-### 4.3 服务端待补(APP 深链路需要,见第 7 节)
+### 4.3 写端点(用户级 token;与 Server Actions 共用同一服务层)
 
-- `GET /api/positions` — 持仓明细(资产、数量、成本、市值、当日盈亏、来源)
-- `GET /api/transactions` — 单笔流水(分页/筛选)
-- `GET /api/goals` — FIRE 目标与模拟结果
-- `GET /api/positions/[assetId]` — 资产详情(行情、K 线、持仓、买卖点)
+| 端点 | 用途 | 说明 |
+|---|---|---|
+| `POST /api/transactions` | 记一笔 | 与网页共用 `src/lib/services/transactions.ts`(校验/结算联动/审计/快照增量重建) |
+| `GET /api/transactions?assetId&limit` | 流水列表(溯源) | 最近流水,最多 200 条 |
+
+### 4.4 服务端待补(APP 深链路)
+
+- `GET /api/goals` — FIRE 目标与模拟结果(尚未实现)
 
 ## 5. 数据口径(APP 必须与网页一致)
 
@@ -79,7 +88,9 @@ Family Wealth OS 的移动端客户端,独立新建项目(不在本仓库开发)
 
 ## 6. 技术选型建议
 
-**推荐:Expo(React Native)+ TypeScript**。理由:
+> ⚠️ **已被实现取代**:实际采用 **SwiftUI 原生 iOS**(见第 1 节实施现状)。以下为早期 Expo/React Native 候选,仅供技术回退或 Android 决策参考。
+
+**候选:Expo(React Native)+ TypeScript**。理由:
 
 - 与本仓库同一技术栈(TS),模型类型可复用
 - Expo 生态成熟,热更新/推送/构建免配
@@ -87,24 +98,24 @@ Family Wealth OS 的移动端客户端,独立新建项目(不在本仓库开发)
 
 **目录建议**:`src/api/`(端点封装与类型)、`src/auth/`(token 存储:expo-secure-store)、`src/screens/`、`src/components/`(行情/图表,图表可用 victory-native)。
 
-## 7. 本仓库需要配合的服务端改造(APP 开发前置/并行)
+## 7. 本仓库的服务端配合(2026-08-14 状态)
 
-> **触发约定(2026-08-13 确认)**:本节各项**不做预开发**,等 APP 开发到对应里程碑时再回到本仓库实施。实施时以此表为准。
-
-| # | 事项 | 触发里程碑 | 说明 |
+| # | 事项 | 状态 | 说明 |
 |---|---|---|---|
-| 1 | 只读 API 支持用户 token | M1 开工前 | assets/performance/monthly-summary/monthly-trend/export 现只认全局 key;需改为"用户 token 优先、全局 key 兼容" |
-| 2 | 新增深链路端点 | M2 开工前 | positions / transactions / goals / 资产详情(第 4.3 节) |
-| 3 | (可选)写 API | M4 需要时 | APP 若需录入流水/目标,需把 actions 核心逻辑抽 service 层暴露 POST API |
+| 1 | 只读 API 支持用户 token | ✅ 完成 | 全部端点经 `apiAuthCtx`(会话优先 → 全局 key 兼容) |
+| 2 | 深链路端点 | ✅ 完成(除 goals) | positions / positions/[assetId] / transactions(GET+POST) 已实现;goals 待补 |
+| 3 | 写 API 共用 service 层 | ✅ 完成 | `POST /api/transactions` 与 Server Actions 共用 `src/lib/services/transactions.ts`(校验/结算/审计/快照) |
+| 4 | 快照增量重建 | ✅ 完成 | 写操作只重算受影响日期起的快照 |
+| 5 | 行情缓存与健康 | ✅ 完成 | 报价 30s 缓存;`GET /api/health` 暴露 provider 健康 |
 
 ## 8. 分阶段里程碑
 
-| 里程碑 | 内容 | 依赖 |
-|---|---|---|
-| M1 认证与总览 | 登录/登出/token 管理 + 总览(净资产、当日盈亏) | 4.1 + 改造 #1(performance 用用户 token) |
-| M2 持仓与资产 | 持仓列表、资产详情(K 线/分时/买卖点) | 4.1 + 新增 #2(positions、assetId) |
-| M3 看盘与收益 | 看盘行情、区间收益、收益日历、风险指标 | 4.1 + 4.2 改造 |
-| M4 设置与协作 | 改密码、家庭切换、偏好、邀请 | 4.1 全部可用 |
+| 里程碑 | 内容 | 依赖 | 状态 |
+|---|---|---|---|
+| M1 认证与总览 | 登录/登出/token 管理 + 总览(净资产、当日盈亏) | 4.1 端点 | ✅ 服务端就绪;APP 登录已对接真实服务端 |
+| M2 持仓与资产 | 持仓列表、资产详情(K 线/分时/买卖点) | positions / positions/[assetId] | ✅ 服务端就绪;APP 详情路由待从 MockData 切换 |
+| M3 看盘与收益 | 看盘行情、区间收益、收益日历、风险指标 | 4.1 + 4.2 | 🚧 服务端就绪;APP 推进中 |
+| M4 设置与协作 | 改密码、家庭切换、偏好、邀请 | 4.1 全部可用 | 🚧 服务端就绪;APP 推进中 |
 
 ## 9. 环境配置
 
