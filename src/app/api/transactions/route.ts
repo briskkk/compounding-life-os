@@ -34,10 +34,10 @@ export async function POST(req: NextRequest) {
   const data = parsed.data
 
   try {
-    const txId = await prisma.$transaction((txDb) =>
-      createTransactionRecord(txDb, auth.ctx!, data).then((r) => r.id),
+    const { id: txId, affectedSince } = await prisma.$transaction((txDb) =>
+      createTransactionRecord(txDb, auth.ctx!, data),
     )
-    const warning = await rebuildSnapshotsForFamily(prisma, auth.ctx.familyId)
+    const warning = await rebuildSnapshotsForFamily(prisma, auth.ctx.familyId, affectedSince)
     return NextResponse.json({ ok: true, id: txId, warning })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

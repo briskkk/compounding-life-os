@@ -125,7 +125,7 @@ export async function createTransactionRecord(
   db: ServiceDb,
   ctx: FamilyCtx,
   data: TxInputData,
-): Promise<{ id: string }> {
+): Promise<{ id: string; affectedSince: Date }> {
   const settleCash = data.settleCash ?? (data.type === 'BUY' || data.type === 'SELL')
   const accountId = await routedAccountIdForAsset(db, ctx.familyId, data.accountId, data.assetId)
   const entry = { ...data, accountId }
@@ -172,11 +172,16 @@ export async function createTransactionRecord(
     entityId: tx.id,
     detail: `${data.type} ${data.amount}${settleCash && (data.type === 'BUY' || data.type === 'SELL') ? '（含现金结算）' : ''}`,
   })
-  return { id: tx.id }
+  return { id: tx.id, affectedSince: tx.occurredAt }
 }
 
-/** 冲正：作废原流水及其结算腿，并留下 REVERSAL 标记流水（调用方负责事务与快照重建） */
-export async function reverseTransactionRecord(db: ServiceDb, ctx: FamilyCtx, id: string): Promise<void> {
+/** 冲正：作废原流水及其结算腿，并留下 REVERSAL 标记流水（调用方负责事务与快照重建）。
+ * 返回被冲正流水的发生时间，供增量快照重建使用。 */
+export async function reverseTransactionRecord(
+  db: ServiceDb,
+  ctx: FamilyCtx,
+  id: string,
+): Promise<{ affectedSince: Date }> {
   const original = await db.transaction.findFirst({ where: { id, familyId: ctx.familyId } })
   if (!original) throw new Error('流水不存在')
   if (original.voidedAt) throw new Error('该流水已被冲正')
@@ -207,15 +212,18 @@ export async function reverseTransactionRecord(db: ServiceDb, ctx: FamilyCtx, id
     entityId: id,
     detail: `${original.type} ${Number(original.amount)}`,
   })
+  return { affectedSince: original.occurredAt }
 }
 
-/** 提交后重建快照；失败时返回警告文案（revalidate 策略由调用方决定） */
+/** 提交后重建快照；失败时返回警告文案（revalidate 策略由调用方决定）。
+ * affectedSince：受影响的最早日期，增量重建只重算该日之后；缺省全量。 */
 export async function rebuildSnapshotsForFamily(
   db: PrismaClient,
   familyId: string,
+  affectedSince?: Date,
 ): Promise<string | undefined> {
   try {
-    await rebuildSnapshots(db, familyId)
+    await rebuildSnapshots(db, familyId, affectedSince ? { affectedSince } : undefined)
     return undefined
   } catch (error) {
     console.error('快照重建失败', error)

@@ -151,14 +151,34 @@ export function computeWealthSeries(
   })
 }
 
-/** 全量重建某家庭空间的快照（幂等：先清后写） */
-export async function rebuildSnapshots(db: PrismaClient, familyId: string): Promise<number> {
+/**
+ * 重建某家庭空间的快照。
+ * - 不传 since：全量重建（先清后写），用于初始化与行情刷新。
+ * - 传 since：增量重建——只删除并重算 affectedSince 当日及之后的快照；
+ *   早于该日的快照保留（流水/负债只影响其发生日之后的值）。
+ *   内部仍以最早流水日为起点重放，保证期初持仓与净投入正确。
+ */
+export async function rebuildSnapshots(
+  db: PrismaClient,
+  familyId: string,
+  opts?: { affectedSince?: Date },
+): Promise<number> {
   const txsRaw = await db.transaction.findMany({
     where: { familyId },
     include: { asset: true },
     orderBy: { occurredAt: 'asc' },
   })
-  await db.snapshot.deleteMany({ where: { familyId } })
+  const now = new Date()
+  // 与 computeWealthSeries 一致的窗口起点：增量时把受影响日钳制到最近 MAX_DAYS 窗口内，
+  // 保证「删除范围」与「重算范围」完全一致，避免唯一约束冲突或残留过期快照。
+  const endMs = Math.floor(now.getTime() / DAY) * DAY
+  const windowStart = endMs - (MAX_DAYS - 1) * DAY
+  if (opts?.affectedSince) {
+    const since = Math.min(Math.max(Math.floor(opts.affectedSince.getTime() / DAY) * DAY, windowStart), endMs)
+    await db.snapshot.deleteMany({ where: { familyId, date: { gte: new Date(since) } } })
+  } else {
+    await db.snapshot.deleteMany({ where: { familyId } })
+  }
   if (txsRaw.length === 0) return 0
 
   const [assetsRaw, entriesRaw] = await Promise.all([
@@ -206,8 +226,12 @@ export async function rebuildSnapshots(db: PrismaClient, familyId: string): Prom
     return v == null ? undefined : v * cnyRateFor(symbol, { USDCNY: rateAt('USD', date), HKDCNY: rateAt('HKD', date) })
   }
 
-  const from = txsRaw[0].occurredAt
-  const points = computeWealthSeries(txs, assets, entries, from, new Date(), priceAt, rateAt, observationAt)
+  // 增量：只从受影响日起重算（computeWealthSeries 内部按 MAX_DAYS 截窗并带入期初净投入）；
+  // 全量：从最早流水日重建全部。future 日期已被钳制到窗口内。
+  const from = opts?.affectedSince
+    ? new Date(Math.min(Math.max(Math.floor(opts.affectedSince.getTime() / DAY) * DAY, windowStart), endMs))
+    : txsRaw[0].occurredAt
+  const points = computeWealthSeries(txs, assets, entries, from, now, priceAt, rateAt, observationAt)
   await db.snapshot.createMany({
     data: points.map((p) => ({
       familyId,

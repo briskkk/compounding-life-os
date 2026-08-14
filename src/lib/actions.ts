@@ -72,8 +72,8 @@ async function audit(
   })
 }
 
-async function refresh(ctx: FamilyCtx): Promise<string | undefined> {
-  const warning = await rebuildSnapshotsForFamily(prisma, ctx.familyId)
+async function refresh(ctx: FamilyCtx, affectedSince?: Date): Promise<string | undefined> {
+  const warning = await rebuildSnapshotsForFamily(prisma, ctx.familyId, affectedSince)
   revalidatePath('/')
   return warning
 }
@@ -88,8 +88,8 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
   try {
     const ctx = await requireWrite()
     const data = txInputSchema.parse(input)
-    const txId = await prisma.$transaction((txDb) => createTransactionRecord(txDb, ctx, data).then((r) => r.id))
-    const warning = await refresh(ctx)
+    const { id: txId, affectedSince } = await prisma.$transaction((txDb) => createTransactionRecord(txDb, ctx, data))
+    const warning = await refresh(ctx, affectedSince)
     return { ok: true, data: { id: txId }, warning }
   } catch (e) {
     return fail(e)
@@ -100,8 +100,8 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
 export async function reverseTransaction(id: string): Promise<ActionResult> {
   try {
     const ctx = await requireWrite()
-    await prisma.$transaction((txDb) => reverseTransactionRecord(txDb, ctx, id))
-    const warning = await refresh(ctx)
+    const { affectedSince } = await prisma.$transaction((txDb) => reverseTransactionRecord(txDb, ctx, id))
+    const warning = await refresh(ctx, affectedSince)
     return { ok: true, warning }
   } catch (e) {
     return fail(e)
@@ -171,7 +171,11 @@ export async function importTransactions(
         },
         { timeout: 30_000 },
       )
-      const warning = await refresh(ctx)
+      const affectedSince = valid.reduce(
+        (earliest, r) => (r.tx && r.tx.occurredAt.getTime() < earliest.getTime() ? r.tx.occurredAt : earliest),
+        new Date(),
+      )
+      const warning = await refresh(ctx, affectedSince)
       return { ok: true, data: { imported: valid.length, failed: failed.length, errors: failed }, warning }
     }
     return { ok: true, data: { imported: valid.length, failed: failed.length, errors: failed } }
@@ -355,7 +359,7 @@ export async function addLiabilityEntry(input: unknown): Promise<ActionResult<{ 
       await audit(ctx, 'CREATE', 'LiabilityEntry', created.id, `${data.type} ${data.amount}`, txDb)
       return created
     })
-    const warning = await refresh(ctx)
+    const warning = await refresh(ctx, data.occurredAt)
     return { ok: true, data: { id: entry.id }, warning }
   } catch (e) {
     return fail(e)
