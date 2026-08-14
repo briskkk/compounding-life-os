@@ -29,6 +29,7 @@ last_verified: 2026-08-05
 
 - 历史外汇汇率：新增 `RateBar` 表（`(pair, date)` 唯一，USDCNY/HKDCNY 全局共享），行情刷新时落库当日汇率；快照重建按当日汇率折算，缺失回落最近可用。
 - 快照增量重建：`rebuildSnapshots` 支持 `affectedSince` 参数，流水/负债写操作只重算受影响日期起的快照（443 笔流水全量 371ms → 增量 68ms）；行情刷新仍全量。
+- 行情缓存与健康治理：报价 30s TTL 内存缓存（`quoteSmart`/基金通道统一接入，失败不缓存），provider 成功率/延迟打点，新增 `/api/health` 健康端点。
 - 共享服务层：流水创建/冲正抽到 `src/lib/services/transactions.ts`（校验/结算/审计/快照刷新单一实现），Server Actions 与移动端 `/api/transactions` 复用同一写路径；API 认证抽到 `src/lib/services/api-auth.ts`（会话优先，回落 `PORTFOLIO_API_KEY`），全部 APP 端点复用。
 - 资产新增投资风格分类（`Asset.style`，7 值枚举 + 未分类），持仓页新增组合构成（资产大类 / 投资风格 / 市场分组环形图）。
 - 快照增加 `valuationStatus`、覆盖率、最新估值日和估值缺口详情。
@@ -48,7 +49,7 @@ last_verified: 2026-08-05
 6. `PriceBar`、`FundEstimate`、`FundCalibration`、`User`、`Session` 是全局共享数据，不带 `familyId`，不得误套家庭 RLS。
 
 ## 验证状态
-- `npm test`：2026-08-14 通过，44 个测试文件、266 个测试（含新增 snapshots-incremental 2 例）。
+- `npm test`：2026-08-14 通过，45 个测试文件、272 个测试（含新增 market-cache 6 例）。
 - `npm test`：2026-08-12 通过，40 个测试文件、246 个测试。
 - Playwright：44 个 E2E 用例通过（含登录 setup）。
 - `npm run build`：2026-08-12 通过。

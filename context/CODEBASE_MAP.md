@@ -23,6 +23,7 @@ last_verified: 2026-08-08
 
 Route Handlers：
 
+- `src/app/api/health/route.ts`：行情健康状态（成功率/延迟/缓存命中率）。
 - `src/app/api/prices/route.ts`：实时报价。
 - `src/app/api/intraday/route.ts`：股票/基金盘中曲线。
 - `src/app/api/lookup/route.ts`：资产代码查找。
@@ -90,7 +91,8 @@ Route Handlers：
 ## 行情层
 
 - `src/lib/market/provider.ts`：统一 Quote/Bar 契约。
-- `src/lib/market/index.ts`：provider chain 与"真实失败不模拟"策略。
+- `src/lib/market/index.ts`：provider chain 与"真实失败不模拟"策略；`quoteSmart`/`historySmart` 带 30s 缓存与健康打点。
+- `src/lib/market/cache.ts`：行情 TTL 缓存（`cachedQuote`）与健康打点（`recordRequest`/`marketHealth`）。
 - `src/lib/market/tencent.ts`、`sina.ts`：股票/指数行情。
 - `src/lib/market/eastmoney-kline.ts`：东财日 K（腾讯 K 线被 WAF 拦截时的兜底，OHLC 完整）。
 - `src/lib/market/eastmoney-fund.ts`：基金净值与官方盘中估值（FundValuationLast）切换、置信度三档。

@@ -6,6 +6,30 @@ last_verified: 2026-08-14
 
 # AI 工作变更记录
 
+## 2026-08-14 · 行情缓存与健康治理（P0-3）
+
+### 新增事实
+
+- 新增 `src/lib/market/cache.ts`：`cachedQuote` 30s TTL 内存缓存（key = provider 链 + symbol，失败不缓存允许重试）；`recordRequest`/`marketHealth` provider 成功率、延迟、最近错误统计；`resetMarketHealth` 供测试。
+- `quoteSmart`/`historySmart` 统一接入缓存与打点（沿链尝试的每个 provider 都记录成功/失败/耗时）；页面导航不再逐资产重复请求外部源。
+- 基金报价（`loadEngineState` 与 `GET /api/prices` 的 `eastmoneyFundProvider.quote` 分支）加 30s 外层缓存。
+- 新增 `GET /api/health`：只读健康端点（provider 成功率/平均延迟/最近错误、缓存命中率），不暴露家庭数据。
+
+### 修改文件
+
+- 新增 `src/lib/market/cache.ts`、`src/app/api/health/route.ts`、`src/test/market-cache.test.ts`（6 例）。
+- 修改 `src/lib/market/index.ts`、`src/lib/queries.ts`、`src/app/api/prices/route.ts`；更新 `context/CURRENT_STATE.md`、`context/CODEBASE_MAP.md`。
+
+### 验证状态
+
+- `npm test`：45 文件 272 用例全绿（新增 market-cache 6 例）。
+- `npm run build`：通过。
+
+### 未解决问题
+
+- 缓存为进程内内存态，多实例部署（Docker 多副本）各自独立；单实例自托管场景无影响。
+- 历史行情（`historySmart`）暂未做 TTL 缓存（刷新流程按需调用，页面侧有 PriceBar 落库兜底）；如需进一步降低外部历史请求可后续补充。
+
 ## 2026-08-14 · 快照增量重建（P0-2）
 
 ### 新增事实
