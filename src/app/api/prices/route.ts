@@ -1,5 +1,6 @@
 import { type NextRequest } from 'next/server'
 import { quoteSmart, providerLabel } from '@/lib/market'
+import { cachedQuote } from '@/lib/market/cache'
 import { cnyRateFor, fxRates } from '@/lib/market/fx'
 import { eastmoneyFundProvider } from '@/lib/market/eastmoney-fund'
 import { getSession } from '@/lib/session'
@@ -30,10 +31,10 @@ export async function GET(req: NextRequest) {
     await Promise.all(
       symbols.map(async (s) => {
         if (fundSymbols.has(s)) {
-          // 基金通道失败：重试一次；仍失败则跳过该标的（绝不回落模拟价）
+          // 基金通道失败：重试一次；仍失败则跳过该标的（绝不回落模拟价）；外层 30s 缓存
           for (let attempt = 0; attempt < 2; attempt++) {
             try {
-              const q = await eastmoneyFundProvider.quote(s)
+              const q = await cachedQuote(`fund|${s}`, () => eastmoneyFundProvider.quote(s))
               return { ...q, rawPrice: q.price, rawPrevClose: q.prevClose }
             } catch {
               if (attempt === 1) return null

@@ -8,6 +8,7 @@ import { sinaProvider } from './sina'
 import { eastmoneyFundProvider } from './eastmoney-fund'
 import { eastmoneyKlineProvider } from './eastmoney-kline'
 import { parseSymbol } from './symbols'
+import { cachedQuote, quoteCacheKey, recordRequest } from './cache'
 import type { Bar, MarketDataProvider, QuoteData } from './provider'
 
 export const simulatedProvider: MarketDataProvider = {
@@ -50,25 +51,38 @@ export function getProvider(): MarketDataProvider {
   return providerChain()[0]
 }
 
-/** 混合报价：沿链逐个尝试；真实标的全链失败抛错，OTHER 标的回落模拟源 */
+/** 混合报价：沿链逐个尝试（30s TTL 缓存）；真实标的全链失败抛错，OTHER 标的回落模拟源 */
 export async function quoteSmart(symbol: string): Promise<QuoteData> {
-  for (const provider of providerChain()) {
-    try {
-      return await provider.quote(symbol)
-    } catch {
-      /* 尝试下一源 */
+  const chain = providerChain()
+  const key = quoteCacheKey(chain.map((p) => p.label).join('+'), symbol)
+  return cachedQuote(key, async () => {
+    for (const provider of chain) {
+      const t0 = Date.now()
+      try {
+        const q = await provider.quote(symbol)
+        recordRequest(provider.label, true, Date.now() - t0)
+        return q
+      } catch (e) {
+        recordRequest(provider.label, false, Date.now() - t0, e instanceof Error ? e.message : String(e))
+        /* 尝试下一源 */
+      }
     }
-  }
-  if (parseSymbol(symbol).market === 'OTHER' && simulatedAllowed()) return simulatedProvider.quote(symbol)
-  throw new Error(`全部行情源均不可用：${symbol}`)
+    if (parseSymbol(symbol).market === 'OTHER' && simulatedAllowed()) return simulatedProvider.quote(symbol)
+    throw new Error(`全部行情源均不可用：${symbol}`)
+  })
 }
 
 export async function historySmart(symbol: string, from: Date, to: Date): Promise<{ bars: Bar[]; source: string }> {
   for (const provider of providerChain()) {
+    const t0 = Date.now()
     try {
       const bars = await provider.history(symbol, from, to)
-      if (bars.length > 0) return { bars, source: provider.label }
-    } catch {
+      if (bars.length > 0) {
+        recordRequest(provider.label, true, Date.now() - t0)
+        return { bars, source: provider.label }
+      }
+    } catch (e) {
+      recordRequest(provider.label, false, Date.now() - t0, e instanceof Error ? e.message : String(e))
       /* 尝试下一源 */
     }
   }

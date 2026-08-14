@@ -10,6 +10,7 @@ import type { ClassWeights } from './engine/covariance'
 import { annualized, dailyNetFlows, twrSeries, xirr, xirrFlowsFromTxs } from './engine/attribution'
 import { totalLiabilities, type LiabilityEntryInput } from './engine/liabilities'
 import { quoteSmart, providerLabel, historySmart } from './market'
+import { cachedQuote } from './market/cache'
 import { BENCHMARK_INDICES, type BenchmarkPoint, type LoadedBenchmark } from './engine/benchmark'
 import { cnyRateFor, fxRates } from './market/fx'
 import { eastmoneyFundProvider } from './market/eastmoney-fund'
@@ -95,8 +96,8 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
     listedAssets.map(async (a) => {
       try {
         if (a.cls === 'FUND') {
-          // 盘中估值 / 盘后官方净值（eastmoneyFundProvider 内部按净值日期切换）
-          const q = await eastmoneyFundProvider.quote(a.symbol)
+          // 盘中估值 / 盘后官方净值（eastmoneyFundProvider 内部按净值日期切换；外层 30s 缓存）
+          const q = await cachedQuote(`fund|${a.symbol}`, () => eastmoneyFundProvider.quote(a.symbol))
           quotes.set(a.symbol, { ...q, priceCny: q.price, prevCloseCny: q.prevClose })
           return
         }
