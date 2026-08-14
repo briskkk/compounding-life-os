@@ -6,6 +6,29 @@ last_verified: 2026-08-14
 
 # AI 工作变更记录
 
+## 2026-08-14 · 双 schema 门禁 / 金额精度 / 工程债清理（P0-4/5/7）
+
+### 新增事实
+
+- **P0-4 双 schema 一致性**：`scripts/check-schema-sync.ts` + `src/test/schema-sync.test.ts`（模型集合、字段签名、scoped.ts↔rls.sql RLS 清单对比）。脚本当场发现 **PostgreSQL 镜像缺失 `User`/`Session`/`Invite` 模型与 `Member.userId` 关系**（认证 Phase 2/3 加表后未同步），已补齐并通过 `prisma validate`。
+- **P0-5 金额精度**：ledger `applyTransaction` 累加点统一 `roundMoney` 钳制到 1e-6（消除浮点累积漂移，分以下 4 位余量）；新增 `ledger-precision.test.ts` 守恒测试（万笔定投、现金账户、500 轮买卖"不凭空生钱"）。
+- **P0-7 工程债**：修复 `rls.test.ts` 预存 TS 错误（`ctxOf` 缺 `userId`）；`export/transactions` 与 `export/snapshots` 认证收敛到 `apiAuthCtx`（失败仍映射 400，外部行为不变）；`docs/mobile-app/APP_PLAN.md` 从 proposed 同步为 canonical（SwiftUI 实现现状、端点清单更新、服务端配合表、里程碑状态）。
+
+### 修改文件
+
+- 新增 `scripts/check-schema-sync.ts`、`src/test/schema-sync.test.ts`（3 例）、`src/test/ledger-precision.test.ts`（3 例）。
+- 修改 `prisma/schema.postgres.prisma`（补齐 User/Session/Invite/Member.userId）、`src/lib/engine/ledger.ts`（roundMoney）、`src/test/rls.test.ts`、`src/app/api/export/transactions/route.ts`、`src/app/api/export/snapshots/route.ts`、`docs/mobile-app/APP_PLAN.md`；更新 `context/CURRENT_STATE.md`、`context/CODEBASE_MAP.md`、`context/CHANGELOG_AI.md`。
+
+### 验证状态
+
+- `npm test`：47 文件 278 用例全绿（新增 6 例）。
+- `npm run build`：通过；`npx tsc --noEmit` 零错误（预存错误已清除）。
+
+### 未解决问题
+
+- `scripts/check-schema-sync.ts` 目前以脚本 + vitest 双入口运行；可进一步接入 CI workflow（当前仓库无独立 CI 配置，`npm test` 即门禁）。
+- 金额精度采用"分位钳制"而非全链路 decimal.js；若未来出现金融级审计要求可升级（已记录当前口径）。
+
 ## 2026-08-14 · 行情缓存与健康治理（P0-3）
 
 ### 新增事实

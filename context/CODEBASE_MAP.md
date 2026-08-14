@@ -61,7 +61,7 @@ Route Handlers：
 
 ### 账本、估值与口径
 
-- `src/lib/engine/ledger.ts`：流水折叠、移动平均成本、手动估值状态。
+- `src/lib/engine/ledger.ts`：流水折叠、移动平均成本、手动估值状态；累加点 `roundMoney` 分位钳制。
 - `src/lib/engine/valuation.ts`：MARKET/MANUAL/COST/FACE 估值和双口径。
 - `src/lib/engine/merge.ts`、`groups.ts`、`account-summary.ts`：持仓聚合。
 - `src/lib/engine/settlement.ts`、`settlement-account.ts`：现金腿与结算关系环检测。
@@ -110,6 +110,7 @@ Route Handlers：
 - `prisma/migrations/`：SQLite 迁移历史。
 - `prisma/migrations/20260814090000_add_rate_bar/`：`RateBar` 表（历史汇率）。
 - `prisma/rls.sql`：PostgreSQL 原生 RLS。
+- `scripts/check-schema-sync.ts`：双 schema + RLS 清单一致性检查（CI 门禁）。
 - `scripts/init-empty.ts`：空白工作区初始化。
 - `scripts/backup.ts`、`restore.ts`、`restore-user-data.ts`：数据保护。
 - `scripts/migrate-to-postgres.ts`：SQLite → PostgreSQL 搬迁。
