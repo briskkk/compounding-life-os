@@ -15,13 +15,14 @@ export interface ValuedPosition extends Position {
 }
 
 export type PriceFn = (symbol: string) => number | undefined
-export type CurrencyRateFn = (currency: string) => number
+export type CurrencyRateFn = (currency: string, date?: Date) => number
 
 export function valuePosition(
   pos: Position,
   asset: AssetInfo,
   priceOf: PriceFn,
   currencyRate: CurrencyRateFn = () => 1,
+  asOfDate?: Date,
 ): ValuedPosition {
   let price: number | null = null
   let priceSource: PriceSource = 'FACE'
@@ -30,14 +31,14 @@ export function valuePosition(
 
   if (asset.cls === 'CASH') {
     // 现金按其币种汇率折算人民币口径（CASH-CNY=1，CASH-USD≈6.77）
-    price = currencyRate(asset.currency)
+    price = currencyRate(asset.currency, asOfDate)
     priceSource = 'FACE'
     value = pos.quantity * price
     investable = value
   } else if (asset.cls === 'REAL_ESTATE' || asset.manual) {
     // 手动估值资产：最近估值优先，缺省回落到成本
     priceSource = pos.manualValue != null ? 'MANUAL' : 'COST'
-    value = pos.manualValue ?? pos.costBasis * currencyRate(asset.currency)
+    value = pos.manualValue ?? pos.costBasis * currencyRate(asset.currency, asOfDate)
     investable = 0 // 不动产 / 手动估值资产默认不可自由投资
     price = pos.quantity > 0 ? value / pos.quantity : null
   } else {
@@ -49,13 +50,13 @@ export function valuePosition(
       investable = value
     } else {
       // 无行情回落：以成本×汇率计值，保持人民币口径一致
-      value = pos.costBasis * currencyRate(asset.currency)
+      value = pos.costBasis * currencyRate(asset.currency, asOfDate)
       investable = value
     }
   }
 
   // 成本与已实现盈亏同样折算人民币，再与市值相减（修复外币成本未折算导致的虚假盈亏）
-  const rate = currencyRate(asset.currency)
+  const rate = currencyRate(asset.currency, asOfDate)
   const costCny = pos.costBasis * rate
   const realizedCny = pos.realizedPnl * rate
   // 现金不产生「未实现盈亏」（透支时成本钳制会产生幻象值，且汇率影响已体现在市值中）
@@ -69,8 +70,9 @@ export function valuePositions(
   assets: Map<string, AssetInfo>,
   priceOf: PriceFn,
   currencyRate: CurrencyRateFn = () => 1,
+  asOfDate?: Date,
 ): ValuedPosition[] {
   return positions
     .filter((p) => assets.has(p.assetId))
-    .map((p) => valuePosition(p, assets.get(p.assetId)!, priceOf, currencyRate))
+    .map((p) => valuePosition(p, assets.get(p.assetId)!, priceOf, currencyRate, asOfDate))
 }

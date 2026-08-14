@@ -6,11 +6,14 @@ const DAY = 86400000
 const dayKey = (d: Date) => Math.floor(d.getTime() / DAY)
 
 /** 外部净现金流按日聚合：存入为正、取出为负；内部结算腿与转账不计；外币按汇率折人民币 */
-export function dailyNetFlows(txs: TxInput[], rate: (currency: string) => number = () => 1): Map<number, number> {
+export function dailyNetFlows(
+  txs: TxInput[],
+  rate: (currency: string, date: Date) => number = () => 1,
+): Map<number, number> {
   const flows = new Map<number, number>()
   for (const t of txs) {
     if (t.internal || t.voidedAt) continue
-    const r = rate(t.currency ?? 'CNY')
+    const r = rate(t.currency ?? 'CNY', t.occurredAt)
     if (t.type === 'DEPOSIT') flows.set(dayKey(t.occurredAt), (flows.get(dayKey(t.occurredAt)) ?? 0) + t.amount * r)
     else if (t.type === 'WITHDRAW') flows.set(dayKey(t.occurredAt), (flows.get(dayKey(t.occurredAt)) ?? 0) - t.amount * r)
   }
@@ -85,11 +88,14 @@ export function xirr(flows: XirrFlow[], terminalValue: number, terminalDate: Dat
 }
 
 /** 由外部现金流构造 XIRR 输入（投入取负号；外币按汇率折人民币） */
-export function xirrFlowsFromTxs(txs: TxInput[], rate: (currency: string) => number = () => 1): XirrFlow[] {
+export function xirrFlowsFromTxs(
+  txs: TxInput[],
+  rate: (currency: string, date: Date) => number = () => 1,
+): XirrFlow[] {
   return txs
     .filter((t) => !t.internal && !t.voidedAt && (t.type === 'DEPOSIT' || t.type === 'WITHDRAW'))
     .map((t) => {
-      const r = rate(t.currency ?? 'CNY')
+      const r = rate(t.currency ?? 'CNY', t.occurredAt)
       return { date: t.occurredAt, amount: (t.type === 'DEPOSIT' ? -t.amount : t.amount) * r }
     })
     .sort((a, b) => a.date.getTime() - b.date.getTime())

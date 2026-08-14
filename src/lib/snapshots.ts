@@ -6,7 +6,7 @@ import { totalLiabilities, type LiabilityEntryInput } from './engine/liabilities
 import { cumulativeContributions, dailyNetFlows } from './engine/attribution'
 import type { AssetInfo, TxInput } from './engine/types'
 import { loadPriceSeries, priceAtFn, priceObservationAtFn, type PriceObservation } from './market/persist'
-import { cnyRateFor, fxRates } from './market/fx'
+import { cnyRateFor, fxRateAtFactory } from './market/fx'
 import { isPortfolioAssetClass } from './asset-classification'
 import type { ValuationGap, ValuationStatus } from './engine/valuation-status'
 
@@ -39,7 +39,7 @@ export function computeWealthSeries(
   from: Date,
   to: Date,
   priceAt: PriceAtFn,
-  currencyRate: (currency: string) => number = () => 1,
+  currencyRate: (currency: string, date?: Date) => number = () => 1,
   observationAt?: PriceObservationAtFn,
 ): WealthPoint[] {
   const assetMap = new Map(assets.map((a) => [a.id, a]))
@@ -64,7 +64,7 @@ export function computeWealthSeries(
 
   return dates.map((date, i) => {
     const positions = foldTransactions(txs, date)
-    const valued = valuePositions(positions, assetMap, (symbol) => priceAt(symbol, date), currencyRate)
+    const valued = valuePositions(positions, assetMap, (symbol) => priceAt(symbol, date), currencyRate, date)
     let assetsTotal = 0
     let investable = 0
     for (const v of valued) {
@@ -194,20 +194,20 @@ export async function rebuildSnapshots(db: PrismaClient, familyId: string): Prom
     occurredAt: e.occurredAt,
   }))
 
-  // 价格函数：PriceBar 落库历史优先，缺失回落模拟器；US/HK 标的按当前汇率折人民币（历史汇率未逐日还原，见 README 口径说明）
+  // 价格函数：PriceBar 落库历史优先，缺失回落模拟器。
+  // 汇率函数：RateBar 历史按日折算（当日优先，缺失回落最近可用）；早于 RateBar 最早记录的历史日期回落实时/固定汇率。
   const symbols = assetsRaw.filter((a) => !a.manual && a.cls !== 'CASH' && a.cls !== 'REAL_ESTATE').map((a) => a.symbol)
   const priceMap = await loadPriceSeries(db, symbols)
   const basePriceAt = priceAtFn(priceMap)
   const observationAt = priceObservationAtFn(priceMap)
-  const rates = await fxRates()
+  const rateAt = await fxRateAtFactory(db)
   const priceAt: PriceAtFn = (symbol, date) => {
     const v = basePriceAt(symbol, date)
-    return v == null ? undefined : v * cnyRateFor(symbol, rates)
+    return v == null ? undefined : v * cnyRateFor(symbol, { USDCNY: rateAt('USD', date), HKDCNY: rateAt('HKD', date) })
   }
 
   const from = txsRaw[0].occurredAt
-  const currencyRate = (cur: string) => (cur === 'USD' ? rates.USDCNY : cur === 'HKD' ? rates.HKDCNY : 1)
-  const points = computeWealthSeries(txs, assets, entries, from, new Date(), priceAt, currencyRate, observationAt)
+  const points = computeWealthSeries(txs, assets, entries, from, new Date(), priceAt, rateAt, observationAt)
   await db.snapshot.createMany({
     data: points.map((p) => ({
       familyId,

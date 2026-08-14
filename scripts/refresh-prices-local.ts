@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/db'
 import { BENCHMARK_INDICES } from '@/lib/engine/benchmark'
 import { persistFundHistory, persistHistory } from '@/lib/market/persist'
+import { fxRates, persistDailyFx } from '@/lib/market/fx'
 import { rebuildSnapshots } from '@/lib/snapshots'
 
 async function main() {
@@ -16,7 +17,9 @@ async function main() {
     ...(await persistFundHistory(prisma, fundSymbols, from, new Date())),
     ...(await persistHistory(prisma, marketSymbols, from, new Date())),
   ]
+  const fxWritten = await persistDailyFx(prisma, await fxRates())
   console.log(results.map((r) => `${r.symbol}:${r.count}@${r.source}`).join(' '))
+  console.log(`✓ 汇率落库 ${fxWritten} 条`)
   const days = await rebuildSnapshots(prisma, family.id)
   console.log(`✓ 快照重建 ${days} 天`)
 }

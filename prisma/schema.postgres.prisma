@@ -317,6 +317,17 @@ model PriceBar {
   @@index([symbol])
 }
 
+// 历史外汇汇率（全局共享，无 familyId，不参与 RLS）：按 (pair, date) 唯一
+model RateBar {
+  id     String   @id @default(cuid())
+  pair   String // USDCNY / HKDCNY
+  date   DateTime
+  rate   Decimal // 1 单位外币 = ? 人民币
+  source String   @default("SINA")
+
+  @@unique([pair, date])
+  @@index([pair])
+}
 model FundEstimate {
   id             String   @id @default(cuid())
   symbol         String
