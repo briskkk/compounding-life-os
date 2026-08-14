@@ -7,6 +7,10 @@ services:
     environment:
       # 行情源优先级链（可用 simulated 覆盖回模拟源）
       MARKET_PROVIDER: ${MARKET_PROVIDER:-tencent,eastmoney-fund,sina}
+      # 纯 HTTP 部署（未备案/无 HTTPS）时必须关闭 cookie 的 Secure 属性，
+      # 否则浏览器在 http:// 页面下拒绝保存会话 cookie，导致登录成功却被立即踢回 /login。
+      # 待域名备案完成、启用 HTTPS(certbot) 后，应删除此行让 Secure 自动为 true。
+      DISABLE_SECURE_COOKIE: "true"
     volumes:
       - fwos-data:/app/prisma
     restart: unless-stopped
