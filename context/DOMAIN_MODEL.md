@@ -1,16 +1,20 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-08-05
+last_verified: 2026-08-14
 ---
 
 # 领域模型
 
 ## 聚合边界
 
+### 账号与会话
+
+`User`（email + scrypt 密码哈希）是可登录身份，不属于任何家庭。`Member` 是 User 在某家庭里的关系（角色 + 显示名），一个 User 可有多个 Member。`Session` 是登录会话（token 同时服务网页 cookie 与 APP Bearer），30 天过期可吊销。`Invite` 是 OWNER 生成的一次性邀请码（7 天有效），凭码加入家庭。
+
 ### 家庭空间
 
-`FamilySpace` 是业务数据的租户边界，默认基础币种为 CNY。`Member` 属于一个家庭并具有 OWNER、ADMIN、MEMBER、VIEWER 角色。除全局行情表外，读写必须绑定家庭。
+`FamilySpace` 是业务数据的租户边界，默认基础币种为 CNY。`Member` 属于一个家庭并具有 OWNER、ADMIN、MEMBER、VIEWER 角色。除全局行情表与账号表外，读写必须绑定家庭。
 
 ### 账户与资产目录
 
@@ -69,11 +73,12 @@ last_verified: 2026-08-05
 
 `AuditLog` 以 `prevHash` 串联；版本 2 将持久化内容和时间戳纳入 SHA-256。它用于检测篡改，不等同于密码学签名或外部不可抵赖存证。
 
-### 全局行情
+### 全局行情与账号
 
 - `PriceBar`：按 `(symbol, date)` 唯一，保存官方净值或市场收盘价及来源。
 - `FundEstimate`：分钟级基金内部估值和置信度。
 - `FundCalibration`：估算涨幅与官方涨幅的逐日误差。
+- `User` / `Session` / `Invite`：账号、会话与邀请，无家庭作用域（与行情表同类，不套 RLS）。
 
 ## 核心计算口径
 

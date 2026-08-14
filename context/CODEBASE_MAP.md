@@ -27,15 +27,25 @@ Route Handlers：
 - `src/app/api/intraday/route.ts`：股票/基金盘中曲线。
 - `src/app/api/lookup/route.ts`：资产代码查找。
 - `src/app/api/export/*/route.ts`：流水/快照 CSV。
-- `src/app/api/monthly-summary/route.ts`：本钱 App 专用，单月聚合（Bearer `PORTFOLIO_API_KEY` 认证，只读）。
-- `src/app/api/monthly-trend/route.ts`：本钱 App 专用，近 N 个月趋势（`?months=1..24`，默认 12）+ 负债真实余额（foldLiability），同一 Bearer 认证。
-- `src/app/api/assets/route.ts`：本钱 App 专用，资产构成（7 类全量 composition）+ 净资产曲线（最近 90 个快照日），同一 Bearer 认证。
-- `src/app/api/performance/route.ts`：本钱 App 专用，收益归因（净投入/投资收益/TWR 累计与年化/XIRR）+ 风险指标（最大回撤/年化波动率），纯装配引擎函数，同一 Bearer 认证。
+- `src/app/api/auth/*/route.ts`：登录 / 注册 / 登出（双通道：cookie + Bearer token）。
+- `src/app/api/account/*/route.ts`：改邮箱 / 改密码 / 会话管理与吊销 / 最近登录 / 偏好。
+- `src/app/api/family/route.ts`：家庭创建与信息；`family/members`：成员列表、角色、移除、重置密码；`family/invites`：邀请码生成/撤销；`family/join`：凭码加入；`family/switch`：切换家庭；`family/reset`：清空家庭数据。
+- `src/app/api/admin/backup/route.ts`：手动备份与最近备份列表（OWNER）。
+- `src/app/api/positions/route.ts`、`positions/[assetId]/route.ts`：持仓与资产详情（移动端）。
+- `src/app/api/mobile/summary/route.ts`：移动端总览/账户/FIRE 数据包。
+- `src/app/api/transactions/route.ts`：移动端流水写入（镜像 Server Action 校验与结算）与列表。
+- `src/app/api/monthly-summary/route.ts`：单月聚合（用户会话优先，回落 Bearer `PORTFOLIO_API_KEY`，只读）。
+- `src/app/api/monthly-trend/route.ts`：近 N 个月趋势（`?months=1..24`，默认 12）+ 负债真实余额（foldLiability）。
+- `src/app/api/assets/route.ts`：资产构成（7 类全量 composition）+ 净资产曲线（最近 90 个快照日）。
+- `src/app/api/performance/route.ts`：收益归因（净投入/投资收益/TWR 累计与年化/XIRR）+ 风险指标（最大回撤/年化波动率）。
 
 ## 服务端边界
 
-- `src/lib/session.ts`：成员 cookie、OWNER 回落、`FamilyCtx`。
+- `src/lib/session.ts`：双通道会话（cookie / Bearer token → `Session` → `FamilyCtx`）。
 - `src/lib/scoped.ts`：family scope 注入和 VIEWER 只读。
+- `src/lib/auth/password.ts`：scrypt 密码哈希与会话 token。
+- `src/lib/preferences.ts`：用户偏好（默认收益区间等）。
+- `src/lib/backup.ts`：SQLite 在线一致快照（保留 30 份）。
 - `src/lib/schemas.ts`：Server Action 输入 Zod schema。
 - `src/lib/transaction-rules.ts`：交易不变量和历史时间线校验。
 - `src/lib/actions.ts`：全部业务写操作、审计、快照刷新、revalidate。
@@ -70,15 +80,18 @@ Route Handlers：
 
 ### 基金
 
-- `src/lib/engine/fund-estimate.ts`：重仓/代理指数估值。
+- `src/lib/engine/fund-estimate.ts`：重仓/代理指数估值（QDII 指数驱动）。
 - `src/lib/engine/fund-calibrate.ts`：估值误差和置信度校准。
+- `src/lib/engine/returns-calendar.ts`：收益日历（日/月/年分桶）。
+- `src/lib/engine/position-view.ts`：持仓明细视图（移动端）。
 
 ## 行情层
 
 - `src/lib/market/provider.ts`：统一 Quote/Bar 契约。
-- `src/lib/market/index.ts`：provider chain 与“真实失败不模拟”策略。
+- `src/lib/market/index.ts`：provider chain 与"真实失败不模拟"策略。
 - `src/lib/market/tencent.ts`、`sina.ts`：股票/指数行情。
-- `src/lib/market/eastmoney-fund.ts`：基金官方/盘中切换。
+- `src/lib/market/eastmoney-kline.ts`：东财日 K（腾讯 K 线被 WAF 拦截时的兜底，OHLC 完整）。
+- `src/lib/market/eastmoney-fund.ts`：基金净值与官方盘中估值（FundValuationLast）切换、置信度三档。
 - `src/lib/market/fund-engine.ts`、`fund-holdings.ts`：基金估值、重仓、净值与校准。
 - `src/lib/market/persist.ts`：PriceBar 落库和估值日期观察。
 - `src/lib/market/fx.ts`：实时 USD/CNY、HKD/CNY。
