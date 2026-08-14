@@ -40,8 +40,18 @@ cp -f "$PROJECT_DIR/.env" "/tmp/.env.bak-$TS" 2>/dev/null || true
 # ---------- 2. 拉取 GitHub 最新代码 ----------
 # 服务器严格镜像远程: 丢弃本地未提交改动, 避免 pull/merge 冲突.
 # (.env 已被 gitignore, 不会被 reset 影响)
+# GitHub SSH(22) 端口偶发抖动, fetch 加重试, 避免定时任务偶发静默失败.
 log "==> 拉取 origin/$BRANCH 最新代码"
-git fetch origin "$BRANCH"
+FETCH_OK=0
+for n in 1 2 3 4 5 6; do
+  if git fetch origin "$BRANCH" 2>/dev/null; then FETCH_OK=1; break; fi
+  log "    fetch 第 $n 次失败, 8s 后重试"
+  sleep 8
+done
+if [ "$FETCH_OK" -ne 1 ]; then
+  echo "❌ 多次拉取 origin/$BRANCH 失败 (GitHub 不可达?), 中止更新"
+  exit 1
+fi
 git reset --hard "origin/$BRANCH"
 log "    已对齐到 $(git rev-parse --short HEAD)"
 
