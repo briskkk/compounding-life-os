@@ -52,7 +52,7 @@ Route Handlers：
 - `src/lib/services/transactions.ts`：共享事务写服务（流水创建/冲正的校验、结算联动、审计、快照刷新）—— Server Actions 与移动端 API 复用同一写路径。
 - `src/lib/services/api-auth.ts`：共享 API 认证（用户会话优先，回落 `PORTFOLIO_API_KEY`）。
 - `src/lib/queries.ts`：页面 View Model 装配、实时估值与目标。
-- `src/lib/snapshots.ts`：最多 1400 天财富序列与全量快照重建。
+- `src/lib/snapshots.ts`：最多 1400 天财富序列；`rebuildSnapshots` 支持按 `affectedSince` 增量重建（写操作只重算受影响区间）。
 - `src/lib/audit.ts`：审计哈希和完整性验证。
 - `src/lib/export.ts`、`src/lib/csv.ts`：CSV 出入双向格式。
 

@@ -6,6 +6,31 @@ last_verified: 2026-08-14
 
 # AI 工作变更记录
 
+## 2026-08-14 · 快照增量重建（P0-2）
+
+### 新增事实
+
+- `rebuildSnapshots` 支持 `opts.affectedSince`：增量重建只删除并重算受影响日期起的快照（删除与生成使用同一 1400 天窗口钳制，避免唯一约束冲突）；早于受影响日的快照保留。
+- 写操作传递受影响日期：`createTransaction`/`POST /api/transactions`（新流水日期）、`reverseTransaction`（被冲正流水日期）、`importTransactions`（最早导入流水日期）、`addLiabilityEntry`（条目日期）。
+- 服务层：`createTransactionRecord`/`reverseTransactionRecord` 返回 `affectedSince`；`rebuildSnapshotsForFamily` 接受 `affectedSince`。
+- 行情刷新（`refreshPrices`）与初始化仍全量重建（价格影响全部历史日期）。
+- 未来日期流水钳制到今日，避免空区间报错。
+
+### 修改文件
+
+- 新增 `src/test/snapshots-incremental.test.ts`（2 例：保留早于受影响日的快照、未来日期钳制）。
+- 修改 `src/lib/snapshots.ts`、`src/lib/services/transactions.ts`、`src/lib/actions.ts`、`src/app/api/transactions/route.ts`；更新 `context/CURRENT_STATE.md`、`context/CODEBASE_MAP.md`。
+
+### 验证状态
+
+- `npm test`：44 文件 266 用例全绿（新增 snapshots-incremental 2 例）。
+- `npm run build`：通过。
+- 性能：443 笔流水下全量重建 371ms/1400 天 → 增量（今日受影响）68ms/1 天；万级流水差距更大（全量 O(天×流水) vs 增量 O(1×流水)）。
+
+### 未解决问题
+
+- 增量重建仍逐日重放全部流水（`foldTransactions` 每天 O(流水数)）；如需进一步优化可做事件水位推进式折叠（超出当前目标）。
+
 ## 2026-08-14 · 历史外汇汇率持久化（P0-1）
 
 ### 新增事实
