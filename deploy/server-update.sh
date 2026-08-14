@@ -121,12 +121,14 @@ HTTP_APP="000"; HTTP_NGINX="000"
 for i in $(seq 1 10); do
   HTTP_APP=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 http://localhost:3000 || echo "000")
   HTTP_NGINX=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 http://127.0.0.1:80 || echo "000")
-  if [ "$HTTP_APP" = "200" ] && [ "$HTTP_NGINX" = "200" ]; then break; fi
+  # 200 或 307(鉴权重定向) 均视为服务已就绪并正常响应
+  if { [ "$HTTP_APP" = "200" ] || [ "$HTTP_APP" = "307" ]; } && { [ "$HTTP_NGINX" = "200" ] || [ "$HTTP_NGINX" = "307" ]; }; then break; fi
   log "    第 $i 次未就绪 (app=$HTTP_APP nginx=$HTTP_NGINX), 3s 后重试"
   sleep 3
 done
 echo "    应用(3000): $HTTP_APP | Nginx(80): $HTTP_NGINX"
-if [ "$HTTP_APP" = "200" ] && [ "$HTTP_NGINX" = "200" ]; then
+# 200 或 307(鉴权重定向) 均视为服务已就绪;两者皆非才算失败
+if { [ "$HTTP_APP" = "200" ] || [ "$HTTP_APP" = "307" ]; } && { [ "$HTTP_NGINX" = "200" ] || [ "$HTTP_NGINX" = "307" ]; }; then
   log "✅ 更新成功, 服务已就绪 — 访问 http://111.229.116.222"
 else
   log "⚠️ 健康检查未通过, 请排查: docker logs $APP_CONTAINER"
