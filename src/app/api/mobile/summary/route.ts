@@ -2,35 +2,19 @@
 // 认证：用户会话（Cookie 或 Bearer token）优先，回落 PORTFOLIO_API_KEY
 import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { scopedDb, type FamilyCtx } from '@/lib/scoped'
-import { getSession } from '@/lib/session'
+import { scopedDb } from '@/lib/scoped'
 import { loadEngineState } from '@/lib/queries'
+import { apiAuthCtx } from '@/lib/services/api-auth'
 
 import { monthsBetween, projectFireGoal, projectGoal } from '@/lib/engine/projection'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-async function authCtx(req: NextRequest): Promise<{ ctx: FamilyCtx | null; status: number; error?: string }> {
-  const session = await getSession()
-  if (session) return { ctx: session, status: 200 }
-  const apiKey = process.env.PORTFOLIO_API_KEY
-  if (!apiKey) return { ctx: null, status: 503, error: 'PORTFOLIO_API_KEY not configured' }
-  const auth = req.headers.get('authorization') ?? ''
-  const token = auth.replace(/^Bearer\s+/i, '')
-  if (token !== apiKey) return { ctx: null, status: 401, error: 'Unauthorized' }
-  const owner = await prisma.member.findFirst({ where: { role: 'OWNER' }, orderBy: { createdAt: 'asc' } })
-  if (!owner) return { ctx: null, status: 500, error: 'No family space initialized' }
-  return {
-    ctx: { familyId: owner.familyId, memberId: owner.id, memberName: owner.name, role: owner.role, userId: owner.userId ?? '' },
-    status: 200,
-  }
-}
-
 const DAY = 86_400_000
 
 export async function GET(req: NextRequest) {
-  const auth = await authCtx(req)
+  const auth = await apiAuthCtx(req)
   if (!auth.ctx) return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status })
   const ctx = auth.ctx
   const db = scopedDb(prisma, ctx)
