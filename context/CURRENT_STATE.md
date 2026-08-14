@@ -27,6 +27,8 @@ last_verified: 2026-08-05
 
 ## 最近完成
 
+- 历史外汇汇率：新增 `RateBar` 表（`(pair, date)` 唯一，USDCNY/HKDCNY 全局共享），行情刷新时落库当日汇率；快照重建按当日汇率折算，缺失回落最近可用。
+- 共享服务层：流水创建/冲正抽到 `src/lib/services/transactions.ts`（校验/结算/审计/快照刷新单一实现），Server Actions 与移动端 `/api/transactions` 复用同一写路径；API 认证抽到 `src/lib/services/api-auth.ts`（会话优先，回落 `PORTFOLIO_API_KEY`），全部 APP 端点复用。
 - 资产新增投资风格分类（`Asset.style`，7 值枚举 + 未分类），持仓页新增组合构成（资产大类 / 投资风格 / 市场分组环形图）。
 - 快照增加 `valuationStatus`、覆盖率、最新估值日和估值缺口详情。
 - 历史收益曲线按真正估值日期过滤休市、无更新和纯资金流观察点。
@@ -42,12 +44,11 @@ last_verified: 2026-08-05
 1. 单家庭阶段：一个账号目前对应一个家庭（Member.userId 1:1），多家庭与邀请协作在 Phase 2/3。
 2. SQLite schema 固定 `file:./dev.db`；PostgreSQL 使用独立 schema、迁移脚本和 RLS，两个 schema 需要人工保持同步。
 3. 流水变更后会全量重建最多 1400 天快照；数据量达到数万流水后应设计增量重建。
-4. 历史外汇汇率未逐日保存；历史快照使用刷新时的当前汇率折算 USD/HKD。
 5. 行情与基金端点依赖外部免费服务，存在限流、格式变化和暂时不可用风险。
 6. `PriceBar`、`FundEstimate`、`FundCalibration`、`User`、`Session` 是全局共享数据，不带 `familyId`，不得误套家庭 RLS。
 
 ## 验证状态
-
+- `npm test`：2026-08-14 通过，42 个测试文件、258 个测试（含新增 transactions-service 6 例）。
 - `npm test`：2026-08-12 通过，40 个测试文件、246 个测试。
 - Playwright：44 个 E2E 用例通过（含登录 setup）。
 - `npm run build`：2026-08-12 通过。
@@ -58,6 +59,3 @@ last_verified: 2026-08-05
 - 邀请协作：邀请码、成员管理页、角色管理、重置密码；APP 写 API 补齐（Phase 3）。
 - 移动端 APP（需求待办，见 PRODUCT_REQUIREMENTS 第 9 条）。
 - 为快照设计事件水位或按日增量重建策略。
-- 保存历史 FX 序列，明确汇兑收益归因。
-- 建立 SQLite/PostgreSQL schema 一致性自动检查。
-- 给外部行情适配器补充可观测性、缓存和故障告警。

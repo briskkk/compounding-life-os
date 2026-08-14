@@ -6,6 +6,56 @@ last_verified: 2026-08-14
 
 # AI 工作变更记录
 
+## 2026-08-14 · 历史外汇汇率持久化（P0-1）
+
+### 新增事实
+
+- 新增 `RateBar` 表（`(pair, date)` 唯一，pair = USDCNY / HKDCNY；全局共享，无 familyId，不参与 RLS），双 schema 同步 + SQLite 迁移 `20260814090000_add_rate_bar`。
+- `src/lib/market/fx.ts`：新增 `persistDailyFx`（当日汇率幂等落库）、`loadFxSeries`（读历史）、`fxRateAt`（纯函数：当日优先 → 最近可用回落 → 实时/固定回落）、`fxRateAtFactory`（快照重建用按日汇率函数）。
+- `src/lib/snapshots.ts`：`computeWealthSeries` 的 `currencyRate` 从单值函数改为 `(currency, date?)`；`rebuildSnapshots` 改用 `fxRateAtFactory`，历史快照按当日汇率折算（此前用刷新时点汇率，历史曲线每次刷新会漂移）。
+- `src/lib/engine/attribution.ts` / `valuation.ts`：`dailyNetFlows`、`xirrFlowsFromTxs`、`valuePosition`/`valuePositions` 的汇率函数均支持按日期取值（向后兼容单值调用）。
+- 刷新流程：`refreshPrices` action 与 `scripts/refresh-prices-local.ts` 在刷新行情时同步落库当日汇率（`persistDailyFx`），审计记录汇率条数。
+
+### 修改文件
+
+- 新增 `prisma/migrations/20260814090000_add_rate_bar/migration.sql`、`src/test/fx-rates.test.ts`（6 例）。
+- 修改 `prisma/schema.prisma`、`prisma/schema.postgres.prisma`、`src/lib/market/fx.ts`、`src/lib/snapshots.ts`、`src/lib/engine/attribution.ts`、`src/lib/engine/valuation.ts`、`src/lib/actions.ts`、`scripts/refresh-prices-local.ts`；更新 `context/CURRENT_STATE.md`、`context/CODEBASE_MAP.md`、`context/GLOSSARY.md`。
+
+### 验证状态
+
+- `npm test`：43 文件 264 用例全绿（新增 fx-rates 6 例）。
+- `npm run build`：通过。
+
+### 未解决问题
+
+- 实施日之前的旧快照仍以"当时刷新时点的汇率"折算（RateBar 只覆盖实施日起）；早于 RateBar 最早记录的历史日期回落实时/固定汇率。可选后续：回填历史汇率序列（外部免费 API 或新浪历史接口）。
+- `src/test/rls.test.ts` 预存 TS 错误（`ctxOf` 缺 `userId`）仍未处理。
+
+## 2026-08-14 · 共享事务写服务层（Web 与 APP 同一写路径）
+
+### 新增事实
+
+- 新增 `src/lib/services/transactions.ts`：流水创建/冲正唯一写路径（归属校验、交易规则、时间线、现金结算联动、审计、快照刷新）。Server Actions（`src/lib/actions.ts` 的 `createTransaction`/`reverseTransaction`）与移动端 `POST /api/transactions` 现在共用同一实现，不再镜像。
+- 新增 `src/lib/services/api-auth.ts`：`apiAuthCtx` 统一"用户会话（cookie/Bearer）→ 回落 `PORTFOLIO_API_KEY`→ 首个 OWNER"认证；`/api/transactions`、`/api/positions`、`/api/positions/[assetId]`、`/api/mobile/summary`、`/api/monthly-summary`、`/api/monthly-trend`、`/api/assets`、`/api/performance` 全部复用。
+- `actions.ts` 删除与 route 重复的三个私有函数（`cashSettlementOf`/`routedAccountIdForAsset`/`validateTransaction`），改为从服务导入。
+- settleCash 口径统一：未显式传 `settleCash` 时，BUY/SELL 默认联动结算（此前 Web Server Action 默认不结算、API 默认结算的分歧被消除；Web 表单始终显式传值，行为不变）。
+- `rebuildSnapshotsForFamily` 统一快照重建失败警告文案。
+
+### 修改文件
+
+- 新增 `src/lib/services/transactions.ts`、`src/lib/services/api-auth.ts`、`src/test/transactions-service.test.ts`（6 例）。
+- 修改 `src/lib/actions.ts`、`src/app/api/transactions/route.ts`、`src/app/api/positions/route.ts`、`src/app/api/positions/[assetId]/route.ts`、`src/app/api/mobile/summary/route.ts`、`src/app/api/monthly-summary/route.ts`、`src/app/api/monthly-trend/route.ts`、`src/app/api/assets/route.ts`、`src/app/api/performance/route.ts`；更新 `context/CODEBASE_MAP.md`、`context/CURRENT_STATE.md`。
+
+### 验证状态
+
+- `npm test`：42 文件 258 用例全绿（新增 transactions-service 6 例）。
+- `npm run build`：通过。
+
+### 未解决问题
+
+- `src/test/rls.test.ts` 存在预先存在的 TS 错误（`ctxOf` 未提供 `FamilyCtx.userId`），非本次改动引入，等待后续修复。
+- 移动端 APP（Port-APP）的其他深链路端点（goals 等）仍待补；`export/*` 路由的宽松认证暂未收敛到 `apiAuthCtx`（行为不同，保留现状）。
+
 ## 2026-08-12 ~ 08-14 · 认证、多家庭、邀请协作、设置页完善、行情与移动端
 
 ### 新增事实

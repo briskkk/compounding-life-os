@@ -49,6 +49,8 @@ Route Handlers：
 - `src/lib/schemas.ts`：Server Action 输入 Zod schema。
 - `src/lib/transaction-rules.ts`：交易不变量和历史时间线校验。
 - `src/lib/actions.ts`：全部业务写操作、审计、快照刷新、revalidate。
+- `src/lib/services/transactions.ts`：共享事务写服务（流水创建/冲正的校验、结算联动、审计、快照刷新）—— Server Actions 与移动端 API 复用同一写路径。
+- `src/lib/services/api-auth.ts`：共享 API 认证（用户会话优先，回落 `PORTFOLIO_API_KEY`）。
 - `src/lib/queries.ts`：页面 View Model 装配、实时估值与目标。
 - `src/lib/snapshots.ts`：最多 1400 天财富序列与全量快照重建。
 - `src/lib/audit.ts`：审计哈希和完整性验证。
@@ -94,7 +96,7 @@ Route Handlers：
 - `src/lib/market/eastmoney-fund.ts`：基金净值与官方盘中估值（FundValuationLast）切换、置信度三档。
 - `src/lib/market/fund-engine.ts`、`fund-holdings.ts`：基金估值、重仓、净值与校准。
 - `src/lib/market/persist.ts`：PriceBar 落库和估值日期观察。
-- `src/lib/market/fx.ts`：实时 USD/CNY、HKD/CNY。
+- `src/lib/market/fx.ts`：实时汇率（新浪，1h 缓存）与历史汇率（`RateBar` 按日落库、按日折算、缺失回落）。
 - `src/lib/market/intraday.ts`、`yahoo.ts`：分钟线。
 - `src/lib/market/symbols.ts`、`lookup.ts`：市场代码与资产识别。
 - `src/lib/market/simulated.ts`：仅显式模拟环境。
@@ -104,6 +106,7 @@ Route Handlers：
 - `prisma/schema.prisma`：SQLite canonical schema。
 - `prisma/schema.postgres.prisma`：PostgreSQL 镜像 schema。
 - `prisma/migrations/`：SQLite 迁移历史。
+- `prisma/migrations/20260814090000_add_rate_bar/`：`RateBar` 表（历史汇率）。
 - `prisma/rls.sql`：PostgreSQL 原生 RLS。
 - `scripts/init-empty.ts`：空白工作区初始化。
 - `scripts/backup.ts`、`restore.ts`、`restore-user-data.ts`：数据保护。
