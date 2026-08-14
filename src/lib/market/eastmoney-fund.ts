@@ -198,8 +198,10 @@ export const eastmoneyFundProvider: MarketDataProvider = {
 
   async history(symbol: string, from: Date, to: Date): Promise<Bar[]> {
     const parsed = parseSymbol(symbol)
-    // 仅服务场外基金净值序列；场内 ETF/股票走行情 K 线源，避免净值折线冒充日 K
-    if (parsed.market !== 'FUND') throw new Error(`基金净值源仅服务场外基金：${symbol}`)
+    // 6 位数字代码均尝试净值序列；调用方（persistFundHistory / refreshPrices）按 cls === 'FUND'
+    // 显式传入，非基金代码在数据源侧落空。不能按前缀收窄：0 开头的场外基金（005094 等）
+    // 会被 parseSymbol 归为 CN_A，收窄会把它们误伤成"无历史净值"。
+    if (!/^\d{6}$/.test(parsed.code)) throw new Error(`基金净值源仅支持 6 位代码：${symbol}`)
     const series = await fetchNavSeries(parsed.code)
     const out: Bar[] = []
     for (const p of series) {
