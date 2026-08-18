@@ -5,8 +5,7 @@ import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { loadEngineState } from '@/lib/queries'
 import { apiAuthCtx } from '@/lib/services/api-auth'
-
-import { monthsBetween, projectFireGoal, projectGoal } from '@/lib/engine/projection'
+import { projectGoalViews } from '@/lib/engine/goal-views'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -96,68 +95,23 @@ export async function GET(req: NextRequest) {
     monthlyPayment: repayByLiability.get(l.id) ?? null,
   }))
 
-  // ── FIRE / 目标（每个目标独立投影；FIRE 用 projectFireGoal）──
+  // ── FIRE / 目标（共享投影；与 /api/goals 同源同口径）──
   const goals = await db.goal.findMany({ orderBy: { createdAt: 'asc' } })
-  const fireGoals = goals.map((g) => {
-    const current = g.metric === 'NET_WORTH' ? state.netWorth : state.investable
-    const months = Math.max(0, monthsBetween(new Date(), g.targetDate))
-    const years = g.spendYears ?? 30
-    const base = {
-      current,
-      monthlyContribution: Number(g.monthlyContribution),
-      annualReturn: g.expectedReturn,
-      inflationRate: g.inflationRate,
-      seed: 42,
-      sims: 1500,
-    }
-    if (g.mode === 'STREAM') {
-      const spend = Number(g.annualSpend ?? 0)
-      const r = projectGoal({
-        ...base,
-        target: spend * years,
-        months: months + years * 12,
-        volatility: 0.15,
-      })
-      return {
-        id: g.id,
-        name: g.name,
-        mode: g.mode,
-        targetAmount: Number(g.targetAmount),
-        currentAssets: Math.round(current),
-        fundedPct: Math.round(r.fundedRatio * 100) / 100,
-        survivalProb: null,
-        noDrawdownProb: Math.round(r.successProb * 1000) / 10,
-        monthlyNeed: Math.round(r.requiredMonthly),
-        estimatedDate: months > 0 ? formatMonth(new Date(Date.now() + months * (30 * DAY))) : '已到期',
-        annualReturn: g.expectedReturn,
-        inflation: g.inflationRate,
-        annualSpend: spend,
-      }
-    }
-    const r = projectFireGoal({
-      ...base,
-      fireNumberToday: Number(g.targetAmount),
-      monthsToRetirement: months,
-      withdrawalRate: g.withdrawalRate,
-      retirementYears: years,
-      volatility: g.volatility,
-    })
-    return {
-      id: g.id,
-      name: g.name,
-      mode: g.mode,
-      targetAmount: Number(g.targetAmount),
-      currentAssets: Math.round(current),
-      fundedPct: Math.round(r.fundedRatio * 100) / 100,
-      survivalProb: Math.round(r.retirementSuccessProb * 1000) / 10,
-      noDrawdownProb: Math.round(r.accumulationSuccessProb * 1000) / 10,
-      monthlyNeed: Math.round(r.requiredMonthly),
-      estimatedDate: r.estimatedFireMonths != null ? formatMonth(new Date(Date.now() + r.estimatedFireMonths * (30 * DAY))) : '已到期',
-      annualReturn: g.expectedReturn,
-      inflation: g.inflationRate,
-      annualSpend: Number(g.annualSpend ?? 0),
-    }
-  })
+  const fireGoals = projectGoalViews(goals, state).map((v) => ({
+    id: v.id,
+    name: v.name,
+    mode: v.mode,
+    targetAmount: v.targetAmount,
+    currentAssets: v.currentAssets,
+    fundedPct: v.fundedPct,
+    survivalProb: v.survivalProb,
+    noDrawdownProb: v.noDrawdownProb,
+    monthlyNeed: v.monthlyNeed,
+    estimatedDate: v.estimatedDate,
+    annualReturn: v.annualReturn,
+    inflation: v.inflation,
+    annualSpend: v.annualSpend,
+  }))
 
   return NextResponse.json({
     ok: true,
@@ -198,10 +152,4 @@ export async function GET(req: NextRequest) {
         }
       }),
   })
-}
-
-function formatMonth(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  return `${y}-${m}`
 }

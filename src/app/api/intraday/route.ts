@@ -38,15 +38,26 @@ async function persistFundEstimates(fundSymbols: string[], series: Map<string, I
 }
 
 export async function GET(req: NextRequest) {
-  const symbols = (req.nextUrl.searchParams.get('symbols') ?? '')
+  let symbols = (req.nextUrl.searchParams.get('symbols') ?? '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
     .slice(0, 30)
 
+  const ctx = await getSession()
+
+  // symbols=all → 当前家庭全部非现金/房产资产的 symbol（移动端「看盘 · 全持仓」分时）
+  if (symbols.includes('all') && ctx) {
+    const db = scopedDb(prisma, ctx)
+    const rows = await db.asset.findMany({
+      where: { familyId: ctx.familyId, cls: { notIn: ['CASH', 'REAL_ESTATE'] } },
+      select: { symbol: true },
+    })
+    symbols = [...new Set(rows.map((r) => r.symbol))].slice(0, 30)
+  }
+
   // cls === 'FUND' 的资产走内部估值分钟序列，其余走行情分钟线
   const fundSymbols: string[] = []
-  const ctx = await getSession()
   if (ctx) {
     const db = scopedDb(prisma, ctx)
     const rows = await db.asset.findMany({ where: { symbol: { in: symbols }, cls: 'FUND' } })
