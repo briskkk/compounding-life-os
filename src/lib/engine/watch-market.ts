@@ -36,18 +36,34 @@ export function seriesPortfolioDate(series: IntradaySeries | undefined): string 
   return last ? dateKeyAt(last.t) : null
 }
 
-function nextDateKey(key: string): string {
-  const date = new Date(`${key}T00:00:00Z`)
-  date.setUTCDate(date.getUTCDate() + 1)
-  return date.toISOString().slice(0, 10)
+/**
+ * “今日涨跌”严格按交易所交易日归属。
+ * 美股上一交易日即使延续到北京时间次日凌晨，也不能继续算作北京时间次日的今日收益。
+ */
+export function isCurrentPortfolioDay(tradingDate: string | null, todayKey: string): boolean {
+  return tradingDate === todayKey
 }
 
-/**
- * 判断一项交易日盈亏是否仍属于北京时间的“当前看盘日”。
- * 美股一场交易横跨北京时间两个自然日，因此开盘日和次日凌晨都视为当前。
- */
-export function isCurrentPortfolioDay(tradingDate: string | null, currency: string, todayKey: string): boolean {
-  if (!tradingDate) return false
-  if (currency !== 'USD') return tradingDate === todayKey
-  return tradingDate === todayKey || nextDateKey(tradingDate) === todayKey
+export interface DatedValuation {
+  tradingDate: string | null
+  valueCny: number
+}
+
+/** 当前估值实际属于哪一个交易日，以及该日价格覆盖了多少行情资产。 */
+export function summarizeValuationDate(items: DatedValuation[]): { date: string; coverage: number } | null {
+  const dated = items.filter((item) => item.tradingDate != null && /^\d{4}-\d{2}-\d{2}$/.test(item.tradingDate))
+  const date = dated.reduce<string | null>(
+    (latest, item) => latest == null || item.tradingDate! > latest ? item.tradingDate : latest,
+    null,
+  )
+  if (!date) return null
+
+  const pricedValue = items.reduce((sum, item) => sum + Math.abs(item.valueCny), 0)
+  const datedValue = dated
+    .filter((item) => item.tradingDate === date)
+    .reduce((sum, item) => sum + Math.abs(item.valueCny), 0)
+  return {
+    date,
+    coverage: pricedValue > 0 ? datedValue / pricedValue : 1,
+  }
 }

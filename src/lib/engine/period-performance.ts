@@ -55,6 +55,17 @@ export interface PeriodPerformanceResult {
   curve: PerformanceCurvePoint[]
 }
 
+/** 按估值实际所属日期合并实时点；不得把旧交易日估值重标为请求当天。 */
+export function upsertPerformancePoint(
+  series: PerformancePoint[],
+  point: PerformancePoint | null,
+): PerformancePoint[] {
+  if (!point) return [...series].sort((a, b) => a.date.localeCompare(b.date))
+  const next = series.filter((item) => item.date !== point.date)
+  next.push(point)
+  return next.sort((a, b) => a.date.localeCompare(b.date))
+}
+
 const PRESET_LABELS: Record<PerformancePreset, string> = {
   THIS_WEEK: '本周',
   THIS_MONTH: '本月',

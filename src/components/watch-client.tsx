@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { buildPortfolioCurve, type CurveHolding } from '@/lib/engine/intraday'
 import { summarizeDailyPortfolio } from '@/lib/engine/daily-pnl'
 import { sortHoldings, type HoldingSort } from '@/lib/engine/holding-sort'
-import { dateKeyAt, isCurrentPortfolioDay, seriesPortfolioDate, seriesTradingDate } from '@/lib/engine/watch-market'
+import { dateKeyAt, isCurrentPortfolioDay, seriesTradingDate, summarizeValuationDate } from '@/lib/engine/watch-market'
 import type { IntradaySeries } from '@/lib/market/intraday'
 import { Panel } from './ui'
 import { IntradayChart } from './charts'
@@ -157,8 +157,7 @@ export function WatchClient({
     const tradingDate = quote?.tradingDate
       ?? seriesTradingDate(series, holding.currency, holding.cls)
       ?? holding.tradingDate
-    const currentPortfolioDay = seriesPortfolioDate(series) === todayKey
-      || isCurrentPortfolioDay(tradingDate, holding.currency, todayKey)
+    const currentPortfolioDay = isCurrentPortfolioDay(tradingDate, todayKey)
     return {
       ...holding,
       price,
@@ -181,7 +180,11 @@ export function WatchClient({
       prevClose: holding.prevClose,
     }))
     const currentPrice = new Map(rows.map((row) => [row.symbol, row.price]))
-    const activeSeries = [...seriesMap].filter(([, series]) => seriesPortfolioDate(series) === todayKey)
+    const holdingBySymbol = new Map(rows.map((row) => [row.symbol, row]))
+    const activeSeries = [...seriesMap].filter(([symbol, series]) => {
+      const holding = holdingBySymbol.get(symbol)
+      return holding != null && seriesTradingDate(series, holding.currency, holding.cls) === todayKey
+    })
     const activeSymbols = new Set(activeSeries.map(([symbol]) => symbol))
     const curveSeries = new Map(
       activeSeries.map(([symbol, series]) => {
@@ -235,6 +238,23 @@ export function WatchClient({
     () => rows.reduce((sum, row) => sum + row.valueCny, 0) + staticInvestableValueCny,
     [rows, staticInvestableValueCny],
   )
+  const liveValuation = useMemo(
+    () => summarizeValuationDate(rows.map((row) => ({ tradingDate: row.tradingDate, valueCny: row.valueCny }))),
+    [rows],
+  )
+  const livePerformancePoint = useMemo(() => liveValuation == null ? null : ({
+    date: liveValuation.date,
+    netWorth: liveInvestableValue,
+    contributions: currentContributions,
+    valuationStatus: liveValuation.date === todayKey
+      ? 'LIVE' as const
+      : liveValuation.coverage >= 0.999999
+        ? 'SETTLED' as const
+        : 'PARTIAL' as const,
+    valuationCoverage: liveValuation.coverage,
+    latestValuationDate: liveValuation.date,
+    valuationGaps: [],
+  }), [currentContributions, liveInvestableValue, liveValuation, todayKey])
 
   const displayRows = useMemo(() => sortHoldings([
     ...rows.map((row) => ({ ...row, kind: 'market' as const, name: row.name, valueCny: row.valueCny })),
@@ -273,8 +293,7 @@ export function WatchClient({
 
       <PortfolioHistory
         series={historySeries}
-        liveValue={liveInvestableValue}
-        currentContributions={currentContributions}
+        livePoint={livePerformancePoint}
         benchmarks={benchmarks}
         initialPreset={defaultRange ?? undefined}
       />

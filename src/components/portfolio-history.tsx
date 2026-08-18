@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import {
   performanceBetween,
   performancePresetRange,
+  upsertPerformancePoint,
   type PerformancePoint,
   type PerformancePreset,
 } from '@/lib/engine/period-performance'
@@ -40,34 +41,17 @@ function signedPct(value: number): string {
 
 export function PortfolioHistory({
   series,
-  liveValue,
-  currentContributions,
+  livePoint,
   benchmarks = [],
   initialPreset,
 }: {
   series: PerformancePoint[]
-  liveValue: number
-  currentContributions: number
+  livePoint: PerformancePoint | null
   benchmarks?: LoadedBenchmark[]
   initialPreset?: string
 }) {
   const todayKey = dateKeyAt(new Date())
-  const liveSeries = useMemo(() => {
-    const next = [...series]
-    const todayIndex = next.findIndex((point) => point.date === todayKey)
-    const livePoint: PerformancePoint = {
-      ...(todayIndex >= 0 ? next[todayIndex] : {}),
-      date: todayKey,
-      netWorth: liveValue,
-      contributions: currentContributions,
-      valuationStatus: todayIndex >= 0 && ['CLOSED', 'FLOW_ONLY'].includes(next[todayIndex].valuationStatus ?? '')
-        ? next[todayIndex].valuationStatus
-        : 'LIVE',
-    }
-    if (todayIndex >= 0) next[todayIndex] = livePoint
-    else next.push(livePoint)
-    return next.sort((a, b) => a.date.localeCompare(b.date))
-  }, [currentContributions, liveValue, series, todayKey])
+  const liveSeries = useMemo(() => upsertPerformancePoint(series, livePoint), [livePoint, series])
 
   const earliestDate = liveSeries[0]?.date ?? todayKey
   const initialCustomRange = performancePresetRange('LAST_30_DAYS', new Date(), earliestDate)

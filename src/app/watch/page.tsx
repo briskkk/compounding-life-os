@@ -88,7 +88,7 @@ export default async function WatchPage({ searchParams }: { searchParams: Promis
         latestValuationDate: point.latestValuationDate,
         valuationGaps: point.valuationGaps,
       }))}
-      currentContributions={watchData.series.at(-1)?.contributions ?? 0}
+      currentContributions={watchData.currentContributions}
       initialSort={parseHoldingSort(sp.sort)}
       defaultRange={defaultRange}
       benchmarks={benchmarks}

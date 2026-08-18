@@ -1,7 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { performanceBetween, performancePresetRange, periodPerformance } from '@/lib/engine/period-performance'
+import {
+  performanceBetween,
+  performancePresetRange,
+  periodPerformance,
+  upsertPerformancePoint,
+} from '@/lib/engine/period-performance'
 
 describe('阶段收益', () => {
+  it('实时估值按实际交易日合并，不强制改成请求当天', () => {
+    const merged = upsertPerformancePoint([
+      { date: '2026-08-14', netWorth: 100, contributions: 100 },
+    ], {
+      date: '2026-08-17',
+      netWorth: 110,
+      contributions: 100,
+      valuationStatus: 'SETTLED',
+    })
+
+    expect(merged.map((point) => point.date)).toEqual(['2026-08-14', '2026-08-17'])
+    expect(performanceBetween(merged, '2026-08-01', '2026-08-18').curve.at(-1)).toMatchObject({
+      date: '2026-08-17',
+      dailyAmount: 10,
+    })
+  })
+
   it('上海时区月初使用上月最后一日，而不是再向前错一天', () => {
     const series = [
       { date: '2026-07-30', netWorth: 323796, contributions: 357544 },

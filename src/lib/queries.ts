@@ -12,7 +12,7 @@ import { totalLiabilities, type LiabilityEntryInput } from './engine/liabilities
 import { quoteSmart, providerLabel, historySmart } from './market'
 import { cachedQuote } from './market/cache'
 import { BENCHMARK_INDICES, type BenchmarkPoint, type LoadedBenchmark } from './engine/benchmark'
-import { cnyRateFor, fxRates } from './market/fx'
+import { cnyRateFor, fxRateAtFactory, fxRates } from './market/fx'
 import { eastmoneyFundProvider } from './market/eastmoney-fund'
 import type { AssetInfo, TxInput } from './engine/types'
 import { mergePositionsByAsset } from './engine/merge'
@@ -22,6 +22,8 @@ import type { QuoteData } from './market/provider'
 import { isPortfolioAssetClass } from './asset-classification'
 import { dateKeyAt } from './engine/watch-market'
 import type { ValuationGap, ValuationStatus } from './engine/valuation-status'
+import { loadPriceSeries, priceAtFn, priceObservationAtFn } from './market/persist'
+import { computeWealthSeries } from './snapshots'
 
 export interface LiabilityView {
   id: string
@@ -39,6 +41,7 @@ export interface EngineState {
   txCount: number
   liabilitiesTotal: number
   liabilities: LiabilityView[]
+  liabilityEntries: LiabilityEntryInput[]
   netWorth: number // 总资产 − 总负债
   investable: number
   ledgerTxs: LedgerTx[]
@@ -136,6 +139,7 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
     txCount: txsRaw.filter((t) => !t.voidedAt && isPortfolioAssetClass(t.asset.cls)).length,
     liabilitiesTotal,
     liabilities,
+    liabilityEntries: entries,
     netWorth: metrics.netWorth - liabilitiesTotal,
     investable: metrics.investable,
     ledgerTxs,
@@ -323,6 +327,77 @@ export interface DashboardData {
 export interface WatchData {
   state: EngineState
   series: SeriesPoint[]
+  currentContributions: number
+}
+
+function nextDateKey(key: string): Date {
+  const date = new Date(`${key}T00:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + 1)
+  return date
+}
+
+/**
+ * PriceBar 可由资产详情页自愈更新，而持久化 Snapshot 只在显式行情刷新或业务写入时重建。
+ * 看盘读取时用现有行情在内存补齐这段尾部，避免把多日变化集中归入最新访问日；不产生读路径写库。
+ */
+async function extendWatchSeriesFromPrices(
+  state: EngineState,
+  series: SeriesPoint[],
+): Promise<SeriesPoint[]> {
+  const symbols = state.assets
+    .filter((asset) => !asset.manual && asset.cls !== 'CASH' && asset.cls !== 'REAL_ESTATE')
+    .map((asset) => asset.symbol)
+  if (symbols.length === 0 || state.ledgerTxs.length === 0) return series
+
+  const latestBar = await prisma.priceBar.findFirst({
+    where: { symbol: { in: symbols } },
+    orderBy: { date: 'desc' },
+    select: { date: true },
+  })
+  if (!latestBar) return series
+  const latestSnapshotKey = series.at(-1)?.date ?? null
+  const latestBarKey = dateKeyAt(latestBar.date)
+  if (latestSnapshotKey != null && latestBarKey <= latestSnapshotKey) return series
+
+  const [priceMap, rateAt] = await Promise.all([
+    loadPriceSeries(prisma, symbols),
+    fxRateAtFactory(prisma),
+  ])
+  const basePriceAt = priceAtFn(priceMap)
+  const observationAt = priceObservationAtFn(priceMap)
+  const priceAt = (symbol: string, date: Date) => {
+    const value = basePriceAt(symbol, date)
+    return value == null ? undefined : value * cnyRateFor(symbol, {
+      USDCNY: rateAt('USD', date),
+      HKDCNY: rateAt('HKD', date),
+    })
+  }
+  const from = latestSnapshotKey != null
+    ? nextDateKey(latestSnapshotKey)
+    : state.ledgerTxs[0].occurredAt
+  const today = new Date(`${dateKeyAt(new Date())}T00:00:00Z`)
+  const tail = computeWealthSeries(
+    state.ledgerTxs,
+    state.assets,
+    state.liabilityEntries,
+    from,
+    today,
+    priceAt,
+    rateAt,
+    observationAt,
+  ).map((point): SeriesPoint => ({
+    date: point.date.toISOString().slice(0, 10),
+    netWorth: point.netWorth,
+    investable: point.investable,
+    contributions: point.contributions,
+    assets: point.assets,
+    liabilities: point.liabilities,
+    valuationStatus: point.valuationStatus,
+    valuationCoverage: point.valuationCoverage,
+    latestValuationDate: point.latestValuationDate,
+    valuationGaps: parseValuationGaps(point.valuationDetails),
+  }))
+  return [...series, ...tail]
 }
 
 export function contributionsAtDates(series: { date: string }[], flows: Map<number, number>): number[] {
@@ -376,7 +451,7 @@ export async function getWatchData(): Promise<WatchData | null> {
     loadEngineState(ctx),
     db.snapshot.findMany({ orderBy: { date: 'asc' } }),
   ])
-  const series: SeriesPoint[] = snaps.map((snapshot) => ({
+  let series: SeriesPoint[] = snaps.map((snapshot) => ({
     date: snapshot.date.toISOString().slice(0, 10),
     netWorth: Number(snapshot.netWorth),
     investable: Number(snapshot.investable),
@@ -385,6 +460,7 @@ export async function getWatchData(): Promise<WatchData | null> {
     liabilities: Number(snapshot.liabilities),
     ...snapshotValuationFields(snapshot),
   }))
+  series = await extendWatchSeriesFromPrices(state, series)
 
   const rates = await fxRates()
   const currencyRate = (currency: string) => currency === 'USD' ? rates.USDCNY : currency === 'HKD' ? rates.HKDCNY : 1
@@ -395,25 +471,7 @@ export async function getWatchData(): Promise<WatchData | null> {
     point.contributions = Math.round(normalizedContributions[index])
   })
   const contributionsNow = [...flows.values()].reduce((sum, amount) => sum + amount, 0)
-  const existingToday = series.at(-1)?.date === dateKeyAt(new Date()) ? series.at(-1) : null
-  const livePoint: SeriesPoint = {
-    date: dateKeyAt(new Date()),
-    netWorth: Math.round(state.netWorth),
-    investable: Math.round(state.investable),
-    contributions: Math.round(contributionsNow),
-    assets: Math.round(state.metrics.netWorth),
-    liabilities: Math.round(state.liabilitiesTotal),
-    valuationStatus: existingToday?.valuationStatus === 'CLOSED' || existingToday?.valuationStatus === 'FLOW_ONLY'
-      ? existingToday.valuationStatus
-      : 'LIVE',
-    valuationCoverage: existingToday?.valuationCoverage ?? null,
-    latestValuationDate: existingToday?.latestValuationDate ?? dateKeyAt(new Date()),
-    valuationGaps: existingToday?.valuationGaps ?? [],
-  }
-  if (series.at(-1)?.date === livePoint.date) series[series.length - 1] = livePoint
-  else series.push(livePoint)
-
-  return { state, series }
+  return { state, series, currentContributions: Math.round(contributionsNow) }
 }
 
 export async function getDashboard(): Promise<DashboardData | null> {
