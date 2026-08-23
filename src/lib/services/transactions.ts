@@ -7,6 +7,7 @@ import { rebuildSnapshots } from '@/lib/snapshots'
 import type { FamilyCtx } from '@/lib/scoped'
 import { buildSettlementLegs } from '@/lib/engine/settlement'
 import { foldTransactions, type LedgerTx } from '@/lib/engine/ledger'
+import { fundConfirmationDate, fundNavDate, isQdiiFund } from '@/lib/engine/fund-order'
 import { assertTransactionRules, assertTransactionTimeline, type TransactionDraft } from '@/lib/transaction-rules'
 import type { TxInputData } from '@/lib/schemas'
 
@@ -70,6 +71,7 @@ export async function validateTransaction(
     price: number | null
     amount: number
     occurredAt: Date
+    navDate?: Date | null
   },
 ) {
   const [account, asset] = await Promise.all([
@@ -79,6 +81,7 @@ export async function validateTransaction(
   if (!account) throw new Error('账户不存在或不属于当前家庭')
   if (!asset) throw new Error('资产不存在或不属于当前家庭')
   if (account.currency !== asset.currency) throw new Error('账户与资产币种不一致')
+  const qdii = asset.cls === 'FUND' && isQdiiFund(asset.symbol, asset.name)
 
   const rows = await db.transaction.findMany({
     where: { familyId: ctx.familyId, accountId: data.accountId, assetId: data.assetId },
@@ -93,27 +96,49 @@ export async function validateTransaction(
     amount: Number(t.amount),
     fee: Number(t.fee),
     occurredAt: t.occurredAt,
+    navDate: t.navDate,
+    confirmationDate: t.navDate && asset.cls === 'FUND'
+      ? fundConfirmationDate(t.navDate, { qdii })
+      : t.navDate,
     assetClass: asset.cls,
     internal: t.internal,
     voidedAt: t.voidedAt,
     currency: asset.currency,
   }))
-  const position = foldTransactions(ledger)[0] ?? { quantity: 0, unvestedQty: 0 }
+  const position = foldTransactions(ledger)[0] ?? { quantity: 0, unvestedQty: 0, availableQty: 0 }
   assertTransactionRules(data, asset, position)
+  // 基金买卖未显式传净值日时（CSV 导入 / 旧客户端），按 occurredAt 时刻兜底推算（15:00 前=当日净值）
+  const effectiveNavDate = data.navDate ?? (asset.cls === 'FUND' && (data.type === 'BUY' || data.type === 'SELL')
+    ? fundNavDate(data.occurredAt, { qdii })
+    : null)
+  const effectiveConfirmationDate = effectiveNavDate && asset.cls === 'FUND'
+    ? fundConfirmationDate(effectiveNavDate, { qdii })
+    : effectiveNavDate
   assertTransactionTimeline(
     [
       ...rows.map((t, sequence) => ({
         type: t.type,
         quantity: t.quantity == null ? null : Number(t.quantity),
         occurredAt: t.occurredAt,
+        navDate: t.navDate,
+        confirmationDate: t.navDate && asset.cls === 'FUND'
+          ? fundConfirmationDate(t.navDate, { qdii })
+          : t.navDate,
         voidedAt: t.voidedAt,
         sequence,
       })),
-      { type: data.type, quantity: data.quantity, occurredAt: data.occurredAt, sequence: Number.MAX_SAFE_INTEGER },
+      {
+        type: data.type,
+        quantity: data.quantity,
+        occurredAt: data.occurredAt,
+        navDate: effectiveNavDate,
+        confirmationDate: effectiveConfirmationDate,
+        sequence: Number.MAX_SAFE_INTEGER,
+      },
     ],
     asset,
   )
-  return { account, asset }
+  return { account, asset, navDate: effectiveNavDate }
 }
 
 /**
@@ -129,7 +154,7 @@ export async function createTransactionRecord(
   const settleCash = data.settleCash ?? (data.type === 'BUY' || data.type === 'SELL')
   const accountId = await routedAccountIdForAsset(db, ctx.familyId, data.accountId, data.assetId)
   const entry = { ...data, accountId }
-  await validateTransaction(db, ctx, entry)
+  const { navDate: effectiveNavDate } = await validateTransaction(db, ctx, entry)
   const tx = await db.transaction.create({
     data: {
       familyId: ctx.familyId,
@@ -141,16 +166,21 @@ export async function createTransactionRecord(
       amount: data.amount,
       fee: data.fee,
       occurredAt: data.occurredAt,
+      navDate: effectiveNavDate,
+      navSource: data.navSource ?? null,
+      settlementDate: data.settlementDate ?? null,
       note: data.note,
     },
   })
   if (settleCash && (data.type === 'BUY' || data.type === 'SELL')) {
     const settlement = await cashSettlementOf(db, ctx.familyId, entry.accountId)
     if (!settlement) throw new Error('该交易账户未配置资金账户；请先配置，或关闭现金联动结算')
+    // 基金赎回在途：现金结算腿发生在预计到账日（settlementDate），而非成交日
     const legs = buildSettlementLegs(
       { ...entry, internal: false },
       settlement.cashAssetId,
       settlement.accountId,
+      { settleAt: data.settlementDate ?? undefined },
     )
     for (const leg of legs) {
       await db.transaction.create({

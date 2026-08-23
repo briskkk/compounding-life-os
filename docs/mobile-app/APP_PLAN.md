@@ -59,7 +59,7 @@ Family Wealth OS 的移动端客户端,独立新建项目(不在本仓库开发)
 | 端点 | 用途 | 响应要点 |
 |---|---|---|
 | `GET /api/mobile/summary` | 移动端总览/账户/FIRE 数据包 | 净资产/负债/账户/目标投影/账本哈希,一次拉取 |
-| `GET /api/positions` | 持仓明细 | 资产、数量、成本、市值、当日盈亏、来源 |
+| `GET /api/positions` | 持仓明细 | 资产、数量、`availableQty`（可用份额，排除确认中申购）、成本、市值、当日盈亏、来源 |
 | `GET /api/positions/[assetId]` | 资产详情 | 行情、K 线(120 日)、持仓、买卖点 |
 | `GET /api/assets` | 资产构成 | 7 类资产、占比、曲线 |
 | `GET /api/performance` | 区间收益归因与风险 | contributions / investmentReturn / twrCumulative / twrAnnualized / xirr / maxDrawdown / annualizedVolatility |
@@ -71,7 +71,7 @@ Family Wealth OS 的移动端客户端,独立新建项目(不在本仓库开发)
 
 | 端点 | 用途 | 说明 |
 |---|---|---|
-| `POST /api/transactions` | 记一笔 | 与网页共用 `src/lib/services/transactions.ts`(校验/结算联动/审计/快照增量重建) |
+| `POST /api/transactions` | 记一笔 | 与网页共用 `src/lib/services/transactions.ts`(校验/结算联动/审计/快照增量重建)；支持可选 `navDate`（基金确认净值日）/`navSource`（OFFICIAL/ESTIMATE）/`settlementDate`（预计到账日，赎回在途，ADR-012） |
 | `GET /api/transactions?assetId&limit` | 流水列表(溯源) | 最近流水,最多 200 条 |
 
 ### 4.4 服务端待补(APP 深链路)

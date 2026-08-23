@@ -29,7 +29,8 @@ export interface CsvRowResult {
 const HEADER_ALIASES: Record<string, string> = {
   日期: 'date',
   date: 'date',
-  时间: 'date',
+  时间: 'time',
+  time: 'time',
   账户: 'account',
   account: 'account',
   代码: 'symbol',
@@ -76,10 +77,10 @@ const TYPE_ALIASES: Record<string, TxType> = {
   valuation: 'VALUATION',
 }
 
-export const CSV_TEMPLATE = `日期,账户,代码,类型,数量,单价,金额,费用,备注
-2026-01-15,华泰证券,510300,买入,1000,4.02,4020,0,ETF 定投
-2026-01-15,招商银行,CASH-CNY,存入,,,30000,0,工资
-2026-02-01,房产,HOME-01,估值,,,3450000,0,季度估值更新`
+export const CSV_TEMPLATE = `日期,时间,账户,代码,类型,数量,单价,金额,费用,备注
+2026-01-15,10:30,华泰证券,510300,买入,1000,4.02,4020,0,ETF 定投
+2026-01-15,,招商银行,CASH-CNY,存入,,,30000,0,工资
+2026-02-01,,房产,HOME-01,估值,,,3450000,0,季度估值更新`
 
 export function parseNum(raw: string | undefined): number | null {
   if (raw == null) return null
@@ -105,8 +106,15 @@ export function parseCsvRows(rows: Record<string, string>[], lookup: CsvLookup):
     }
 
     const dateRaw = mapped.date
-    const occurredAt = dateRaw ? new Date(dateRaw) : null
-    if (!occurredAt || Number.isNaN(occurredAt.getTime())) errors.push('日期缺失或格式无效（期望 YYYY-MM-DD）')
+    const timeRaw = mapped.time
+    // 日期 + 可选时间（HH:mm 或 HH:mm:ss，本地时刻）：基金买卖据此区分 15:00 前/后的成交净值日
+    let occurredAt: Date | null = null
+    if (dateRaw && timeRaw) {
+      occurredAt = new Date(`${dateRaw}T${timeRaw}`)
+    } else if (dateRaw) {
+      occurredAt = new Date(dateRaw)
+    }
+    if (!occurredAt || Number.isNaN(occurredAt.getTime())) errors.push('日期缺失或格式无效（期望 YYYY-MM-DD，可加时间列 HH:mm）')
 
     const type = mapped.type ? TYPE_ALIASES[mapped.type.toLowerCase()] ?? TYPE_ALIASES[mapped.type] : undefined
     if (!type) errors.push(`类型无法识别：「${mapped.type ?? ''}」（支持 买入/卖出/分红/利息/费用/存入/取出/转入/转出/估值）`)

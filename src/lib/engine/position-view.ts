@@ -16,6 +16,8 @@ export interface PositionItem {
   name: string
   cls: AssetClass
   quantity: number
+  /** 可用份额：排除确认中的申购（基金 T+1/T+2），其余资产等于 quantity */
+  availableQty: number
   avgCost: number | null
   marketValue: number
   dayPnl: number
@@ -35,6 +37,7 @@ export function buildPositionItem(position: ValuedPosition, quote: PositionQuote
     name: position.asset.name,
     cls: position.asset.cls,
     quantity: position.quantity,
+    availableQty: position.availableQty,
     avgCost: position.quantity > 0 ? position.costCny / position.quantity : null,
     marketValue: position.value,
     dayPnl,

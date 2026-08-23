@@ -27,6 +27,9 @@ last_verified: 2026-08-05
 
 ## 最近完成
 
+- 基金净值日与确认日分离（ADR-013）：`navDate` 表示成交净值所属日，15:00 前的 QDII 同样采用 T 日净值；T+2 仅作为份额确认延迟独立派生。历史补录按 `navDate` 精确查询官方净值，页面分别展示成交净值日与预计确认日；019671 在 2026-08-20 15:00 前正确采用 1.3981。
+- QDII 识别改为已核验代码注册表优先、名称兜底，并与纳指代理估值表分离；当前7只真实 QDII 全部覆盖，包含本地简称未写 QDII 的 012348。
+- 基金确认与在途建模（ADR-012）：`Transaction` 新增 `navDate`（成交净值所属日）/`navSource`/`settlementDate`（预计到账日）；申购按派生确认日生效可用份额（`Position.availableQty`），赎回现金腿延迟到到账日，`pendingSettlementsAt` 派生在途资金并入净资产与可自由投资；Web 表单基金专用录入（按金额申购 + 净值预览 + 预计份额、卖出自动带出当前/可用份额、15:00 前/后二选一决定成交净值日），总览页展示在途资金；移动端 RecordSheet 同步联动（真实净值预填替代硬编码 3.980、日期可选、超卖前置拦截），`/api/positions` 返回 `availableQty`。
 - 历史外汇汇率：新增 `RateBar` 表（`(pair, date)` 唯一，USDCNY/HKDCNY 全局共享），行情刷新时落库当日汇率；快照重建按当日汇率折算，缺失回落最近可用。
 - 快照增量重建：`rebuildSnapshots` 支持 `affectedSince` 参数，流水/负债写操作只重算受影响日期起的快照（443 笔流水全量 371ms → 增量 68ms）；行情刷新仍全量。
 - 行情缓存与健康治理：报价 30s TTL 内存缓存（`quoteSmart`/基金通道统一接入，失败不缓存），provider 成功率/延迟打点，新增 `/api/health` 健康端点。
@@ -52,6 +55,12 @@ last_verified: 2026-08-05
 6. `PriceBar`、`FundEstimate`、`FundCalibration`、`User`、`Session` 是全局共享数据，不带 `familyId`，不得误套家庭 RLS。
 
 ## 验证状态
+- `npm test`：2026-08-23 通过，49 个测试文件、304 个测试（QDII 成交净值日与 T+2 确认分离；019671 精确历史净值回归）。
+- Playwright：2026-08-23 通过，49 个 E2E 用例（含历史基金净值按成交日精确匹配）。
+- `npm run build`：2026-08-23 通过。
+- `npm test`：2026-08-21 通过，48 个测试文件、301 个测试（fund-order 21 例：确认日/到账日推算、15:00 前/后历史补录、可用份额、在途资金派生、基金容差与延迟结算腿）。
+- Playwright：2026-08-21 通过，48 个 E2E 用例（含登录 setup）。
+- `npm run build`：2026-08-21 通过；`scripts/check-schema-sync.ts` 双 schema 门禁通过（18 模型一致）。
 - `npm test`：2026-08-14 通过，47 个测试文件、278 个测试（新增 schema-sync 3 例、ledger-precision 3 例）。
 - `npm test`：2026-08-12 通过，40 个测试文件、246 个测试。
 - Playwright：44 个 E2E 用例通过（含登录 setup）。
@@ -59,6 +68,7 @@ last_verified: 2026-08-05
 
 ## 下一步候选（尚未承诺）
 
+- 基金纵深：申购/赎回费率、分红方式（现金/红利再投）、法定节假日交易日历、确认净值公布后一键修正估算份额。
 - 多家庭：Member 拆 userId（1:1 → 1:N）、家庭切换器、创建家庭（Phase 2）。
 - 邀请协作：邀请码、成员管理页、角色管理、重置密码；APP 写 API 补齐（Phase 3）。
 - 移动端 APP（需求待办，见 PRODUCT_REQUIREMENTS 第 9 条）。

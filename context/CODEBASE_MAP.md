@@ -61,10 +61,11 @@ Route Handlers：
 
 ### 账本、估值与口径
 
-- `src/lib/engine/ledger.ts`：流水折叠、移动平均成本、手动估值状态；累加点 `roundMoney` 分位钳制。
+- `src/lib/engine/ledger.ts`：流水折叠、移动平均成本、手动估值状态；累加点 `roundMoney` 分位钳制；`availableQty` 可用份额（申购按派生确认完成日生效）与 `pendingSettlementsAt` 在途资金派生（ADR-012/013）。
+- `src/lib/engine/fund-order.ts`：成交净值日 / 份额确认日 / 预计到账日分离推算（15:00 临界、工作日近似；QDII T+2 只影响确认）、按金额申购份额估算；已核验 QDII 代码注册表与名称兜底的唯一出处（与可代理估值的 `QDII_INDEX_MAP` 分离）。
 - `src/lib/engine/valuation.ts`：MARKET/MANUAL/COST/FACE 估值和双口径。
 - `src/lib/engine/merge.ts`、`groups.ts`、`account-summary.ts`：持仓聚合。
-- `src/lib/engine/settlement.ts`、`settlement-account.ts`：现金腿与结算关系环检测。
+- `src/lib/engine/settlement.ts`、`settlement-account.ts`：现金腿（基金赎回支持 `settleAt` 延迟到账）与结算关系环检测。
 - `src/lib/asset-classification.ts`：组合资产与长期资产边界。
 
 ### 绩效与风险

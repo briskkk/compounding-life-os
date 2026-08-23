@@ -14,6 +14,7 @@ export function mergePositionsByAsset(positions: ValuedPosition[]): ValuedPositi
       continue
     }
     existing.quantity += p.quantity
+    existing.availableQty += p.availableQty
     existing.vestedQty += p.vestedQty
     existing.unvestedQty += p.unvestedQty
     existing.costBasis += p.costBasis

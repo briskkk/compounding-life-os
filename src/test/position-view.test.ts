@@ -12,6 +12,7 @@ function valuedPosition(overrides: Partial<ValuedPosition> = {}): ValuedPosition
     assetId: 'a1',
     quantity: 100,
     vestedQty: 0,
+    availableQty: 1,
     unvestedQty: 0,
     costBasis: 150000,
     realizedPnl: 0,

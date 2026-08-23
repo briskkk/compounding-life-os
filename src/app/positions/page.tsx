@@ -260,6 +260,9 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                       </td>
                       <td className="num px-2 py-2.5 text-right text-ink">
                         {fmtQty(p.quantity)}
+                        {p.quantity - p.availableQty > 1e-8 && (
+                          <div className="text-[12px] text-ink-faint">{fmtQty(p.quantity - p.availableQty)} 确认中</div>
+                        )}
                       </td>
                       <td className="num px-2 py-2.5 text-right text-ink-dim">
                         {fmtCNYExact(p.costCny)}

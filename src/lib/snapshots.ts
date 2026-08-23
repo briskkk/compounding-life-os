@@ -1,6 +1,6 @@
 // 财富轨迹快照：按日回放账本 + 历史行情估值 + 负债余额 + 净投入，落库为 Snapshot 行
 import type { PrismaClient } from '@prisma/client'
-import { foldTransactions, type LedgerTx } from './engine/ledger'
+import { foldTransactions, pendingSettlementsAt, roundMoney, type LedgerTx } from './engine/ledger'
 import { valuePositions } from './engine/valuation'
 import { totalLiabilities, type LiabilityEntryInput } from './engine/liabilities'
 import { cumulativeContributions, dailyNetFlows } from './engine/attribution'
@@ -9,6 +9,7 @@ import { loadPriceSeries, priceAtFn, priceObservationAtFn, type PriceObservation
 import { cnyRateFor, fxRateAtFactory } from './market/fx'
 import { isPortfolioAssetClass } from './asset-classification'
 import type { ValuationGap, ValuationStatus } from './engine/valuation-status'
+import { fundConfirmationDate, isQdiiFund } from './engine/fund-order'
 
 const DAY = 86400000
 const MAX_DAYS = 1400
@@ -71,6 +72,12 @@ export function computeWealthSeries(
       assetsTotal += v.value
       investable += v.investable
     }
+    // 在途资金：赎回已申报（份额已扣）但现金结算腿发生在当日之后 —— 并入总资产与可自由投资（ADR-012）
+    const inTransit = roundMoney(
+      pendingSettlementsAt(txs, date).reduce((s, p) => s + p.amount * currencyRate(p.currency, date), 0),
+    )
+    assetsTotal += inTransit
+    investable += inTransit
     const liab = totalLiabilities(liabilityEntries, date)
     const valuationDate = date.toISOString().slice(0, 10)
     const byAsset = new Map<string, { symbol: string; name: string; value: number; observation?: PriceObservation }>()
@@ -194,6 +201,7 @@ export async function rebuildSnapshots(
     currency: a.currency,
   }))
   const txs: LedgerTx[] = txsRaw.map((t) => ({
+    id: t.id,
     accountId: t.accountId,
     assetId: t.assetId,
     type: t.type,
@@ -202,9 +210,15 @@ export async function rebuildSnapshots(
     amount: Number(t.amount),
     fee: Number(t.fee),
     occurredAt: t.occurredAt,
+    navDate: t.navDate,
+    confirmationDate: t.navDate && t.asset.cls === 'FUND'
+      ? fundConfirmationDate(t.navDate, { qdii: isQdiiFund(t.asset.symbol, t.asset.name) })
+      : t.navDate,
+    settlementDate: t.settlementDate,
     assetClass: t.asset.cls,
     internal: t.internal,
     voidedAt: t.voidedAt,
+    settleOfId: t.settleOfId,
     currency: t.asset.currency,
   }))
   const entries: LiabilityEntryInput[] = entriesRaw.map((e) => ({

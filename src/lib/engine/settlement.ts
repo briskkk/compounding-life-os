@@ -2,11 +2,17 @@
 import type { TxInput } from './types'
 
 /**
- * BUY → WITHDRAW（金额 + 费用）
- * SELL → DEPOSIT（金额 − 费用）
+ * BUY → WITHDRAW（金额 + 费用），即时发生（申购当日资金即划出）
+ * SELL → DEPOSIT（金额 − 费用），发生于 opts.settleAt（基金赎回在途：预计到账日）；
+ *         缺省 settleAt = 成交日（股票等即时到账口径）
  * 其余类型、零金额、现金资产自身 → 不产生结算腿
  */
-export function buildSettlementLegs(tx: TxInput, cashAssetId: string, settlementAccountId: string): TxInput[] {
+export function buildSettlementLegs(
+  tx: TxInput,
+  cashAssetId: string,
+  settlementAccountId: string,
+  opts?: { settleAt?: Date },
+): TxInput[] {
   if (tx.assetId === cashAssetId) return []
   if (tx.type === 'BUY') {
     const total = tx.amount + tx.fee
@@ -28,6 +34,7 @@ export function buildSettlementLegs(tx: TxInput, cashAssetId: string, settlement
   if (tx.type === 'SELL') {
     const net = tx.amount - tx.fee
     if (net <= 0) return []
+    const settleAt = opts?.settleAt ?? tx.occurredAt
     return [
       {
         accountId: settlementAccountId,
@@ -37,7 +44,7 @@ export function buildSettlementLegs(tx: TxInput, cashAssetId: string, settlement
         price: null,
         amount: net,
         fee: 0,
-        occurredAt: tx.occurredAt,
+        occurredAt: settleAt,
         internal: true,
       },
     ]

@@ -2,7 +2,7 @@
 import { prisma } from './db'
 import { scopedDb, type FamilyCtx } from './scoped'
 import { getSession, getSessionOrThrow } from './session'
-import { foldTransactions, type LedgerTx } from './engine/ledger'
+import { foldTransactions, pendingSettlementsAt, roundMoney, type LedgerTx, type PendingSettlement } from './engine/ledger'
 import { valuePositions, type ValuedPosition } from './engine/valuation'
 import { aggregate, type Metrics } from './engine/metrics'
 import { projectFireGoal, monthsBetween, type FireProjectionResult } from './engine/projection'
@@ -24,6 +24,7 @@ import { dateKeyAt } from './engine/watch-market'
 import type { ValuationGap, ValuationStatus } from './engine/valuation-status'
 import { loadPriceSeries, priceAtFn, priceObservationAtFn } from './market/persist'
 import { computeWealthSeries } from './snapshots'
+import { fundConfirmationDate, isQdiiFund } from './engine/fund-order'
 
 export interface LiabilityView {
   id: string
@@ -37,13 +38,16 @@ export interface EngineState {
   assets: AssetInfo[]
   valued: ValuedPosition[]
   quotes: Map<string, EngineQuote>
-  metrics: Metrics // 资产端聚合（netWorth 字段 = 总资产）
+  metrics: Metrics // 资产端聚合（netWorth 字段 = 总资产，不含在途）
   txCount: number
   liabilitiesTotal: number
   liabilities: LiabilityView[]
   liabilityEntries: LiabilityEntryInput[]
-  netWorth: number // 总资产 − 总负债
-  investable: number
+  netWorth: number // 总资产（含在途资金）− 总负债
+  investable: number // 可自由投资（含在途资金）
+  /** 在途资金（赎回已申报、资金未到账），并入 netWorth / investable */
+  inTransit: number
+  pendingSettlements: PendingSettlement[]
   ledgerTxs: LedgerTx[]
 }
 
@@ -70,6 +74,7 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
     currency: a.currency,
   }))
   const ledgerTxs: LedgerTx[] = txsRaw.map((t) => ({
+    id: t.id,
     accountId: t.accountId,
     assetId: t.assetId,
     type: t.type,
@@ -78,9 +83,15 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
     amount: Number(t.amount),
     fee: Number(t.fee),
     occurredAt: t.occurredAt,
+    navDate: t.navDate,
+    confirmationDate: t.navDate && t.asset.cls === 'FUND'
+      ? fundConfirmationDate(t.navDate, { qdii: isQdiiFund(t.asset.symbol, t.asset.name) })
+      : t.navDate,
+    settlementDate: t.settlementDate,
     assetClass: t.asset.cls,
     internal: t.internal,
     voidedAt: t.voidedAt,
+    settleOfId: t.settleOfId,
     currency: t.asset.currency,
   }))
   const entries: LiabilityEntryInput[] = entriesRaw.map((e) => ({
@@ -118,6 +129,10 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
   const valued = valuePositions(positions, new Map(assets.map((a) => [a.id, a])), (s) => quotes.get(s)?.priceCny, currencyRate)
   const metrics = aggregate(valued)
 
+  // 在途资金：赎回已申报、结算腿未到账 —— 并入总资产与可自由投资口径（ADR-012）
+  const pendingSettlements = pendingSettlementsAt(ledgerTxs, new Date())
+  const inTransit = roundMoney(pendingSettlements.reduce((s, p) => s + p.amount * currencyRate(p.currency), 0))
+
   const balanceByLiability = new Map<string, number>()
   for (const l of liabilitiesRaw) {
     balanceByLiability.set(l.id, totalLiabilities(entries.filter((e) => e.liabilityId === l.id)))
@@ -140,8 +155,10 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
     liabilitiesTotal,
     liabilities,
     liabilityEntries: entries,
-    netWorth: metrics.netWorth - liabilitiesTotal,
-    investable: metrics.investable,
+    netWorth: metrics.netWorth + inTransit - liabilitiesTotal,
+    investable: metrics.investable + inTransit,
+    inTransit,
+    pendingSettlements,
     ledgerTxs,
   }
 }

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { Empty, PageHeader, Panel, SetupScreen, Tag } from '@/components/ui'
 import { TxForm } from '@/components/tx-form'
+import { foldTransactions, holdingsIndex } from '@/lib/engine/ledger'
 import { TxFilters } from '@/components/tx-filters'
 import { CsvImport } from '@/components/csv-import'
 import { ReverseButton } from '@/components/reverse-button'
@@ -39,6 +40,29 @@ export default async function TransactionsPage({
     db.account.findMany({ include: { settlementAccount: true } }),
     db.asset.findMany({ where: { cls: { not: 'HUAWEI_STOCK' } } }),
   ])
+  // 卖出自动关联：折叠全量账本得到各 (账户 × 资产) 的当前/可用份额（不拉行情，纯账本回放）
+  const allTxs = await db.transaction.findMany({ orderBy: [{ occurredAt: 'asc' }, { createdAt: 'asc' }] })
+  const assetClsById = new Map(assets.map((a) => [a.id, a.cls]))
+  const assetCcyById = new Map(assets.map((a) => [a.id, a.currency]))
+  const holdings = holdingsIndex(foldTransactions(
+    allTxs
+      .filter((t) => assetClsById.has(t.assetId))
+      .map((t) => ({
+        accountId: t.accountId,
+        assetId: t.assetId,
+        type: t.type,
+        quantity: t.quantity == null ? null : Number(t.quantity),
+        price: t.price == null ? null : Number(t.price),
+        amount: Number(t.amount),
+        fee: Number(t.fee),
+        occurredAt: t.occurredAt,
+        navDate: t.navDate,
+        assetClass: assetClsById.get(t.assetId)!,
+        internal: t.internal,
+        voidedAt: t.voidedAt,
+        currency: assetCcyById.get(t.assetId),
+      })),
+  ))
   const where = {
     asset: { cls: { not: 'HUAWEI_STOCK' as const } },
     ...(sp.account ? { accountId: sp.account } : {}),
@@ -189,6 +213,7 @@ export default async function TransactionsPage({
         <Panel title="录入流水" en="NEW ENTRY">
           <TxForm
             initialAccountId={sp.account}
+            holdings={holdings}
             accounts={accounts.map((a) => ({
               id: a.id,
               name: a.name,

@@ -25,6 +25,12 @@ export const txInputSchema = z
     amount: z.number().nonnegative('金额不能为负'),
     fee: z.number().nonnegative().default(0),
     occurredAt: z.coerce.date(),
+    /** 基金成交净值所属日（可选；缺省按 occurredAt 与 15:00 临界推算） */
+    navDate: z.coerce.date().nullable().optional(),
+    /** 净值来源：OFFICIAL / ESTIMATE（可选元数据） */
+    navSource: z.enum(['OFFICIAL', 'ESTIMATE']).nullable().optional(),
+    /** 预计资金到账日（基金赎回在途；必须不早于 occurredAt 当日） */
+    settlementDate: z.coerce.date().nullable().optional(),
     note: z.string().max(200).nullable(),
     settleCash: z.boolean().optional(),
   })
@@ -35,6 +41,12 @@ export const txInputSchema = z
     }
     if (['BUY', 'SELL'].includes(v.type) && (!v.price || v.price <= 0)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: '该类型需要正数单价', path: ['price'] })
+    }
+    if (v.settlementDate && v.settlementDate.getTime() < new Date(v.occurredAt).setHours(0, 0, 0, 0)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '预计到账日不能早于成交日', path: ['settlementDate'] })
+    }
+    if (v.navDate && v.navDate.getTime() < new Date(v.occurredAt).setHours(0, 0, 0, 0)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '成交净值日不能早于下单日', path: ['navDate'] })
     }
   })
 

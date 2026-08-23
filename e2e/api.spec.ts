@@ -9,6 +9,15 @@ test('行情 API：返回完整报价结构', async ({ request }) => {
   expect(typeof json.quotes[0].changePct).toBe('number')
 })
 
+test('行情 API：历史基金净值严格匹配成交净值日', async ({ request }) => {
+  const res = await request.get('/api/prices?symbols=110022&date=2026-07-15')
+  expect(res.ok()).toBeTruthy()
+  const json = await res.json()
+  expect(json.quotes).toHaveLength(1)
+  expect(json.quotes[0].tradingDate).toBe('2026-07-15')
+  expect(json.quotes[0].price).toBeGreaterThan(0)
+})
+
 test('导出流水 CSV：表头回环兼容导入格式', async ({ request }) => {
   const res = await request.get('/api/export/transactions')
   expect(res.ok()).toBeTruthy()

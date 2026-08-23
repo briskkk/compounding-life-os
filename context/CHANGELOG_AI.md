@@ -1,10 +1,55 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-08-14
+last_verified: 2026-08-21
 ---
 
 # AI 工作变更记录
+
+## 2026-08-23 · QDII 成交净值日与确认日分离（ADR-013）
+
+- 修复 QDII T+2 被错误用于顺延成交净值日：15:00 前申赎仍按 T 日净值，T+2 只表示登记确认延迟。
+- Web 预览分开显示“成交净值日”和“预计确认日”；历史基金净值按成交日精确查询，不回落到最新净值。
+- `confirmationDate` 在引擎装配时由 `navDate` 与 QDII 属性确定性派生，不新增数据库字段或可写状态表；可用份额与时间线超卖校验按派生确认日生效。
+- 回归场景：019671 在 2026-08-20 15:00 前卖出采用 8/20 官方净值 1.3981，预计 T+2 确认日为 8/24；15:00 后才采用 8/21 净值。
+- QDII 分类由“估值驱动表或名称”改为独立代码注册表优先、名称兜底；补齐 012348、019671、539001 等当前7只真实 QDII，修复 012348 本地简称遗漏 QDII 导致误套普通基金规则。
+- 验证：`npm test` 49 文件 304 用例、`npm run build`、Playwright 49 用例、`git diff --check` 均通过。
+
+## 2026-08-21 · 基金确认与在途资金建模（ADR-012）
+
+### 追加 · 15:00 前/后选择（历史买卖时刻可区分）
+
+- 录入不必填完整时刻：基金买卖增加「15:00 前 / 15:00 后」二选一切换（Web `tx-form.tsx`、移动端 `RecordSheet.swift` 同款），成交净值日按所选临界推算——15:00 前按**当日净值**，15:00 后按次一交易日净值；T+1/T+2 确认延迟已由 ADR-013 与净值日分离。
+- 服务端兜底：未显式传 `navDate` 的基金买卖（CSV 导入 / 旧客户端）按 `occurredAt` 时刻自动推算成交净值日（`services/transactions.ts` `validateTransaction`）。
+- CSV 支持可选「时间」列（HH:mm，映射为独立 `time` 键并与日期合并），模板与帮助文案已更新。
+
+### 新增事实
+
+- **数据模型**：`Transaction` 新增 `navDate`（基金成交净值所属日）、`navSource`（OFFICIAL/ESTIMATE）、`settlementDate`（预计资金到账日）三个可选列；SQLite/PostgreSQL/test 三 schema 同步 + 迁移 `20260821031955_add_fund_order_confirmation`，双 schema 门禁通过。
+- **引擎**：`Position.availableQty`（申购按派生确认完成日生效、赎回按发生日即时冻结）；`pendingSettlementsAt` 派生在途资金（已申报赎回 + 结算腿未到账）；`src/lib/engine/fund-order.ts` 分开推算成交净值日、确认完成日与到账日；`buildSettlementLegs` 支持 `settleAt` 延迟现金腿。
+- **规则**：基金「金额 = 份额 × 净值」校验放宽到两位小数舍入容差；卖出超卖校验基于可用份额（确认中申购不可卖）；时间线校验感知 navDate。
+- **估值口径**：在途资金并入净资产与可自由投资（`loadEngineState` 实时 + `computeWealthSeries` 逐日快照），份额 → 在途 → 现金全程连续。
+- **Web 表单**（`tx-form.tsx`）：基金申购默认「按金额」录入（净值预览 + 预计份额，净值未知拒绝静默落库）；卖出自动带出当前/可用份额与最新净值、预计到账金额、可编辑到账日；客户端即时超卖拦截。总览页新增「在途资金」区块；持仓表标注「确认中」份额。
+- **移动端**：RecordSheet 删除 3.980 硬编码净值（改为所选资产真实净值预填）、日期改为可选（补录支持）、卖出按可用份额前置拦截、基金流水携带 navDate/navSource/settlementDate；新增 `FundOrderRules.swift`（与 Web 同口径）；`/api/positions` 返回 `availableQty`；移除 VEST 新录入方向（与既有决策一致）。
+- **明确不做**：不引入「待确认/在途」可变状态表——在途是重放派生视图；确认偏离用冲正重录修正。
+
+### 修改文件
+
+- 新增 `docs/adr/012-fund-order-confirmation.md`、`src/lib/engine/fund-order.ts`、`src/test/fund-order.test.ts`（20 例）、`Port-APP/Sources/Services/FundOrderRules.swift`。
+- 修改 `prisma/schema.prisma`、`schema.postgres.prisma`、`schema.test.prisma`（+迁移）、`src/lib/engine/types.ts`、`ledger.ts`、`settlement.ts`、`merge.ts`、`position-view.ts`、`src/lib/transaction-rules.ts`、`src/lib/services/transactions.ts`、`src/lib/schemas.ts`、`src/lib/queries.ts`、`src/lib/snapshots.ts`、`src/components/tx-form.tsx`、`src/app/page.tsx`、`src/app/transactions/page.tsx`、`src/app/positions/page.tsx`、`src/app/positions/[assetId]/page.tsx`、`src/app/accounts/[accountId]/page.tsx`、`src/app/api/positions/route.ts`（经 position-view）、`src/lib/market/fund-engine.ts`（QDII 表改从 fund-order 引入）；移动端 `Models.swift`、`MockData.swift`、`DataProvider.swift`、`RecordSheet.swift`。
+
+### 验证状态
+
+- `npm test`：48 文件 300 用例全绿（新增 20 例）。
+- `npm run build`：通过；`scripts/check-schema-sync.ts` 通过（18 模型一致）。
+- Playwright：48 用例全绿。
+- 移动端主 App target `swiftc -typecheck` 通过（Widget target 存在另一工作流的既有编译错误，未触碰）。
+
+### 未解决问题
+
+- 交易日历为工作日近似，法定节假日不建模；基金费率（申购费折扣/赎回费）与分红方式未建模。
+- 净值未知时按金额申购被拦截（宁缺勿假）；确认净值公布后的「一键修正估算份额」工具未做（候选）。
+- 移动端资产目录仅含已持有资产（买入新基金需在 Web 端先登记）。
 
 ## 2026-08-14 · 双 schema 门禁 / 金额精度 / 工程债清理（P0-4/5/7）
 

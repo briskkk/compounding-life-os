@@ -34,6 +34,14 @@ export interface TxInput {
   amount: number
   fee: number
   occurredAt: Date
+  /** 基金成交净值所属日（15:00 前为 T 日，之后为次一交易日） */
+  navDate?: Date | null
+  /** 派生的份额确认完成日（不落库；普通基金 T+1、QDII T+2） */
+  confirmationDate?: Date | null
+  /** 净值来源标记：OFFICIAL 官方净值 / ESTIMATE 盘中估算（缺省 null = 手工录入） */
+  navSource?: string | null
+  /** 预计资金到账日（基金赎回在途；缺省 = occurredAt 即时结算） */
+  settlementDate?: Date | null
   /** 内部结算腿（买卖联动现金等），不计入外部净投入 */
   internal?: boolean
   /** 被冲正时间；折叠时跳过 */

@@ -11,6 +11,7 @@ export interface Position {
   accountId: string
   assetId: string
   quantity: number // 总数量（现金资产中表示余额）
+  availableQty: number // 可用份额：申购按派生确认完成日生效，赎回/转出按发生日扣减
   vestedQty: number // 兼容历史 RSU 流水，当前资产模型不再使用
   unvestedQty: number // 兼容历史 RSU 流水，当前资产模型不再使用
   costBasis: number // 剩余成本（移动平均成本法）
@@ -26,6 +27,7 @@ export function emptyPosition(accountId: string, assetId: string): Position {
     accountId,
     assetId,
     quantity: 0,
+    availableQty: 0,
     vestedQty: 0,
     unvestedQty: 0,
     costBasis: 0,
@@ -105,11 +107,25 @@ export function applyTransaction(pos: Position, tx: TxInput, cls: AssetClass): v
   }
 }
 
-export type LedgerTx = TxInput & { assetClass: AssetClass }
+export type LedgerTx = TxInput & { assetClass: AssetClass; id?: string; settleOfId?: string | null }
+
+/** 可用份额折叠：申购/转入按确认完成日生效；赎回/转出按发生日即时冻结扣减。 */
+function applyAvailability(pos: Position, tx: TxInput, asOfMs: number): void {
+  const q = tx.quantity ?? 0
+  if (q <= 0) return
+  if (tx.type === 'BUY' || tx.type === 'TRANSFER_IN') {
+    const confirmMs = endOfDay(tx.confirmationDate ?? tx.navDate ?? tx.occurredAt).getTime()
+    if (confirmMs <= asOfMs) pos.availableQty = roundMoney(pos.availableQty + q)
+  } else if (tx.type === 'SELL' || tx.type === 'TRANSFER_OUT') {
+    pos.availableQty = roundMoney(pos.availableQty - q)
+  }
+}
 
 /** 将流水重放为持仓集合；upTo 用于历史时点回放（财富轨迹） */
 export function foldTransactions(txs: LedgerTx[], upTo?: Date): Position[] {
   const cutoff = upTo ? endOfDay(upTo).getTime() : null
+  // 可用份额口径：历史回放按回放日，实时状态按当前时间
+  const asOfMs = cutoff ?? endOfDay(new Date()).getTime()
   const sorted = txs
     .filter((t) => !t.voidedAt && (cutoff === null ? true : t.occurredAt.getTime() <= cutoff))
     .sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime())
@@ -118,11 +134,62 @@ export function foldTransactions(txs: LedgerTx[], upTo?: Date): Position[] {
     const key = positionKey(tx.accountId, tx.assetId)
     const pos = map.get(key) ?? emptyPosition(tx.accountId, tx.assetId)
     applyTransaction(pos, tx, tx.assetClass)
+    applyAvailability(pos, tx, asOfMs)
     map.set(key, pos)
   }
   return [...map.values()].filter(
     (p) => Math.abs(p.quantity) > 1e-9 || p.manualValue != null || p.realizedPnl !== 0,
   )
+}
+
+/** 在途资金派生项：赎回已申报、结算腿（现金到账）发生在 asOf 之后的资金。 */
+export interface PendingSettlement {
+  sellTxId: string
+  sellAssetId: string | null // 被赎回的资产（UI 展示用）
+  soldAt: Date | null // 赎回申报日
+  accountId: string // 资金到账账户
+  cashAssetId: string
+  amount: number // 预计到账金额（原币，已扣费用）
+  currency: string
+  settlementDate: Date // 预计到账日
+}
+
+/**
+ * 在途资金 = 未来发生的内部现金结算腿（仅赎回联动 DEPOSIT 腿可延迟）。
+ * 净资产口径：份额在申报日已扣减、现金腿尚未生效，中间的差值即在途资金，
+ * 由调用方（估值/快照）按当日汇率折人民币后并入总资产与可自由投资。
+ */
+export function pendingSettlementsAt(txs: LedgerTx[], asOf: Date): PendingSettlement[] {
+  const cutoff = endOfDay(asOf).getTime()
+  const byId = new Map(txs.map((t) => [t.id, t] as const))
+  const result: PendingSettlement[] = []
+  for (const leg of txs) {
+    if (leg.voidedAt || !leg.internal || !leg.settleOfId || leg.type !== 'DEPOSIT') continue
+    if (leg.occurredAt.getTime() <= cutoff) continue // 已到账
+    const sell = byId.get(leg.settleOfId)
+    if (!sell || sell.voidedAt || sell.type !== 'SELL') continue
+    if (sell.occurredAt.getTime() > cutoff) continue // 赎回尚未申报（未来单），不算在途
+    result.push({
+      sellTxId: leg.settleOfId,
+      sellAssetId: sell.assetId ?? null,
+      soldAt: sell.occurredAt,
+      accountId: leg.accountId,
+      cashAssetId: leg.assetId,
+      amount: leg.amount,
+      currency: leg.currency ?? 'CNY',
+      settlementDate: leg.occurredAt,
+    })
+  }
+  return result
+}
+
+/** 按 (accountId, assetId) 索引的持仓快照（表单卖出关联 / 超卖拦截用） */
+export function holdingsIndex(positions: Position[]): Record<string, { quantity: number; availableQty: number }> {
+  const map: Record<string, { quantity: number; availableQty: number }> = {}
+  for (const p of positions) {
+    map[positionKey(p.accountId, p.assetId)] = { quantity: p.quantity, availableQty: p.availableQty }
+  }
+  return map
 }
 
 function endOfDay(d: Date): Date {

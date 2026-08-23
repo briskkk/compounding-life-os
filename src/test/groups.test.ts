@@ -10,6 +10,7 @@ function vp(assetId: string, overrides: Partial<ValuedPosition> = {}): ValuedPos
     assetId,
     quantity: 1,
     vestedQty: 0,
+    availableQty: 1,
     unvestedQty: 0,
     costBasis: 100,
     realizedPnl: 0,

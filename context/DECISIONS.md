@@ -20,6 +20,8 @@ last_verified: 2026-08-05
 | 家庭作用域与审计链属于安全边界 | 业务数据按 family scope；关键动作追加审计，不绕过权限层 | [ADR-008](../docs/adr/008-family-scope-and-audit.md) |
 | 洞察、建议与 LLM 层整体移除 | 规则建议与 LLM 解释帮助不大已删除；后续按需重新设计，代码与数据表不含该层 | [ADR-011](../docs/adr/011-remove-insights-advice-llm.md) |
 | Snapshot 是可重建缓存 | 流水/负债/行情为上游；快照可以删除重算，不能反向修正账本 | [ADR-010](../docs/adr/010-snapshots-are-derived.md) |
+| 基金确认与在途建模走事件拆分 | navDate/settlementDate 入流水、在途资金由折叠派生；不引入待确认状态表 | [ADR-012](../docs/adr/012-fund-order-confirmation.md) |
+| 基金成交净值日与确认日分离 | 15:00 前按 T 日净值；QDII T+2 只延迟登记确认，不顺延成交净值日；可用份额按派生确认日生效 | [ADR-013](../docs/adr/013-separate-fund-nav-and-confirmation.md) |
 
 ## 补充已定规则
 
@@ -38,4 +40,3 @@ last_verified: 2026-08-05
 2. 新增 ADR，状态先设 `Proposed`；获得确认后改为 `Accepted`。
 3. 写清数据迁移、兼容性、回滚和测试影响。
 4. 同步更新本文件、领域文档和当前状态。
-

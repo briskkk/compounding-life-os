@@ -131,6 +131,29 @@ export default async function OverviewPage() {
         }))}
       />
 
+      {d.state.pendingSettlements.length > 0 && (
+        <Panel title="在途资金" en="IN TRANSIT" right={<span className="num text-[14px] text-ink">合计 {fmtCNY(d.state.inTransit)}</span>}>
+          <div className="quiet-list">
+            {d.state.pendingSettlements.map((p) => {
+              const assetName = d.state.assets.find((a) => a.id === p.sellAssetId)?.name ?? '基金赎回'
+              return (
+                <div key={p.sellTxId} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 text-[15px]">
+                  <Tag tone="accent">赎回在途</Tag>
+                  <span className="text-ink-dim">{assetName}</span>
+                  <span className="num ml-auto text-ink">{fmtCNY(p.amount)}</span>
+                  <span className="num text-[13px] text-ink-faint">
+                    申报 {p.soldAt ? fmtDate(p.soldAt) : '—'} · 预计 {fmtDate(p.settlementDate)} 到账
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+          <p className="mt-3 text-[13px] leading-relaxed text-ink-faint">
+            份额已扣减、资金按预计到账日入账；在途金额计入净资产与可自由投资。到账有出入时可冲正后按实际重录。
+          </p>
+        </Panel>
+      )}
+
       <section className="grid gap-12 xl:grid-cols-2">
         <Panel title="流动性水位" en="LIQUIDITY LEVELS">
           <div className="allocation-track">

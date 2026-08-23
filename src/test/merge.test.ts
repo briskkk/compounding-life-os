@@ -10,6 +10,7 @@ function vp(accountId: string, overrides: Partial<ValuedPosition> = {}): ValuedP
     assetId: 'A1',
     quantity: 100,
     vestedQty: 0,
+    availableQty: 1,
     unvestedQty: 0,
     costBasis: 1000,
     realizedPnl: 0,

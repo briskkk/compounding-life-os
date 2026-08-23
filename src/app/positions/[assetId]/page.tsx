@@ -24,6 +24,7 @@ import { cx, fmtCNY, fmtCNYExact, fmtDate, fmtDateTime, fmtMoney, fmtPct, fmtQty
 import { C, CLASS_COLORS } from '@/lib/colors'
 import { MarketSourceTag, PositionSourceTag } from '@/components/valuation-source'
 import { TxForm } from '@/components/tx-form'
+import { holdingsIndex } from '@/lib/engine/ledger'
 import { isLongTermAssetClass } from '@/lib/asset-classification'
 import {
   buildAssetPerformanceSeries,
@@ -59,6 +60,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
           (acc, p) => ({
             ...acc,
             quantity: acc.quantity + p.quantity,
+            availableQty: acc.availableQty + p.availableQty,
             vestedQty: acc.vestedQty + p.vestedQty,
             unvestedQty: acc.unvestedQty + p.unvestedQty,
             costBasis: acc.costBasis + p.costBasis,
@@ -517,6 +519,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
                   layout="wide"
                   initialAccountId={initialAccountId}
                   initialAssetId={asset.id}
+                  holdings={holdingsIndex(state.valued)}
                   accounts={compatibleAccounts.map((account) => ({
                     id: account.id,
                     name: account.name,

@@ -9,19 +9,11 @@ import { intradaySeries, tencentMinuteSeries, type IntradayPoint } from './intra
 import { parseSymbol, toTencentCode } from './symbols'
 import { bestFitIndex, closesToReturns } from '@/lib/engine/benchmark'
 import { CANDIDATE_INDICES, indexHistory, INDEX_SYMBOL } from './index-candidates'
+import { QDII_INDEX_MAP } from '@/lib/engine/fund-order'
 import { prisma } from '@/lib/db'
 
 /** 内部模型估值的置信度下限（%）：低于此值视为不可靠，不产出盘中估值 */
 export const CONFIDENCE_FLOOR = 50
-
-// QDII 指数型基金：重仓为海外市场（美股代码无法走系统报价链，且盘中无新鲜行情），
-// 用对应海外指数驱动估值（与联接基金同一模型：指数涨跌 × 权益仓位，置信=仓位）
-const QDII_INDEX_MAP: Record<string, { index: string; name: string }> = {
-  '021000': { index: 'USNDX', name: '纳斯达克100' },
-  '040046': { index: 'USNDX', name: '纳斯达克100' },
-  '014978': { index: 'USNDX', name: '纳斯达克100' },
-  '021778': { index: 'USNDX', name: '纳斯达克100' },
-}
 
 export async function stockChangePct(code: string): Promise<number | null> {
   for (const p of [tencentProvider, sinaProvider]) {

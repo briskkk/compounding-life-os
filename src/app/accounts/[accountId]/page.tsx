@@ -12,6 +12,7 @@ import { cx, fmtCNY, fmtDate, fmtMoney, fmtPct, fmtQty } from '@/lib/format'
 import { CLASS_COLORS } from '@/lib/colors'
 import { PositionSourceTag } from '@/components/valuation-source'
 import { positionDayPnlCny, summarizeAccountPositions } from '@/lib/engine/account-summary'
+import { holdingsIndex } from '@/lib/engine/ledger'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 
 export const dynamic = 'force-dynamic'
@@ -180,6 +181,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
               <TxForm
                 lockAccount
                 initialAccountId={account.id}
+                holdings={holdingsIndex(state.valued)}
                 accounts={[{
                   id: account.id,
                   name: account.name,

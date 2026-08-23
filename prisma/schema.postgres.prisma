@@ -195,6 +195,9 @@ model Transaction {
   amount       Decimal     @default(0)
   fee          Decimal     @default(0)
   occurredAt   DateTime
+  navDate      DateTime?
+  navSource    String?
+  settlementDate DateTime?
   note         String?
   internal     Boolean     @default(false)
   voidedAt     DateTime?
