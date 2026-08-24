@@ -228,13 +228,13 @@ export async function rebuildSnapshots(
     occurredAt: e.occurredAt,
   }))
 
-  // 价格函数：PriceBar 落库历史优先，缺失回落模拟器。
-  // 汇率函数：RateBar 历史按日折算（当日优先，缺失回落最近可用）；早于 RateBar 最早记录的历史日期回落实时/固定汇率。
+  // 价格函数：PriceBar 落库历史优先，缺失由财富引擎标记估值缺口。
+  // 汇率函数：纯人民币组合不访问汇率源；外币组合按 RateBar 历史折算，缺失时回落最近真实汇率。
   const symbols = assetsRaw.filter((a) => !a.manual && a.cls !== 'CASH' && a.cls !== 'REAL_ESTATE').map((a) => a.symbol)
   const priceMap = await loadPriceSeries(db, symbols)
   const basePriceAt = priceAtFn(priceMap)
   const observationAt = priceObservationAtFn(priceMap)
-  const rateAt = await fxRateAtFactory(db)
+  const rateAt = await fxRateAtFactory(db, assets.map((asset) => asset.currency))
   const priceAt: PriceAtFn = (symbol, date) => {
     const v = basePriceAt(symbol, date)
     return v == null ? undefined : v * cnyRateFor(symbol, { USDCNY: rateAt('USD', date), HKDCNY: rateAt('HKD', date) })

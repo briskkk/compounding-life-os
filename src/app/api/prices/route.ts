@@ -1,7 +1,8 @@
 import { type NextRequest } from 'next/server'
 import { quoteSmart, providerLabel } from '@/lib/market'
 import { cachedQuote } from '@/lib/market/cache'
-import { cnyRateFor, fxRates } from '@/lib/market/fx'
+import { cnyRateFor, fxRatesForCurrencies } from '@/lib/market/fx'
+import { parseSymbol } from '@/lib/market/symbols'
 import { eastmoneyFundProvider } from '@/lib/market/eastmoney-fund'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
@@ -32,7 +33,10 @@ export async function GET(req: NextRequest) {
     for (const r of rows) fundSymbols.add(r.symbol)
   }
 
-  const rates = await fxRates(prisma)
+  const rates = await fxRatesForCurrencies(prisma, symbols.map((symbol) => {
+    const market = parseSymbol(symbol).market
+    return market === 'US' ? 'USD' : market === 'HK' ? 'HKD' : 'CNY'
+  }))
   const quotes = (
     await Promise.all(
       symbols.map(async (s) => {

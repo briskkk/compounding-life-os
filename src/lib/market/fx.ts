@@ -34,6 +34,29 @@ export interface FxRates {
   stale: boolean
 }
 
+export interface FxConversionRates {
+  USDCNY: number
+  HKDCNY: number
+}
+
+const CNY_ONLY_RATES: FxConversionRates = { USDCNY: 1, HKDCNY: 1 }
+
+function requiresForeignExchange(currencies: Iterable<string>): boolean {
+  for (const currency of currencies) {
+    if (currency === 'USD' || currency === 'HKD') return true
+  }
+  return false
+}
+
+/** 纯人民币组合直接使用单位汇率，不访问外部汇率源。 */
+export async function fxRatesForCurrencies(
+  db: PrismaClient,
+  currencies: Iterable<string>,
+): Promise<FxConversionRates> {
+  if (!requiresForeignExchange(currencies)) return CNY_ONLY_RATES
+  return fxRates(db)
+}
+
 function parseSinaFx(text: string): { USDCNY: number; HKDCNY: number } | null {
   const usd = Number(text.match(/fx_susdcny="([^"]*)"/)?.[1].split(',')[1])
   const hkd = Number(text.match(/fx_shkdcny="([^"]*)"/)?.[1].split(',')[1])
@@ -217,7 +240,9 @@ export function fxRateAt(
 /** 生成快照重建用的按日汇率函数：RateBar 当日优先，缺失回落最近可用，再无回落实时/最后真实汇率。 */
 export async function fxRateAtFactory(
   db: PrismaClient,
+  currencies: Iterable<string>,
 ): Promise<(currency: string, date?: Date) => number> {
+  if (!requiresForeignExchange(currencies)) return () => 1
   const series = await loadFxSeries(db)
   const live = await fxRates(db)
   return (currency: string, date?: Date) => fxRateAt(series, live, currency, date)

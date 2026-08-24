@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession, SESSION_COOKIE } from '@/lib/session'
 import { verifyPassword, hashPassword } from '@/lib/auth/password'
-import { recordAudit } from '@/lib/audit'
+import { auditedTransaction, recordAudit } from '@/lib/audit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -33,20 +33,20 @@ export async function POST(req: NextRequest) {
     req.cookies.get(SESSION_COOKIE)?.value ??
     req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')?.trim() ??
     null
-  await prisma.$transaction(async (tx) => {
+  await auditedTransaction(prisma, ctx.familyId, async (tx) => {
     await tx.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(newPassword) } })
     await tx.session.deleteMany({
       where: { userId: user.id, ...(currentToken ? { token: { not: currentToken } } : {}) },
     })
-  })
-  await recordAudit(prisma, {
-    familyId: ctx.familyId,
-    actorId: ctx.memberId,
-    actorName: ctx.memberName,
-    action: 'AUTH_PASSWORD_CHANGE',
-    entity: 'User',
-    entityId: user.id,
-    detail: '修改登录密码',
+    await recordAudit(tx, {
+      familyId: ctx.familyId,
+      actorId: ctx.memberId,
+      actorName: ctx.memberName,
+      action: 'AUTH_PASSWORD_CHANGE',
+      entity: 'User',
+      entityId: user.id,
+      detail: '修改登录密码',
+    })
   })
   return NextResponse.json({ ok: true })
 }

@@ -32,6 +32,24 @@ describe('审计日志哈希链', () => {
     expect(v.count).toBe(2)
   })
 
+  it('同一家庭并发追加仍形成单链，不产生分叉', async () => {
+    const fam = await base.familySpace.create({ data: { name: '并发审计测试家' } })
+    await Promise.all(
+      Array.from({ length: 20 }, (_, index) => recordAudit(base, {
+        familyId: fam.id,
+        actorId: 'm1',
+        actorName: '并发测试',
+        action: 'WRITE',
+        entity: 'AuditConcurrency',
+        detail: `第 ${index + 1} 条`,
+      })),
+    )
+    const chain = await verifyChain(base, fam.id)
+    const rows = await base.auditLog.findMany({ where: { familyId: fam.id } })
+    expect(chain).toEqual({ ok: true, count: 20, brokenAt: null })
+    expect(new Set(rows.map((row) => row.chainKey)).size).toBe(20)
+  })
+
   it('篡改历史（断开 prevHash）可被检测', async () => {
     const latest = await base.auditLog.findFirst({ where: { familyId: famId }, orderBy: { createdAt: 'desc' } })
     await base.auditLog.update({ where: { id: latest!.id }, data: { prevHash: 'tampered' } })

@@ -370,8 +370,11 @@ model AuditLog {
   hash        String
   hashVersion Int          @default(1)
   prevHash    String?
+  chainScope  String?
+  chainKey    String?
   createdAt   DateTime     @default(now())
 
+  @@unique([chainScope, chainKey])
   @@index([familyId, createdAt])
 }
 

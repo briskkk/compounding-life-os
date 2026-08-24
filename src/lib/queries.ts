@@ -12,7 +12,7 @@ import { totalLiabilities, type LiabilityEntryInput } from './engine/liabilities
 import { quoteSmart, providerLabel, historySmart } from './market'
 import { cachedQuote } from './market/cache'
 import { BENCHMARK_INDICES, type BenchmarkPoint, type LoadedBenchmark } from './engine/benchmark'
-import { cnyRateFor, fxRateAtFactory, fxRates } from './market/fx'
+import { cnyRateFor, fxRateAtFactory, fxRatesForCurrencies } from './market/fx'
 import { eastmoneyFundProvider } from './market/eastmoney-fund'
 import type { AssetInfo, TxInput } from './engine/types'
 import { mergePositionsByAsset } from './engine/merge'
@@ -105,7 +105,7 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
   // 实时报价（混合源，逐个容错；US/HK 标的按实时汇率折人民币）
   // cls === 'FUND' 的资产统一走内部估值引擎（失败回落官方净值），其余走行情链路
   const listedAssets = assets.filter((a) => !a.manual && a.cls !== 'CASH' && a.cls !== 'REAL_ESTATE')
-  const rates = await fxRates(prisma)
+  const rates = await fxRatesForCurrencies(prisma, assets.map((asset) => asset.currency))
   const quotes = new Map<string, EngineQuote>()
   await Promise.all(
     listedAssets.map(async (a) => {
@@ -379,7 +379,7 @@ async function extendWatchSeriesFromPrices(
 
   const [priceMap, rateAt] = await Promise.all([
     loadPriceSeries(prisma, symbols),
-    fxRateAtFactory(prisma),
+    fxRateAtFactory(prisma, state.assets.map((asset) => asset.currency)),
   ])
   const basePriceAt = priceAtFn(priceMap)
   const observationAt = priceObservationAtFn(priceMap)
@@ -480,7 +480,7 @@ export async function getWatchData(): Promise<WatchData | null> {
   }))
   series = await extendWatchSeriesFromPrices(state, series)
 
-  const rates = await fxRates(prisma)
+  const rates = await fxRatesForCurrencies(prisma, state.assets.map((asset) => asset.currency))
   const currencyRate = (currency: string) => currency === 'USD' ? rates.USDCNY : currency === 'HKD' ? rates.HKDCNY : 1
   const portfolioTxs = state.ledgerTxs.filter((tx) => isPortfolioAssetClass(tx.assetClass))
   const flows = dailyNetFlows(portfolioTxs, currencyRate)
@@ -509,7 +509,7 @@ export async function getDashboard(): Promise<DashboardData | null> {
     ...snapshotValuationFields(s),
   }))
   // 追加实时「今日」点
-  const rates = await fxRates(prisma)
+  const rates = await fxRatesForCurrencies(prisma, state.assets.map((asset) => asset.currency))
   const currencyRate = (cur: string) => (cur === 'USD' ? rates.USDCNY : cur === 'HKD' ? rates.HKDCNY : 1)
   const portfolioTxs = state.ledgerTxs.filter((tx) => isPortfolioAssetClass(tx.assetClass))
   const flows = dailyNetFlows(portfolioTxs, currencyRate)

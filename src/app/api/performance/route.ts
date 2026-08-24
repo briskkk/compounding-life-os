@@ -6,7 +6,7 @@ import { apiAuthCtx } from '@/lib/services/api-auth'
 import { annualized, dailyNetFlows, twrSeries, xirr, xirrFlowsFromTxs } from '@/lib/engine/attribution'
 import { performanceBetween, performancePresetRange, type PerformancePoint } from '@/lib/engine/period-performance'
 import { riskMetrics } from '@/lib/engine/risk'
-import { fxRates } from '@/lib/market/fx'
+import { fxRatesForCurrencies } from '@/lib/market/fx'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { dateKeyAt } from '@/lib/engine/watch-market'
 import type { ValuationStatus } from '@/lib/engine/valuation-status'
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
   // ── 装配绩效序列（investable 为净值，含实时「今日」点）──
   // 与看盘页 PortfolioHistory 的输入口径一致
-  const rates = await fxRates(prisma)
+  const rates = await fxRatesForCurrencies(prisma, state.assets.map((asset) => asset.currency))
   const currencyRate = (cur: string) => (cur === 'USD' ? rates.USDCNY : cur === 'HKD' ? rates.HKDCNY : 1)
   const portfolioTxs = state.ledgerTxs.filter((tx) => isPortfolioAssetClass(tx.assetClass))
   const flows = dailyNetFlows(portfolioTxs, currencyRate)

@@ -7,6 +7,7 @@ import { scopedDb } from '@/lib/scoped'
 import { txInputSchema } from '@/lib/schemas'
 import { createTransactionRecord, rebuildSnapshotsForFamily } from '@/lib/services/transactions'
 import { apiAuthCtx } from '@/lib/services/api-auth'
+import { auditedTransaction } from '@/lib/audit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
   const data = parsed.data
 
   try {
-    const { id: txId, affectedSince } = await prisma.$transaction((txDb) =>
+    const { id: txId, affectedSince } = await auditedTransaction(prisma, auth.ctx.familyId, (txDb) =>
       createTransactionRecord(txDb, auth.ctx!, data),
     )
     const warning = await rebuildSnapshotsForFamily(prisma, auth.ctx.familyId, affectedSince)

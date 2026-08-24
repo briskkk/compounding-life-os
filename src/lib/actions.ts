@@ -6,7 +6,7 @@ import type { Prisma, PrismaClient } from '@prisma/client'
 import { prisma } from './db'
 import { scopedDb, type FamilyCtx } from './scoped'
 import { getSessionOrThrow } from './session'
-import { recordAudit } from './audit'
+import { auditedTransaction, recordAudit } from './audit'
 import { rebuildSnapshots } from './snapshots'
 import {
   accountInputSchema,
@@ -108,7 +108,7 @@ export async function savePortfolioReview(input: unknown): Promise<ActionResult<
       valuationCoverage: evidenceResult.valuationCoverage,
       reconciliationAmount: evidenceResult.reconciliationAmount,
     })
-    const saved = await prisma.$transaction(async (txDb) => {
+    const saved = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
       const existing = await txDb.portfolioReview.findFirst({
         where: { familyId: ctx.familyId, period: data.period, startDate },
       })
@@ -164,7 +164,7 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
   try {
     const ctx = await requireWrite()
     const data = txInputSchema.parse(input)
-    const { id: txId, affectedSince } = await prisma.$transaction((txDb) => createTransactionRecord(txDb, ctx, data))
+    const { id: txId, affectedSince } = await auditedTransaction(prisma, ctx.familyId, (txDb) => createTransactionRecord(txDb, ctx, data))
     const warning = await refresh(ctx, affectedSince)
     return { ok: true, data: { id: txId }, warning }
   } catch (e) {
@@ -176,7 +176,7 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
 export async function reverseTransaction(id: string): Promise<ActionResult> {
   try {
     const ctx = await requireWrite()
-    const { affectedSince } = await prisma.$transaction((txDb) => reverseTransactionRecord(txDb, ctx, id))
+    const { affectedSince } = await auditedTransaction(prisma, ctx.familyId, (txDb) => reverseTransactionRecord(txDb, ctx, id))
     const warning = await refresh(ctx, affectedSince)
     return { ok: true, warning }
   } catch (e) {
@@ -204,7 +204,9 @@ export async function importTransactions(
     const failed = parsed.filter((r) => !r.ok).map((r) => ({ row: r.row, errors: r.errors }))
     if (valid.length > 0) {
       const toCreate = valid.map((r) => ({ ...r.tx!, note: r.tx!.note }))
-      await prisma.$transaction(
+      await auditedTransaction(
+        prisma,
+        ctx.familyId,
         async (txDb) => {
           for (const tx of toCreate) {
             const accountId = await routedAccountIdForAsset(txDb, ctx.familyId, tx.accountId, tx.assetId)
@@ -266,7 +268,7 @@ export async function createAccount(input: unknown): Promise<ActionResult<{ id: 
   try {
     const ctx = await requireWrite()
     const data = accountInputSchema.parse(input)
-    const acc = await prisma.$transaction(async (txDb) => {
+    const acc = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
       const created = await txDb.account.create({ data: { ...data, familyId: ctx.familyId } })
       await audit(ctx, 'CREATE', 'Account', created.id, data.name, txDb)
       return created
@@ -286,7 +288,7 @@ export async function updateAccountSettlement(
   try {
     const ctx = await requireWrite()
     const { settlementAccountId } = accountSettlementSchema.parse(input)
-    const moved = await prisma.$transaction(async (txDb) => {
+    const moved = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
       const account = await txDb.account.findFirst({ where: { id: accountId, familyId: ctx.familyId } })
       if (!account) throw new Error('账户不存在或不属于当前家庭')
 
@@ -373,7 +375,7 @@ export async function createAsset(input: unknown): Promise<ActionResult<{ id: st
     const data = assetInputSchema.parse(input)
     const manual = data.cls === 'REAL_ESTATE' || data.cls === 'HUAWEI_STOCK' ? true : data.manual
     const tags = serializeTags(parseTags(data.tags))
-    const asset = await prisma.$transaction(async (txDb) => {
+    const asset = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
       const created = await txDb.asset.create({ data: { ...data, tags, manual, familyId: ctx.familyId } })
       await audit(ctx, 'CREATE', 'Asset', created.id, `${data.symbol} ${data.name}`, txDb)
       return created
@@ -392,7 +394,7 @@ export async function updateAsset(id: string, input: unknown): Promise<ActionRes
     const data = assetUpdateSchema.parse(input)
     const patch: Record<string, unknown> = { ...data }
     if (data.tags != null) patch.tags = serializeTags(parseTags(data.tags))
-    await prisma.$transaction(async (txDb) => {
+    await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
       const updated = await txDb.asset.updateMany({ where: { id, familyId: ctx.familyId }, data: patch })
       if (updated.count === 0) throw new Error('资产不存在或不属于当前家庭')
       await audit(ctx, 'UPDATE', 'Asset', id, JSON.stringify(patch), txDb)
@@ -412,7 +414,7 @@ export async function createLiability(input: unknown): Promise<ActionResult<{ id
   try {
     const ctx = await requireWrite()
     const data = liabilityInputSchema.parse(input)
-    const liab = await prisma.$transaction(async (txDb) => {
+    const liab = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
       const created = await txDb.liability.create({ data: { ...data, familyId: ctx.familyId } })
       await audit(ctx, 'CREATE', 'Liability', created.id, data.name, txDb)
       return created
@@ -428,7 +430,7 @@ export async function addLiabilityEntry(input: unknown): Promise<ActionResult<{ 
   try {
     const ctx = await requireWrite()
     const data = liabilityEntryInputSchema.parse(input)
-    const entry = await prisma.$transaction(async (txDb) => {
+    const entry = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
       const liability = await txDb.liability.findFirst({ where: { id: data.liabilityId, familyId: ctx.familyId } })
       if (!liability) throw new Error('负债不存在或不属于当前家庭')
       const created = await txDb.liabilityEntry.create({ data: { ...data, familyId: ctx.familyId } })
@@ -452,7 +454,7 @@ export async function createGoal(input: unknown): Promise<ActionResult<{ id: str
     const targetAmount = data.mode === 'STREAM'
       ? Math.max(0, data.annualSpend - data.retirementIncome) / data.withdrawalRate
       : data.targetAmount
-    const goal = await prisma.$transaction(async (txDb) => {
+    const goal = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
       const created = await txDb.goal.create({ data: { ...data, targetAmount, familyId: ctx.familyId } })
       await audit(ctx, 'CREATE', 'Goal', created.id, `${data.name} ${data.targetAmount}`, txDb)
       return created
@@ -478,7 +480,7 @@ export async function updateGoal(id: string, input: unknown): Promise<ActionResu
     ) {
       patch.targetAmount = Math.max(0, data.annualSpend - data.retirementIncome) / data.withdrawalRate
     }
-    await prisma.$transaction(async (txDb) => {
+    await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
       const updated = await txDb.goal.updateMany({ where: { id, familyId: ctx.familyId }, data: patch })
       if (updated.count === 0) throw new Error('目标不存在或不属于当前家庭')
       await audit(ctx, 'UPDATE', 'Goal', id, JSON.stringify(data), txDb)
@@ -494,7 +496,7 @@ export async function updateGoal(id: string, input: unknown): Promise<ActionResu
 export async function deleteGoal(id: string): Promise<ActionResult> {
   try {
     const ctx = await requireWrite()
-    await prisma.$transaction(async (txDb) => {
+    await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
       const deleted = await txDb.goal.deleteMany({ where: { id, familyId: ctx.familyId } })
       if (deleted.count === 0) throw new Error('目标不存在或不属于当前家庭')
       await audit(ctx, 'DELETE', 'Goal', id, null, txDb)
@@ -511,7 +513,7 @@ export async function applyGoalScenario(id: string, input: unknown): Promise<Act
   try {
     const ctx = await requireWrite()
     const data = goalScenarioSchema.parse(input)
-    await prisma.$transaction(async (txDb) => {
+    await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
       const goal = await txDb.goal.findFirst({ where: { id, familyId: ctx.familyId } })
       if (!goal) throw new Error('目标不存在或不属于当前家庭')
       const targetDate = new Date(goal.targetDate)
@@ -557,7 +559,7 @@ export async function upsertSavingsEntry(input: unknown): Promise<ActionResult<{
     const ctx = await requireWrite()
     const data = savingsEntryInputSchema.parse(input)
     const periodStart = canonicalSavingsPeriod(data.periodType, data.periodStart)
-    const entry = await prisma.$transaction(async (txDb) => {
+    const entry = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
       const saved = await txDb.savingsEntry.upsert({
         where: {
           familyId_periodType_periodStart: {

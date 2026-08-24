@@ -361,8 +361,11 @@ model AuditLog {
   hash        String
   hashVersion Int          @default(1)
   prevHash    String?
+  chainScope  String? // familyId / __GLOBAL__；旧记录为空，兼容迁移
+  chainKey    String? // 新写入为 prevHash / GENESIS；旧记录为空，唯一约束阻止同一父节点产生两个后继
   createdAt   DateTime     @default(now())
 
+  @@unique([chainScope, chainKey])
   @@index([familyId, createdAt])
 }
 

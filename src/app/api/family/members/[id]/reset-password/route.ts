@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { hashPassword } from '@/lib/auth/password'
-import { recordAudit } from '@/lib/audit'
+import { auditedTransaction, recordAudit } from '@/lib/audit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -28,18 +28,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!member.userId) return NextResponse.json({ ok: false, error: '该成员未绑定登录账号' }, { status: 400 })
 
   // 重置密码并吊销该账号所有会话（需重新登录）
-  await prisma.$transaction(async (tx) => {
+  await auditedTransaction(prisma, ctx.familyId, async (tx) => {
     await tx.user.update({ where: { id: member.userId! }, data: { passwordHash: await hashPassword(newPassword) } })
     await tx.session.deleteMany({ where: { userId: member.userId! } })
-  })
-  await recordAudit(prisma, {
-    familyId: ctx.familyId,
-    actorId: ctx.memberId,
-    actorName: ctx.memberName,
-    action: 'MEMBER_PASSWORD_RESET',
-    entity: 'User',
-    entityId: member.userId,
-    detail: `重置 ${member.name} 的登录密码`,
+    await recordAudit(tx, {
+      familyId: ctx.familyId,
+      actorId: ctx.memberId,
+      actorName: ctx.memberName,
+      action: 'MEMBER_PASSWORD_RESET',
+      entity: 'User',
+      entityId: member.userId,
+      detail: `重置 ${member.name} 的登录密码`,
+    })
   })
   return NextResponse.json({ ok: true })
 }

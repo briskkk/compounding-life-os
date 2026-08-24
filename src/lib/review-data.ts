@@ -104,7 +104,7 @@ export async function getReviewPageData(options: {
   const symbols = reviewAssets.filter((asset) => asset.cls !== 'CASH').map((asset) => asset.symbol)
   const [priceMap, rateAt] = await Promise.all([
     loadPriceSeries(prisma, symbols),
-    fxRateAtFactory(prisma),
+    fxRateAtFactory(prisma, reviewAssets.map((asset) => asset.currency)),
   ])
 
   const assets = reviewAssets.map((asset) => {

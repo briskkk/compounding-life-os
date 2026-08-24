@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { apiAuthCtx } from '@/lib/services/api-auth'
 import { reverseTransactionRecord, rebuildSnapshotsForFamily } from '@/lib/services/transactions'
+import { auditedTransaction } from '@/lib/audit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id } = await params
   try {
-    const { affectedSince } = await prisma.$transaction((txDb) =>
+    const { affectedSince } = await auditedTransaction(prisma, auth.ctx.familyId, (txDb) =>
       reverseTransactionRecord(txDb, auth.ctx!, id),
     )
     const warning = await rebuildSnapshotsForFamily(prisma, auth.ctx.familyId, affectedSince)

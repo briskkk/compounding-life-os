@@ -4,7 +4,9 @@ import { PrismaClient } from '@prisma/client'
 import path from 'node:path'
 import {
   fxRateAt,
+  fxRateAtFactory,
   fxRates,
+  fxRatesForCurrencies,
   loadFxSeries,
   persistDailyFx,
   resetFxCache,
@@ -148,5 +150,18 @@ describe('persistDailyFx / loadFxSeries（落库）', () => {
     const rates = await fxRates(base)
     expect(rates).toMatchObject({ source: 'SIMULATED', stale: false })
     expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('纯人民币组合不会访问实时或历史汇率源', async () => {
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const rateBarSpy = vi.spyOn(base.rateBar, 'findMany')
+
+    expect(await fxRatesForCurrencies(base, ['CNY', 'CNY'])).toEqual({ USDCNY: 1, HKDCNY: 1 })
+    const rateAt = await fxRateAtFactory(base, ['CNY'])
+    expect(rateAt('CNY', new Date())).toBe(1)
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(rateBarSpy).not.toHaveBeenCalled()
+    rateBarSpy.mockRestore()
   })
 })

@@ -56,7 +56,7 @@ Route Handlers：
 - `src/lib/queries.ts`：页面 View Model 装配、实时估值与目标。
 - `src/lib/review-data.ts`：复盘页 View Model；历史价格/汇率、组合曲线、资产曲线、基准与已保存记录装配。
 - `src/lib/snapshots.ts`：最多 1400 天财富序列；`rebuildSnapshots` 支持按 `affectedSince` 增量重建（写操作只重算受影响区间）。
-- `src/lib/audit.ts`：审计哈希和完整性验证。
+- `src/lib/audit.ts`：审计哈希、完整性验证及同家庭串行事务；`chainScope + chainKey` 唯一约束与冲突重试防止并发分叉。
 - `src/lib/export.ts`、`src/lib/csv.ts`：CSV 出入双向格式。
 
 ## 领域引擎
@@ -103,7 +103,7 @@ Route Handlers：
 - `src/lib/market/eastmoney-fund.ts`：基金净值与官方盘中估值（FundValuationLast）切换、置信度三档。
 - `src/lib/market/fund-engine.ts`、`fund-holdings.ts`：基金估值、重仓、净值与校准。
 - `src/lib/market/persist.ts`：PriceBar 落库和估值日期观察。
-- `src/lib/market/fx.ts`：实时汇率（新浪，1h 缓存）与历史汇率（`RateBar` 按日落库、按日折算）；实时失败只回落最后真实汇率并标记陈旧，不使用固定常数。
+- `src/lib/market/fx.ts`：实时汇率（新浪，1h 缓存）与历史汇率（`RateBar` 按日落库、按日折算）；纯 CNY 组合不加载汇率，外币场景实时失败只回落最后真实汇率并标记陈旧。
 - `src/lib/market/intraday.ts`、`yahoo.ts`：分钟线。
 - `src/lib/market/symbols.ts`、`lookup.ts`：市场代码与资产识别。
 - `src/lib/market/simulated.ts`：仅显式模拟环境。
@@ -114,6 +114,7 @@ Route Handlers：
 - `prisma/schema.postgres.prisma`：PostgreSQL 镜像 schema。
 - `prisma/migrations/`：SQLite 迁移历史。
 - `prisma/migrations/20260814090000_add_rate_bar/`：`RateBar` 表（历史汇率）。
+- `prisma/migrations/20260824150000_serialize_audit_chain/`：审计链作用域/父节点唯一约束，防止并发分叉。
 - `prisma/rls.sql`：PostgreSQL 原生 RLS。
 - `scripts/check-schema-sync.ts`：双 schema + RLS 清单一致性检查（CI 门禁）。
 - `scripts/init-empty.ts`：空白工作区初始化。
