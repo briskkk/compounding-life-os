@@ -1,6 +1,6 @@
 // 行情缓存与健康打点测试
 import { beforeEach, describe, expect, it } from 'vitest'
-import { cachedQuote, marketHealth, recordRequest, resetMarketHealth, QUOTE_TTL_MS } from '@/lib/market/cache'
+import { cachedQuote, marketHealth, providerCircuitOpen, recordRequest, resetMarketHealth, QUOTE_TTL_MS } from '@/lib/market/cache'
 import type { QuoteData } from '@/lib/market/provider'
 
 function fakeQuote(symbol: string, price: number): QuoteData {
@@ -91,5 +91,15 @@ describe('recordRequest / marketHealth（健康打点）', () => {
     recordRequest('SINA', true, 10)
     resetMarketHealth()
     expect(marketHealth().providers).toEqual([])
+  })
+
+  it('连续三次失败后短暂熔断，到期后允许半开探测', () => {
+    recordRequest('TENCENT', false, 10, 'timeout')
+    recordRequest('TENCENT', false, 10, 'timeout')
+    expect(providerCircuitOpen('TENCENT')).toBe(false)
+    recordRequest('TENCENT', false, 10, 'timeout')
+    const openedUntil = marketHealth().providers[0].circuitOpenUntil!
+    expect(providerCircuitOpen('TENCENT', openedUntil - 1)).toBe(true)
+    expect(providerCircuitOpen('TENCENT', openedUntil + 1)).toBe(false)
   })
 })

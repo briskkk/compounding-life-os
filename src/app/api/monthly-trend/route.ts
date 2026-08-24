@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { loadSavingsOverview } from '@/lib/queries'
 import { foldLiability, type LiabilityEntryInput } from '@/lib/engine/liabilities'
-import { apiAuthCtx } from '@/lib/services/api-auth'
+import { apiReadAuthCtx } from '@/lib/services/api-auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
 
-  const auth = await apiAuthCtx(req)
+  const auth = await apiReadAuthCtx(req)
   if (!auth.ctx) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const ctx = auth.ctx
 

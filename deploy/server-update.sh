@@ -72,16 +72,6 @@ sleep 12
 
 # ---------- 6. 确保数据库备份脚本 + cron 仍在 (reset --hard 可能还原了 deploy 文件) ----------
 ensure_backup() {
-  cat > "$PROJECT_DIR/deploy/server-backup.sh" <<'EOF'
-#!/bin/bash
-set -e
-BACKUP_DIR=/opt/backups
-mkdir -p "$BACKUP_DIR"
-TS=$(date +%Y%m%d-%H%M%S)
-docker compose -f /opt/family-wealth-os/docker-compose.yml exec -T app sh -c 'cat /app/prisma/dev.db' > "$BACKUP_DIR/dev-$TS.db"
-find "$BACKUP_DIR" -name 'dev-*.db' -mtime +30 -delete
-echo "[$(date)] 备份完成: $BACKUP_DIR/dev-$TS.db ($(du -h "$BACKUP_DIR/dev-$TS.db" | cut -f1))"
-EOF
   chmod +x "$PROJECT_DIR/deploy/server-backup.sh"
 
   # 用临时文件重建 crontab, 避免 pipefail 在空 crontab 下误清/误判

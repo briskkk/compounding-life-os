@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { loadEngineState } from '@/lib/queries'
-import { apiAuthCtx } from '@/lib/services/api-auth'
+import { apiReadAuthCtx } from '@/lib/services/api-auth'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { historySmart } from '@/lib/market'
@@ -14,7 +14,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ assetId: string }> }) {
-  const auth = await apiAuthCtx(req)
+  const auth = await apiReadAuthCtx(req)
   if (!auth.ctx) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const ctx = auth.ctx
 

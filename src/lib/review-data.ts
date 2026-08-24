@@ -81,10 +81,10 @@ function navPoints(
 export async function getReviewPageData(options: {
   period?: string
   benchmark?: string
-} = {}): Promise<ReviewPageData | null> {
-  const ctx = await getSession()
+} = {}, ctxOverride?: FamilyCtx): Promise<ReviewPageData | null> {
+  const ctx = ctxOverride ?? await getSession()
   if (!ctx) return null
-  const watch = await getWatchData()
+  const watch = await getWatchData(ctx)
   if (!watch) return null
 
   const period = periodFrom(options.period)

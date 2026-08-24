@@ -4,13 +4,13 @@ import { loadEngineState } from '@/lib/queries'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { buildPositionItem } from '@/lib/engine/position-view'
-import { apiAuthCtx } from '@/lib/services/api-auth'
+import { apiReadAuthCtx } from '@/lib/services/api-auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const auth = await apiAuthCtx(req)
+  const auth = await apiReadAuthCtx(req)
   if (!auth.ctx) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const ctx = auth.ctx
 

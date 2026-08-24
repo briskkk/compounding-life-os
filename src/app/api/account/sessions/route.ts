@@ -2,7 +2,7 @@
 // POST /api/account/sessions/revoke — 吊销指定会话（不能吊销当前会话）
 import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getSession, currentSessionToken } from '@/lib/session'
+import { getSession, currentSessionToken, matchesSessionToken } from '@/lib/session'
 import { recordAudit } from '@/lib/audit'
 
 export const runtime = 'nodejs'
@@ -24,7 +24,7 @@ export async function GET() {
       familyId: s.familyId,
       createdAt: s.createdAt.toISOString(),
       expiresAt: s.expiresAt.toISOString(),
-      current: s.token === current,
+      current: matchesSessionToken(s.token, current),
     })),
   })
 }
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   const session = await prisma.session.findFirst({ where: { id: sessionId, userId: ctx.userId } })
   if (!session) return NextResponse.json({ ok: false, error: '会话不存在' }, { status: 404 })
   const current = await currentSessionToken()
-  if (session.token === current) {
+  if (matchesSessionToken(session.token, current)) {
     return NextResponse.json({ ok: false, error: '不能吊销当前会话，请使用登出' }, { status: 400 })
   }
   await prisma.session.delete({ where: { id: session.id } })

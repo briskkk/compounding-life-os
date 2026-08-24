@@ -3,7 +3,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PrismaClient } from '@prisma/client'
 import path from 'node:path'
 import type { FamilyCtx } from '@/lib/scoped'
-import { createTransactionRecord, reverseTransactionRecord, routedAccountIdForAsset } from '@/lib/services/transactions'
+import {
+  correctEstimatedFundTransactionRecord,
+  createTransactionRecord,
+  reverseTransactionRecord,
+  routedAccountIdForAsset,
+} from '@/lib/services/transactions'
 
 const base = new PrismaClient({ datasourceUrl: `file:${path.resolve('prisma/test.db')}` })
 
@@ -12,6 +17,7 @@ let brokerId: string // 券商账户（配置了资金账户）
 let bankId: string // 资金账户
 let stockId: string // 股票资产
 let cashId: string // 现金资产
+let fundId: string // 场外基金
 
 const ctx: FamilyCtx = { familyId: '', memberId: 'm-svc', memberName: '服务测试', role: 'OWNER', userId: 'u-svc' }
 
@@ -29,6 +35,8 @@ beforeAll(async () => {
   stockId = stock.id
   const cash = await base.asset.create({ data: { familyId: famId, symbol: 'CASH01', name: '人民币现金', cls: 'CASH', currency: 'CNY' } })
   cashId = cash.id
+  const fund = await base.asset.create({ data: { familyId: famId, symbol: 'SVCF01', name: '测试基金', cls: 'FUND', currency: 'CNY' } })
+  fundId = fund.id
 })
 
 afterAll(async () => {
@@ -157,5 +165,39 @@ describe('reverseTransactionRecord（共享冲正服务）', () => {
 
     // 重复冲正被拒绝
     await expect(base.$transaction((tx) => reverseTransactionRecord(tx, ctx, id))).rejects.toThrow(/已被冲正/)
+  })
+})
+
+describe('correctEstimatedFundTransactionRecord（官方净值修正）', () => {
+  it('冲正估算流水及结算腿，再按官方净值建立替代流水', async () => {
+    const original = await base.$transaction((tx) =>
+      createTransactionRecord(tx, ctx, {
+        accountId: brokerId,
+        assetId: fundId,
+        type: 'BUY',
+        quantity: 1000,
+        price: 1,
+        amount: 1000,
+        fee: 2,
+        occurredAt: new Date('2026-03-02T10:00:00Z'),
+        navDate: new Date('2026-03-02T00:00:00Z'),
+        navSource: 'ESTIMATE',
+        note: '盘中估算申购',
+        settleCash: true,
+      }),
+    )
+    const corrected = await base.$transaction((tx) =>
+      correctEstimatedFundTransactionRecord(tx, ctx, original.id, 1.25),
+    )
+
+    expect(corrected).toMatchObject({ oldPrice: 1, newPrice: 1.25, oldQuantity: 1000, newQuantity: 800 })
+    const oldRow = await base.transaction.findUnique({ where: { id: original.id } })
+    const newRow = await base.transaction.findUnique({ where: { id: corrected.id } })
+    expect(oldRow?.voidedAt).not.toBeNull()
+    expect(newRow?.navSource).toBe('OFFICIAL')
+    expect(Number(newRow?.quantity)).toBe(800)
+    expect(Number(newRow?.amount)).toBe(1000)
+    expect(await base.transaction.findFirst({ where: { settleOfId: original.id, voidedAt: { not: null } } })).not.toBeNull()
+    expect(Number((await base.transaction.findFirst({ where: { settleOfId: corrected.id } }))?.amount)).toBe(1002)
   })
 })

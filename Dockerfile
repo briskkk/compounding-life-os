@@ -13,8 +13,8 @@ FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1
-# curl：Yahoo 行情源对 Node fetch 的 TLS 指纹有拦截，运行时需 curl 兜底传输
-RUN apk add --no-cache curl
+# curl：行情传输兜底；sqlite：在线一致备份与完整性校验。
+RUN apk add --no-cache curl sqlite
 COPY --from=build /app ./
 # schema 备份：数据卷首次挂载为空时由入口脚本恢复
 RUN cp /app/prisma/schema.prisma /app/schema.prisma.dist \

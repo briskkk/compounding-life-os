@@ -37,6 +37,17 @@ test.describe('App API 认证（Bearer Token）', () => {
       expect(res.ok()).toBeTruthy()
     })
   }
+
+  test('全局只读 Key 不能新增流水或冲正', async ({ browser }) => {
+    const context = await browser.newContext({ baseURL: 'http://localhost:3200', storageState: { cookies: [], origins: [] } })
+    const create = await context.request.post('/api/transactions', AUTH)
+    expect(create.status()).toBe(401)
+    expect((await create.json()).error).toBe('User session required')
+    const reverse = await context.request.post('/api/transactions/nonexistent/reverse', AUTH)
+    expect(reverse.status()).toBe(401)
+    expect((await reverse.json()).error).toBe('User session required')
+    await context.close()
+  })
 })
 
 test.describe('/api/monthly-summary', () => {
@@ -244,5 +255,68 @@ test.describe('/api/assets', () => {
       expect(typeof p.netWorth).toBe('number')
       expect(typeof p.investable).toBe('number')
     }
+  })
+})
+
+test.describe('APP 幂等写入与游标分页', () => {
+  test('同一 Idempotency-Key 重试不重复记账，换请求体返回 409', async ({ request }) => {
+    const [summaryRes, positionsRes] = await Promise.all([
+      request.get('/api/mobile/summary'),
+      request.get('/api/positions'),
+    ])
+    const summary = await summaryRes.json()
+    const positions = await positionsRes.json()
+    const body = {
+      accountId: summary.accounts[0].id,
+      assetId: positions.positions[0].assetId,
+      type: 'DIVIDEND',
+      quantity: null,
+      price: null,
+      amount: 1.23,
+      fee: 0,
+      occurredAt: new Date().toISOString(),
+      note: 'E2E 幂等测试',
+      settleCash: false,
+    }
+    const headers = { 'Idempotency-Key': 'e2e-idempotency-transaction-001' }
+    const first = await request.post('/api/transactions', { data: body, headers })
+    expect(first.ok()).toBeTruthy()
+    const firstJson = await first.json()
+    expect(firstJson.replayed).toBe(false)
+
+    const replay = await request.post('/api/transactions', { data: body, headers })
+    expect(replay.ok()).toBeTruthy()
+    const replayJson = await replay.json()
+    expect(replayJson).toMatchObject({ id: firstJson.id, replayed: true })
+
+    const conflict = await request.post('/api/transactions', { data: { ...body, amount: 9.87 }, headers })
+    expect(conflict.status()).toBe(409)
+  })
+
+  test('流水列表返回不重复的下一页', async ({ request }) => {
+    const first = await request.get('/api/transactions?limit=2')
+    const firstJson = await first.json()
+    expect(firstJson.transactions).toHaveLength(2)
+    expect(firstJson.page.hasMore).toBe(true)
+    expect(typeof firstJson.page.nextCursor).toBe('string')
+
+    const second = await request.get(`/api/transactions?limit=2&cursor=${firstJson.page.nextCursor}`)
+    const secondJson = await second.json()
+    const firstIds = new Set(firstJson.transactions.map((tx: { id: string }) => tx.id))
+    expect(secondJson.transactions.every((tx: { id: string }) => !firstIds.has(tx.id))).toBe(true)
+  })
+
+  test('复盘 API 返回当期证据包与可分页的保存列表', async ({ request }) => {
+    const current = await request.get('/api/reviews/current?period=THIS_MONTH&benchmark=sh000300')
+    expect(current.ok()).toBeTruthy()
+    const currentJson = await current.json()
+    expect(currentJson.period).toBe('THIS_MONTH')
+    expect(currentJson.result).toBeTruthy()
+
+    const saved = await request.get('/api/reviews?limit=5')
+    expect(saved.ok()).toBeTruthy()
+    const savedJson = await saved.json()
+    expect(Array.isArray(savedJson.reviews)).toBe(true)
+    expect(savedJson.page.limit).toBe(5)
   })
 })

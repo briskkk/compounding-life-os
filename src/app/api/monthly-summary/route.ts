@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { foldLiability, type LiabilityEntryInput } from '@/lib/engine/liabilities'
-import { apiAuthCtx } from '@/lib/services/api-auth'
+import { apiReadAuthCtx } from '@/lib/services/api-auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
   const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999)
   const monthString = `${year}-${String(month + 1).padStart(2, '0')}`
 
-  const auth = await apiAuthCtx(req)
+  const auth = await apiReadAuthCtx(req)
   if (!auth.ctx) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const ctx = auth.ctx
 

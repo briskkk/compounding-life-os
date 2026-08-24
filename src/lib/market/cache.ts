@@ -72,7 +72,12 @@ export interface ProviderStat {
   totalMs: number
   lastError: string | null
   lastErrorAt: number | null
+  consecutiveFailures: number
+  circuitOpenUntil: number | null
 }
+
+const CIRCUIT_FAILURE_THRESHOLD = 3
+const CIRCUIT_OPEN_MS = 60_000
 
 /** 记录一次 provider 调用结果（成功/失败 + 耗时 + 错误信息） */
 export function recordRequest(provider: string, ok: boolean, ms: number, error?: string): void {
@@ -84,16 +89,37 @@ export function recordRequest(provider: string, ok: boolean, ms: number, error?:
     totalMs: 0,
     lastError: null,
     lastErrorAt: null,
+    consecutiveFailures: 0,
+    circuitOpenUntil: null,
   }
   stat.requests += 1
   stat.totalMs += ms
-  if (ok) stat.ok += 1
+  if (ok) {
+    stat.ok += 1
+    stat.consecutiveFailures = 0
+    stat.circuitOpenUntil = null
+  }
   else {
     stat.failed += 1
+    stat.consecutiveFailures += 1
     stat.lastError = error ?? 'unknown error'
     stat.lastErrorAt = Date.now()
+    if (stat.consecutiveFailures >= CIRCUIT_FAILURE_THRESHOLD) {
+      stat.circuitOpenUntil = Date.now() + CIRCUIT_OPEN_MS
+    }
   }
   runtimeState.providerStats.set(provider, stat)
+}
+
+/** 连续失败的数据源短暂熔断，避免一次页面请求对已故障上游重复超时。 */
+export function providerCircuitOpen(provider: string, now = Date.now()): boolean {
+  const stat = runtimeState.providerStats.get(provider)
+  if (!stat?.circuitOpenUntil) return false
+  if (stat.circuitOpenUntil > now) return true
+  stat.circuitOpenUntil = null
+  stat.consecutiveFailures = Math.max(0, CIRCUIT_FAILURE_THRESHOLD - 1)
+  runtimeState.providerStats.set(provider, stat)
+  return false
 }
 
 export interface MarketHealth {

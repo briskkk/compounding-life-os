@@ -2,8 +2,9 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { hashPassword, randomToken } from '@/lib/auth/password'
-import { SESSION_COOKIE, SESSION_TTL_MS } from '@/lib/session'
+import { SESSION_COOKIE, SESSION_TTL_MS, storedSessionToken } from '@/lib/session'
 import { recordAudit } from '@/lib/audit'
+import { authRateKeys, consumeAuthRateLimit, REGISTER_RATE_LIMIT } from '@/lib/auth/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -44,6 +45,13 @@ export async function POST(req: NextRequest) {
   if (password.length < 8) {
     return NextResponse.json({ ok: false, error: '密码至少 8 位' }, { status: 400 })
   }
+  const rate = consumeAuthRateLimit(authRateKeys(req, 'register', email), REGISTER_RATE_LIMIT)
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { ok: false, error: '注册尝试过于频繁，请稍后再试' },
+      { status: 429, headers: { 'Retry-After': String(rate.retryAfterSeconds) } },
+    )
+  }
   const exists = await prisma.user.findUnique({ where: { email } })
   if (exists) return NextResponse.json({ ok: false, error: '该邮箱已注册，请直接登录' }, { status: 409 })
 
@@ -69,18 +77,19 @@ export async function POST(req: NextRequest) {
   }
 
   // 注册即登录：创建会话（家庭默认取邀请加入的家庭，否则后续加入家庭时更新）
-  const session = await prisma.session.create({
+  const token = randomToken()
+  await prisma.session.create({
     data: {
       userId: user.id,
       familyId: joinedFamilyId ?? '',
-      token: randomToken(),
+      token: storedSessionToken(token),
       expiresAt: new Date(Date.now() + SESSION_TTL_MS),
     },
   })
 
-  const res = NextResponse.json({ ok: true, token: session.token, joinedFamilyId })
+  const res = NextResponse.json({ ok: true, token, joinedFamilyId })
   const secure = process.env.NODE_ENV === 'production' && process.env.DISABLE_SECURE_COOKIE !== 'true'
-  res.cookies.set(SESSION_COOKIE, session.token, {
+  res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
     secure,
@@ -89,4 +98,3 @@ export async function POST(req: NextRequest) {
   })
   return res
 }
-

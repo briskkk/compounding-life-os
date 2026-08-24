@@ -1,6 +1,7 @@
 // 基金确认/到账推算 + 账本可用份额与在途资金（ADR-012）
 import { describe, expect, it } from 'vitest'
 import { estimateShares, fundConfirmationDate, fundNavDate, fundSettlementDate, isQdiiFund, nextTradingDay } from '@/lib/engine/fund-order'
+import { chinaFundCalendarCoverage, isChinaFundTradingDay } from '@/lib/engine/china-trading-calendar'
 import { foldTransactions, holdingsIndex, pendingSettlementsAt, type LedgerTx } from '@/lib/engine/ledger'
 import { assertTransactionRules, assertTransactionTimeline } from '@/lib/transaction-rules'
 import { buildSettlementLegs } from '@/lib/engine/settlement'
@@ -75,6 +76,19 @@ describe('基金确认日推算（fund-order）', () => {
 
   it('nextTradingDay 跳过周末', () => {
     expect(key(nextTradingDay(D('2025-01-03')))).toBe('2025-01-06') // 周五 → 周一
+  })
+
+  it('按交易所公告跳过春节等连续休市日', () => {
+    expect(isChinaFundTradingDay(D('2025-01-27'))).toBe(true)
+    expect(isChinaFundTradingDay(D('2025-01-28'))).toBe(false)
+    expect(key(nextTradingDay(D('2025-01-27')))).toBe('2025-02-05')
+    expect(key(nextTradingDay(D('2026-02-13')))).toBe('2026-02-24')
+    expect(key(fundConfirmationDate(D('2026-02-13'), { qdii: false }))).toBe('2026-02-24')
+  })
+
+  it('公开日历覆盖范围外明确回退周末规则', () => {
+    expect(chinaFundCalendarCoverage(D('2026-08-24'))).toBe('PUBLISHED')
+    expect(chinaFundCalendarCoverage(D('2027-01-04'))).toBe('WEEKEND_ONLY')
   })
 })
 

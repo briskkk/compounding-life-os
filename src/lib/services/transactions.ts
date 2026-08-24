@@ -6,8 +6,8 @@ import { recordAudit } from '@/lib/audit'
 import { rebuildSnapshots } from '@/lib/snapshots'
 import type { FamilyCtx } from '@/lib/scoped'
 import { buildSettlementLegs } from '@/lib/engine/settlement'
-import { foldTransactions, type LedgerTx } from '@/lib/engine/ledger'
-import { fundConfirmationDate, fundNavDate, isQdiiFund } from '@/lib/engine/fund-order'
+import { foldTransactions, roundMoney, type LedgerTx } from '@/lib/engine/ledger'
+import { estimateShares, fundConfirmationDate, fundNavDate, isQdiiFund } from '@/lib/engine/fund-order'
 import { assertTransactionRules, assertTransactionTimeline, type TransactionDraft } from '@/lib/transaction-rules'
 import type { TxInputData } from '@/lib/schemas'
 
@@ -145,13 +145,16 @@ export async function validateTransaction(
  * 在事务内创建一笔流水（含现金联动结算腿与审计）。
  * 调用方负责开启 $transaction 并在提交后重建快照。
  * settleCash 口径：未显式指定时，BUY/SELL 默认联动结算（Web 表单始终显式传值，不受影响）。
+ * 分红、利息与费用也支持现金联动，但为了兼容旧 API 客户端，必须显式传 settleCash=true。
  */
 export async function createTransactionRecord(
   db: ServiceDb,
   ctx: FamilyCtx,
   data: TxInputData,
+  options?: { clientRequestId?: string; clientRequestHash?: string },
 ): Promise<{ id: string; affectedSince: Date }> {
   const settleCash = data.settleCash ?? (data.type === 'BUY' || data.type === 'SELL')
+  const canSettleCash = ['BUY', 'SELL', 'DIVIDEND', 'INTEREST', 'FEE'].includes(data.type)
   const accountId = await routedAccountIdForAsset(db, ctx.familyId, data.accountId, data.assetId)
   const entry = { ...data, accountId }
   const { navDate: effectiveNavDate } = await validateTransaction(db, ctx, entry)
@@ -170,9 +173,11 @@ export async function createTransactionRecord(
       navSource: data.navSource ?? null,
       settlementDate: data.settlementDate ?? null,
       note: data.note,
+      clientRequestId: options?.clientRequestId ?? null,
+      clientRequestHash: options?.clientRequestHash ?? null,
     },
   })
-  if (settleCash && (data.type === 'BUY' || data.type === 'SELL')) {
+  if (settleCash && canSettleCash) {
     const settlement = await cashSettlementOf(db, ctx.familyId, entry.accountId)
     if (!settlement) throw new Error('该交易账户未配置资金账户；请先配置，或关闭现金联动结算')
     // 基金赎回在途：现金结算腿发生在预计到账日（settlementDate），而非成交日
@@ -200,7 +205,7 @@ export async function createTransactionRecord(
     action: 'CREATE',
     entity: 'Transaction',
     entityId: tx.id,
-    detail: `${data.type} ${data.amount}${settleCash && (data.type === 'BUY' || data.type === 'SELL') ? '（含现金结算）' : ''}`,
+    detail: `${data.type} ${data.amount}${settleCash && canSettleCash ? '（含现金结算）' : ''}`,
   })
   return { id: tx.id, affectedSince: tx.occurredAt }
 }
@@ -243,6 +248,78 @@ export async function reverseTransactionRecord(
     detail: `${original.type} ${Number(original.amount)}`,
   })
   return { affectedSince: original.occurredAt }
+}
+
+/**
+ * 把使用盘中估值确认的基金买卖替换为官方净值流水。
+ * 原流水与结算腿只作废不删除；新流水重新走完整校验、结算与审计。
+ */
+export async function correctEstimatedFundTransactionRecord(
+  db: ServiceDb,
+  ctx: FamilyCtx,
+  id: string,
+  officialNav: number,
+): Promise<{
+  id: string
+  affectedSince: Date
+  oldPrice: number
+  newPrice: number
+  oldQuantity: number
+  newQuantity: number
+}> {
+  if (!Number.isFinite(officialNav) || officialNav <= 0) throw new Error('官方净值无效')
+  const original = await db.transaction.findFirst({
+    where: { id, familyId: ctx.familyId },
+    include: { asset: true },
+  })
+  if (!original) throw new Error('流水不存在')
+  if (original.voidedAt) throw new Error('该流水已被冲正')
+  if (original.asset.cls !== 'FUND' || (original.type !== 'BUY' && original.type !== 'SELL')) {
+    throw new Error('只有基金申购或赎回可以确认官方净值')
+  }
+  if (original.navSource !== 'ESTIMATE' || !original.navDate) throw new Error('该流水不属于待确认的估算净值')
+  const oldQuantity = Number(original.quantity ?? 0)
+  const oldPrice = Number(original.price ?? 0)
+  const newQuantity = original.type === 'BUY'
+    ? estimateShares(Number(original.amount), officialNav)
+    : oldQuantity
+  if (newQuantity <= 0) throw new Error('官方净值无法得到有效份额')
+  const newAmount = roundMoney(newQuantity * officialNav)
+  const settlementCount = await db.transaction.count({ where: { familyId: ctx.familyId, settleOfId: id } })
+
+  await reverseTransactionRecord(db, ctx, id)
+  const corrected = await createTransactionRecord(db, ctx, {
+    accountId: original.accountId,
+    assetId: original.assetId,
+    type: original.type,
+    quantity: newQuantity,
+    price: officialNav,
+    amount: newAmount,
+    fee: Number(original.fee),
+    occurredAt: original.occurredAt,
+    navDate: original.navDate,
+    navSource: 'OFFICIAL',
+    settlementDate: original.settlementDate,
+    note: `${original.note ? `${original.note} · ` : ''}官方净值修正 #${original.id.slice(0, 8)}`.slice(0, 200),
+    settleCash: settlementCount > 0,
+  })
+  await recordAudit(db, {
+    familyId: ctx.familyId,
+    actorId: ctx.memberId,
+    actorName: ctx.memberName,
+    action: 'FUND_NAV_CORRECT',
+    entity: 'Transaction',
+    entityId: corrected.id,
+    detail: `${original.id}：${oldPrice} → ${officialNav}；${oldQuantity} → ${newQuantity}`,
+  })
+  return {
+    id: corrected.id,
+    affectedSince: original.occurredAt,
+    oldPrice,
+    newPrice: officialNav,
+    oldQuantity,
+    newQuantity,
+  }
 }
 
 /** 提交后重建快照；失败时返回警告文案（revalidate 策略由调用方决定）。

@@ -168,6 +168,111 @@ export function cnyRateFor(symbol: string, rates: { USDCNY: number; HKDCNY: numb
 export const FX_PAIRS = ['USDCNY', 'HKDCNY'] as const
 export type FxPair = (typeof FX_PAIRS)[number]
 
+const ECB_SERIES = ['USD', 'CNY', 'HKD'] as const
+
+function parseCsvLine(line: string): string[] {
+  const values: string[] = []
+  let value = ''
+  let quoted = false
+  for (let index = 0; index < line.length; index++) {
+    const char = line[index]
+    if (char === '"') {
+      if (quoted && line[index + 1] === '"') {
+        value += '"'
+        index += 1
+      } else quoted = !quoted
+    } else if (char === ',' && !quoted) {
+      values.push(value)
+      value = ''
+    } else value += char
+  }
+  values.push(value)
+  return values
+}
+
+/** 解析 ECB Data API csvdata；返回「1 EUR = ? 单位目标币种」的日度序列。 */
+export function parseEcbFxCsv(csv: string): Map<string, number> {
+  const lines = csv.replace(/^\uFEFF/, '').split(/\r?\n/).filter(Boolean)
+  if (lines.length < 2) return new Map()
+  const headers = parseCsvLine(lines[0])
+  const dateIndex = headers.indexOf('TIME_PERIOD')
+  const valueIndex = headers.indexOf('OBS_VALUE')
+  if (dateIndex < 0 || valueIndex < 0) throw new Error('ECB 汇率报文缺少 TIME_PERIOD/OBS_VALUE')
+  const result = new Map<string, number>()
+  for (const line of lines.slice(1)) {
+    const values = parseCsvLine(line)
+    const date = values[dateIndex]
+    const rate = Number(values[valueIndex])
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(rate) && rate > 0) result.set(date, rate)
+  }
+  return result
+}
+
+async function fetchEcbSeries(currency: (typeof ECB_SERIES)[number], from: string, to: string): Promise<Map<string, number>> {
+  const url = `https://data-api.ecb.europa.eu/service/data/EXR/D.${currency}.EUR.SP00.A?startPeriod=${from}&endPeriod=${to}&format=csvdata`
+  const response = await fetch(url, {
+    headers: { Accept: 'text/csv' },
+    signal: AbortSignal.timeout(15_000),
+    cache: 'no-store',
+  })
+  if (!response.ok) throw new Error(`ECB 汇率源响应异常 ${response.status}`)
+  const series = parseEcbFxCsv(await response.text())
+  if (series.size === 0) throw new Error(`ECB 汇率源无 ${currency} 历史数据`)
+  return series
+}
+
+/**
+ * 以 ECB 欧元基准日度参考汇率回填 USDCNY / HKDCNY。
+ * ECB 同日公布「1 EUR = x 币种」，交叉相除得到人民币口径；已有 SINA 等真实记录不覆盖。
+ */
+export async function backfillHistoricalFx(db: PrismaClient, from: Date, to = new Date()): Promise<number> {
+  const startKey = dateKeyAt(from)
+  const end = new Date(Math.min(to.getTime(), Date.now() - 86400000))
+  const endKey = dateKeyAt(end)
+  if (startKey > endKey) return 0
+
+  const bounds = await Promise.all(FX_PAIRS.map(async (pair) => ({
+    pair,
+    first: await db.rateBar.findFirst({ where: { pair }, orderBy: { date: 'asc' } }),
+    last: await db.rateBar.findFirst({ where: { pair }, orderBy: { date: 'desc' } }),
+  })))
+  const startMs = new Date(`${startKey}T00:00:00Z`).getTime()
+  const endMs = new Date(`${endKey}T00:00:00Z`).getTime()
+  const alreadyCovered = bounds.every(({ first, last }) => (
+    first != null
+    && last != null
+    && first.date.getTime() <= startMs + 7 * 86400000
+    && last.date.getTime() >= endMs - 7 * 86400000
+  ))
+  if (alreadyCovered) return 0
+
+  const [usd, cny, hkd] = await Promise.all(ECB_SERIES.map((currency) => fetchEcbSeries(currency, startKey, endKey)))
+  const existing = await db.rateBar.findMany({
+    where: { pair: { in: [...FX_PAIRS] }, date: { gte: new Date(startMs), lte: new Date(endMs) } },
+    select: { pair: true, date: true },
+  })
+  const existingKeys = new Set(existing.map((row) => `${row.pair}|${dateKeyAt(row.date)}`))
+  const rows: { pair: FxPair; date: Date; rate: number; source: string }[] = []
+  for (const [date, cnyPerEur] of cny) {
+    const usdPerEur = usd.get(date)
+    const hkdPerEur = hkd.get(date)
+    if (!usdPerEur || !hkdPerEur) continue
+    const day = new Date(`${date}T00:00:00Z`)
+    const values: [FxPair, number][] = [
+      ['USDCNY', cnyPerEur / usdPerEur],
+      ['HKDCNY', cnyPerEur / hkdPerEur],
+    ]
+    for (const [pair, rate] of values) {
+      if (existingKeys.has(`${pair}|${date}`) || !Number.isFinite(rate) || rate <= 0) continue
+      rows.push({ pair, date: day, rate, source: 'ECB' })
+    }
+  }
+  for (let index = 0; index < rows.length; index += 500) {
+    await db.rateBar.createMany({ data: rows.slice(index, index + 500) })
+  }
+  return rows.length
+}
+
 /** 内存中的历史汇率表：pair → 升序日期 → 汇率 */
 export interface FxSeries {
   times: number[]

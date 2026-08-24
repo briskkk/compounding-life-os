@@ -27,7 +27,9 @@ model User {
   email        String    @unique
   passwordHash String
   createdAt    DateTime  @default(now())
-  /** 用户偏好（JSON）：如默认收益区间 */
+  /**
+   * 用户偏好（JSON）：如默认收益区间
+   */
   preferences  String?
   members      Member[]
   sessions     Session[]
@@ -61,10 +63,10 @@ model Invite {
 }
 
 model FamilySpace {
-  id               String           @id @default(cuid())
+  id               String            @id @default(cuid())
   name             String
-  baseCurrency     String           @default("CNY")
-  createdAt        DateTime         @default(now())
+  baseCurrency     String            @default("CNY")
+  createdAt        DateTime          @default(now())
   members          Member[]
   accounts         Account[]
   assets           Asset[]
@@ -75,6 +77,7 @@ model FamilySpace {
   savingsEntries   SavingsEntry[]
   snapshots        Snapshot[]
   portfolioReviews PortfolioReview[]
+  importBatches    ImportBatch[]
   auditLogs        AuditLog[]
 }
 
@@ -179,31 +182,57 @@ enum TxType {
 }
 
 model Transaction {
-  id           String      @id @default(cuid())
-  familyId     String
-  family       FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  accountId    String
-  account      Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  assetId      String
-  asset        Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  type         TxType
-  quantity     Decimal?
-  price        Decimal?
-  amount       Decimal     @default(0)
-  fee          Decimal     @default(0)
-  occurredAt   DateTime
-  navDate      DateTime? // 基金确认净值日（申购/赎回份额按该日净值确认；缺省 = occurredAt）
-  navSource    String? // 净值来源：OFFICIAL 官方净值 / ESTIMATE 盘中估算（缺省 null = 手工录入）
-  settlementDate DateTime? // 预计资金到账日（基金赎回在途；缺省 = occurredAt 即时结算）
-  note         String?
-  internal     Boolean     @default(false) // 内部结算腿（买卖联动现金、转账），不计入外部投入
-  voidedAt     DateTime? // 被冲正后标记，账本折叠时跳过
-  reversalOfId String? // REVERSAL 流水指向被冲正的原始流水
-  settleOfId   String? // 结算腿指向其主流水（冲正时联动作废）
-  createdAt    DateTime    @default(now())
+  id                String       @id @default(cuid())
+  familyId          String
+  family            FamilySpace  @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  accountId         String
+  account           Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  assetId           String
+  asset             Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  type              TxType
+  quantity          Decimal?
+  price             Decimal?
+  amount            Decimal      @default(0)
+  fee               Decimal      @default(0)
+  occurredAt        DateTime
+  navDate           DateTime? // 基金确认净值日（申购/赎回份额按该日净值确认；缺省 = occurredAt）
+  navSource         String? // 净值来源：OFFICIAL 官方净值 / ESTIMATE 盘中估算（缺省 null = 手工录入）
+  settlementDate    DateTime? // 预计资金到账日（基金赎回在途；缺省 = occurredAt 即时结算）
+  note              String?
+  internal          Boolean      @default(false) // 内部结算腿（买卖联动现金、转账），不计入外部投入
+  voidedAt          DateTime? // 被冲正后标记，账本折叠时跳过
+  reversalOfId      String? // REVERSAL 流水指向被冲正的原始流水
+  settleOfId        String? // 结算腿指向其主流水（冲正时联动作废）
+  importBatchId     String? // CSV 导入批次；手工/API 录入为 null
+  importBatch       ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  clientRequestId   String? // APP 写入幂等键（Idempotency-Key）
+  clientRequestHash String? // 同键不同请求体时拒绝复用
+  createdAt         DateTime     @default(now())
 
+  @@unique([familyId, clientRequestId])
   @@index([familyId, occurredAt])
   @@index([familyId, assetId])
+  @@index([importBatchId])
+}
+
+model ImportBatch {
+  id            String        @id @default(cuid())
+  familyId      String
+  family        FamilySpace   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  contentHash   String
+  sourceName    String?
+  rowCount      Int
+  importedCount Int
+  failedCount   Int
+  settleCash    Boolean       @default(false)
+  totalAmount   Decimal       @default(0)
+  totalFees     Decimal       @default(0)
+  createdBy     String
+  createdAt     DateTime      @default(now())
+  transactions  Transaction[]
+
+  @@unique([familyId, contentHash])
+  @@index([familyId, createdAt])
 }
 
 // ---------- 负债 ----------

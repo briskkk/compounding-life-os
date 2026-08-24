@@ -1,6 +1,7 @@
 // 基金申购/赎回的确认与到账推算（ADR-012）
 // 纯函数、零依赖：Web 表单与移动端共用同一套确认口径。
-// 交易日历为工作日近似（跳过周末），不含法定节假日——与系统既有行情口径一致。
+// 交易日历采用已公布的中国市场休市安排；覆盖范围外明确回退周末规则。
+import { isChinaFundTradingDay } from './china-trading-calendar'
 
 /** QDII 指数型基金的估值驱动表（仅用于可代理估值的纳指产品）。 */
 export const QDII_INDEX_MAP: Record<string, { index: string; name: string }> = {
@@ -44,12 +45,12 @@ export function isWeekend(d: Date): boolean {
   return day === 0 || day === 6
 }
 
-/** 下一个工作日（近似交易日；法定节假日不建模） */
+/** 下一个中国基金通用开放日；基金特有境外暂停日仍以基金公司公告为准。 */
 export function nextTradingDay(d: Date): Date {
   let x = dayStart(d)
   do {
     x = new Date(x.getTime() + DAY)
-  } while (isWeekend(x))
+  } while (!isChinaFundTradingDay(x))
   return x
 }
 
@@ -67,7 +68,7 @@ export function isBeforeCutoff(at: Date): boolean {
 export function fundNavDate(orderDate: Date, opts: { qdii: boolean; submittedAt?: Date }): Date {
   const submittedAt = opts.submittedAt ?? orderDate
   let nav = dayStart(orderDate)
-  if (isWeekend(nav) || !isBeforeCutoff(submittedAt)) nav = nextTradingDay(nav)
+  if (!isChinaFundTradingDay(nav) || !isBeforeCutoff(submittedAt)) nav = nextTradingDay(nav)
   return nav
 }
 

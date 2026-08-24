@@ -1,7 +1,7 @@
 // POST /api/auth/logout — 注销当前会话（cookie 或 Bearer 通道均可）
 import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { SESSION_COOKIE } from '@/lib/session'
+import { findSessionByToken, SESSION_COOKIE } from '@/lib/session'
 import { recordAudit } from '@/lib/audit'
 
 export const runtime = 'nodejs'
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')?.trim() ??
     null
   if (token) {
-    const session = await prisma.session.findUnique({ where: { token } })
+    const session = await findSessionByToken(token)
     if (session) {
       const member = await prisma.member.findFirst({ where: { familyId: session.familyId, userId: session.userId } })
       await prisma.session.delete({ where: { id: session.id } })

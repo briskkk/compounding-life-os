@@ -91,7 +91,12 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
   let historyPrices: AssetNavPoint[] = []
   let chartSource: string | null = null
   if (isMarket) {
-    const from = new Date(Date.now() - 1400 * 86400000)
+    const assetLedger = state.ledgerTxs.filter((tx) => tx.assetId === asset.id && !tx.voidedAt)
+    const earliest = assetLedger[0]?.occurredAt
+    const from = new Date(Math.min(
+      Date.now() - 800 * 86400000,
+      earliest ? earliest.getTime() - 86400000 : Number.POSITIVE_INFINITY,
+    ))
     const to = new Date()
     if (parseSymbol(asset.symbol).market !== 'OTHER') {
       const live = await historySmart(asset.symbol, from, to)
@@ -152,11 +157,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
     ? quote.priceCny / quote.price
     : combined && combined.costBasis > 0
       ? combined.costCny / combined.costBasis
-      : asset.currency === 'USD'
-        ? 6.77
-        : asset.currency === 'HKD'
-          ? 0.864
-          : 1
+      : state.currencyRates[asset.currency as keyof typeof state.currencyRates] ?? 1
   const assetHistory = buildAssetPerformanceSeries({
     asset: {
       id: asset.id,

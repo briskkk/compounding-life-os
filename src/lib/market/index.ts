@@ -8,7 +8,7 @@ import { sinaProvider } from './sina'
 import { eastmoneyFundProvider } from './eastmoney-fund'
 import { eastmoneyKlineProvider } from './eastmoney-kline'
 import { parseSymbol } from './symbols'
-import { cachedQuote, quoteCacheKey, recordRequest } from './cache'
+import { cachedQuote, providerCircuitOpen, quoteCacheKey, recordRequest } from './cache'
 import type { Bar, MarketDataProvider, QuoteData } from './provider'
 
 const DEFAULT_PROVIDER_SPEC = 'tencent,eastmoney-kline,eastmoney-fund,sina'
@@ -88,6 +88,7 @@ export async function quoteSmart(symbol: string): Promise<QuoteData> {
   const key = quoteCacheKey(chain.map((p) => p.label).join('+'), symbol)
   return cachedQuote(key, async () => {
     for (const provider of chain) {
+      if (providerCircuitOpen(provider.label)) continue
       const t0 = Date.now()
       try {
         const q = await provider.quote(symbol)
@@ -115,19 +116,30 @@ export async function quoteSmart(symbol: string): Promise<QuoteData> {
 }
 
 export async function historySmart(symbol: string, from: Date, to: Date): Promise<{ bars: Bar[]; source: string }> {
+  let best: { bars: Bar[]; source: string } | null = null
+  const coverageTolerance = from.getTime() + 14 * 86400000
   for (const provider of providerChain()) {
+    if (providerCircuitOpen(provider.label)) continue
     const t0 = Date.now()
     try {
       const bars = await provider.history(symbol, from, to)
       if (bars.length > 0) {
         recordRequest(provider.label, true, Date.now() - t0)
-        return { bars, source: provider.label }
+        const sorted = [...bars].sort((a, b) => a.date.getTime() - b.date.getTime())
+        if (!best || sorted[0].date < best.bars[0].date || sorted.length > best.bars.length) {
+          best = { bars: sorted, source: provider.label }
+        }
+        // 覆盖请求起点附近即可停止；长区间被腰斩时继续尝试下一源。
+        if (sorted[0].date.getTime() <= coverageTolerance) return { bars: sorted, source: provider.label }
+      } else {
+        recordRequest(provider.label, false, Date.now() - t0, `${symbol} 无历史数据`)
       }
     } catch (e) {
       recordRequest(provider.label, false, Date.now() - t0, e instanceof Error ? e.message : String(e))
       /* 尝试下一源 */
     }
   }
+  if (best) return best
   if (parseSymbol(symbol).market === 'OTHER' && simulatedAllowed()) {
     return { bars: await simulatedProvider.history(symbol, from, to), source: PROVIDER_LABEL }
   }

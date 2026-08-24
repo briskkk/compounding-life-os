@@ -12,7 +12,7 @@ import type { ValuationGap, ValuationStatus } from './engine/valuation-status'
 import { fundConfirmationDate, isQdiiFund } from './engine/fund-order'
 
 const DAY = 86400000
-const MAX_DAYS = 1400
+const MAX_SUPPORTED_DAYS = 36525
 
 export interface WealthPoint {
   date: Date
@@ -47,9 +47,12 @@ export function computeWealthSeries(
   const flows = dailyNetFlows(txs.filter((tx) => isPortfolioAssetClass(tx.assetClass)), currencyRate)
   const endMs = Math.floor(to.getTime() / DAY) * DAY
   const requestedStartMs = Math.floor(from.getTime() / DAY) * DAY
-  // 超过窗口时保留最近 MAX_DAYS，而不是从最早日期截取一段已经过时的历史。
-  const startMs = Math.max(requestedStartMs, endMs - (MAX_DAYS - 1) * DAY)
-  const days = Math.min(MAX_DAYS, Math.round((endMs - startMs) / DAY) + 1)
+  if (requestedStartMs > endMs) return []
+  const startMs = requestedStartMs
+  const days = Math.round((endMs - startMs) / DAY) + 1
+  if (days > MAX_SUPPORTED_DAYS) {
+    throw new Error(`快照区间超过 ${MAX_SUPPORTED_DAYS} 天，请检查流水日期是否异常`)
+  }
   const dates = Array.from({ length: days }, (_, i) => new Date(startMs + i * DAY))
   // 截窗前的净投入需要作为期初累计值带入，否则最近窗口的净投入会被重置。
   const startDay = Math.floor(startMs / DAY)
@@ -176,12 +179,9 @@ export async function rebuildSnapshots(
     orderBy: { occurredAt: 'asc' },
   })
   const now = new Date()
-  // 与 computeWealthSeries 一致的窗口起点：增量时把受影响日钳制到最近 MAX_DAYS 窗口内，
-  // 保证「删除范围」与「重算范围」完全一致，避免唯一约束冲突或残留过期快照。
   const endMs = Math.floor(now.getTime() / DAY) * DAY
-  const windowStart = endMs - (MAX_DAYS - 1) * DAY
   if (opts?.affectedSince) {
-    const since = Math.min(Math.max(Math.floor(opts.affectedSince.getTime() / DAY) * DAY, windowStart), endMs)
+    const since = Math.min(Math.floor(opts.affectedSince.getTime() / DAY) * DAY, endMs)
     await db.snapshot.deleteMany({ where: { familyId, date: { gte: new Date(since) } } })
   } else {
     await db.snapshot.deleteMany({ where: { familyId } })
@@ -240,10 +240,10 @@ export async function rebuildSnapshots(
     return v == null ? undefined : v * cnyRateFor(symbol, { USDCNY: rateAt('USD', date), HKDCNY: rateAt('HKD', date) })
   }
 
-  // 增量：只从受影响日起重算（computeWealthSeries 内部按 MAX_DAYS 截窗并带入期初净投入）；
-  // 全量：从最早流水日重建全部。future 日期已被钳制到窗口内。
+  // 增量：只从受影响日起重算，并带入此前的累计净投入；
+  // 全量：从最早流水日重建全部，不再静默截断长历史。future 日期钳制到今日。
   const from = opts?.affectedSince
-    ? new Date(Math.min(Math.max(Math.floor(opts.affectedSince.getTime() / DAY) * DAY, windowStart), endMs))
+    ? new Date(Math.min(Math.floor(opts.affectedSince.getTime() / DAY) * DAY, endMs))
     : txsRaw[0].occurredAt
   const points = computeWealthSeries(txs, assets, entries, from, now, priceAt, rateAt, observationAt)
   await db.snapshot.createMany({

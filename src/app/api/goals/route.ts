@@ -4,14 +4,14 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { loadEngineState } from '@/lib/queries'
-import { apiAuthCtx } from '@/lib/services/api-auth'
+import { apiReadAuthCtx } from '@/lib/services/api-auth'
 import { projectGoalViews } from '@/lib/engine/goal-views'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const auth = await apiAuthCtx(req)
+  const auth = await apiReadAuthCtx(req)
   if (!auth.ctx) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const ctx = auth.ctx
   const db = scopedDb(prisma, ctx)

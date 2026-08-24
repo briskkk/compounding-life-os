@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { loadEngineState } from '@/lib/queries'
 import { ALL_CLASSES } from '@/lib/engine/metrics'
-import { apiAuthCtx } from '@/lib/services/api-auth'
+import { apiReadAuthCtx } from '@/lib/services/api-auth'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { summarizeDailyPortfolio } from '@/lib/engine/daily-pnl'
@@ -36,7 +36,7 @@ export const dynamic = 'force-dynamic'
  * - delta30d: 净资产较 30 个快照日前的增量（样本不足为 null）
  */
 export async function GET(req: NextRequest) {
-  const auth = await apiAuthCtx(req)
+  const auth = await apiReadAuthCtx(req)
   if (!auth.ctx) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const ctx = auth.ctx
 

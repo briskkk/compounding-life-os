@@ -229,7 +229,7 @@ export function TxForm({
       navSource,
       settlementDate: settleDateValue,
       note: (fd.get('note') as string) || null,
-      settleCash: !isLongTermAsset && settle && (type === 'BUY' || type === 'SELL'),
+      settleCash: !isLongTermAsset && settle && ['BUY', 'SELL', 'DIVIDEND', 'INTEREST', 'FEE'].includes(type),
     })
     setPending(false)
     if (res.ok) {
@@ -523,7 +523,7 @@ export function TxForm({
       </Field>
       <div className="tx-form-footer">
         <div className="tx-form-feedback">
-          {!isLongTermAsset && (type === 'BUY' || type === 'SELL') && (
+          {!isLongTermAsset && ['BUY', 'SELL', 'DIVIDEND', 'INTEREST', 'FEE'].includes(type) && (
             <label className="tx-form-settlement flex min-h-11 items-center gap-2 text-[13px] text-ink-dim">
               <input
                 type="checkbox"
@@ -534,7 +534,7 @@ export function TxForm({
               />
               {selectedAccount?.settlementAccountName
                 ? `现金联动结算至 ${selectedAccount.settlementAccountName}`
-                : '未配置资金账户，本次买卖不自动变动现金'}
+                : '未配置资金账户，本次事件不自动变动现金'}
             </label>
           )}
           {!isLongTermAsset && routesCash && (

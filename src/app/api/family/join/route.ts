@@ -1,8 +1,9 @@
 // POST /api/family/join — 登录用户凭邀请码加入家庭（码一次性消费；未加入家庭的账号也可用）
 import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getSession, hasSession, currentSessionToken } from '@/lib/session'
+import { getSession, hasSession, currentSessionToken, sessionTokenCandidates } from '@/lib/session'
 import { recordAudit } from '@/lib/audit'
+import { authRateKeys, consumeAuthRateLimit, INVITE_RATE_LIMIT } from '@/lib/auth/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,6 +20,13 @@ export async function POST(req: NextRequest) {
   }
   const code = body.code?.trim().toUpperCase() ?? ''
   if (!code) return NextResponse.json({ ok: false, error: '请输入邀请码' }, { status: 400 })
+  const rate = consumeAuthRateLimit(authRateKeys(req, 'invite', session.userId), INVITE_RATE_LIMIT)
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { ok: false, error: '邀请码尝试过于频繁，请稍后再试' },
+      { status: 429, headers: { 'Retry-After': String(rate.retryAfterSeconds) } },
+    )
+  }
 
   const invite = await prisma.invite.findUnique({ where: { code } })
   if (!invite || invite.expiresAt.getTime() <= Date.now()) {
@@ -40,7 +48,7 @@ export async function POST(req: NextRequest) {
   // 切换当前会话到新加入的家庭
   const token = await currentSessionToken()
   if (token) {
-    await prisma.session.updateMany({ where: { token }, data: { familyId: invite.familyId } })
+    await prisma.session.updateMany({ where: { token: { in: sessionTokenCandidates(token) } }, data: { familyId: invite.familyId } })
   }
   await recordAudit(prisma, {
     familyId: invite.familyId,

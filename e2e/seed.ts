@@ -37,6 +37,7 @@ async function main() {
     prisma.session.deleteMany(),
     prisma.user.deleteMany(),
     prisma.transaction.deleteMany(),
+    prisma.importBatch.deleteMany(),
     prisma.liabilityEntry.deleteMany(),
     prisma.liability.deleteMany(),
     prisma.goal.deleteMany(),
@@ -45,6 +46,9 @@ async function main() {
     prisma.member.deleteMany(),
     prisma.familySpace.deleteMany(),
     prisma.priceBar.deleteMany(),
+    prisma.rateBar.deleteMany(),
+    prisma.fundEstimate.deleteMany(),
+    prisma.fundCalibration.deleteMany(),
   ])
 
   console.log('· 创建家庭空间与成员…')

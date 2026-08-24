@@ -3,8 +3,14 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { verifyPassword, randomToken } from '@/lib/auth/password'
-import { SESSION_COOKIE, SESSION_TTL_MS } from '@/lib/session'
+import { SESSION_COOKIE, SESSION_TTL_MS, storedSessionToken } from '@/lib/session'
 import { recordAudit } from '@/lib/audit'
+import {
+  authRateKeys,
+  clearAuthRateLimit,
+  consumeAuthRateLimit,
+  LOGIN_RATE_LIMIT,
+} from '@/lib/auth/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,6 +25,14 @@ export async function POST(req: NextRequest) {
   const email = body.email?.trim().toLowerCase() ?? ''
   const password = body.password ?? ''
   if (!email || !password) return NextResponse.json({ ok: false, error: '请输入邮箱和密码' }, { status: 400 })
+  const rateKeys = authRateKeys(req, 'login', email)
+  const rate = consumeAuthRateLimit(rateKeys, LOGIN_RATE_LIMIT)
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { ok: false, error: '登录尝试过于频繁，请稍后再试' },
+      { status: 429, headers: { 'Retry-After': String(rate.retryAfterSeconds) } },
+    )
+  }
 
   const user = await prisma.user.findUnique({
     where: { email },
@@ -32,10 +46,11 @@ export async function POST(req: NextRequest) {
   // Phase 1 单家庭：取该账号的成员身份（OWNER 优先）
   const member = user.members.find((m) => m.role === 'OWNER') ?? user.members[0]
   if (!member) return NextResponse.json({ ok: false, error: '该账号未加入任何家庭' }, { status: 403 })
+  clearAuthRateLimit(rateKeys)
 
   const token = randomToken()
   await prisma.session.create({
-    data: { userId: user.id, familyId: member.familyId, token, expiresAt: new Date(Date.now() + SESSION_TTL_MS) },
+    data: { userId: user.id, familyId: member.familyId, token: storedSessionToken(token), expiresAt: new Date(Date.now() + SESSION_TTL_MS) },
   })
   await recordAudit(prisma, {
     familyId: member.familyId,

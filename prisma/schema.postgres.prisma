@@ -31,10 +31,10 @@ enum ReviewStatus {
 }
 
 model FamilySpace {
-  id               String           @id @default(cuid())
+  id               String            @id @default(cuid())
   name             String
-  baseCurrency     String           @default("CNY")
-  createdAt        DateTime         @default(now())
+  baseCurrency     String            @default("CNY")
+  createdAt        DateTime          @default(now())
   members          Member[]
   accounts         Account[]
   assets           Asset[]
@@ -45,6 +45,7 @@ model FamilySpace {
   savingsEntries   SavingsEntry[]
   snapshots        Snapshot[]
   portfolioReviews PortfolioReview[]
+  importBatches    ImportBatch[]
   auditLogs        AuditLog[]
 }
 
@@ -54,7 +55,9 @@ model User {
   email        String    @unique
   passwordHash String
   createdAt    DateTime  @default(now())
-  /** 用户偏好（JSON）：如默认收益区间 */
+  /**
+   * 用户偏好（JSON）：如默认收益区间
+   */
   preferences  String?
   members      Member[]
   sessions     Session[]
@@ -188,31 +191,57 @@ enum TxType {
 }
 
 model Transaction {
-  id           String      @id @default(cuid())
-  familyId     String
-  family       FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  accountId    String
-  account      Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  assetId      String
-  asset        Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  type         TxType
-  quantity     Decimal?
-  price        Decimal?
-  amount       Decimal     @default(0)
-  fee          Decimal     @default(0)
-  occurredAt   DateTime
-  navDate      DateTime?
-  navSource    String?
-  settlementDate DateTime?
-  note         String?
-  internal     Boolean     @default(false)
-  voidedAt     DateTime?
-  reversalOfId String?
-  settleOfId   String?
-  createdAt    DateTime    @default(now())
+  id                String       @id @default(cuid())
+  familyId          String
+  family            FamilySpace  @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  accountId         String
+  account           Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  assetId           String
+  asset             Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  type              TxType
+  quantity          Decimal?
+  price             Decimal?
+  amount            Decimal      @default(0)
+  fee               Decimal      @default(0)
+  occurredAt        DateTime
+  navDate           DateTime?
+  navSource         String?
+  settlementDate    DateTime?
+  note              String?
+  internal          Boolean      @default(false)
+  voidedAt          DateTime?
+  reversalOfId      String?
+  settleOfId        String?
+  importBatchId     String?
+  importBatch       ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  clientRequestId   String?
+  clientRequestHash String?
+  createdAt         DateTime     @default(now())
 
+  @@unique([familyId, clientRequestId])
   @@index([familyId, occurredAt])
   @@index([familyId, assetId])
+  @@index([importBatchId])
+}
+
+model ImportBatch {
+  id            String        @id @default(cuid())
+  familyId      String
+  family        FamilySpace   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  contentHash   String
+  sourceName    String?
+  rowCount      Int
+  importedCount Int
+  failedCount   Int
+  settleCash    Boolean       @default(false)
+  totalAmount   Decimal       @default(0)
+  totalFees     Decimal       @default(0)
+  createdBy     String
+  createdAt     DateTime      @default(now())
+  transactions  Transaction[]
+
+  @@unique([familyId, contentHash])
+  @@index([familyId, createdAt])
 }
 
 // ---------- 负债 ----------
@@ -402,6 +431,7 @@ model RateBar {
   @@unique([pair, date])
   @@index([pair])
 }
+
 model FundEstimate {
   id             String   @id @default(cuid())
   symbol         String

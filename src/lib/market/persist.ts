@@ -9,6 +9,31 @@ import { parseSymbol } from './symbols'
 import { dateKeyAt } from '../engine/watch-market'
 
 const DAY = 86400000
+const REFRESH_OVERLAP_DAYS = 7
+
+async function historyWindows(
+  db: PrismaClient,
+  symbol: string,
+  from: Date,
+  to: Date,
+): Promise<{ from: Date; to: Date }[]> {
+  const existing = await db.priceBar.aggregate({
+    where: { symbol, source: { not: 'SIMULATED' } },
+    _min: { date: true },
+    _max: { date: true },
+  })
+  const earliest = existing._min.date
+  const latest = existing._max.date
+  if (!earliest || !latest) return [{ from, to }]
+
+  const windows: { from: Date; to: Date }[] = []
+  if (earliest.getTime() - from.getTime() > DAY) {
+    windows.push({ from, to: new Date(earliest.getTime() - DAY) })
+  }
+  const tailFrom = new Date(Math.max(from.getTime(), latest.getTime() - REFRESH_OVERLAP_DAYS * DAY))
+  if (tailFrom <= to) windows.push({ from: tailFrom, to })
+  return windows
+}
 
 /** 将已经取得的行情直接落库，避免页面为持久化重复请求同一段历史。 */
 export async function persistBars(
@@ -46,19 +71,15 @@ export async function persistHistory(
 ): Promise<{ symbol: string; count: number; source: string }[]> {
   const results: { symbol: string; count: number; source: string }[] = []
   for (const symbol of symbols) {
-    const { bars, source } = await historySmart(symbol, from, to)
-    if (bars.length > 0) {
-      const byDay = new Map<number, Bar>()
-      for (const bar of bars) byDay.set(bar.date.getTime(), bar)
-      const unique = [...byDay.values()]
-      await db.$transaction([
-        db.priceBar.deleteMany({ where: { symbol, date: { gte: from, lte: to } } }),
-        db.priceBar.createMany({
-          data: unique.map((bar) => ({ symbol, date: bar.date, close: bar.close, source })),
-        }),
-      ])
+    let count = 0
+    const sources = new Set<string>()
+    for (const window of await historyWindows(db, symbol, from, to)) {
+      const { bars, source } = await historySmart(symbol, window.from, window.to)
+      if (bars.length === 0) continue
+      count += await persistBars(db, symbol, bars, source)
+      sources.add(source)
     }
-    results.push({ symbol, count: bars.length, source })
+    results.push({ symbol, count, source: [...sources].join('+') || 'CACHED' })
   }
   return results
 }
@@ -73,21 +94,12 @@ export async function persistFundHistory(
   const results: { symbol: string; count: number; source: string }[] = []
   for (const symbol of symbols) {
     try {
-      const bars = await eastmoneyFundProvider.history(symbol, from, to)
-      const byDay = new Map<number, Bar>()
-      for (const bar of bars) byDay.set(bar.date.getTime(), bar)
-      const unique = [...byDay.values()]
-      await db.$transaction([
-        db.priceBar.deleteMany({ where: { symbol, date: { gte: from, lte: to } } }),
-        ...(unique.length > 0
-          ? [
-              db.priceBar.createMany({
-                data: unique.map((b) => ({ symbol, date: b.date, close: b.close, source: 'EASTMONEY-FUND' })),
-              }),
-            ]
-          : []),
-      ])
-      results.push({ symbol, count: bars.length, source: 'EASTMONEY-FUND' })
+      let count = 0
+      for (const window of await historyWindows(db, symbol, from, to)) {
+        const bars = await eastmoneyFundProvider.history(symbol, window.from, window.to)
+        count += await persistBars(db, symbol, bars, 'EASTMONEY-FUND')
+      }
+      results.push({ symbol, count, source: count > 0 ? 'EASTMONEY-FUND' : 'CACHED' })
     } catch {
       results.push({ symbol, count: 0, source: 'EASTMONEY-FUND' })
     }

@@ -4,7 +4,7 @@ import type { AssetInfo } from './types'
 import type { ValuationGap, ValuationStatus } from './valuation-status'
 
 const DAY = 86400000
-const MAX_DAYS = 1400
+const MAX_SUPPORTED_DAYS = 36525
 
 export interface AssetNavPoint {
   date: string
@@ -101,10 +101,12 @@ export function buildAssetPerformanceSeries({
 
   const endKey = dateKeyAt(to)
   const earliestKey = dateKeyAt(txs[0].occurredAt)
-  const windowStart = shiftDateKey(endKey, -(MAX_DAYS - 1))
-  const startKey = earliestKey > windowStart ? shiftDateKey(earliestKey, -1) : windowStart
+  const startKey = shiftDateKey(earliestKey, -1)
   const totalDays = Math.round((utcDate(endKey).getTime() - utcDate(startKey).getTime()) / DAY) + 1
   if (totalDays <= 0) return []
+  if (totalDays > MAX_SUPPORTED_DAYS) {
+    throw new Error(`资产历史区间超过 ${MAX_SUPPORTED_DAYS} 天，请检查流水日期是否异常`)
+  }
 
   const sortedPrices = [...prices]
     .filter((point) => Number.isFinite(point.nav) && point.date <= endKey)

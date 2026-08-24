@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-08-08
+last_verified: 2026-08-24
 ---
 
 # 代码地图
@@ -24,7 +24,7 @@ last_verified: 2026-08-08
 
 Route Handlers：
 
-- `src/app/api/health/route.ts`：行情健康状态（成功率/延迟/缓存命中率）。
+- `src/app/api/health/route.ts`：行情/汇率与数据库、快照、备份、审计链、维护任务健康状态。
 - `src/app/api/prices/route.ts`：实时报价。
 - `src/app/api/intraday/route.ts`：股票/基金盘中曲线。
 - `src/app/api/lookup/route.ts`：资产代码查找。
@@ -35,7 +35,8 @@ Route Handlers：
 - `src/app/api/admin/backup/route.ts`：手动备份与最近备份列表（OWNER）。
 - `src/app/api/positions/route.ts`、`positions/[assetId]/route.ts`：持仓与资产详情（移动端）。
 - `src/app/api/mobile/summary/route.ts`：移动端总览/账户/FIRE 数据包。
-- `src/app/api/transactions/route.ts`：移动端流水写入（镜像 Server Action 校验与结算）与列表。
+- `src/app/api/transactions/route.ts`：移动端流水幂等写入（`Idempotency-Key`）与游标分页列表。
+- `src/app/api/reviews/route.ts`、`reviews/current/route.ts`：已保存复盘游标列表与本期复盘证据包。
 - `src/app/api/monthly-summary/route.ts`：单月聚合（用户会话优先，回落 Bearer `PORTFOLIO_API_KEY`，只读）。
 - `src/app/api/monthly-trend/route.ts`：近 N 个月趋势（`?months=1..24`，默认 12）+ 负债真实余额（foldLiability）。
 - `src/app/api/assets/route.ts`：资产构成（7 类全量 composition）+ 净资产曲线（最近 90 个快照日）。
@@ -43,31 +44,32 @@ Route Handlers：
 
 ## 服务端边界
 
-- `src/lib/session.ts`：双通道会话（cookie / Bearer token → `Session` → `FamilyCtx`）。
+- `src/lib/session.ts`：双通道会话（cookie / Bearer token → SHA-256 token 查找 → `Session` → `FamilyCtx`，兼容旧明文 token 迁移）。
+- `src/lib/auth/rate-limit.ts`：登录、注册与邀请加入的匿名键限速。
 - `src/lib/scoped.ts`：family scope 注入和 VIEWER 只读。
 - `src/lib/auth/password.ts`：scrypt 密码哈希与会话 token。
 - `src/lib/preferences.ts`：用户偏好（默认收益区间等）。
-- `src/lib/backup.ts`：SQLite 在线一致快照（保留 30 份）。
+- `src/lib/backup.ts`：SQLite `.backup` 在线一致快照、quick_check/行数校验、原子改名与保留策略。
 - `src/lib/schemas.ts`：Server Action 输入 Zod schema。
 - `src/lib/transaction-rules.ts`：交易不变量和历史时间线校验。
 - `src/lib/actions.ts`：全部业务写操作、审计、快照刷新、revalidate。
 - `src/lib/services/transactions.ts`：共享事务写服务（流水创建/冲正的校验、结算联动、审计、快照刷新）—— Server Actions 与移动端 API 复用同一写路径。
-- `src/lib/services/api-auth.ts`：共享 API 认证（用户会话优先，回落 `PORTFOLIO_API_KEY`）。
+- `src/lib/services/api-auth.ts`：API 认证分界：读可回落全局 Key，写必须真实用户会话。
 - `src/lib/queries.ts`：页面 View Model 装配、实时估值与目标。
 - `src/lib/review-data.ts`：复盘页 View Model；历史价格/汇率、组合曲线、资产曲线、基准与已保存记录装配。
-- `src/lib/snapshots.ts`：最多 1400 天财富序列；`rebuildSnapshots` 支持按 `affectedSince` 增量重建（写操作只重算受影响区间）。
+- `src/lib/snapshots.ts`：从首笔流水完整回放财富序列；`rebuildSnapshots` 支持按 `affectedSince` 增量重建，异常超长日期显式拒绝而不静默截断。
 - `src/lib/audit.ts`：审计哈希、完整性验证及同家庭串行事务；`chainScope + chainKey` 唯一约束与冲突重试防止并发分叉。
-- `src/lib/export.ts`、`src/lib/csv.ts`：CSV 出入双向格式。
+- `src/lib/export.ts`、`src/lib/csv.ts`：CSV 出入双向格式；`ImportBatch` 负责批次指纹、幂等与对账。
 
 ## 领域引擎
 
 ### 账本、估值与口径
 
 - `src/lib/engine/ledger.ts`：流水折叠、移动平均成本、手动估值状态；累加点 `roundMoney` 分位钳制；`availableQty` 可用份额（申购按派生确认完成日生效）与 `pendingSettlementsAt` 在途资金派生（ADR-012/013）。
-- `src/lib/engine/fund-order.ts`：成交净值日 / 份额确认日 / 预计到账日分离推算（15:00 临界、工作日近似；QDII T+2 只影响确认）、按金额申购份额估算；已核验 QDII 代码注册表与名称兜底的唯一出处（与可代理估值的 `QDII_INDEX_MAP` 分离）。
+- `src/lib/engine/fund-order.ts`、`china-trading-calendar.ts`：成交净值日 / 份额确认日 / 预计到账日分离推算（15:00 临界、上交所 2024–2026 休市日历；QDII T+2 只影响确认）、按金额申购份额估算。
 - `src/lib/engine/valuation.ts`：MARKET/MANUAL/COST/FACE 估值和双口径。
 - `src/lib/engine/merge.ts`、`groups.ts`、`account-summary.ts`：持仓聚合。
-- `src/lib/engine/settlement.ts`、`settlement-account.ts`：现金腿（基金赎回支持 `settleAt` 延迟到账）与结算关系环检测。
+- `src/lib/engine/settlement.ts`、`settlement-account.ts`：买卖/分红/利息/费用现金腿（基金赎回支持 `settleAt` 延迟到账）与结算关系环检测。
 - `src/lib/asset-classification.ts`：组合资产与长期资产边界。
 
 ### 绩效与风险
@@ -96,14 +98,14 @@ Route Handlers：
 
 - `src/lib/market/provider.ts`：统一 Quote/Bar 契约，含行情/净值/估值类型、接收时点与新鲜度语义。
 - `src/lib/market/index.ts`：严格 provider chain 配置与"真实失败不模拟"策略；`quoteSmart`/`historySmart` 带 30s 缓存、报价基本校验与健康打点。
-- `src/lib/market/cache.ts`：进程级行情 TTL 缓存、同标的并发请求合并与健康打点（`recordRequest`/`marketHealth`）。
+- `src/lib/market/cache.ts`：进程级行情 TTL 缓存、同标的并发请求合并、健康打点与连续故障短时熔断。
 - `src/lib/market/quote-time.ts`：A/H/美股交易所本地时间转 ISO，并判定实时/延迟/陈旧/休市/未知状态。
 - `src/lib/market/tencent.ts`、`sina.ts`：股票/指数行情。
 - `src/lib/market/eastmoney-kline.ts`：东财日 K（腾讯 K 线被 WAF 拦截时的兜底，OHLC 完整）。
 - `src/lib/market/eastmoney-fund.ts`：基金净值与官方盘中估值（FundValuationLast）切换、置信度三档。
 - `src/lib/market/fund-engine.ts`、`fund-holdings.ts`：基金估值、重仓、净值与校准。
-- `src/lib/market/persist.ts`：PriceBar 落库和估值日期观察。
-- `src/lib/market/fx.ts`：实时汇率（新浪，1h 缓存）与历史汇率（`RateBar` 按日落库、按日折算）；纯 CNY 组合不加载汇率，外币场景实时失败只回落最后真实汇率并标记陈旧。
+- `src/lib/market/persist.ts`：PriceBar 实际返回区间落库、早期缺口回填、尾部增量更新和估值日期观察。
+- `src/lib/market/fx.ts`：新浪实时汇率 + ECB 官方日度交叉汇率回填 + `RateBar` 按日折算；纯 CNY 组合不加载汇率。
 - `src/lib/market/intraday.ts`、`yahoo.ts`：分钟线。
 - `src/lib/market/symbols.ts`、`lookup.ts`：市场代码与资产识别。
 - `src/lib/market/simulated.ts`：仅显式模拟环境。
@@ -115,11 +117,13 @@ Route Handlers：
 - `prisma/migrations/`：SQLite 迁移历史。
 - `prisma/migrations/20260814090000_add_rate_bar/`：`RateBar` 表（历史汇率）。
 - `prisma/migrations/20260824150000_serialize_audit_chain/`：审计链作用域/父节点唯一约束，防止并发分叉。
+- `prisma/migrations/20260824173000_add_import_batches/`、`20260824183000_add_transaction_idempotency/`：CSV 批次幂等与 APP 写入幂等。
 - `prisma/rls.sql`：PostgreSQL 原生 RLS。
 - `scripts/check-schema-sync.ts`：双 schema + RLS 清单一致性检查（CI 门禁）。
 - `scripts/init-empty.ts`：空白工作区初始化。
-- `scripts/backup.ts`、`restore.ts`、`restore-user-data.ts`：数据保护。
+- `scripts/backup.ts`、`restore.ts`、`restore-user-data.ts`、`deploy/server-backup.sh`：数据保护。
 - `scripts/migrate-to-postgres.ts`：SQLite → PostgreSQL 搬迁。
+- `scripts/verify-postgres-rls.sql`：PostgreSQL 非超级角色的跨家庭读/更新/写入拒绝契约（CI PostgreSQL 16）。
 - `deploy/`、`Dockerfile`、`docker-compose.yml`：部署与更新。
 
 ## 测试索引

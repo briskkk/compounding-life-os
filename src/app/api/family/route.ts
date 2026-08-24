@@ -1,7 +1,7 @@
 // POST /api/family — 创建新家庭（当前账号成为 OWNER），并把会话切换到新家庭
 import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getSession, hasSession, currentSessionToken } from '@/lib/session'
+import { getSession, hasSession, currentSessionToken, sessionTokenCandidates } from '@/lib/session'
 import { recordAudit } from '@/lib/audit'
 
 export const runtime = 'nodejs'
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   // 切换当前会话到新家庭
   const token = await currentSessionToken()
   if (token) {
-    await prisma.session.updateMany({ where: { token }, data: { familyId: family.id } })
+    await prisma.session.updateMany({ where: { token: { in: sessionTokenCandidates(token) } }, data: { familyId: family.id } })
   }
 
   await recordAudit(prisma, {

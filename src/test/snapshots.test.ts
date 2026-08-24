@@ -8,7 +8,7 @@ const DAY = 86400000
 const D = (s: string) => new Date(s)
 
 describe('财富快照窗口', () => {
-  it('长历史保留最近 1400 天，并带入窗口前累计净投入', () => {
+  it('长历史从首笔流水完整保留，不再静默截断', () => {
     const assets: AssetInfo[] = [
       { id: 'cash', symbol: 'CASH-CNY', name: '现金', cls: 'CASH', manual: false, currency: 'CNY' },
     ]
@@ -19,8 +19,9 @@ describe('财富快照窗口', () => {
     const to = D('2025-12-31T00:00:00Z')
     const points = computeWealthSeries(txs, assets, [], D('2020-01-01T00:00:00Z'), to, () => undefined)
 
-    expect(points).toHaveLength(1400)
-    expect(points[0].date.getTime()).toBe(to.getTime() - 1399 * DAY)
+    const expectedDays = Math.round((to.getTime() - D('2020-01-01T00:00:00Z').getTime()) / DAY) + 1
+    expect(points).toHaveLength(expectedDays)
+    expect(points[0].date.getTime()).toBe(D('2020-01-01T00:00:00Z').getTime())
     expect(points[0].contributions).toBe(10000)
     expect(points.at(-1)?.contributions).toBe(15000)
   })

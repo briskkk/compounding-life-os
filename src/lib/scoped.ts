@@ -22,6 +22,7 @@ const SCOPED_MODELS = new Set([
   'SavingsEntry',
   'Snapshot',
   'PortfolioReview',
+  'ImportBatch',
   'AuditLog',
 ])
 

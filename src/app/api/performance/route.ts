@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { loadEngineState, contributionsAtDates } from '@/lib/queries'
-import { apiAuthCtx } from '@/lib/services/api-auth'
+import { apiReadAuthCtx } from '@/lib/services/api-auth'
 import { annualized, dailyNetFlows, twrSeries, xirr, xirrFlowsFromTxs } from '@/lib/engine/attribution'
 import { performanceBetween, performancePresetRange, type PerformancePoint } from '@/lib/engine/period-performance'
 import { riskMetrics } from '@/lib/engine/risk'
@@ -34,7 +34,7 @@ export const dynamic = 'force-dynamic'
  * - 比率字段保留引擎原精度，不做舍入
  */
 export async function GET(req: NextRequest) {
-  const auth = await apiAuthCtx(req)
+  const auth = await apiReadAuthCtx(req)
   if (!auth.ctx) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const ctx = auth.ctx
 

@@ -2,6 +2,7 @@
 
 // Server Actions：所有写操作入口 —— RLS 作用域 + 审计 + 快照重建
 import { revalidatePath } from 'next/cache'
+import { createHash } from 'node:crypto'
 import type { Prisma, PrismaClient } from '@prisma/client'
 import { prisma } from './db'
 import { scopedDb, type FamilyCtx } from './scoped'
@@ -28,12 +29,15 @@ import { BENCHMARK_INDICES } from './engine/benchmark'
 import { createsSettlementCycle } from './engine/settlement-account'
 import { parseTags, serializeTags } from './engine/groups'
 import { persistFundHistory, persistHistory } from './market/persist'
-import { fxRates, persistDailyFx } from './market/fx'
+import { backfillHistoricalFx, fxRates, persistDailyFx } from './market/fx'
+import { fundNavQuoteOnDate } from './market/fund-nav'
+import { dateKeyAt } from './engine/watch-market'
 import { type TransactionDraft } from './transaction-rules'
 import { getReviewPageData } from './review-data'
 import {
   cashSettlementOf,
   createTransactionRecord,
+  correctEstimatedFundTransactionRecord,
   rebuildSnapshotsForFamily,
   reverseTransactionRecord,
   routedAccountIdForAsset,
@@ -184,15 +188,81 @@ export async function reverseTransaction(id: string): Promise<ActionResult> {
   }
 }
 
+/** 以成交净值日的官方净值替换估算基金流水；原流水通过冲正保留。 */
+export async function confirmFundOfficialNav(id: string): Promise<ActionResult<{
+  id: string
+  oldPrice: number
+  newPrice: number
+  oldQuantity: number
+  newQuantity: number
+}>> {
+  try {
+    const ctx = await requireWrite()
+    const original = await prisma.transaction.findFirst({
+      where: { id, familyId: ctx.familyId, voidedAt: null },
+      include: { asset: true },
+    })
+    if (!original?.navDate || original.asset.cls !== 'FUND' || original.navSource !== 'ESTIMATE') {
+      throw new Error('该流水没有待确认的基金估算净值')
+    }
+    const quote = await fundNavQuoteOnDate(prisma, original.asset.symbol, dateKeyAt(original.navDate))
+    if (!quote || quote.source !== 'EASTMONEY-FUND' || quote.kind !== 'OFFICIAL_NAV') {
+      throw new Error('该成交日官方净值尚未取得，请刷新行情后重试')
+    }
+    const corrected = await auditedTransaction(prisma, ctx.familyId, (txDb) =>
+      correctEstimatedFundTransactionRecord(txDb, ctx, id, quote.price),
+    )
+    const warning = await refresh(ctx, corrected.affectedSince)
+    revalidatePath('/transactions')
+    return { ok: true, data: corrected, warning }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
 // ---------- CSV 导入 ----------
 
 export async function importTransactions(
   rows: Record<string, string>[],
   settle = false,
-): Promise<ActionResult<{ imported: number; failed: number; errors: { row: number; errors: string[] }[] }>> {
+  meta?: { sourceName?: string },
+): Promise<ActionResult<{
+  batchId: string
+  imported: number
+  failed: number
+  errors: { row: number; errors: string[] }[]
+  duplicateBatch: boolean
+  totalAmount: number
+  totalFees: number
+}>> {
   try {
     const ctx = await requireWrite()
     if (rows.length > 2000) return { ok: false, error: '单次最多导入 2000 行，请拆分文件后重试' }
+    const canonicalRows = rows.map((row) => Object.fromEntries(
+      Object.entries(row)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, value]) => [key.trim(), String(value ?? '').trim()]),
+    ))
+    const contentHash = createHash('sha256')
+      .update(JSON.stringify({ version: 1, settle, rows: canonicalRows }))
+      .digest('hex')
+    const existingBatch = await prisma.importBatch.findUnique({
+      where: { familyId_contentHash: { familyId: ctx.familyId, contentHash } },
+    })
+    if (existingBatch) {
+      return {
+        ok: true,
+        data: {
+          batchId: existingBatch.id,
+          imported: 0,
+          failed: existingBatch.failedCount,
+          errors: [],
+          duplicateBatch: true,
+          totalAmount: Number(existingBatch.totalAmount),
+          totalFees: Number(existingBatch.totalFees),
+        },
+      }
+    }
     const db = scopedDb(prisma, ctx)
     const [accounts, assets] = await Promise.all([db.account.findMany(), db.asset.findMany()])
     const lookup: CsvLookup = {
@@ -202,12 +272,27 @@ export async function importTransactions(
     const parsed = parseCsvRows(rows, lookup)
     const valid = parsed.filter((r) => r.ok && r.tx)
     const failed = parsed.filter((r) => !r.ok).map((r) => ({ row: r.row, errors: r.errors }))
-    if (valid.length > 0) {
-      const toCreate = valid.map((r) => ({ ...r.tx!, note: r.tx!.note }))
-      await auditedTransaction(
+    const toCreate = valid.map((r) => ({ ...r.tx!, note: r.tx!.note }))
+    const totalAmount = toCreate.reduce((sum, tx) => sum + tx.amount, 0)
+    const totalFees = toCreate.reduce((sum, tx) => sum + tx.fee, 0)
+    const batchId = await auditedTransaction(
         prisma,
         ctx.familyId,
         async (txDb) => {
+          const batch = await txDb.importBatch.create({
+            data: {
+              familyId: ctx.familyId,
+              contentHash,
+              sourceName: meta?.sourceName?.trim().slice(0, 160) || null,
+              rowCount: rows.length,
+              importedCount: valid.length,
+              failedCount: failed.length,
+              settleCash: settle,
+              totalAmount,
+              totalFees,
+              createdBy: ctx.memberId,
+            },
+          })
           for (const tx of toCreate) {
             const accountId = await routedAccountIdForAsset(txDb, ctx.familyId, tx.accountId, tx.assetId)
             const entry = { ...tx, accountId }
@@ -224,9 +309,10 @@ export async function importTransactions(
                 fee: tx.fee,
                 occurredAt: tx.occurredAt,
                 note: tx.note,
+                importBatchId: batch.id,
               },
             })
-            const needsSettlement = settle && (entry.type === 'BUY' || entry.type === 'SELL')
+            const needsSettlement = settle && ['BUY', 'SELL', 'DIVIDEND', 'INTEREST', 'FEE'].includes(entry.type)
             const settlement = needsSettlement ? await cashSettlementOf(txDb, ctx.familyId, entry.accountId) : null
             if (needsSettlement && !settlement) {
               throw new Error('CSV 中存在未配置资金账户的交易账户；请先完成账户配置，或关闭现金联动结算')
@@ -240,23 +326,40 @@ export async function importTransactions(
                     ...leg,
                     note: `结算 · CSV #${created.id.slice(0, 8)}`,
                     settleOfId: created.id,
+                    importBatchId: batch.id,
                   },
                 })
               }
             }
           }
-          await audit(ctx, 'IMPORT', 'Transaction', null, `CSV 导入 ${valid.length} 条，失败 ${failed.length} 条${settle ? '（含现金结算）' : ''}`, txDb)
+          await audit(
+            ctx,
+            'IMPORT',
+            'ImportBatch',
+            batch.id,
+            `CSV 导入 ${valid.length} 条，失败 ${failed.length} 条；金额 ${totalAmount.toFixed(2)}，费用 ${totalFees.toFixed(2)}${settle ? '（含现金结算）' : ''}`,
+            txDb,
+          )
+          return batch.id
         },
         { timeout: 30_000 },
       )
+    if (valid.length > 0) {
       const affectedSince = valid.reduce(
         (earliest, r) => (r.tx && r.tx.occurredAt.getTime() < earliest.getTime() ? r.tx.occurredAt : earliest),
         new Date(),
       )
       const warning = await refresh(ctx, affectedSince)
-      return { ok: true, data: { imported: valid.length, failed: failed.length, errors: failed }, warning }
+      return {
+        ok: true,
+        data: { batchId, imported: valid.length, failed: failed.length, errors: failed, duplicateBatch: false, totalAmount, totalFees },
+        warning,
+      }
     }
-    return { ok: true, data: { imported: valid.length, failed: failed.length, errors: failed } }
+    return {
+      ok: true,
+      data: { batchId, imported: 0, failed: failed.length, errors: failed, duplicateBatch: false, totalAmount, totalFees },
+    }
   } catch (e) {
     return fail(e)
   }
@@ -601,8 +704,11 @@ export async function refreshPrices(): Promise<ActionResult<{ symbol: string; co
   try {
     const ctx = await requireWrite()
     const db = scopedDb(prisma, ctx)
-    const assets = await db.asset.findMany({ where: { manual: false, cls: { notIn: ['CASH', 'REAL_ESTATE'] } } })
-    const from = new Date(Date.now() - 800 * 86400000)
+    const [assets, earliestTransaction] = await Promise.all([
+      db.asset.findMany({ where: { manual: false, cls: { notIn: ['CASH', 'REAL_ESTATE'] } } }),
+      db.transaction.findFirst({ orderBy: { occurredAt: 'asc' } }),
+    ])
+    const from = earliestTransaction?.occurredAt ?? new Date(Date.now() - 800 * 86400000)
     // 清理历史遗留的模拟源 K 线（确定性模拟序列可由价格函数按需重现，无需落库；
     // 避免真实链路下被旧模拟数据优先命中）
     const purged = await prisma.priceBar.deleteMany({ where: { source: 'SIMULATED' } })
@@ -616,12 +722,22 @@ export async function refreshPrices(): Promise<ActionResult<{ symbol: string; co
       ...(await persistFundHistory(prisma, fundSymbols, from, new Date())),
       ...(await persistHistory(prisma, marketSymbols, from, new Date())),
     ]
-    // 保存当日汇率到 RateBar，保证历史快照按当日汇率折算可复现
-    const fxWritten = await persistDailyFx(prisma, await fxRates(prisma))
+    // 只有外币组合才请求汇率：ECB 补历史，新浪保存当日实时值。
+    const hasForeignCurrency = assets.some((asset) => asset.currency === 'USD' || asset.currency === 'HKD')
+    let fxBackfilled = 0
+    let fxBackfillWarning: string | undefined
+    if (hasForeignCurrency) {
+      try {
+        fxBackfilled = await backfillHistoricalFx(prisma, from)
+      } catch (error) {
+        fxBackfillWarning = `历史汇率回填失败：${error instanceof Error ? error.message : String(error)}`
+      }
+    }
+    const fxWritten = hasForeignCurrency ? await persistDailyFx(prisma, await fxRates(prisma)) : 0
     await rebuildSnapshots(prisma, ctx.familyId)
-    await audit(ctx, 'REFRESH', 'PriceBar', null, `清理模拟K线 ${purged.count} 条；汇率 ${fxWritten} 条；` + results.map((r) => `${r.symbol}:${r.count}@${r.source}`).join(' '))
+    await audit(ctx, 'REFRESH', 'PriceBar', null, `清理模拟K线 ${purged.count} 条；汇率回填 ${fxBackfilled} 条，当日 ${fxWritten} 条；` + results.map((r) => `${r.symbol}:${r.count}@${r.source}`).join(' '))
     revalidatePath('/')
-    return { ok: true, data: results }
+    return { ok: true, data: results, warning: fxBackfillWarning }
   } catch (e) {
     return fail(e)
   }

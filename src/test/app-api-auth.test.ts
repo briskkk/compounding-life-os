@@ -7,6 +7,7 @@ import { GET as monthlySummaryGET } from '@/app/api/monthly-summary/route'
 import { GET as monthlyTrendGET } from '@/app/api/monthly-trend/route'
 import { GET as assetsGET } from '@/app/api/assets/route'
 import { GET as performanceGET } from '@/app/api/performance/route'
+import { POST as transactionPOST } from '@/app/api/transactions/route'
 
 // 鉴权顺序改为「用户会话优先」后，handler 会先调用 getSession()；测试直接调用 handler
 // 没有 request scope，因此 mock 掉 getSession，让其回落到全局 PORTFOLIO_API_KEY 分支。
@@ -62,4 +63,12 @@ describe('App API 认证', () => {
       expect(res.status).toBe(401)
     })
   }
+
+  test('全局只读 Key 不能调用写 API', async () => {
+    process.env.PORTFOLIO_API_KEY = TEST_KEY
+    const res = await transactionPOST(makeRequest('/api/transactions', TEST_KEY))
+    expect(res.status).toBe(401)
+    const json = await res.json()
+    expect(json.error).toBe('User session required')
+  })
 })

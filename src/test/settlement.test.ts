@@ -30,9 +30,25 @@ describe('现金结算腿', () => {
     expect(legs[0].amount).toBe(995)
   })
 
-  it('现金资产自身 / 零金额 / 非买卖类型 → 无腿', () => {
+  it('分红和利息 → DEPOSIT（金额 − 费用）', () => {
+    for (const type of ['DIVIDEND', 'INTEREST'] as const) {
+      const legs = buildSettlementLegs({ ...base, type }, 'cash1', 'cmb')
+      expect(legs).toHaveLength(1)
+      expect(legs[0].type).toBe('DEPOSIT')
+      expect(legs[0].amount).toBe(995)
+    }
+  })
+
+  it('费用 → WITHDRAW（金额）', () => {
+    const legs = buildSettlementLegs({ ...base, type: 'FEE' }, 'cash1', 'cmb')
+    expect(legs).toHaveLength(1)
+    expect(legs[0].type).toBe('WITHDRAW')
+    expect(legs[0].amount).toBe(1000)
+  })
+
+  it('现金资产自身 / 零金额 / 其他类型 → 无腿', () => {
     expect(buildSettlementLegs({ ...base, assetId: 'cash1' }, 'cash1', 'cmb')).toHaveLength(0)
     expect(buildSettlementLegs({ ...base, amount: 0, fee: 0 }, 'cash1', 'cmb')).toHaveLength(0)
-    expect(buildSettlementLegs({ ...base, type: 'DIVIDEND' }, 'cash1', 'cmb')).toHaveLength(0)
+    expect(buildSettlementLegs({ ...base, type: 'VALUATION' }, 'cash1', 'cmb')).toHaveLength(0)
   })
 })

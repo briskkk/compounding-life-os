@@ -18,6 +18,7 @@ export function CsvImport({
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
   const [rawRows, setRawRows] = useState<Record<string, string>[]>([])
+  const [sourceName, setSourceName] = useState('')
   const [preview, setPreview] = useState<CsvRowResult[]>([])
   const [settle, setSettle] = useState(false)
   const [pending, setPending] = useState(false)
@@ -36,6 +37,7 @@ export function CsvImport({
       skipEmptyLines: true,
       complete: (res) => {
         const rows = res.data
+        setSourceName(file.name)
         setRawRows(rows)
         setPreview(parseCsvRows(rows, lookup()))
         setMsg(null)
@@ -47,16 +49,19 @@ export function CsvImport({
   async function commit() {
     setPending(true)
     setMsg(null)
-    const res = await importTransactions(rawRows, settle)
+    const res = await importTransactions(rawRows, settle, { sourceName })
     setPending(false)
     if (res.ok && res.data) {
       const d = res.data
       setMsg({
-        ok: d.failed === 0 && !res.warning,
-        text: `导入 ${d.imported} 条成功${d.failed > 0 ? `，${d.failed} 条失败（行号：${d.errors.map((e) => e.row).join(', ')}）` : ''}${res.warning ? `；${res.warning}` : ''}`,
+        ok: d.duplicateBatch || (d.failed === 0 && !res.warning),
+        text: d.duplicateBatch
+          ? `该文件已导入，本次未重复写入（批次 ${d.batchId.slice(0, 8)}）`
+          : `导入 ${d.imported} 条成功${d.failed > 0 ? `，${d.failed} 条失败（行号：${d.errors.map((e) => e.row).join(', ')}）` : ''}；金额 ${d.totalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}，费用 ${d.totalFees.toLocaleString(undefined, { maximumFractionDigits: 2 })}（批次 ${d.batchId.slice(0, 8)}）${res.warning ? `；${res.warning}` : ''}`,
       })
       setPreview([])
       setRawRows([])
+      setSourceName('')
       if (fileRef.current) fileRef.current.value = ''
       router.refresh()
     } else if (!res.ok) {
@@ -134,7 +139,7 @@ export function CsvImport({
           </div>
           <label className="flex items-center gap-2 text-xs text-ink-dim">
             <input type="checkbox" checked={settle} onChange={(e) => setSettle(e.target.checked)} className="accent-[#c8a24a]" />
-            为买卖行生成现金结算流水（CSV 已含现金行时请勿勾选）
+            为买卖、分红、利息和费用行生成现金结算流水（CSV 已含现金行时请勿勾选）
           </label>
         </>
       )}

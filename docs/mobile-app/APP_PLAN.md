@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-08-14
+last_verified: 2026-08-24
 ---
 
 # 移动端 APP — 独立项目启动文档
@@ -45,7 +45,7 @@ Family Wealth OS 的移动端客户端,独立新建项目(不在本仓库开发)
 
 ## 4. API 清单
 
-> 2026-08-14 更新:以下端点**全部支持用户级 token**(Cookie 或 Bearer),并兼容全局 `PORTFOLIO_API_KEY`(回落首个 OWNER)。认证统一由 `src/lib/services/api-auth.ts` 的 `apiAuthCtx` 处理。
+> 2026-08-24 更新:只读端点支持 Cookie / Bearer 用户会话,并可选兼容全局只读 `PORTFOLIO_API_KEY`;写端点只接受可定位具体用户的会话,全局 Key 不可写入。
 
 ### 4.1 实时行情与分时(用户级 token)
 
@@ -65,18 +65,23 @@ Family Wealth OS 的移动端客户端,独立新建项目(不在本仓库开发)
 | `GET /api/performance` | 区间收益归因与风险 | contributions / investmentReturn / twrCumulative / twrAnnualized / xirr / maxDrawdown / annualizedVolatility |
 | `GET /api/monthly-summary?month=` | 月度净资产汇总 | 聚合字段与口径 |
 | `GET /api/monthly-trend?months=` | 净资产/负债月度趋势 | 默认 12 个月 |
+| `GET /api/goals` | FIRE / 储蓄目标 | 真实投影、成功概率与场景参数 |
+| `GET /api/reviews?limit&cursor` | 已保存复盘 | 草稿/完成状态、证据快照,游标分页 |
+| `GET /api/reviews/current?period&benchmark` | 当期复盘数据包 | 收益、贡献、行为、风险、在途资金与对账差额 |
 | `GET /api/export/transactions` / `snapshots` | 数据导出(会话) | CSV 下载 |
 
 ### 4.3 写端点(用户级 token;与 Server Actions 共用同一服务层)
 
 | 端点 | 用途 | 说明 |
 |---|---|---|
-| `POST /api/transactions` | 记一笔 | 与网页共用 `src/lib/services/transactions.ts`(校验/结算联动/审计/快照增量重建)；支持可选 `navDate`（基金确认净值日）/`navSource`（OFFICIAL/ESTIMATE）/`settlementDate`（预计到账日，赎回在途，ADR-012） |
-| `GET /api/transactions?assetId&limit` | 流水列表(溯源) | 最近流水,最多 200 条 |
+| `POST /api/transactions` | 记一笔 | 与网页共用交易服务;建议每次提交携带 8–128 位 `Idempotency-Key`,断网重试不会重复入账;同键不同请求返回 409 |
+| `GET /api/transactions?assetId&limit&cursor` | 流水列表(溯源) | 最多 200 条;返回 `page: { limit, hasMore, nextCursor }` |
 
-### 4.4 服务端待补(APP 深链路)
+### 4.4 分页与幂等约定
 
-- `GET /api/goals` — FIRE 目标与模拟结果(尚未实现)
+- 列表端点使用不透明 `cursor`,APP 不解析游标,直接回传 `nextCursor`。
+- 交易写入使用 APP 本地生成的 UUID 作为 `Idempotency-Key`,直到收到成功响应前始终复用同一键。
+- 幂等重放成功时响应含 `replayed: true`;首次写入为 `false`。
 
 ## 5. 数据口径(APP 必须与网页一致)
 
@@ -98,15 +103,16 @@ Family Wealth OS 的移动端客户端,独立新建项目(不在本仓库开发)
 
 **目录建议**:`src/api/`(端点封装与类型)、`src/auth/`(token 存储:expo-secure-store)、`src/screens/`、`src/components/`(行情/图表,图表可用 victory-native)。
 
-## 7. 本仓库的服务端配合(2026-08-14 状态)
+## 7. 本仓库的服务端配合(2026-08-24 状态)
 
 | # | 事项 | 状态 | 说明 |
 |---|---|---|---|
-| 1 | 只读 API 支持用户 token | ✅ 完成 | 全部端点经 `apiAuthCtx`(会话优先 → 全局 key 兼容) |
-| 2 | 深链路端点 | ✅ 完成(除 goals) | positions / positions/[assetId] / transactions(GET+POST) 已实现;goals 待补 |
+| 1 | API 认证边界 | ✅ 完成 | 只读可兼容全局 key;写入必须用户会话 |
+| 2 | 深链路端点 | ✅ 完成 | positions / asset detail / transactions / goals / reviews 已实现 |
 | 3 | 写 API 共用 service 层 | ✅ 完成 | `POST /api/transactions` 与 Server Actions 共用 `src/lib/services/transactions.ts`(校验/结算/审计/快照) |
 | 4 | 快照增量重建 | ✅ 完成 | 写操作只重算受影响日期起的快照 |
 | 5 | 行情缓存与健康 | ✅ 完成 | 报价 30s 缓存;`GET /api/health` 暴露 provider 健康 |
+| 6 | APP 重试安全 | ✅ 完成 | 交易 Idempotency-Key + 流水/审计/复盘游标分页 |
 
 ## 8. 分阶段里程碑
 

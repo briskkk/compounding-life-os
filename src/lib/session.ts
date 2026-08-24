@@ -1,11 +1,26 @@
 // 会话：网页走 httpOnly cookie，APP 走 Authorization: Bearer；两者共用 Session 表（token 字段）
 // 未登录返回 null（调用方重定向 /login），不再回落第一个 OWNER
 import { cookies, headers } from 'next/headers'
+import { createHash } from 'node:crypto'
 import { prisma } from './db'
 import type { FamilyCtx } from './scoped'
 
 export const SESSION_COOKIE = 'fw_session'
 export const SESSION_TTL_MS = 30 * 24 * 3600_000 // 30 天
+
+/** 新会话只保存不可逆摘要；查询同时兼容升级前直接保存的原始 token。 */
+export function storedSessionToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex')
+}
+
+export function sessionTokenCandidates(token: string): string[] {
+  const hashed = storedSessionToken(token)
+  return hashed === token ? [token] : [hashed, token]
+}
+
+export function matchesSessionToken(stored: string, raw: string | null): boolean {
+  return raw != null && sessionTokenCandidates(raw).includes(stored)
+}
 
 /** 从请求中提取会话 token：cookie 优先，其次 Bearer 头 */
 async function sessionToken(): Promise<string | null> {
@@ -25,8 +40,8 @@ export async function currentSessionToken(): Promise<string | null> {
 
 /** 供 API route 复用：按 token 查当前会话（含用户与家庭成员），未过期才返回 */
 export async function findSessionByToken(token: string) {
-  const session = await prisma.session.findUnique({
-    where: { token },
+  const session = await prisma.session.findFirst({
+    where: { token: { in: sessionTokenCandidates(token) } },
     include: { user: { include: { members: true } } },
   })
   if (!session || session.expiresAt.getTime() <= Date.now()) return null
@@ -36,10 +51,7 @@ export async function findSessionByToken(token: string) {
 export async function getSession(): Promise<FamilyCtx | null> {
   const token = await sessionToken()
   if (!token) return null
-  const session = await prisma.session.findUnique({
-    where: { token },
-    include: { user: { include: { members: true } } },
-  })
+  const session = await findSessionByToken(token)
   if (!session) return null
   if (session.expiresAt.getTime() <= Date.now()) {
     await prisma.session.delete({ where: { id: session.id } }).catch(() => undefined)
@@ -60,7 +72,7 @@ export async function getSession(): Promise<FamilyCtx | null> {
 export async function hasSession(): Promise<{ userId: string; familyId: string } | null> {
   const token = await sessionToken()
   if (!token) return null
-  const session = await prisma.session.findUnique({ where: { token } })
+  const session = await prisma.session.findFirst({ where: { token: { in: sessionTokenCandidates(token) } } })
   if (!session || session.expiresAt.getTime() <= Date.now()) return null
   return { userId: session.userId, familyId: session.familyId }
 }

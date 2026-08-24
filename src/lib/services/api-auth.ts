@@ -1,5 +1,4 @@
-// 共享 API 认证：用户会话（Cookie 或 Bearer token）优先，回落全局 PORTFOLIO_API_KEY
-// 所有移动端/外部 APP 端点统一走这里，避免各路由重复实现
+// 共享 API 认证：读取端点可回落全局只读 Key；写入端点只接受真实用户会话。
 import { type NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
@@ -11,8 +10,8 @@ export interface ApiAuthResult {
   error?: string
 }
 
-/** 认证：用户会话优先，回落全局 API Key（与 /api/positions 同一策略） */
-export async function apiAuthCtx(req: NextRequest): Promise<ApiAuthResult> {
+/** 只读认证：用户会话优先，回落全局 PORTFOLIO_API_KEY。 */
+export async function apiReadAuthCtx(req: NextRequest): Promise<ApiAuthResult> {
   const session = await getSession()
   if (session) return { ctx: session, status: 200 }
   const apiKey = process.env.PORTFOLIO_API_KEY
@@ -26,4 +25,11 @@ export async function apiAuthCtx(req: NextRequest): Promise<ApiAuthResult> {
     ctx: { familyId: owner.familyId, memberId: owner.id, memberName: owner.name, role: owner.role, userId: owner.userId ?? '' },
     status: 200,
   }
+}
+
+/** 写入认证：必须是可定位到具体用户的 Cookie/Bearer Session，绝不接受全局只读 Key。 */
+export async function apiWriteAuthCtx(_req: NextRequest): Promise<ApiAuthResult> {
+  const session = await getSession()
+  if (!session) return { ctx: null, status: 401, error: 'User session required' }
+  return { ctx: session, status: 200 }
 }

@@ -1,7 +1,7 @@
 // POST /api/family/switch — 切换当前会话到账号所属的另一个家庭
 import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getSession, currentSessionToken } from '@/lib/session'
+import { getSession, currentSessionToken, sessionTokenCandidates } from '@/lib/session'
 import { recordAudit } from '@/lib/audit'
 
 export const runtime = 'nodejs'
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   const token = await currentSessionToken()
   if (token) {
-    await prisma.session.updateMany({ where: { token }, data: { familyId } })
+    await prisma.session.updateMany({ where: { token: { in: sessionTokenCandidates(token) } }, data: { familyId } })
   }
   await recordAudit(prisma, {
     familyId,

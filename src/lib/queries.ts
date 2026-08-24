@@ -49,6 +49,7 @@ export interface EngineState {
   inTransit: number
   pendingSettlements: PendingSettlement[]
   ledgerTxs: LedgerTx[]
+  currencyRates: { CNY: number; USD: number; HKD: number }
 }
 
 export interface EngineQuote extends QuoteData {
@@ -161,6 +162,7 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
     inTransit,
     pendingSettlements,
     ledgerTxs,
+    currencyRates: { CNY: 1, USD: rates.USDCNY, HKD: rates.HKDCNY },
   }
 }
 
@@ -461,8 +463,8 @@ export async function loadBenchmarks(from: Date, to: Date): Promise<LoadedBenchm
 }
 
 /** 看盘只装配持仓与财富轨迹，避免触发目标投影和完整收益归因。 */
-export async function getWatchData(): Promise<WatchData | null> {
-  const ctx = await getSession()
+export async function getWatchData(ctxOverride?: FamilyCtx): Promise<WatchData | null> {
+  const ctx = ctxOverride ?? await getSession()
   if (!ctx) return null
   const db = scopedDb(prisma, ctx)
   const [state, snaps] = await Promise.all([

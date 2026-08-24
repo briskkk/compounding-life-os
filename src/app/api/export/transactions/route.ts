@@ -2,14 +2,14 @@ import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { toCsv, txToCsvRecord, TX_CSV_HEADERS } from '@/lib/export'
-import { apiAuthCtx } from '@/lib/services/api-auth'
+import { apiReadAuthCtx } from '@/lib/services/api-auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   // 共享认证：用户会话优先，回落全局 PORTFOLIO_API_KEY；失败保持导出页「未初始化」语义
-  const auth = await apiAuthCtx(req)
+  const auth = await apiReadAuthCtx(req)
   if (!auth.ctx) return new Response('未初始化', { status: 400 })
   const ctx = auth.ctx
   const db = scopedDb(prisma, ctx)

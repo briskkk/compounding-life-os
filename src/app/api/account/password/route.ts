@@ -1,7 +1,7 @@
 // POST /api/account/password — 修改密码（验证当前密码，改后吊销其他会话）
 import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getSession, SESSION_COOKIE } from '@/lib/session'
+import { getSession, SESSION_COOKIE, sessionTokenCandidates } from '@/lib/session'
 import { verifyPassword, hashPassword } from '@/lib/auth/password'
 import { auditedTransaction, recordAudit } from '@/lib/audit'
 
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   await auditedTransaction(prisma, ctx.familyId, async (tx) => {
     await tx.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(newPassword) } })
     await tx.session.deleteMany({
-      where: { userId: user.id, ...(currentToken ? { token: { not: currentToken } } : {}) },
+      where: { userId: user.id, ...(currentToken ? { token: { notIn: sessionTokenCandidates(currentToken) } } : {}) },
     })
     await recordAudit(tx, {
       familyId: ctx.familyId,

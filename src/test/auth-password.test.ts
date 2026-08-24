@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { hashPassword, verifyPassword, randomToken } from '@/lib/auth/password'
+import { matchesSessionToken, sessionTokenCandidates, storedSessionToken } from '@/lib/session'
 
 describe('密码哈希（scrypt）', () => {
   it('哈希后可通过校验，且带随机盐', async () => {
@@ -25,5 +26,15 @@ describe('随机 token', () => {
     const b = randomToken()
     expect(a).not.toBe(b)
     expect(a).toMatch(/^[A-Za-z0-9_-]+$/)
+  })
+
+  it('新会话只存 SHA-256 摘要，并兼容升级前的明文 token', () => {
+    const raw = randomToken()
+    const stored = storedSessionToken(raw)
+    expect(stored).toMatch(/^[0-9a-f]{64}$/)
+    expect(stored).not.toBe(raw)
+    expect(sessionTokenCandidates(raw)).toEqual([stored, raw])
+    expect(matchesSessionToken(stored, raw)).toBe(true)
+    expect(matchesSessionToken(raw, raw)).toBe(true)
   })
 })

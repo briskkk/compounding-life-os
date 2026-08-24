@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-08-05
+last_verified: 2026-08-24
 ---
 
 # 已确认决策
@@ -31,7 +31,7 @@ last_verified: 2026-08-05
 - 财务记录使用冲正，不物理删除。
 - VEST 仅兼容历史 RSU 审计流水，新录入已禁用。
 - 不根据当前持仓直接执行自动买卖。
-- 真实身份认证尚未实现，不能把成员 cookie 当作生产级认证。
+- 真实身份认证已使用 User + scrypt 密码 + 哈希 Session token；全局 `PORTFOLIO_API_KEY` 仅允许只读，不得作为用户身份执行写入。
 
 ## 改变决策的协议
 

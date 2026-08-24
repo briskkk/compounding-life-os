@@ -9,6 +9,7 @@ import { foldTransactions, holdingsIndex } from '@/lib/engine/ledger'
 import { TxFilters } from '@/components/tx-filters'
 import { CsvImport } from '@/components/csv-import'
 import { ReverseButton } from '@/components/reverse-button'
+import { ConfirmFundNavButton } from '@/components/confirm-fund-nav-button'
 import { TX_TYPE_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtDate, fmtMoney, fmtQty } from '@/lib/format'
 import type { TxType } from '@/lib/engine/types'
@@ -181,7 +182,14 @@ export default async function TransactionsPage({
                     ) : (
                       canWrite &&
                       t.type !== 'REVERSAL' && (
-                        <ReverseButton id={t.id} label={`${TX_TYPE_LABEL[t.type]} ${fmtCNY(Number(t.amount))}`} />
+                        <>
+                          <ReverseButton id={t.id} label={`${TX_TYPE_LABEL[t.type]} ${fmtCNY(Number(t.amount))}`} />
+                          {t.asset.cls === 'FUND'
+                            && (t.type === 'BUY' || t.type === 'SELL')
+                            && t.navSource === 'ESTIMATE'
+                            && t.navDate
+                            && <ConfirmFundNavButton id={t.id} />}
+                        </>
                       )
                     )}
                   </td>
