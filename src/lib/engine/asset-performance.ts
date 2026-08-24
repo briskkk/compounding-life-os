@@ -25,6 +25,12 @@ export interface AssetPerformancePoint {
   valuationGaps: ValuationGap[]
 }
 
+export type AssetCurrencyRate = number | ((date: Date) => number)
+
+function currencyRateAt(rate: AssetCurrencyRate, date: Date): number {
+  return typeof rate === 'function' ? rate(date) : rate
+}
+
 /** 行情时间统一归属到北京时间自然估值日，避免基金本地零点被 UTC 截成前一天。 */
 export function toAssetNavPoint(
   date: Date,
@@ -86,7 +92,7 @@ export function buildAssetPerformanceSeries({
   transactions: LedgerTx[]
   prices: AssetNavPoint[]
   to?: Date
-  currencyRate?: number
+  currencyRate?: AssetCurrencyRate
 }): AssetPerformancePoint[] {
   const txs = transactions
     .filter((tx) => tx.assetId === asset.id && !tx.voidedAt)
@@ -128,6 +134,7 @@ export function buildAssetPerformanceSeries({
     }
 
     const replayDate = utcDate(date)
+    const dailyRate = currencyRateAt(currencyRate, replayDate)
     const positions = foldTransactions(txs, replayDate)
     const quantity = positions.reduce((sum, position) => sum + position.quantity, 0)
     const costBasis = positions.reduce((sum, position) => sum + position.costBasis, 0)
@@ -136,28 +143,38 @@ export function buildAssetPerformanceSeries({
 
     if (asset.cls === 'CASH') {
       nav = 1
-      netWorth = quantity * currencyRate
+      netWorth = quantity * dailyRate
     } else if (asset.manual || asset.cls === 'REAL_ESTATE') {
       netWorth = positions.reduce(
-        (sum, position) => sum + (position.manualValue ?? position.costBasis * currencyRate),
+        (sum, position) => sum + (position.manualValue ?? position.costBasis * dailyRate),
         0,
       )
-      nav = quantity > 0 ? netWorth / quantity / currencyRate : null
+      nav = quantity > 0 ? netWorth / quantity / dailyRate : null
     } else if (lastMarketNav != null) {
       nav = lastMarketNav
-      netWorth = quantity * nav * currencyRate
+      netWorth = quantity * nav * dailyRate
     } else {
       nav = quantity > 0 ? costBasis / quantity : null
-      netWorth = costBasis * currencyRate
+      netWorth = costBasis * dailyRate
     }
 
     const dailyTxs = transactionsByDate.get(date) ?? []
     for (const tx of dailyTxs) {
-      cumulativeFlow += transactionFlow(tx, nav, currencyRate, asset.cls)
+      cumulativeFlow += transactionFlow(
+        tx,
+        nav,
+        currencyRateAt(currencyRate, tx.occurredAt),
+        asset.cls,
+      )
     }
 
     const hasReturnEvent = dailyTxs.some((tx) => ['DIVIDEND', 'INTEREST', 'FEE', 'VALUATION'].includes(tx.type))
-    const hasAssetFlow = dailyTxs.some((tx) => Math.abs(transactionFlow(tx, nav, currencyRate, asset.cls)) >= 0.005)
+    const hasAssetFlow = dailyTxs.some((tx) => Math.abs(transactionFlow(
+      tx,
+      nav,
+      currencyRateAt(currencyRate, tx.occurredAt),
+      asset.cls,
+    )) >= 0.005)
     const weekend = utcDate(date).getUTCDay() === 0 || utcDate(date).getUTCDay() === 6
     const nextMarketDate = sortedPrices[priceIndex]?.date ?? null
     const hasFreshPrice = lastMarketDate === date

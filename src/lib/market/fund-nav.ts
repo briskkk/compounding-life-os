@@ -67,7 +67,10 @@ export async function fundNavQuoteOnDate(
     prevClose: bar.close,
     changePct: 0,
     asOf: bar.date.toISOString(),
+    receivedAt: new Date().toISOString(),
     tradingDate: date,
     source,
+    kind: 'OFFICIAL_NAV',
+    freshness: 'CLOSED',
   }
 }

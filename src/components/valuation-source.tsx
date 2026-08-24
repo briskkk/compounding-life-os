@@ -38,7 +38,7 @@ export function MarketSourceTag({
         ...meta,
         label: '低置信估算',
         tone: 'dim' as const,
-        description: `${meta.description} 当前模型置信度 ${confidencePct}%，估算偏差可能较大。`,
+        description: `${meta.description} 当前模型置信度 ${Math.round(confidencePct)}%，估算偏差可能较大。`,
       }
     : meta
   return <SourceTag meta={display} showProvider={showProvider} />
@@ -48,11 +48,22 @@ export function PositionSourceTag({
   priceSource,
   marketSource,
   showProvider = false,
+  confidencePct,
 }: {
   priceSource: PriceSource
   marketSource?: string | null
   showProvider?: boolean
+  confidencePct?: number | null
 }) {
+  if (priceSource === 'MARKET') {
+    return (
+      <MarketSourceTag
+        source={marketSource}
+        showProvider={showProvider}
+        confidencePct={confidencePct}
+      />
+    )
+  }
   return <SourceTag meta={positionValuationSource(priceSource, marketSource)} showProvider={showProvider} />
 }
 

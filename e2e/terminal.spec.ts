@@ -58,6 +58,12 @@ test('看盘页：历史收益支持预设周期与自定义日期', async ({ pa
   await expect(monthLabel).toHaveText(/^\d{4}年\d{1,2}月$/)
   const initialMonth = await monthLabel.textContent()
   await expect(calendar.locator('.returns-cal-amount').first()).toBeVisible()
+  const exactDailyAmounts = await calendar.locator('.returns-cal-grid .returns-cal-amount').allTextContents()
+  expect(exactDailyAmounts.length).toBeGreaterThan(0)
+  for (const text of exactDailyAmounts) {
+    expect(text.trim()).not.toMatch(/[万亿]/)
+    expect(text.trim()).toMatch(/^[+-]?¥[\d,]+\.\d{2}$/)
+  }
   await expect(calendar.getByText('当月收益合计')).toBeVisible()
   await calendar.getByRole('button', { name: '上一月' }).click()
   await expect(monthLabel).not.toHaveText(initialMonth ?? '')
@@ -68,10 +74,11 @@ test('看盘页：历史收益支持预设周期与自定义日期', async ({ pa
   await expect(calendar.locator('.recharts-bar-rectangle').first()).toBeVisible()
   await calendar.getByRole('button', { name: '日历图', exact: true }).click()
   // 当日明细：点击有数据的日期弹出明细（含估值状态与当日流水），Esc 关闭
-  await calendar.locator('button.returns-cal-cell').first().click()
+  await calendar.locator('button.returns-cal-cell').filter({ has: page.locator('.returns-cal-amount') }).first().click()
   const dayDialog = page.locator('.returns-day-dialog')
   await expect(dayDialog).toBeVisible()
   await expect(dayDialog.getByText('当日收益金额')).toBeVisible()
+  await expect(dayDialog.locator('.returns-day-metrics strong').first()).toHaveText(/^[+-]?¥[\d,]+\.\d{2}$/)
   await expect(dayDialog.getByText('估值状态')).toBeVisible()
   await expect(dayDialog.getByText('当日流水')).toBeVisible()
   await expect(dayDialog.locator('.returns-day-txs li, .returns-day-note').first()).toBeVisible()
@@ -115,7 +122,11 @@ test('看盘页：历史收益支持预设周期与自定义日期', async ({ pa
   await expect(calendar.getByText('累计收益合计')).toBeVisible()
   const yearAmounts = await calendar.locator('.returns-cal-year-row .returns-cal-amount').allTextContents()
   expect(yearAmounts.length).toBeGreaterThan(0)
-  for (const text of yearAmounts) expect(text.trim()).not.toBe('—')
+  for (const text of yearAmounts) {
+    expect(text.trim()).not.toBe('—')
+    expect(text.trim()).not.toMatch(/[万亿]/)
+    expect(text.trim()).toMatch(/^[+-]?¥[\d,]+\.\d{2}$/)
+  }
   await calendar.getByRole('button', { name: '日收益', exact: true }).click()
   await page.getByRole('button', { name: '近一年', exact: true }).click()
   await expect(page.getByRole('button', { name: '近一年', exact: true })).toHaveAttribute('aria-pressed', 'true')
@@ -123,10 +134,8 @@ test('看盘页：历史收益支持预设周期与自定义日期', async ({ pa
   await expect(page.getByLabel('开始日期')).toBeVisible()
   await expect(page.getByLabel('结束日期')).toBeVisible()
   await expect(page.getByRole('button', { name: '查询', exact: true })).toBeVisible()
-  await page.setViewportSize({ width: 375, height: 812 })
+  await page.setViewportSize({ width: 1280, height: 800 })
   await expect(page.getByRole('heading', { name: '组合历史收益' })).toBeVisible()
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-  await page.setViewportSize({ width: 812, height: 375 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 

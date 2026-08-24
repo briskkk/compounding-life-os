@@ -47,6 +47,24 @@ describe('cachedQuote（TTL 缓存）', () => {
     expect(ok.price).toBe(11)
     expect(calls).toBe(2)
   })
+
+  it('并发请求相同 key 时合并为一次外部调用', async () => {
+    let calls = 0
+    const fetcher = async () => {
+      calls += 1
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      return fakeQuote('AAA', 12)
+    }
+    const [first, second] = await Promise.all([
+      cachedQuote('same', fetcher),
+      cachedQuote('same', fetcher),
+    ])
+    expect(first.price).toBe(12)
+    expect(second.price).toBe(12)
+    expect(calls).toBe(1)
+    expect(marketHealth().cache.coalesced).toBe(1)
+    expect(marketHealth().cache.misses).toBe(1)
+  })
 })
 
 describe('recordRequest / marketHealth（健康打点）', () => {

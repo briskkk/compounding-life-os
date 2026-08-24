@@ -96,11 +96,11 @@ export default async function OverviewPage() {
         <div className="metric-band" aria-label="关键财富摘要">
           <div>
             <div className="text-[15px] text-ink-faint">可自由投资资产</div>
-            <div className="num mt-3 text-[24px] text-ink max-sm:text-[19px]">{fmtCNY(d.state.investable)}</div>
+            <div className="num mt-3 whitespace-nowrap text-[24px] text-ink">{fmtCNY(d.state.investable)}</div>
           </div>
           <div>
             <div className="text-[15px] text-ink-faint">现金水位</div>
-            <div className="num mt-3 text-[24px] text-ink max-sm:text-[19px]">{fmtPct(m.cashRatio)}</div>
+            <div className="num mt-3 whitespace-nowrap text-[24px] text-ink">{fmtPct(m.cashRatio)}</div>
           </div>
           <div>
             <div className="text-[15px] text-ink-faint">事实源</div>
@@ -110,15 +110,15 @@ export default async function OverviewPage() {
           </div>
           <div>
             <div className="text-[15px] text-ink-faint">可投资收益</div>
-            <div className={cx('num mt-3 text-[24px] max-sm:text-[19px]', d.attribution.gain >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(d.attribution.gain, { sign: true })}</div>
+            <div className={cx('num mt-3 whitespace-nowrap text-[24px]', d.attribution.gain >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(d.attribution.gain, { sign: true })}</div>
           </div>
           <div>
             <div className="text-[15px] text-ink-faint">负债率</div>
-            <div className="num mt-3 text-[24px] text-ink max-sm:text-[19px]">{fmtPct(m.netWorth > 0 ? d.state.liabilitiesTotal / m.netWorth : 0)}</div>
+            <div className="num mt-3 whitespace-nowrap text-[24px] text-ink">{fmtPct(m.netWorth > 0 ? d.state.liabilitiesTotal / m.netWorth : 0)}</div>
           </div>
           <div>
             <div className="text-[15px] text-ink-faint">净资产构成</div>
-            <div className="num mt-3 text-[18px] leading-relaxed text-ink max-sm:text-[15px]">总资产 {fmtCNY(m.netWorth)}<br /><span className="text-ink-faint">负债 {fmtCNY(d.state.liabilitiesTotal)}</span></div>
+            <div className="num mt-3 whitespace-nowrap text-[18px] leading-relaxed text-ink">总资产 {fmtCNY(m.netWorth)}<br /><span className="text-ink-faint">负债 {fmtCNY(d.state.liabilitiesTotal)}</span></div>
           </div>
         </div>
       </section>

@@ -16,6 +16,7 @@ last_verified: 2026-08-08
 | 持仓 | `src/app/positions/page.tsx` | `loadEngineState`；配置、分组、排序、当日盈亏 |
 | 资产详情 | `src/app/positions/[assetId]/page.tsx` | 价格/净值历史、基金估值、持仓概览与流水 |
 | 看盘 | `src/app/watch/page.tsx` | `getWatchData`；盘中曲线、区间绩效、基准、风险 |
+| 复盘 | `src/app/review/page.tsx` | `getReviewPageData`；周/月/季结果桥、贡献归因、时点、交易、风险与复盘笔记 |
 | 流水 | `src/app/transactions/page.tsx` | 筛选、分页、录入、CSV、冲正、导出 |
 | FIRE | `src/app/goals/page.tsx` | 目标编辑、储蓄、情景实验室、蒙特卡洛结果 |
 | 账户 | `src/app/accounts/page.tsx`、`accounts/[accountId]/page.tsx` | 账户、资产目录、结算关系、负债 |
@@ -53,6 +54,7 @@ Route Handlers：
 - `src/lib/services/transactions.ts`：共享事务写服务（流水创建/冲正的校验、结算联动、审计、快照刷新）—— Server Actions 与移动端 API 复用同一写路径。
 - `src/lib/services/api-auth.ts`：共享 API 认证（用户会话优先，回落 `PORTFOLIO_API_KEY`）。
 - `src/lib/queries.ts`：页面 View Model 装配、实时估值与目标。
+- `src/lib/review-data.ts`：复盘页 View Model；历史价格/汇率、组合曲线、资产曲线、基准与已保存记录装配。
 - `src/lib/snapshots.ts`：最多 1400 天财富序列；`rebuildSnapshots` 支持按 `affectedSince` 增量重建（写操作只重算受影响区间）。
 - `src/lib/audit.ts`：审计哈希和完整性验证。
 - `src/lib/export.ts`、`src/lib/csv.ts`：CSV 出入双向格式。
@@ -72,6 +74,7 @@ Route Handlers：
 
 - `src/lib/engine/attribution.ts`：外部净投入、TWR、XIRR。
 - `src/lib/engine/period-performance.ts`、`asset-performance.ts`：区间和资产级曲线。
+- `src/lib/engine/review.ts`：可对账的金额/链接百分点归因、来源拆分、交易行为、时点与风险变化。
 - `src/lib/engine/valuation-status.ts`：估值质量状态与收益观察点。
 - `src/lib/engine/daily-pnl.ts`、`intraday.ts`、`watch-market.ts`：当日和盘中组合。
 - `src/lib/engine/risk.ts`、`benchmark.ts`：回撤、波动、夏普和指数对齐。
@@ -91,15 +94,16 @@ Route Handlers：
 
 ## 行情层
 
-- `src/lib/market/provider.ts`：统一 Quote/Bar 契约。
-- `src/lib/market/index.ts`：provider chain 与"真实失败不模拟"策略；`quoteSmart`/`historySmart` 带 30s 缓存与健康打点。
-- `src/lib/market/cache.ts`：行情 TTL 缓存（`cachedQuote`）与健康打点（`recordRequest`/`marketHealth`）。
+- `src/lib/market/provider.ts`：统一 Quote/Bar 契约，含行情/净值/估值类型、接收时点与新鲜度语义。
+- `src/lib/market/index.ts`：严格 provider chain 配置与"真实失败不模拟"策略；`quoteSmart`/`historySmart` 带 30s 缓存、报价基本校验与健康打点。
+- `src/lib/market/cache.ts`：进程级行情 TTL 缓存、同标的并发请求合并与健康打点（`recordRequest`/`marketHealth`）。
+- `src/lib/market/quote-time.ts`：A/H/美股交易所本地时间转 ISO，并判定实时/延迟/陈旧/休市/未知状态。
 - `src/lib/market/tencent.ts`、`sina.ts`：股票/指数行情。
 - `src/lib/market/eastmoney-kline.ts`：东财日 K（腾讯 K 线被 WAF 拦截时的兜底，OHLC 完整）。
 - `src/lib/market/eastmoney-fund.ts`：基金净值与官方盘中估值（FundValuationLast）切换、置信度三档。
 - `src/lib/market/fund-engine.ts`、`fund-holdings.ts`：基金估值、重仓、净值与校准。
 - `src/lib/market/persist.ts`：PriceBar 落库和估值日期观察。
-- `src/lib/market/fx.ts`：实时汇率（新浪，1h 缓存）与历史汇率（`RateBar` 按日落库、按日折算、缺失回落）。
+- `src/lib/market/fx.ts`：实时汇率（新浪，1h 缓存）与历史汇率（`RateBar` 按日落库、按日折算）；实时失败只回落最后真实汇率并标记陈旧，不使用固定常数。
 - `src/lib/market/intraday.ts`、`yahoo.ts`：分钟线。
 - `src/lib/market/symbols.ts`、`lookup.ts`：市场代码与资产识别。
 - `src/lib/market/simulated.ts`：仅显式模拟环境。
@@ -122,10 +126,11 @@ Route Handlers：
 - `src/test/ledger.test.ts`、`transaction-rules.test.ts`、`settlement*.test.ts`：账本不变量。
 - `src/test/valuation.test.ts`、`attribution.test.ts`、`snapshots.test.ts`：财富与收益口径。
 - `src/test/period-performance.test.ts`、`risk.test.ts`、`benchmark.test.ts`：绩效与风险。
+- `src/test/review.test.ts`：复盘金额/百分点守恒、显式残差、收入费用、行为与风险。
 - `src/test/projection.test.ts`、`covariance.test.ts`、`savings.test.ts`：FIRE。
 - `src/test/fund-*.test.ts`、`tencent.test.ts`、`symbols.test.ts`：市场与基金。
 - `src/test/rls.test.ts`、`audit.test.ts`：安全与审计。
-- `e2e/*.spec.ts`：七页主流程、账户、持仓、流水与 API。
+- `e2e/*.spec.ts`：主页面、账户、持仓、流水、复盘与 API。
 
 ## 修改联动提示
 

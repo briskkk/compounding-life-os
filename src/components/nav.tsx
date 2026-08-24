@@ -8,6 +8,7 @@ const LINKS = [
   { href: '/', label: '总览' },
   { href: '/positions', label: '持仓' },
   { href: '/watch', label: '看盘' },
+  { href: '/review', label: '复盘' },
   { href: '/transactions', label: '流水' },
   { href: '/goals', label: 'FIRE' },
   { href: '/accounts', label: '账户' },
@@ -17,7 +18,7 @@ const LINKS = [
 export function Nav() {
   const pathname = usePathname()
   return (
-    <nav className="flex flex-wrap items-center justify-center gap-x-7 gap-y-1 max-sm:gap-x-5" aria-label="主导航">
+    <nav className="flex flex-nowrap items-center justify-center gap-x-7" aria-label="主导航">
       {LINKS.map((link) => {
         const active = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href)
         return (
@@ -26,7 +27,7 @@ export function Nav() {
             href={link.href}
             aria-current={active ? 'page' : undefined}
             className={cx(
-              'border-b-2 px-0.5 py-3 text-[16px] font-medium transition-colors duration-200 max-sm:py-2.5 max-sm:text-[15px]',
+              'whitespace-nowrap border-b-2 px-0.5 py-3 text-[16px] font-medium transition-colors duration-200',
               active ? 'border-accent text-accent' : 'border-transparent text-ink-faint hover:text-ink',
             )}
           >

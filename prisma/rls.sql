@@ -11,7 +11,7 @@ BEGIN
   FOREACH t IN ARRAY ARRAY[
     'Member', 'Account', 'Asset', 'Transaction',
     'Liability', 'LiabilityEntry', 'Goal', 'SavingsEntry',
-    'Snapshot', 'AuditLog'
+    'Snapshot', 'PortfolioReview', 'AuditLog'
   ]
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);

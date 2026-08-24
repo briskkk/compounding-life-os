@@ -107,7 +107,12 @@ export function applyTransaction(pos: Position, tx: TxInput, cls: AssetClass): v
   }
 }
 
-export type LedgerTx = TxInput & { assetClass: AssetClass; id?: string; settleOfId?: string | null }
+export type LedgerTx = TxInput & {
+  assetClass: AssetClass
+  id?: string
+  settleOfId?: string | null
+  note?: string | null
+}
 
 /** 可用份额折叠：申购/转入按确认完成日生效；赎回/转出按发生日即时冻结扣减。 */
 function applyAvailability(pos: Position, tx: TxInput, asOfMs: number): void {

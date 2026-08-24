@@ -57,12 +57,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <div className="min-h-screen">
           <a href="#main-content" className="fixed left-4 top-4 z-[100] -translate-y-24 rounded bg-accent px-4 py-2 text-sm text-bg transition-transform focus:translate-y-0">跳至主要内容</a>
           <header className="border-b border-line">
-            <div className="app-shell grid min-h-24 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-8 py-4 max-lg:grid-cols-[auto_minmax(0,1fr)] max-sm:min-h-0 max-sm:gap-x-3 max-sm:gap-y-1 max-sm:py-2.5">
+            <div className="app-shell grid min-h-24 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-6 py-4 max-lg:grid-cols-[auto_minmax(0,1fr)]">
               <div className="flex shrink-0 items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full border border-line font-mono text-[15px] text-ink" aria-hidden="true">{BRAND_NAME.slice(0, 1)}</div>
                 <div>
                   <div className="whitespace-nowrap text-[16px] font-medium text-ink">{BRAND_NAME}</div>
-                  <div className="mt-0.5 whitespace-nowrap text-[13px] text-ink-faint max-sm:hidden">{BRAND_NAME_EN}</div>
+                  <div className="mt-0.5 whitespace-nowrap text-[13px] text-ink-faint">{BRAND_NAME_EN}</div>
                 </div>
               </div>
 
@@ -70,8 +70,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Nav />
               </div>
 
-              <div className="flex min-w-0 flex-wrap items-center justify-end gap-3 max-sm:gap-2">
-                <div className="hidden text-right xl:block">
+              <div className="flex min-w-0 flex-nowrap items-center justify-end gap-2.5">
+                <div className="hidden text-right min-[1440px]:block">
                   <div className="text-[14px] font-medium text-ink">{family?.name ?? '未初始化'}</div>
                   <div className="num mt-0.5 text-[12px] tracking-[0.08em] text-ink-faint">{dateStr}</div>
                 </div>
@@ -82,7 +82,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     {myFamilies.length > 1 && (
                       <FamilySwitcher families={myFamilies} currentFamilyId={ctx.familyId} />
                     )}
-                    <span className="num flex h-11 shrink-0 items-center whitespace-nowrap rounded-lg border border-line bg-panel2 px-3 text-[13px] text-ink-dim max-sm:hidden">
+                    <span className="num hidden h-11 shrink-0 items-center whitespace-nowrap rounded-lg border border-line bg-panel2 px-3 text-[13px] text-ink-dim min-[1440px]:flex">
                       {ctx.memberName} · {ctx.role}
                     </span>
                     <Link

@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     for (const r of rows) fundSymbols.add(r.symbol)
   }
 
-  const rates = await fxRates()
+  const rates = await fxRates(prisma)
   const quotes = (
     await Promise.all(
       symbols.map(async (s) => {

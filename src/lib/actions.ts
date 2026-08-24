@@ -18,6 +18,7 @@ import {
   goalUpdateSchema,
   liabilityEntryInputSchema,
   liabilityInputSchema,
+  portfolioReviewInputSchema,
   savingsEntryInputSchema,
   txInputSchema,
 } from './schemas'
@@ -29,6 +30,7 @@ import { parseTags, serializeTags } from './engine/groups'
 import { persistFundHistory, persistHistory } from './market/persist'
 import { fxRates, persistDailyFx } from './market/fx'
 import { type TransactionDraft } from './transaction-rules'
+import { getReviewPageData } from './review-data'
 import {
   cashSettlementOf,
   createTransactionRecord,
@@ -76,6 +78,80 @@ async function refresh(ctx: FamilyCtx, affectedSince?: Date): Promise<string | u
   const warning = await rebuildSnapshotsForFamily(prisma, ctx.familyId, affectedSince)
   revalidatePath('/')
   return warning
+}
+
+// ---------- 组合复盘 ----------
+
+export async function savePortfolioReview(input: unknown): Promise<ActionResult<{
+  id: string
+  status: 'DRAFT' | 'COMPLETED'
+  updatedAt: string
+}>> {
+  try {
+    const ctx = await requireWrite()
+    const data = portfolioReviewInputSchema.parse(input)
+    const startDate = new Date(`${data.startDate}T00:00:00Z`)
+    const endDate = new Date(`${data.endDate}T00:00:00Z`)
+    const evidence = await getReviewPageData({ period: data.period, benchmark: data.benchmarkSymbol })
+    if (!evidence || evidence.range.startDate !== data.startDate || evidence.range.endDate !== data.endDate) {
+      throw new Error('复盘区间已经变化，请刷新页面后重试')
+    }
+    const evidenceResult = evidence.result
+    const metricsSnapshot = JSON.stringify({
+      amount: evidenceResult.performance.amount,
+      pct: evidenceResult.performance.pct,
+      mwrPct: evidenceResult.performance.curve.at(-1)?.mwrPct ?? null,
+      benchmarkSymbol: data.benchmarkSymbol,
+      benchmarkPct: evidenceResult.benchmarkPct,
+      alphaPct: evidenceResult.alphaPct,
+      maxDrawdown: evidenceResult.maxDrawdown,
+      valuationCoverage: evidenceResult.valuationCoverage,
+      reconciliationAmount: evidenceResult.reconciliationAmount,
+    })
+    const saved = await prisma.$transaction(async (txDb) => {
+      const existing = await txDb.portfolioReview.findFirst({
+        where: { familyId: ctx.familyId, period: data.period, startDate },
+      })
+      const values = {
+        authorId: ctx.memberId,
+        authorName: ctx.memberName,
+        period: data.period,
+        status: data.status,
+        note: data.note.trim(),
+        metricsSnapshot,
+        endDate,
+        completedAt: data.status === 'COMPLETED' ? new Date() : null,
+      }
+      const record = existing
+        ? await txDb.portfolioReview.update({
+            where: { id: existing.id },
+            data: values,
+          })
+        : await txDb.portfolioReview.create({
+            data: {
+              familyId: ctx.familyId,
+              startDate,
+              ...values,
+            },
+          })
+      await audit(
+        ctx,
+        data.status === 'COMPLETED' ? 'COMPLETE' : 'SAVE_DRAFT',
+        'PortfolioReview',
+        record.id,
+        `${data.period} · ${data.startDate} 至 ${data.endDate}`,
+        txDb,
+      )
+      return record
+    })
+    revalidatePath('/review')
+    return {
+      ok: true,
+      data: { id: saved.id, status: saved.status, updatedAt: saved.updatedAt.toISOString() },
+    }
+  } catch (e) {
+    return fail(e)
+  }
 }
 
 // ---------- 会话 ----------
@@ -539,7 +615,7 @@ export async function refreshPrices(): Promise<ActionResult<{ symbol: string; co
       ...(await persistHistory(prisma, marketSymbols, from, new Date())),
     ]
     // 保存当日汇率到 RateBar，保证历史快照按当日汇率折算可复现
-    const fxWritten = await persistDailyFx(prisma, await fxRates())
+    const fxWritten = await persistDailyFx(prisma, await fxRates(prisma))
     await rebuildSnapshots(prisma, ctx.familyId)
     await audit(ctx, 'REFRESH', 'PriceBar', null, `清理模拟K线 ${purged.count} 条；汇率 ${fxWritten} 条；` + results.map((r) => `${r.symbol}:${r.count}@${r.source}`).join(' '))
     revalidatePath('/')

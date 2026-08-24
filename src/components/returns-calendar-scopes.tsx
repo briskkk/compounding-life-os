@@ -3,7 +3,7 @@
 // 收益日历的月收益（年网格）与年收益（年列表）视图；合计数据由主组件统一计算后传入
 import { useMemo } from 'react'
 import type { PeriodTotal } from '@/lib/engine/returns-calendar'
-import { cx, fmtSignedCnyCompact } from '@/lib/format'
+import { cx, fmtCNY } from '@/lib/format'
 
 /** 月收益：当年 12 格；已过去且无收益观察的月份显示「—」占位，未来月份保持空白。 */
 export function ReturnsYearGrid({
@@ -48,7 +48,7 @@ export function ReturnsYearGrid({
             onClick={() => onSelectMonth(item.key)}
           >
             <span className="returns-cal-date">{month}月</span>
-            <span className="returns-cal-amount">{fmtSignedCnyCompact(item.total)}</span>
+            <span className="returns-cal-amount">{fmtCNY(item.total, { sign: true })}</span>
           </button>
         )
       })}
@@ -70,7 +70,7 @@ export function ReturnsYearList({ totals }: { totals: PeriodTotal[] }) {
         >
           <span className="returns-cal-year-label num">{item.key}年</span>
           <span className={cx('returns-cal-amount', !item.hasAmount && 'text-ink-faint')}>
-            {item.hasAmount ? fmtSignedCnyCompact(item.total) : '—'}
+            {item.hasAmount ? fmtCNY(item.total, { sign: true }) : '—'}
           </span>
         </div>
       ))}

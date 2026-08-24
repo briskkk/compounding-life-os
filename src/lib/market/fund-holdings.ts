@@ -22,7 +22,14 @@ const NAV_TTL = 60_000
 
 interface InverstPositionResponse {
   Datas?: {
-    fundStocks?: { GPDM: string; GPJC: string; JZBL: string }[]
+    fundStocks?: {
+      GPDM: string
+      GPJC: string
+      JZBL: string
+      /** 东财交易所编码：5 / 116 均表示港股。 */
+      TEXCH?: string
+      NEWTEXCH?: string
+    }[]
     ETFCODE?: string | null
     ETFSHORTNAME?: string | null
   }
@@ -41,7 +48,15 @@ async function fetchJson<T>(url: string): Promise<T> {
 /** 解析重仓股报文（纯函数，可测试） */
 export function parseHoldings(json: InverstPositionResponse): FundHolding[] {
   return (json.Datas?.fundStocks ?? [])
-    .map((s) => ({ code: s.GPDM, name: s.GPJC, weightPct: Number(s.JZBL) }))
+    .map((s) => {
+      const rawCode = s.GPDM.trim().toUpperCase()
+      const isHongKong = /^\d{5}$/.test(rawCode) || s.TEXCH === '5' || s.NEWTEXCH === '116'
+      return {
+        code: isHongKong ? `HK${rawCode.padStart(5, '0')}` : rawCode,
+        name: s.GPJC,
+        weightPct: Number(s.JZBL),
+      }
+    })
     .filter((h) => h.code && Number.isFinite(h.weightPct) && h.weightPct > 0)
 }
 

@@ -77,4 +77,32 @@ describe('行级安全（family 作用域）', () => {
     const dbA = scopedDb(base, ctxOf(famA))
     expect(await dbA.auditLog.count()).toBe(1)
   })
+
+  it('组合复盘按家庭隔离，VIEWER 不能保存', async () => {
+    const startDate = new Date('2026-08-01T00:00:00Z')
+    const endDate = new Date('2026-08-31T00:00:00Z')
+    await base.portfolioReview.create({
+      data: {
+        familyId: famA,
+        authorId: 'm1',
+        authorName: '测试',
+        period: 'THIS_MONTH',
+        startDate,
+        endDate,
+      },
+    })
+    const dbB = scopedDb(base, ctxOf(famB))
+    expect(await dbB.portfolioReview.count()).toBe(0)
+    const viewer = scopedDb(base, ctxOf(famA, 'VIEWER'))
+    await expect(viewer.portfolioReview.create({
+      data: {
+        familyId: famA,
+        authorId: 'm1',
+        authorName: '测试',
+        period: 'THIS_MONTH',
+        startDate: new Date('2026-07-01T00:00:00Z'),
+        endDate: new Date('2026-07-31T00:00:00Z'),
+      },
+    })).rejects.toThrow(/VIEWER/)
+  })
 })

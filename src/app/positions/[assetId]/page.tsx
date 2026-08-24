@@ -16,8 +16,7 @@ import { dailyCloses, PROVIDER_LABEL } from '@/lib/market/simulated'
 import { parseSymbol } from '@/lib/market/symbols'
 import { parseTags } from '@/lib/engine/groups'
 import { fundEstimate, calibrateFund } from '@/lib/market/fund-engine'
-import { calibratedConfidencePct } from '@/lib/engine/fund-calibrate'
-import { shouldUseOfficialNav } from '@/lib/market/eastmoney-fund'
+import { CONFIDENCE_MIN, shouldUseOfficialNav } from '@/lib/market/eastmoney-fund'
 import type { ValuedPosition } from '@/lib/engine/valuation'
 import { ASSET_CLASS_LABEL, TX_TYPE_LABEL, CURRENCY_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtCNYExact, fmtDate, fmtDateTime, fmtMoney, fmtPct, fmtQty } from '@/lib/format'
@@ -233,7 +232,17 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
   // 场外基金：内部盘中估值（持仓 + 实时行情合成）+ 历史误差校准
   const fundEst = asset.cls === 'FUND' ? await fundEstimate(asset.symbol) : null
   const fundCalib = asset.cls === 'FUND' ? await calibrateFund(asset.symbol) : null
-  const fundConf = fundEst && fundCalib ? calibratedConfidencePct(fundEst.estimate.confidencePct, fundCalib.summary) : null
+  // fundEstimate 已应用历史误差衰减；页面只读取最终置信度，不能再次校准。
+  const fundConfidencePct = fundEst?.estimate.confidencePct ?? null
+  const fundCalibrated = (fundCalib?.summary.days ?? 0) >= 5
+  const fundModelSelected = quote?.source === 'FUND-ENGINE'
+  const fundOfficialEstimateSelected = quote?.source === 'EASTMONEY-ESTIMATE'
+  const fundUsesOfficialNav = quote?.source === 'EASTMONEY-FUND'
+  const fundNavPreferred = fundEst ? shouldUseOfficialNav(fundEst.prevNavDate, new Date()) : true
+  const fundModelRejected = fundUsesOfficialNav
+    && !fundNavPreferred
+    && fundConfidencePct != null
+    && fundConfidencePct < CONFIDENCE_MIN
 
   return (
     <div className="page-shell">
@@ -265,7 +274,12 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
             )}
             <div className="mt-4 flex flex-wrap items-center gap-3 text-[13px] text-ink-faint">
               {combined ? (
-                <PositionSourceTag priceSource={combined.priceSource} marketSource={quote?.source} showProvider />
+                <PositionSourceTag
+                  priceSource={combined.priceSource}
+                  marketSource={quote?.source}
+                  showProvider
+                  confidencePct={quote?.confidencePct}
+                />
               ) : isMarket ? (
                 <MarketSourceTag source={quote?.source} showProvider />
               ) : asset.cls === 'CASH' ? (
@@ -428,71 +442,137 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
         longTerm={isLongTermAsset}
       />
 
-      {fundEst && (
+      {asset.cls === 'FUND' && (
         <Panel
-          title="盘中估值"
-          en="FUND ESTIMATE"
+          title={fundModelSelected || fundOfficialEstimateSelected ? '盘中估值' : '估值状态'}
+          en={fundModelSelected || fundOfficialEstimateSelected ? 'FUND ESTIMATE' : 'VALUATION STATUS'}
           right={
-            fundConf ? (
-              <Tag tone={fundConf.confidencePct >= 70 ? 'down' : fundConf.confidencePct >= 50 ? 'amber' : 'up'}>
-                置信度 {fundConf.confidencePct.toFixed(0)}%{fundConf.calibrated ? ' · 已校准' : ''}
+            fundModelSelected && fundConfidencePct != null ? (
+              <Tag tone={fundConfidencePct >= 70 ? 'info' : fundConfidencePct >= 50 ? 'amber' : 'dim'}>
+                {fundConfidencePct < 50 ? '低置信估算' : '模型估算'} · {fundConfidencePct.toFixed(0)}%
+                {fundCalibrated ? ' · 已校准' : ''}
               </Tag>
-            ) : undefined
+            ) : fundOfficialEstimateSelected ? (
+              <Tag tone="amber">官方盘中估值</Tag>
+            ) : fundUsesOfficialNav ? (
+              <Tag tone="info">官方净值</Tag>
+            ) : (
+              <Tag tone="dim">暂无可用估值</Tag>
+            )
           }
         >
-          <div className="grid gap-8 lg:grid-cols-[0.7fr_1.3fr]">
-            <div className="surface p-6">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <div className="num text-[28px] text-ink">{fundEst.estimate.estimatedNav.toFixed(4)}</div>
-                  <div className="mt-1 text-[13px] text-ink-faint">估算净值</div>
+          {fundModelSelected && fundEst ? (
+            <>
+              <div className="mb-7 grid grid-cols-3 gap-3">
+                <div className="surface px-5 py-4">
+                  <div className="text-[12px] tracking-wider text-ink-faint">实时覆盖</div>
+                  <div className="num mt-1 text-base text-ink">{fundEst.estimate.coveredPct.toFixed(2)}%</div>
                 </div>
-                <div className="text-right">
-                  <div className={cx('num text-xl', fundEst.estimate.estimateReturnPct >= 0 ? 'text-up' : 'text-down')}>
-                    {fmtPct(fundEst.estimate.estimateReturnPct / 100, { sign: true })}
+                <div className="surface px-5 py-4">
+                  <div className="text-[12px] tracking-wider text-ink-faint">历史误差</div>
+                  <div className="num mt-1 text-base text-ink">
+                    {fundCalib && fundCalib.summary.days > 0 ? `±${fundCalib.summary.maePct.toFixed(2)}%` : '样本积累中'}
                   </div>
-                  <div className="mt-1 text-[13px] text-ink-faint">盘中估算涨跌</div>
+                </div>
+                <div className="surface px-5 py-4">
+                  <div className="text-[12px] tracking-wider text-ink-faint">当前口径</div>
+                  <div className="mt-1 text-base text-ink">{fundConfidencePct != null && fundConfidencePct < 50 ? '低置信盘中估算' : '盘中模型估算'}</div>
                 </div>
               </div>
-              <p className="mt-6 text-[13px] leading-relaxed text-ink-faint">
-                官方净值 {fundEst.prevNav.toFixed(4)}（{fmtDate(fundEst.prevNavDate)}）
-                {shouldUseOfficialNav(fundEst.prevNavDate, new Date()) && <span className="ml-1 text-down">今日已更新</span>}
-              </p>
-              {fundCalib && fundCalib.summary.days > 0 && (
-                <p className="mt-3 text-[13px] leading-relaxed text-ink-faint">
-                  近 {fundCalib.summary.days} 日估算误差 <span className="num text-ink">±{fundCalib.summary.maePct.toFixed(2)}%</span>
-                  {Math.abs(fundCalib.summary.biasPct) >= 0.05 && (
-                    <> · 系统性{fundCalib.summary.biasPct > 0 ? '高估' : '低估'} <span className="num">{Math.abs(fundCalib.summary.biasPct).toFixed(2)}%</span></>
+              <div className="grid gap-8 lg:grid-cols-[0.7fr_1.3fr]">
+                <div className="surface p-6">
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                      <div className="num text-[28px] text-ink">{fundEst.estimate.estimatedNav.toFixed(4)}</div>
+                      <div className="mt-1 text-[13px] text-ink-faint">估算净值</div>
+                    </div>
+                    <div className="text-right">
+                      <div className={cx('num text-xl', fundEst.estimate.estimateReturnPct >= 0 ? 'text-up' : 'text-down')}>
+                        {fmtPct(fundEst.estimate.estimateReturnPct / 100, { sign: true })}
+                      </div>
+                      <div className="mt-1 text-[13px] text-ink-faint">盘中估算涨跌</div>
+                    </div>
+                  </div>
+                  <p className="mt-6 text-[13px] leading-relaxed text-ink-faint">
+                    官方净值 {fundEst.prevNav.toFixed(4)}（{fmtDate(fundEst.prevNavDate)}）
+                    {fundNavPreferred && <span className="ml-1 text-down">今日已更新</span>}
+                  </p>
+                  {fundCalib && fundCalib.summary.days > 0 && (
+                    <p className="mt-3 text-[13px] leading-relaxed text-ink-faint">
+                      近 {fundCalib.summary.days} 日估算误差 <span className="num text-ink">±{fundCalib.summary.maePct.toFixed(2)}%</span>
+                      {Math.abs(fundCalib.summary.biasPct) >= 0.05 && (
+                        <> · 系统性{fundCalib.summary.biasPct > 0 ? '高估' : '低估'} <span className="num">{Math.abs(fundCalib.summary.biasPct).toFixed(2)}%</span></>
+                      )}
+                    </p>
                   )}
-                </p>
-              )}
-            </div>
+                </div>
 
-            <div>
-              <div className="mb-4 text-[13px] tracking-wider text-ink-faint">持仓贡献分解 · 报告期 {fundEst.reportDate}</div>
-              <div className="space-y-3">
-                {fundEst.estimate.contributions.slice(0, 6).map((c) => (
-                  <div key={c.code} className="text-[14px]">
-                    <div className="mb-1 flex items-center justify-between gap-4">
-                      <span className="text-ink-dim">{c.name} <span className="num text-ink-faint">{c.weightPct.toFixed(2)}%</span></span>
-                      <span className={cx('num', c.contributionPct >= 0 ? 'text-up' : 'text-down')}>
-                        {c.contributionPct >= 0 ? '+' : ''}{c.contributionPct.toFixed(3)}%
-                      </span>
-                    </div>
-                    <div className="h-1 w-full overflow-hidden rounded-full bg-panel2">
-                      <div
-                        className={cx('h-full rounded-full', c.contributionPct >= 0 ? 'bg-up' : 'bg-down')}
-                        style={{ width: `${Math.min(100, Math.abs(c.contributionPct) * 400)}%` }}
-                      />
-                    </div>
+                <div>
+                  <div className="mb-4 text-[13px] tracking-wider text-ink-faint">持仓贡献分解 · 报告期 {fundEst.reportDate}</div>
+                  <div className="space-y-3">
+                    {fundEst.estimate.contributions.slice(0, 6).map((c) => (
+                      <div key={c.code} className="text-[14px]">
+                        <div className="mb-1 flex items-center justify-between gap-4">
+                          <span className="text-ink-dim">{c.name} <span className="num text-ink-faint">{c.weightPct.toFixed(2)}%</span></span>
+                          <span className={cx('num', c.contributionPct >= 0 ? 'text-up' : 'text-down')}>
+                            {c.contributionPct >= 0 ? '+' : ''}{c.contributionPct.toFixed(3)}%
+                          </span>
+                        </div>
+                        <div className="h-1 w-full overflow-hidden rounded-full bg-panel2">
+                          <div
+                            className={cx('h-full rounded-full', c.contributionPct >= 0 ? 'bg-up' : 'bg-down')}
+                            style={{ width: `${Math.min(100, Math.abs(c.contributionPct) * 400)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+              </div>
+              <p className="mt-5 text-[13px] leading-relaxed text-ink-faint">
+                内部模型：前十大重仓实时涨幅加权，残差仓位按沪深300代理；季度披露存在滞后，仅作盘中参考，以官方净值为准。
+              </p>
+            </>
+          ) : (
+            <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+              <div className="surface p-6">
+                <div className="num text-[28px] text-ink">{quote ? fmtMoney(quote.price, asset.currency) : '—'}</div>
+                <div className="mt-1 text-[13px] text-ink-faint">
+                  {fundOfficialEstimateSelected
+                    ? '当前采用官方盘中估值'
+                    : fundUsesOfficialNav
+                      ? '当前采用最新官方净值'
+                      : '当前没有可用净值'}
+                </div>
+              </div>
+              <div>
+                <div className="text-base text-ink">
+                  {fundOfficialEstimateSelected
+                    ? '数据源盘中估值已用于当前价格'
+                    : fundModelRejected
+                      ? '内部估值未达到展示门槛'
+                      : fundUsesOfficialNav && fundNavPreferred
+                        ? '当前无需使用盘中估值'
+                        : '暂未取得可靠的盘中估值'}
+                </div>
+                <p className="mt-2 text-[13px] leading-relaxed text-ink-faint">
+                  {fundOfficialEstimateSelected
+                    ? '当前优先采用数据源提供的盘中估值；内部模型只用于交叉校验，不会覆盖主价格。'
+                    : fundModelRejected && fundConfidencePct != null
+                      ? `校准后置信度为 ${fundConfidencePct.toFixed(0)}%，低于 ${CONFIDENCE_MIN}% 下限，因此没有计入当前价格。`
+                      : fundUsesOfficialNav && fundNavPreferred
+                        ? '今日官方净值已经公布，或当前不在基金估值时段，页面以正式净值为准。'
+                        : '官方盘中估值与内部模型均不可用，页面保留最近一次正式净值。'}
+                </p>
+                {fundEst && (
+                  <p className="mt-3 text-[13px] leading-relaxed text-ink-faint">
+                    内部模型参考值 <span className="num text-ink">{fundEst.estimate.estimatedNav.toFixed(4)}</span>
+                    {' '}· 实时覆盖 <span className="num text-ink">{fundEst.estimate.coveredPct.toFixed(2)}%</span>
+                  </p>
+                )}
               </div>
             </div>
-          </div>
-          <p className="mt-5 text-[13px] leading-relaxed text-ink-faint">
-            内部模型：前十大重仓实时涨幅加权，残差仓位按沪深300代理；季度披露存在滞后，仅作盘中参考，以官方净值为准。
-          </p>
+          )}
         </Panel>
       )}
 

@@ -62,10 +62,11 @@ describe('行情源优先级链', () => {
     expect(chain.map((p) => p.label)).toEqual(['TENCENT', 'EASTMONEY-KLINE', 'EASTMONEY-FUND', 'SINA'])
   })
 
-  it('未知项被忽略，全未知/为空回落模拟源', () => {
-    expect(providerChain('nonsense').map((p) => p.label)).toEqual(['SIMULATED'])
-    expect(providerChain('').map((p) => p.label)).toEqual(['SIMULATED'])
-    expect(providerChain('tencent,unknown').map((p) => p.label)).toEqual(['TENCENT'])
+  it('空值、未知项和重复项明确报错，绝不回落模拟源', () => {
+    expect(() => providerChain('nonsense')).toThrow('未知行情源')
+    expect(() => providerChain('')).toThrow('不能为空')
+    expect(() => providerChain('tencent,unknown')).toThrow('未知行情源')
+    expect(() => providerChain('tencent,tencent')).toThrow('重复行情源')
     expect(providerChain('tencent,eastmoney-fund').map((p) => p.label)).toEqual(['TENCENT', 'EASTMONEY-FUND'])
   })
 })

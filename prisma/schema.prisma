@@ -16,6 +16,11 @@ enum Role {
   VIEWER
 }
 
+enum ReviewStatus {
+  DRAFT
+  COMPLETED
+}
+
 // 账号：能登录的人（email + 密码哈希），不属于任何家庭
 model User {
   id           String    @id @default(cuid())
@@ -69,6 +74,7 @@ model FamilySpace {
   goals            Goal[]
   savingsEntries   SavingsEntry[]
   snapshots        Snapshot[]
+  portfolioReviews PortfolioReview[]
   auditLogs        AuditLog[]
 }
 
@@ -320,6 +326,26 @@ model Snapshot {
   createdAt           DateTime    @default(now())
 
   @@unique([familyId, date])
+}
+
+model PortfolioReview {
+  id              String       @id @default(cuid())
+  familyId        String
+  family          FamilySpace  @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  authorId        String
+  authorName      String
+  period          String
+  startDate       DateTime
+  endDate         DateTime
+  status          ReviewStatus @default(DRAFT)
+  note            String       @default("")
+  metricsSnapshot String       @default("{}")
+  completedAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([familyId, period, startDate])
+  @@index([familyId, updatedAt])
 }
 
 model AuditLog {

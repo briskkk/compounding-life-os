@@ -17,7 +17,7 @@ async function main() {
     ...(await persistFundHistory(prisma, fundSymbols, from, new Date())),
     ...(await persistHistory(prisma, marketSymbols, from, new Date())),
   ]
-  const fxWritten = await persistDailyFx(prisma, await fxRates())
+  const fxWritten = await persistDailyFx(prisma, await fxRates(prisma))
   console.log(results.map((r) => `${r.symbol}:${r.count}@${r.source}`).join(' '))
   console.log(`✓ 汇率落库 ${fxWritten} 条`)
   const days = await rebuildSnapshots(prisma, family.id)

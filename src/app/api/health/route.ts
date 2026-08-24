@@ -2,27 +2,58 @@
 // 只读、不暴露家庭数据；用于自托管运维与 APP 诊断。
 import { NextResponse } from 'next/server'
 import { marketHealth } from '@/lib/market/cache'
-import { providerLabel } from '@/lib/market'
+import { MarketProviderConfigError, providerChain } from '@/lib/market'
+import { fxHealth } from '@/lib/market/fx'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const health = marketHealth()
-  return NextResponse.json({
-    ok: true,
-    time: new Date().toISOString(),
-    provider: providerLabel(),
-    cache: health.cache,
-    providers: health.providers.map((p) => ({
-      provider: p.provider,
-      requests: p.requests,
-      ok: p.ok,
-      failed: p.failed,
-      successRate: p.requests > 0 ? p.ok / p.requests : null,
-      avgMs: p.requests > 0 ? Math.round(p.totalMs / p.requests) : null,
-      lastError: p.lastError,
-      lastErrorAt: p.lastErrorAt,
-    })),
+  let configuredProviders: string[] = []
+  let configError: string | null = null
+  try {
+    configuredProviders = providerChain().map((provider) => provider.label)
+  } catch (error) {
+    configError = error instanceof MarketProviderConfigError
+      ? error.message
+      : error instanceof Error
+        ? error.message
+        : String(error)
+  }
+  const statByProvider = new Map(health.providers.map((stat) => [stat.provider, stat]))
+  const providerNames = [...new Set([...configuredProviders, ...statByProvider.keys()])]
+  const providers = providerNames.map((provider) => {
+    const stat = statByProvider.get(provider)
+    const requests = stat?.requests ?? 0
+    const successRate = requests > 0 ? (stat?.ok ?? 0) / requests : null
+    return {
+      provider,
+      configured: configuredProviders.includes(provider),
+      status: requests === 0
+        ? 'idle'
+        : successRate === 1
+          ? 'healthy'
+          : successRate != null && successRate > 0
+            ? 'degraded'
+            : 'down',
+      requests,
+      ok: stat?.ok ?? 0,
+      failed: stat?.failed ?? 0,
+      successRate,
+      avgMs: requests > 0 ? Math.round((stat?.totalMs ?? 0) / requests) : null,
+      lastError: stat?.lastError ?? null,
+      lastErrorAt: stat?.lastErrorAt ?? null,
+    }
   })
+  const ok = configError == null
+  return NextResponse.json({
+    ok,
+    time: new Date().toISOString(),
+    provider: configuredProviders.join('→') || null,
+    configError,
+    cache: health.cache,
+    providers,
+    fx: fxHealth(),
+  }, { status: ok ? 200 : 503 })
 }

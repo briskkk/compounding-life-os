@@ -28,7 +28,7 @@ import {
   type PeriodTotal,
 } from '@/lib/engine/returns-calendar'
 import { C } from '@/lib/colors'
-import { cx, fmtSignedCnyCompact } from '@/lib/format'
+import { cx, fmtCNY } from '@/lib/format'
 import { valuationStatusTitle } from './valuation-status-text'
 import { ReturnsYearGrid, ReturnsYearList } from './returns-calendar-scopes'
 import { ReturnsDayDialog, type DayDetail } from './returns-day-dialog'
@@ -69,7 +69,7 @@ function fmtBarAxis(value: number): string {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/** 柱状图提示框：沿用 charts.tsx 的 DarkTooltip 样式，金额用单元格同款紧凑格式 */
+/** 柱状图提示框：沿用 charts.tsx 的 DarkTooltip 样式，金额保留完整千分位与小数。 */
 function CalBarTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null
   const item = payload[0].payload as { date: string; amount: number }
@@ -79,7 +79,7 @@ function CalBarTooltip({ active, payload }: any) {
       <div className="flex items-center gap-2 py-0.5">
         <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: item.amount >= 0 ? C.up : C.down }} />
         <span className="text-ink-dim">当日收益</span>
-        <span className="num ml-auto pl-3 text-ink">{fmtSignedCnyCompact(item.amount)}</span>
+        <span className="num ml-auto pl-3 text-ink">{fmtCNY(item.amount, { sign: true })}</span>
       </div>
     </div>
   )
@@ -282,7 +282,7 @@ export function ReturnsCalendar({
               const dateLabel = <span className="returns-cal-date num">{Number(day.date.slice(8, 10))}</span>
               const amountLabel = value != null && (
                 <span className="returns-cal-amount">
-                  {mode === 'AMOUNT' ? fmtSignedCnyCompact(value) : signedPct(value)}
+                  {mode === 'AMOUNT' ? fmtCNY(value, { sign: true }) : signedPct(value)}
                 </span>
               )
               // 无快照的日期保持惰性；有数据的日期可点开当日明细
@@ -364,7 +364,7 @@ export function ReturnsCalendar({
           <span>
             当月收益合计
             <strong className={cx('num', !monthHasAmount ? 'text-ink-faint' : monthTotal >= 0 ? 'text-up' : 'text-down')}>
-              {monthHasAmount ? fmtSignedCnyCompact(monthTotal) : '—'}
+              {monthHasAmount ? fmtCNY(monthTotal, { sign: true }) : '—'}
             </strong>
           </span>
         )}
@@ -380,7 +380,7 @@ export function ReturnsCalendar({
           <span>
             当年收益合计
             <strong className={cx('num', yearTotal.amount == null ? 'text-ink-faint' : yearTotal.amount >= 0 ? 'text-up' : 'text-down')}>
-              {yearTotal.amount == null ? '—' : fmtSignedCnyCompact(yearTotal.amount)}
+              {yearTotal.amount == null ? '—' : fmtCNY(yearTotal.amount, { sign: true })}
             </strong>
           </span>
         )}
@@ -396,7 +396,7 @@ export function ReturnsCalendar({
           <span>
             累计收益合计
             <strong className={cx('num', allTimeTotal.amount == null ? 'text-ink-faint' : allTimeTotal.amount >= 0 ? 'text-up' : 'text-down')}>
-              {allTimeTotal.amount == null ? '—' : fmtSignedCnyCompact(allTimeTotal.amount)}
+              {allTimeTotal.amount == null ? '—' : fmtCNY(allTimeTotal.amount, { sign: true })}
             </strong>
           </span>
         )}

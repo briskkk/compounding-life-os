@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
   // ── 装配绩效序列（investable 为净值，含实时「今日」点）──
   // 与看盘页 PortfolioHistory 的输入口径一致
-  const rates = await fxRates()
+  const rates = await fxRates(prisma)
   const currencyRate = (cur: string) => (cur === 'USD' ? rates.USDCNY : cur === 'HKD' ? rates.HKDCNY : 1)
   const portfolioTxs = state.ledgerTxs.filter((tx) => isPortfolioAssetClass(tx.assetClass))
   const flows = dailyNetFlows(portfolioTxs, currencyRate)

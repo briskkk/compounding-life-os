@@ -134,13 +134,26 @@ describe('残差代理指数自动选择', () => {
 describe('东财基金报文解析', () => {
   it('重仓股解析', () => {
     const list = parseHoldings({
-      Datas: { fundStocks: [{ GPDM: '600519', GPJC: '贵州茅台', JZBL: '9.77' }, { GPDM: '000333', GPJC: '美的集团', JZBL: '9.31' }] },
+      Datas: {
+        fundStocks: [
+          { GPDM: '600519', GPJC: '贵州茅台', JZBL: '9.77', NEWTEXCH: '1' },
+          { GPDM: '000333', GPJC: '美的集团', JZBL: '9.31', NEWTEXCH: '0' },
+          { GPDM: '01818', GPJC: '招金矿业', JZBL: '8.66', TEXCH: '5', NEWTEXCH: '116' },
+        ],
+      },
     })
     expect(list).toEqual([
       { code: '600519', name: '贵州茅台', weightPct: 9.77 },
       { code: '000333', name: '美的集团', weightPct: 9.31 },
+      { code: 'HK01818', name: '招金矿业', weightPct: 8.66 },
     ])
     expect(parseHoldings({ Datas: {} })).toEqual([])
+  })
+
+  it('五位数字持仓即使缺少交易所字段也按港股标准化', () => {
+    expect(parseHoldings({
+      Datas: { fundStocks: [{ GPDM: '01787', GPJC: '山东黄金', JZBL: '9.17' }] },
+    })).toEqual([{ code: 'HK01787', name: '山东黄金', weightPct: 9.17 }])
   })
 
   it('资产配置解析：股票仓位与基金仓位', () => {

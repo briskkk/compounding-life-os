@@ -7,7 +7,7 @@ import type { PerformanceCurvePoint } from '@/lib/engine/period-performance'
 import type { TxType } from '@/lib/engine/types'
 import { getCalendarDayTransactions, type CalendarDayTransaction } from '@/lib/calendar-actions'
 import { TX_TYPE_LABEL } from '@/lib/labels'
-import { cx, fmtMoney, fmtSignedCnyCompact } from '@/lib/format'
+import { cx, fmtCNY, fmtMoney } from '@/lib/format'
 import { valuationStatusText } from './valuation-status-text'
 
 function signedPct(value: number): string {
@@ -94,7 +94,7 @@ export function ReturnsDayDialog({ detail, onClose }: { detail: DayDetail | null
             <div>
               <span>当日收益金额</span>
               <strong className={cx('num', point.dailyAmount == null ? 'text-ink-faint' : point.dailyAmount >= 0 ? 'text-up' : 'text-down')}>
-                {point.dailyAmount == null ? '—' : fmtSignedCnyCompact(point.dailyAmount)}
+                {point.dailyAmount == null ? '—' : fmtCNY(point.dailyAmount, { sign: true })}
               </strong>
             </div>
             <div>

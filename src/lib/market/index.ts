@@ -11,10 +11,19 @@ import { parseSymbol } from './symbols'
 import { cachedQuote, quoteCacheKey, recordRequest } from './cache'
 import type { Bar, MarketDataProvider, QuoteData } from './provider'
 
+const DEFAULT_PROVIDER_SPEC = 'tencent,eastmoney-kline,eastmoney-fund,sina'
+
 export const simulatedProvider: MarketDataProvider = {
   label: PROVIDER_LABEL,
   async quote(symbol: string) {
-    return { ...quoteAt(symbol), source: PROVIDER_LABEL }
+    const receivedAt = new Date().toISOString()
+    return {
+      ...quoteAt(symbol),
+      receivedAt,
+      source: PROVIDER_LABEL,
+      kind: 'SIMULATED',
+      freshness: 'UNKNOWN',
+    }
   },
   async history(symbol: string, from: Date, to: Date): Promise<Bar[]> {
     return dailyCloses(symbol, from, to)
@@ -29,14 +38,36 @@ const REGISTRY: Record<string, MarketDataProvider> = {
   simulated: simulatedProvider,
 }
 
-/** 解析 MARKET_PROVIDER 为提供者链（未知项忽略；显式为空回落模拟源，未配置默认真实链） */
+export class MarketProviderConfigError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'MarketProviderConfigError'
+  }
+}
+
+/**
+ * 解析 MARKET_PROVIDER 为提供者链。
+ * 未配置时使用默认真实链；空值、未知项或重复项均视为配置错误，绝不回落模拟源。
+ */
 export function providerChain(spec?: string): MarketDataProvider[] {
-  const raw = (spec ?? process.env.MARKET_PROVIDER ?? 'tencent,eastmoney-kline,eastmoney-fund,sina')
+  const configured = spec ?? process.env.MARKET_PROVIDER
+  const value = configured == null ? DEFAULT_PROVIDER_SPEC : configured
+  const raw = value
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
-  const chain = raw.map((k) => REGISTRY[k]).filter((p): p is MarketDataProvider => p != null)
-  return chain.length > 0 ? chain : [simulatedProvider]
+  if (raw.length === 0) {
+    throw new MarketProviderConfigError('MARKET_PROVIDER 不能为空；如需离线演示请显式配置 simulated')
+  }
+  const unknown = raw.filter((key) => REGISTRY[key] == null)
+  if (unknown.length > 0) {
+    throw new MarketProviderConfigError(`MARKET_PROVIDER 包含未知行情源：${[...new Set(unknown)].join(', ')}`)
+  }
+  const duplicates = raw.filter((key, index) => raw.indexOf(key) !== index)
+  if (duplicates.length > 0) {
+    throw new MarketProviderConfigError(`MARKET_PROVIDER 包含重复行情源：${[...new Set(duplicates)].join(', ')}`)
+  }
+  return raw.map((key) => REGISTRY[key])
 }
 
 /**
@@ -60,6 +91,17 @@ export async function quoteSmart(symbol: string): Promise<QuoteData> {
       const t0 = Date.now()
       try {
         const q = await provider.quote(symbol)
+        if (
+          q.symbol !== symbol
+          || !Number.isFinite(q.price)
+          || q.price <= 0
+          || !Number.isFinite(q.prevClose)
+          || q.prevClose < 0
+          || !Number.isFinite(new Date(q.asOf).getTime())
+          || q.source.trim().length === 0
+        ) {
+          throw new Error(`${provider.label} 返回了无效报价：${symbol}`)
+        }
         recordRequest(provider.label, true, Date.now() - t0)
         return q
       } catch (e) {

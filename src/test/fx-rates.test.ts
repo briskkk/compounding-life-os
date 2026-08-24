@@ -1,12 +1,27 @@
 // 历史汇率（RateBar）测试：按日折算、缺失回落、持久化幂等
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { PrismaClient } from '@prisma/client'
 import path from 'node:path'
-import { fxRateAt, loadFxSeries, persistDailyFx, type FxSeriesMap } from '@/lib/market/fx'
+import {
+  fxRateAt,
+  fxRates,
+  loadFxSeries,
+  persistDailyFx,
+  resetFxCache,
+  type FxSeriesMap,
+} from '@/lib/market/fx'
 
 const base = new PrismaClient({ datasourceUrl: `file:${path.resolve('prisma/test.db')}` })
 
 const live = { USDCNY: 7.2, HKDCNY: 0.92 }
+const savedProvider = process.env.MARKET_PROVIDER
+
+afterEach(() => {
+  if (savedProvider === undefined) delete process.env.MARKET_PROVIDER
+  else process.env.MARKET_PROVIDER = savedProvider
+  vi.unstubAllGlobals()
+  resetFxCache()
+})
 
 function seriesOf(rows: { pair: string; date: Date; rate: number }[]): FxSeriesMap {
   const map: FxSeriesMap = new Map()
@@ -74,13 +89,64 @@ describe('persistDailyFx / loadFxSeries（落库）', () => {
   })
 
   it('幂等写入当日汇率，loadFxSeries 可读回', async () => {
-    const written = await persistDailyFx(base, { USDCNY: 7.15, HKDCNY: 0.915 })
+    const written = await persistDailyFx(base, {
+      USDCNY: 7.15,
+      HKDCNY: 0.915,
+      source: 'SINA',
+      asOf: new Date().toISOString(),
+      stale: false,
+    })
     expect(written).toBe(2)
     // 同日再次写入应覆盖而非新增
-    await persistDailyFx(base, { USDCNY: 7.16, HKDCNY: 0.916 })
+    await persistDailyFx(base, {
+      USDCNY: 7.16,
+      HKDCNY: 0.916,
+      source: 'SINA',
+      asOf: new Date().toISOString(),
+      stale: false,
+    })
     const map = await loadFxSeries(base)
     const usd = map.get('USDCNY')
     expect(usd?.times).toHaveLength(1)
     expect(usd?.rates[0]).toBe(7.16)
+  })
+
+  it('实时源失败时回落最后真实汇率，并明确标记陈旧', async () => {
+    resetFxCache()
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
+    try {
+      const rates = await fxRates(base)
+      expect(rates).toMatchObject({
+        USDCNY: 7.16,
+        HKDCNY: 0.916,
+        source: 'RATE_BAR',
+        stale: true,
+      })
+    } finally {
+      vi.unstubAllGlobals()
+      resetFxCache()
+    }
+  })
+
+  it('历史回落汇率不会复制成当天的实时汇率记录', async () => {
+    const before = await base.rateBar.count()
+    const written = await persistDailyFx(base, {
+      USDCNY: 7.16,
+      HKDCNY: 0.916,
+      source: 'RATE_BAR',
+      asOf: '2026-08-23T00:00:00.000Z',
+      stale: true,
+    })
+    expect(written).toBe(0)
+    expect(await base.rateBar.count()).toBe(before)
+  })
+
+  it('仅显式纯模拟模式使用确定性模拟汇率，且不请求外部源', async () => {
+    process.env.MARKET_PROVIDER = 'simulated'
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const rates = await fxRates(base)
+    expect(rates).toMatchObject({ source: 'SIMULATED', stale: false })
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 })

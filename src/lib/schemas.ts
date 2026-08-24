@@ -145,3 +145,20 @@ export const liabilityEntryInputSchema = z.object({
   occurredAt: z.coerce.date(),
   note: z.string().max(200).nullable(),
 })
+
+export const portfolioReviewInputSchema = z.object({
+  period: z.enum(['THIS_WEEK', 'THIS_MONTH', 'THIS_QUARTER']),
+  benchmarkSymbol: z.enum(['sh000300', 'sh000001', 'sz399006', 'sh000688']),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  status: z.enum(['DRAFT', 'COMPLETED']),
+  note: z.string().max(4000, '复盘笔记最多 4000 字'),
+}).superRefine((value, ctx) => {
+  if (value.startDate > value.endDate) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '复盘开始日期不能晚于结束日期', path: ['startDate'] })
+  }
+  const days = (Date.parse(`${value.endDate}T00:00:00Z`) - Date.parse(`${value.startDate}T00:00:00Z`)) / 86400000
+  if (!Number.isFinite(days) || days > 100) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '复盘区间不能超过 100 天', path: ['endDate'] })
+  }
+})

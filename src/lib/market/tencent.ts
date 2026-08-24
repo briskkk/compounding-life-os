@@ -2,6 +2,7 @@
 // qt.gtimg.cn 实时报价 + ifzq.gtimg.cn 前复权日 K（仅解析数值字段）
 import type { Bar, MarketDataProvider, QuoteData } from './provider'
 import { parseSymbol, toTencentCode, toTencentKlineCode } from './symbols'
+import { exchangeTimeToIso, marketQuoteFreshness } from './quote-time'
 
 export { exchangePrefix } from './symbols'
 
@@ -28,7 +29,7 @@ export function parseTencentTradingDate(payload: string): string | null {
   const raw = payload.split('~')[30]?.trim() ?? ''
   const compact = raw.match(/^(\d{4})(\d{2})(\d{2})\d{6}$/)
   if (compact) return `${compact[1]}-${compact[2]}-${compact[3]}`
-  const separated = raw.match(/^(\d{4}-\d{2}-\d{2})[ T]\d{2}:\d{2}:\d{2}$/)
+  const separated = raw.replaceAll('/', '-').match(/^(\d{4}-\d{2}-\d{2})[ T]\d{2}:\d{2}:\d{2}$/)
   return separated?.[1] ?? null
 }
 
@@ -71,6 +72,7 @@ export const tencentProvider: MarketDataProvider = {
   label: 'TENCENT',
 
   async quote(symbol: string): Promise<QuoteData> {
+    const receivedAt = new Date()
     const parsed = parseSymbol(symbol)
     const code = toTencentCode(parsed)
     if (!code) throw new Error(`腾讯源不支持：${symbol}`)
@@ -82,14 +84,19 @@ export const tencentProvider: MarketDataProvider = {
     if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(prevClose)) {
       throw new Error(`腾讯源报价解析失败：${symbol}`)
     }
+    const tradingDate = parseTencentTradingDate(payload)
+    const exchangeAsOf = exchangeTimeToIso(f[30]?.trim() ?? '', parsed.market)
     return {
       symbol,
       price,
       prevClose,
       changePct: prevClose > 0 ? price / prevClose - 1 : 0,
-      asOf: new Date().toISOString(),
-      tradingDate: parseTencentTradingDate(payload) ?? undefined,
+      asOf: exchangeAsOf ?? receivedAt.toISOString(),
+      receivedAt: receivedAt.toISOString(),
+      tradingDate: tradingDate ?? undefined,
       source: 'TENCENT',
+      kind: 'MARKET',
+      freshness: marketQuoteFreshness(parsed.market, exchangeAsOf, tradingDate, receivedAt),
     }
   },
 

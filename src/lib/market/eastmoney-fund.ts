@@ -128,21 +128,25 @@ export const eastmoneyFundProvider: MarketDataProvider = {
   label: 'EASTMONEY-FUND',
 
   async quote(symbol: string): Promise<QuoteData> {
+    const receivedAt = new Date()
     const parsed = parseSymbol(symbol)
     // 场外基金端点按 6 位基金代码工作（不限 11/16 前缀；非基金代码会在端点侧落空）
     if (!/^\d{6}$/.test(parsed.code)) throw new Error(`基金净值源不支持：${symbol}`)
 
     // 盘后口径：今日官方净值已公布 → 直接使用官方净值
     const nav = await latestNav(symbol)
-    if (shouldUseOfficialNav(nav.date, new Date())) {
+    if (shouldUseOfficialNav(nav.date, receivedAt)) {
       return {
         symbol,
         price: nav.nav,
         prevClose: nav.equityReturn !== -1 ? nav.nav / (1 + nav.equityReturn) : nav.nav,
         changePct: nav.equityReturn,
         asOf: nav.date.toISOString(),
+        receivedAt: receivedAt.toISOString(),
         tradingDate: cnDayKey(nav.date),
         source: 'EASTMONEY-FUND',
+        kind: 'OFFICIAL_NAV',
+        freshness: 'CLOSED',
       }
     }
 
@@ -158,16 +162,21 @@ export const eastmoneyFundProvider: MarketDataProvider = {
       CONFIDENCE_MIN,
     )
     if (channel === 'OFFICIAL' && officialEstimate) {
+      const officialAsOf = officialEstimate.gztime != null ? gztimeToIso(officialEstimate.gztime) : null
+      const officialAgeMs = officialAsOf == null ? null : receivedAt.getTime() - new Date(officialAsOf).getTime()
       return {
         symbol,
         price: Math.round(officialEstimate.gsz! * 10000) / 10000,
         prevClose: officialEstimate.nav,
         changePct: officialEstimate.gszzlPct! / 100,
-        asOf: officialEstimate.gztime != null
-          ? gztimeToIso(officialEstimate.gztime) ?? new Date().toISOString()
-          : new Date().toISOString(),
-        tradingDate: cnDayKey(new Date()),
+        asOf: officialAsOf ?? receivedAt.toISOString(),
+        receivedAt: receivedAt.toISOString(),
+        tradingDate: cnDayKey(receivedAt),
         source: 'EASTMONEY-ESTIMATE',
+        kind: 'OFFICIAL_ESTIMATE',
+        freshness: officialAgeMs != null && officialAgeMs >= 0 && officialAgeMs <= 15 * 60_000
+          ? 'LIVE'
+          : 'STALE',
       }
     }
     if ((channel === 'MODEL' || channel === 'MODEL_LOW') && modelEstimate) {
@@ -176,9 +185,12 @@ export const eastmoneyFundProvider: MarketDataProvider = {
         price: Math.round(modelEstimate.estimate.estimatedNav * 10000) / 10000,
         prevClose: modelEstimate.prevNav,
         changePct: modelEstimate.estimate.estimateReturnPct / 100,
-        asOf: new Date().toISOString(),
-        tradingDate: cnDayKey(new Date()),
+        asOf: receivedAt.toISOString(),
+        receivedAt: receivedAt.toISOString(),
+        tradingDate: cnDayKey(receivedAt),
         source: 'FUND-ENGINE',
+        kind: 'MODEL_ESTIMATE',
+        freshness: 'UNKNOWN',
         // 低置信（30–50%）估值照常展示，前端用此字段弱化标注
         confidencePct: modelEstimate.estimate.confidencePct,
       }
@@ -191,8 +203,11 @@ export const eastmoneyFundProvider: MarketDataProvider = {
       prevClose: nav.equityReturn !== -1 ? nav.nav / (1 + nav.equityReturn) : nav.nav,
       changePct: nav.equityReturn,
       asOf: nav.date.toISOString(),
+      receivedAt: receivedAt.toISOString(),
       tradingDate: cnDayKey(nav.date),
       source: 'EASTMONEY-FUND',
+      kind: 'OFFICIAL_NAV',
+      freshness: 'CLOSED',
     }
   },
 

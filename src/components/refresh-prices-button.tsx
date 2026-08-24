@@ -21,7 +21,7 @@ export function RefreshPricesButton() {
           setTimeout(() => setDone(false), 3000)
         })
       }
-      className="h-11 shrink-0 whitespace-nowrap rounded-lg border border-line bg-transparent px-3 text-[14px] text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:opacity-40 max-sm:px-2 max-sm:text-[13px]"
+      className="h-11 shrink-0 whitespace-nowrap rounded-lg border border-line bg-transparent px-3 text-[14px] text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
       title="拉取最新行情历史并重建快照"
     >
       {pending ? '刷新中…' : done ? '✓ 已刷新' : '↻ 行情'}

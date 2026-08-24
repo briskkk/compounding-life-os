@@ -93,6 +93,7 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
     voidedAt: t.voidedAt,
     settleOfId: t.settleOfId,
     currency: t.asset.currency,
+    note: t.note,
   }))
   const entries: LiabilityEntryInput[] = entriesRaw.map((e) => ({
     liabilityId: e.liabilityId,
@@ -104,7 +105,7 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
   // 实时报价（混合源，逐个容错；US/HK 标的按实时汇率折人民币）
   // cls === 'FUND' 的资产统一走内部估值引擎（失败回落官方净值），其余走行情链路
   const listedAssets = assets.filter((a) => !a.manual && a.cls !== 'CASH' && a.cls !== 'REAL_ESTATE')
-  const rates = await fxRates()
+  const rates = await fxRates(prisma)
   const quotes = new Map<string, EngineQuote>()
   await Promise.all(
     listedAssets.map(async (a) => {
@@ -479,7 +480,7 @@ export async function getWatchData(): Promise<WatchData | null> {
   }))
   series = await extendWatchSeriesFromPrices(state, series)
 
-  const rates = await fxRates()
+  const rates = await fxRates(prisma)
   const currencyRate = (currency: string) => currency === 'USD' ? rates.USDCNY : currency === 'HKD' ? rates.HKDCNY : 1
   const portfolioTxs = state.ledgerTxs.filter((tx) => isPortfolioAssetClass(tx.assetClass))
   const flows = dailyNetFlows(portfolioTxs, currencyRate)
@@ -508,7 +509,7 @@ export async function getDashboard(): Promise<DashboardData | null> {
     ...snapshotValuationFields(s),
   }))
   // 追加实时「今日」点
-  const rates = await fxRates()
+  const rates = await fxRates(prisma)
   const currencyRate = (cur: string) => (cur === 'USD' ? rates.USDCNY : cur === 'HKD' ? rates.HKDCNY : 1)
   const portfolioTxs = state.ledgerTxs.filter((tx) => isPortfolioAssetClass(tx.assetClass))
   const flows = dailyNetFlows(portfolioTxs, currencyRate)

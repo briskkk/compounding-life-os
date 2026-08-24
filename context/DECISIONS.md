@@ -22,6 +22,7 @@ last_verified: 2026-08-05
 | Snapshot 是可重建缓存 | 流水/负债/行情为上游；快照可以删除重算，不能反向修正账本 | [ADR-010](../docs/adr/010-snapshots-are-derived.md) |
 | 基金确认与在途建模走事件拆分 | navDate/settlementDate 入流水、在途资金由折叠派生；不引入待确认状态表 | [ADR-012](../docs/adr/012-fund-order-confirmation.md) |
 | 基金成交净值日与确认日分离 | 15:00 前按 T 日净值；QDII T+2 只延迟登记确认，不顺延成交净值日；可用份额按派生确认日生效 | [ADR-013](../docs/adr/013-separate-fund-nav-and-confirmation.md) |
+| 组合复盘只保存用户判断与证据快照 | 收益与贡献实时派生；差额显式对账；复盘记录不成为第二账本，也不生成自动建议 | [ADR-014](../docs/adr/014-portfolio-review-evidence.md) |
 
 ## 补充已定规则
 

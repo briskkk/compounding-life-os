@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-08-05
+last_verified: 2026-08-24
 ---
 
 # 工程规则
@@ -40,7 +40,7 @@ last_verified: 2026-08-05
 
 - 遵守 `design-system/family-wealth-os/MASTER.md`：深色编辑式金融界面、七个主路由始终可见、无侧栏、无装饰性渐变/玻璃效果。
 - 正文对比度至少 4.5:1，交互目标至少 44px，支持键盘、焦点可见和 reduced motion。
-- 核对 375、768、1024、1440px；页面级不得横向溢出。
+- Web 端定位为桌面财富终端，验收 1280、1440、1600、1920px；低于 1180px 仅作兜底，不得为了手机浏览器压缩桌面字号、金额精度、表格列或主导航。移动体验由独立 App 承担。
 
 ## 测试与交付
 
@@ -49,4 +49,3 @@ last_verified: 2026-08-05
 - 文档或纯注释变化：至少检查链接、路径、代码事实与 `git diff --check`；是否构建按风险决定。
 - 不以重试掩盖 E2E 首轮失败；开发、生产、E2E dist 和端口必须隔离。
 - 完成影响项目事实、决策或状态的任务后更新 `CURRENT_STATE.md` 和 `CHANGELOG_AI.md`；纯局部修复无需机械改写状态快照。
-

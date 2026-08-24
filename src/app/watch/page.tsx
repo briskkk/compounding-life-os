@@ -22,7 +22,7 @@ export default async function WatchPage({ searchParams }: { searchParams: Promis
     : null
 
   const state = watchData.state
-  const rates = await fxRates()
+  const rates = await fxRates(prisma)
   // 基准序列向前多取 10 天：保证期初基准日（可能落在非交易日）有可用收盘净值
   const benchmarks = watchData.series.length > 0
     ? await loadBenchmarks(new Date(new Date(`${watchData.series[0].date}T00:00:00`).getTime() - 10 * 86400000), new Date())

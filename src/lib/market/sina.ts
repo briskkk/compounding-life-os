@@ -2,6 +2,7 @@
 // 报文为 GBK 编码，仅解析数值字段；字段位置已按真实报文校准
 import type { Bar, MarketDataProvider, QuoteData } from './provider'
 import { parseSymbol, toSinaCode } from './symbols'
+import { exchangeTimeToIso, marketQuoteFreshness } from './quote-time'
 
 const HEADERS = { Referer: 'https://finance.sina.com.cn' }
 
@@ -15,6 +16,7 @@ export const sinaProvider: MarketDataProvider = {
   label: 'SINA',
 
   async quote(symbol: string): Promise<QuoteData> {
+    const receivedAt = new Date()
     const parsed = parseSymbol(symbol)
     const code = toSinaCode(parsed)
     if (!code) throw new Error(`新浪源不支持：${symbol}`)
@@ -40,13 +42,24 @@ export const sinaProvider: MarketDataProvider = {
     if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(prevClose) || prevClose <= 0) {
       throw new Error(`新浪源报价解析失败：${symbol}`)
     }
+    const rawTime = parsed.market === 'CN_A'
+      ? `${f[30] ?? ''} ${f[31] ?? ''}`.trim()
+      : parsed.market === 'HK'
+        ? `${f[17] ?? ''} ${f[18] ?? ''}`.trim()
+        : ''
+    const exchangeAsOf = exchangeTimeToIso(rawTime, parsed.market)
+    const tradingDate = rawTime.replaceAll('/', '-').match(/^(\d{4}-\d{2}-\d{2})/)?.[1] ?? null
     return {
       symbol,
       price,
       prevClose,
       changePct: price / prevClose - 1,
-      asOf: new Date().toISOString(),
+      asOf: exchangeAsOf ?? receivedAt.toISOString(),
+      receivedAt: receivedAt.toISOString(),
+      tradingDate: tradingDate ?? undefined,
       source: 'SINA',
+      kind: 'MARKET',
+      freshness: marketQuoteFreshness(parsed.market, exchangeAsOf, tradingDate, receivedAt),
     }
   },
 
