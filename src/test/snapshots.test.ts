@@ -41,6 +41,30 @@ describe('财富快照窗口', () => {
     expect(points.at(-1)?.contributions).toBe(10000)
   })
 
+  it('可交易黄金无买入结算腿时记外部投入，卖出有结算腿时保持组合内守恒', () => {
+    const assets: AssetInfo[] = [
+      { id: 'gold', symbol: 'AU999', name: '可交易黄金', cls: 'GOLD', manual: true, currency: 'CNY' },
+      { id: 'cash', symbol: 'CASH-CNY', name: '人民币现金', cls: 'CASH', manual: false, currency: 'CNY' },
+    ]
+    const txs: LedgerTx[] = [
+      { id: 'gold-buy', accountId: 'gold-account', assetId: 'gold', type: 'BUY', quantity: 10, price: 100, amount: 1000, fee: 0, occurredAt: D('2026-08-01T00:00:00Z'), assetClass: 'GOLD' },
+      { id: 'gold-sell', accountId: 'gold-account', assetId: 'gold', type: 'SELL', quantity: 2, price: 100, amount: 200, fee: 0, occurredAt: D('2026-08-02T00:00:00Z'), assetClass: 'GOLD' },
+      { id: 'cash-leg', settleOfId: 'gold-sell', accountId: 'cash-account', assetId: 'cash', type: 'DEPOSIT', quantity: null, price: null, amount: 200, fee: 0, occurredAt: D('2026-08-02T00:00:00Z'), assetClass: 'CASH', internal: true },
+    ]
+
+    const points = computeWealthSeries(
+      txs,
+      assets,
+      [],
+      D('2026-08-01T00:00:00Z'),
+      D('2026-08-02T00:00:00Z'),
+      () => undefined,
+    )
+
+    expect(points.map((point) => point.investable)).toEqual([1000, 1000])
+    expect(points.map((point) => point.contributions)).toEqual([1000, 1000])
+  })
+
   it('区分休市沿用价格与交易日新估值', () => {
     const assets: AssetInfo[] = [
       { id: 'etf', symbol: '510300', name: '沪深300ETF', cls: 'ETF', manual: false, currency: 'CNY' },

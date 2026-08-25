@@ -1,12 +1,12 @@
 // 聚合指标：净资产 / 可自由投资资产 双口径 + 风险敞口 + 流动性水位
 import type { AssetClass } from './types'
 import type { ValuedPosition } from './valuation'
-import { isPortfolioAssetClass } from '../asset-classification'
+import { isInvestableAsset, isPortfolioAssetClass } from '../asset-classification'
 
 export interface LiquidityTiers {
   cash: number // 现金及等价物
-  market: number // 高流动性证券（股/基/ETF/金）
-  illiquid: number // 不动产及其他手动估值资产
+  market: number // 高流动性证券（股/基/ETF/可交易黄金）
+  illiquid: number // 不动产、长期持股及其他非投资资产
 }
 
 export interface HoldingWeight {
@@ -51,7 +51,7 @@ export function aggregate(valued: ValuedPosition[]): Metrics {
     }
 
     if (p.asset.cls === 'CASH') liquidity.cash += p.value
-    else if (p.asset.cls === 'REAL_ESTATE' || p.asset.manual) liquidity.illiquid += p.value
+    else if (!isInvestableAsset(p.asset)) liquidity.illiquid += p.value
     else liquidity.market += p.value
   }
 

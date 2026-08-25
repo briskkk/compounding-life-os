@@ -40,6 +40,25 @@ describe('双口径估值', () => {
     expect(house.investable).toBe(0)
   })
 
+  it('可交易黄金使用手动估值时仍计入可投资资产与高流动性资产', () => {
+    const goldAssets = new Map<string, AssetInfo>([
+      ['gold', { id: 'gold', symbol: 'AU999', name: '可交易黄金', cls: 'GOLD', manual: true, currency: 'CNY' }],
+    ])
+    const goldPositions = foldTransactions([
+      { accountId: 'a', assetId: 'gold', type: 'BUY', quantity: 10, price: 100, amount: 1000, fee: 0, occurredAt: D('2026-08-01'), assetClass: 'GOLD' },
+      { accountId: 'a', assetId: 'gold', type: 'VALUATION', quantity: null, price: null, amount: 1200, fee: 0, occurredAt: D('2026-08-02'), assetClass: 'GOLD' },
+    ])
+    const [gold] = valuePositions(goldPositions, goldAssets, () => undefined)
+    const result = aggregate([gold])
+
+    expect(gold.priceSource).toBe('MANUAL')
+    expect(gold.value).toBe(1200)
+    expect(gold.investable).toBe(1200)
+    expect(result.investable).toBe(1200)
+    expect(result.liquidity.market).toBe(1200)
+    expect(result.liquidity.illiquid).toBe(0)
+  })
+
   it('流动性分桶：房产计入低流动性资产', () => {
     expect(metrics.liquidity.illiquid).toBe(3_300_000)
     expect(metrics.liquidity.cash).toBe(100_000)

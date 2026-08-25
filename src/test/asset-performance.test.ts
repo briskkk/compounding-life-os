@@ -130,6 +130,44 @@ describe('单资产历史收益', () => {
     expect(result.curve.at(-1)?.dailyAmount).toBe(5)
   })
 
+  it('外币现金和价格未更新的外币资产仍确认汇率收益', () => {
+    const usdCash: AssetInfo = {
+      ...stock,
+      symbol: 'CASH-USD',
+      cls: 'CASH',
+      manual: false,
+      currency: 'USD',
+    }
+    const cashSeries = buildAssetPerformanceSeries({
+      asset: usdCash,
+      transactions: [tx({
+        type: 'DEPOSIT',
+        amount: 100,
+        assetClass: 'CASH',
+        occurredAt: new Date('2025-01-01T12:00:00+08:00'),
+      })],
+      prices: [],
+      to: new Date('2025-01-02T12:00:00+08:00'),
+      currencyRate: (date) => date.toISOString().slice(0, 10) === '2025-01-02' ? 7.2 : 7,
+    })
+    const cashResult = performanceBetween(cashSeries, '2025-01-01', '2025-01-02')
+
+    expect(cashSeries.at(-1)?.valuationStatus).toBe('SETTLED')
+    expect(cashResult.amount).toBeCloseTo(20)
+
+    const usdStock: AssetInfo = { ...stock, currency: 'USD' }
+    const stockSeries = buildAssetPerformanceSeries({
+      asset: usdStock,
+      transactions: [tx({ type: 'BUY', quantity: 10, price: 10, amount: 100 })],
+      prices: [{ date: '2025-01-01', nav: 10 }],
+      to: new Date('2025-01-02T12:00:00+08:00'),
+      currencyRate: (date) => date.toISOString().slice(0, 10) === '2025-01-02' ? 7.2 : 7,
+    })
+
+    expect(stockSeries.at(-1)?.valuationStatus).toBe('PARTIAL')
+    expect(performanceBetween(stockSeries, '2025-01-01', '2025-01-02').amount).toBeCloseTo(20)
+  })
+
   it.each(['STOCK', 'ETF', 'FUND', 'GOLD'] as const)('%s 在周末沿用价格时收益为“无观察”', (cls) => {
     const asset: AssetInfo = { ...stock, cls, symbol: `TEST-${cls}` }
     const series = buildAssetPerformanceSeries({

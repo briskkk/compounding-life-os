@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { afterEach, describe, expect, it } from 'vitest'
 import { backupNow, recentBackups, verifySQLiteBackup } from '@/lib/backup'
 
@@ -14,7 +15,12 @@ describe('SQLite 一致性备份', () => {
   it('使用原子临时文件生成可校验快照并轮转', () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'fwos-backup-test-'))
     tempDirs.push(directory)
-    const dbPath = path.resolve('prisma/test.db')
+    // 不与并行 Prisma 测试共享 test.db，避免写事务期间 sqlite3 .backup 争抢文件锁。
+    const dbPath = path.join(directory, 'source.db')
+    execFileSync('sqlite3', [
+      dbPath,
+      'CREATE TABLE "Transaction" (id TEXT PRIMARY KEY); CREATE TABLE "AuditLog" (id TEXT PRIMARY KEY);',
+    ])
     const first = backupNow({ dbPath, directory, keep: 1, now: new Date('2026-08-24T01:02:03.004Z') })
     const second = backupNow({ dbPath, directory, keep: 1, now: new Date('2026-08-24T01:02:04.004Z') })
 

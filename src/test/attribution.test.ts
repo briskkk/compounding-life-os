@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { annualized, cumulativeContributions, dailyNetFlows, twrSeries, xirr, xirrFlowsFromTxs } from '@/lib/engine/attribution'
+import type { LedgerTx } from '@/lib/engine/ledger'
 import type { TxInput } from '@/lib/engine/types'
 
 const D = (s: string) => new Date(s)
@@ -31,6 +32,60 @@ describe('收益归因', () => {
     const cum = cumulativeContributions(days, flows)
     expect(cum[9]).toBe(42000)
     expect(cum[20]).toBe(34000)
+  })
+
+  it('无现金结算腿的可交易黄金买卖按组合外转入转出处理', () => {
+    const goldBuy: LedgerTx = {
+      id: 'gold-buy',
+      accountId: 'gold-account',
+      assetId: 'gold',
+      assetClass: 'GOLD',
+      type: 'BUY',
+      quantity: 10,
+      price: 100,
+      amount: 1000,
+      fee: 2,
+      occurredAt: D('2025-01-10'),
+    }
+    const settledSell: LedgerTx = {
+      ...goldBuy,
+      id: 'gold-sell-settled',
+      type: 'SELL',
+      quantity: 2,
+      amount: 220,
+      fee: 1,
+      occurredAt: D('2025-01-20'),
+    }
+    const settlementLeg: LedgerTx = {
+      id: 'cash-leg',
+      settleOfId: settledSell.id,
+      accountId: 'cash-account',
+      assetId: 'cash',
+      assetClass: 'CASH',
+      type: 'DEPOSIT',
+      quantity: null,
+      price: null,
+      amount: 219,
+      fee: 0,
+      occurredAt: D('2025-01-20'),
+      internal: true,
+    }
+    const standaloneSell: LedgerTx = {
+      ...settledSell,
+      id: 'gold-sell-external',
+      amount: 240,
+      occurredAt: D('2025-01-25'),
+    }
+    const txs = [goldBuy, settledSell, settlementLeg, standaloneSell]
+    const flows = dailyNetFlows(txs)
+
+    expect(flows.get(Math.floor(D('2025-01-10').getTime() / 86400000))).toBe(1002)
+    expect(flows.has(Math.floor(D('2025-01-20').getTime() / 86400000))).toBe(false)
+    expect(flows.get(Math.floor(D('2025-01-25').getTime() / 86400000))).toBe(-239)
+    expect(xirrFlowsFromTxs(txs)).toEqual([
+      { date: D('2025-01-10'), amount: -1002 },
+      { date: D('2025-01-25'), amount: 239 },
+    ])
   })
 
   it('TWR 消除出入金影响：day2 无流涨 10%，day3 入金后持平', () => {

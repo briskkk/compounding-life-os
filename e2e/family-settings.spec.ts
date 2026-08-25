@@ -38,7 +38,7 @@ test('多家庭：创建家庭、数据隔离与切换', async ({ browser }) => 
     // 新家庭无种子数据：总市值等关键金额为 0 / 占位
     await page.goto('/')
     const main = page.locator('main')
-    await expect(main).toContainText('流动性水位')
+    await expect(main).toContainText('状态速览')
     // 切回种子家庭，数据恢复（净资产可见）
     await page.getByLabel('切换家庭').selectOption({ label: '沈家 · 财富空间 · OWNER' })
     await expect(page).toHaveURL('/')

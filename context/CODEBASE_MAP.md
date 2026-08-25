@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-08-24
+last_verified: 2026-08-25
 ---
 
 # 代码地图
@@ -12,7 +12,7 @@ last_verified: 2026-08-24
 
 | 领域 | 页面/API | 主要数据与交互 |
 | --- | --- | --- |
-| 总览 | `src/app/page.tsx` | `getDashboard`；净资产、财富轨迹、行动、风险、FIRE |
+| 总览 | `src/app/page.tsx` | `getDashboard(period)`；净资产、周/月/季可投资资产结果桥、贡献来源、财富轨迹、构成、状态与 FIRE |
 | 持仓 | `src/app/positions/page.tsx` | `loadEngineState`；配置、分组、排序、当日盈亏 |
 | 资产详情 | `src/app/positions/[assetId]/page.tsx` | 价格/净值历史、基金估值、持仓概览与流水 |
 | 看盘 | `src/app/watch/page.tsx` | `getWatchData`；盘中曲线、区间绩效、基准、风险 |
@@ -55,8 +55,8 @@ Route Handlers：
 - `src/lib/actions.ts`：全部业务写操作、审计、快照刷新、revalidate。
 - `src/lib/services/transactions.ts`：共享事务写服务（流水创建/冲正的校验、结算联动、审计、快照刷新）—— Server Actions 与移动端 API 复用同一写路径。
 - `src/lib/services/api-auth.ts`：API 认证分界：读可回落全局 Key，写必须真实用户会话。
-- `src/lib/queries.ts`：页面 View Model 装配、实时估值与目标。
-- `src/lib/review-data.ts`：复盘页 View Model；历史价格/汇率、组合曲线、资产曲线、基准与已保存记录装配。
+- `src/lib/queries.ts`：页面 View Model 装配、实时估值与目标；总览复用复盘引擎装配周/月/季贡献证据。
+- `src/lib/review-data.ts`：复盘页 View Model；历史价格/汇率、同源组合/资产日曲线、在途资金、基准与已保存记录装配。
 - `src/lib/snapshots.ts`：从首笔流水完整回放财富序列；`rebuildSnapshots` 支持按 `affectedSince` 增量重建，异常超长日期显式拒绝而不静默截断。
 - `src/lib/audit.ts`：审计哈希、完整性验证及同家庭串行事务；`chainScope + chainKey` 唯一约束与冲突重试防止并发分叉。
 - `src/lib/export.ts`、`src/lib/csv.ts`：CSV 出入双向格式；`ImportBatch` 负责批次指纹、幂等与对账。
@@ -70,12 +70,12 @@ Route Handlers：
 - `src/lib/engine/valuation.ts`：MARKET/MANUAL/COST/FACE 估值和双口径。
 - `src/lib/engine/merge.ts`、`groups.ts`、`account-summary.ts`：持仓聚合。
 - `src/lib/engine/settlement.ts`、`settlement-account.ts`：买卖/分红/利息/费用现金腿（基金赎回支持 `settleAt` 延迟到账）与结算关系环检测。
-- `src/lib/asset-classification.ts`：组合资产与长期资产边界。
+- `src/lib/asset-classification.ts`：组合资产、可投资资产与长期资产边界；GOLD 的手动估值不改变可投资属性。
 
 ### 绩效与风险
 
-- `src/lib/engine/attribution.ts`：外部净投入、TWR、XIRR。
-- `src/lib/engine/period-performance.ts`、`asset-performance.ts`：区间和资产级曲线。
+- `src/lib/engine/attribution.ts`：外部净投入、TWR、XIRR；兼容无结算腿的历史 GOLD 买卖资金流。
+- `src/lib/engine/period-performance.ts`、`asset-performance.ts`：区间和资产级曲线；外币价格未更新日仍识别汇率收益。
 - `src/lib/engine/review.ts`：可对账的金额/链接百分点归因、来源拆分、交易行为、时点与风险变化。
 - `src/lib/engine/valuation-status.ts`：估值质量状态与收益观察点。
 - `src/lib/engine/daily-pnl.ts`、`intraday.ts`、`watch-market.ts`：当日和盘中组合。

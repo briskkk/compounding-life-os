@@ -1,11 +1,32 @@
-import { performanceBetween, type PerformancePoint, type PeriodPerformanceResult } from './period-performance'
+import {
+  performanceBetween,
+  performancePresetRange,
+  type PerformancePoint,
+  type PerformanceRange,
+  type PeriodPerformanceResult,
+} from './period-performance'
 import { riskMetrics } from './risk'
 import { dateKeyAt } from './watch-market'
 import type { AssetPerformancePoint } from './asset-performance'
 import type { AssetClass, AssetStyle } from './types'
-import type { LedgerTx } from './ledger'
+import { pendingSettlementsAt, type LedgerTx } from './ledger'
 
 export type ReviewPeriod = 'THIS_WEEK' | 'THIS_MONTH' | 'THIS_QUARTER'
+
+function quarterRange(now: Date): PerformanceRange {
+  const endDate = dateKeyAt(now)
+  const month = Number(endDate.slice(5, 7))
+  const quarterMonth = Math.floor((month - 1) / 3) * 3 + 1
+  return {
+    label: '本季度',
+    startDate: `${endDate.slice(0, 4)}-${String(quarterMonth).padStart(2, '0')}-01`,
+    endDate,
+  }
+}
+
+export function reviewRange(period: ReviewPeriod, now = new Date()): PerformanceRange {
+  return period === 'THIS_QUARTER' ? quarterRange(now) : performancePresetRange(period, now)
+}
 
 export interface ReviewAssetInput {
   assetId: string
@@ -112,6 +133,35 @@ export interface ReviewResult {
   valuationCoverage: number | null
   latestValuationDate: string | null
   valuationGapCount: number
+}
+
+/**
+ * 用资产级日序列重建组合可投资市值，并补回非持仓形态的赎回在途资金。
+ * 组合与标的共用同一批价格/汇率，避免 Snapshot 尾部与实时报价混算产生伪差额。
+ */
+export function reconstructReviewPortfolioSeries({
+  series,
+  assets,
+  transactions,
+  rateAt = () => 1,
+}: {
+  series: PerformancePoint[]
+  assets: ReviewAssetInput[]
+  transactions: LedgerTx[]
+  rateAt?: (currency: string, date: Date) => number
+}): PerformancePoint[] {
+  const valuesByDate = assets.map((asset) => new Map(
+    asset.series.map((point) => [point.date, point.netWorth]),
+  ))
+  return series.map((point) => {
+    const valuationDate = new Date(`${point.date}T12:00:00+08:00`)
+    const assetsValue = valuesByDate.reduce((sum, values) => sum + (values.get(point.date) ?? 0), 0)
+    const inTransit = pendingSettlementsAt(transactions, valuationDate).reduce(
+      (sum, settlement) => sum + settlement.amount * rateAt(settlement.currency, valuationDate),
+      0,
+    )
+    return { ...point, netWorth: assetsValue + inTransit }
+  })
 }
 
 type DailyBuckets = Map<string, Map<string, number>>

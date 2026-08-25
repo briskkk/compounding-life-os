@@ -123,6 +123,7 @@ export function buildAssetPerformanceSeries({
   let lastMarketNav: number | null = null
   let lastMarketDate: string | null = null
   let lastPriceStatus: ValuationStatus | undefined
+  let previousCurrencyRate: number | null = null
   let cumulativeFlow = 0
   const result: AssetPerformancePoint[] = []
 
@@ -171,6 +172,9 @@ export function buildAssetPerformanceSeries({
     }
 
     const hasReturnEvent = dailyTxs.some((tx) => ['DIVIDEND', 'INTEREST', 'FEE', 'VALUATION'].includes(tx.type))
+    const hasCurrencyReturn = previousCurrencyRate != null
+      && Math.abs(dailyRate - previousCurrencyRate) >= 1e-12
+      && Math.abs(netWorth) >= 0.005
     const hasAssetFlow = dailyTxs.some((tx) => Math.abs(transactionFlow(
       tx,
       nav,
@@ -189,10 +193,10 @@ export function buildAssetPerformanceSeries({
     )
     let valuationStatus: ValuationStatus
     if (asset.cls === 'CASH' || asset.manual || asset.cls === 'REAL_ESTATE') {
-      valuationStatus = hasReturnEvent ? 'SETTLED' : hasAssetFlow ? 'FLOW_ONLY' : 'NO_UPDATE'
+      valuationStatus = hasReturnEvent || hasCurrencyReturn ? 'SETTLED' : hasAssetFlow ? 'FLOW_ONLY' : 'NO_UPDATE'
     } else if (hasFreshPrice) {
       valuationStatus = lastPriceStatus ?? 'SETTLED'
-    } else if (hasReturnEvent) {
+    } else if (hasReturnEvent || hasCurrencyReturn) {
       valuationStatus = 'PARTIAL'
     } else if (hasAssetFlow) {
       valuationStatus = 'FLOW_ONLY'
@@ -224,6 +228,7 @@ export function buildAssetPerformanceSeries({
         : lastMarketDate,
       valuationGaps,
     })
+    previousCurrencyRate = dailyRate
   }
 
   return result

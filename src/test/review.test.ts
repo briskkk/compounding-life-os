@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildReviewResult, type ReviewAssetInput } from '@/lib/engine/review'
+import { buildReviewResult, reconstructReviewPortfolioSeries, reviewRange, type ReviewAssetInput } from '@/lib/engine/review'
 import type { LedgerTx } from '@/lib/engine/ledger'
 
 const D = (value: string) => new Date(`${value}T10:00:00+08:00`)
@@ -46,6 +46,26 @@ function tx(input: Partial<LedgerTx> & Pick<LedgerTx, 'assetId' | 'type' | 'occu
 }
 
 describe('组合复盘归因', () => {
+  it('把周、月、季度统一解析为北京时间自然周期', () => {
+    const now = new Date('2026-08-24T12:00:00+08:00')
+
+    expect(reviewRange('THIS_WEEK', now)).toEqual({
+      label: '本周',
+      startDate: '2026-08-24',
+      endDate: '2026-08-24',
+    })
+    expect(reviewRange('THIS_MONTH', now)).toEqual({
+      label: '本月',
+      startDate: '2026-08-01',
+      endDate: '2026-08-24',
+    })
+    expect(reviewRange('THIS_QUARTER', now)).toEqual({
+      label: '本季度',
+      startDate: '2026-07-01',
+      endDate: '2026-08-24',
+    })
+  })
+
   it('标的金额和多期链接百分点都与组合收益严格对账', () => {
     const portfolio = [
       { date: '2026-07-31', netWorth: 200, contributions: 200, valuationStatus: 'SETTLED' as const, valuationCoverage: 1 },
@@ -102,6 +122,59 @@ describe('组合复盘归因', () => {
     expect(result.reconciliationStatus).toBe('REVIEW')
     expect(result.classes.some((row) => String(row.key) === 'RECONCILIATION')).toBe(false)
     expect(result.sources.reduce((sum, row) => sum + row.amount, 0)).toBeCloseTo(15)
+  })
+
+  it('用同源标的日序列重建组合，并在赎回到账前补回在途资金', () => {
+    const fund = asset('fund', '基金', 'FUND', [
+      ['2026-07-31', 100, 100, 'SETTLED'],
+      ['2026-08-01', 0, -10, 'SETTLED'],
+      ['2026-08-02', 0, -10, 'SETTLED'],
+    ])
+    const cash = asset('cash', '现金', 'CASH', [
+      ['2026-07-31', 0, 0, 'FLOW_ONLY'],
+      ['2026-08-01', 0, 0, 'FLOW_ONLY'],
+      ['2026-08-02', 110, 110, 'FLOW_ONLY'],
+    ])
+    const sell = tx({
+      id: 'sell',
+      assetId: 'fund',
+      assetClass: 'FUND',
+      type: 'SELL',
+      amount: 110,
+      occurredAt: D('2026-08-01'),
+    })
+    const cashLeg = tx({
+      id: 'cash-leg',
+      settleOfId: 'sell',
+      assetId: 'cash',
+      assetClass: 'CASH',
+      type: 'DEPOSIT',
+      amount: 110,
+      internal: true,
+      occurredAt: D('2026-08-02'),
+    })
+    const portfolio = reconstructReviewPortfolioSeries({
+      series: ['2026-07-31', '2026-08-01', '2026-08-02'].map((date) => ({
+        date,
+        netWorth: 0,
+        contributions: 100,
+        valuationStatus: 'SETTLED' as const,
+      })),
+      assets: [fund, cash],
+      transactions: [sell, cashLeg],
+    })
+
+    expect(portfolio.map((point) => point.netWorth)).toEqual([100, 110, 110])
+    const result = buildReviewResult({
+      portfolioSeries: portfolio,
+      assets: [fund, cash],
+      transactions: [sell, cashLeg],
+      startDate: '2026-08-01',
+      endDate: '2026-08-02',
+      label: '本月',
+    })
+    expect(result.performance.amount).toBe(10)
+    expect(result.reconciliationAmount).toBeCloseTo(0)
   })
 
   it('分红、费用和市场变化来源相加等于标的贡献', () => {

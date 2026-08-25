@@ -67,7 +67,15 @@ const WEALTH_RANGES: { key: WealthRange; months: number | null }[] = [
   { key: 'ALL', months: null },
 ]
 
-export function WealthChart({ data, showRange = false }: { data: WealthPoint[]; showRange?: boolean }) {
+export function WealthChart({
+  data,
+  showRange = false,
+  height = 340,
+}: {
+  data: WealthPoint[]
+  showRange?: boolean
+  height?: number
+}) {
   const [range, setRange] = useState<WealthRange>('1Y')
   const ranged = useMemo(() => {
     const months = WEALTH_RANGES.find((r) => r.key === range)?.months ?? null
@@ -79,7 +87,7 @@ export function WealthChart({ data, showRange = false }: { data: WealthPoint[]; 
   }, [data, range])
   return (
     <div>
-      <ResponsiveContainer width="100%" height={340}>
+      <ResponsiveContainer width="100%" height={height}>
         <ComposedChart data={ranged} margin={{ top: 12, right: 4, bottom: 0, left: 4 }}>
           <defs>
             <linearGradient id="gNW" x1="0" y1="0" x2="0" y2="1">

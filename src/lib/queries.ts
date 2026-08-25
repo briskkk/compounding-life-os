@@ -19,12 +19,14 @@ import { mergePositionsByAsset } from './engine/merge'
 import { summarizeDailyPortfolio } from './engine/daily-pnl'
 import { buildSavingsOverview, type SavingsOverview } from './engine/savings'
 import type { QuoteData } from './market/provider'
-import { isPortfolioAssetClass } from './asset-classification'
+import { isInvestableAsset, isPortfolioAssetClass } from './asset-classification'
 import { dateKeyAt } from './engine/watch-market'
 import type { ValuationGap, ValuationStatus } from './engine/valuation-status'
 import { loadPriceSeries, priceAtFn, priceObservationAtFn } from './market/persist'
 import { computeWealthSeries } from './snapshots'
 import { fundConfirmationDate, isQdiiFund } from './engine/fund-order'
+import { buildAssetPerformanceSeries, type AssetNavPoint } from './engine/asset-performance'
+import { buildReviewResult, reconstructReviewPortfolioSeries, reviewRange, type ReviewPeriod, type ReviewResult } from './engine/review'
 
 export interface LiabilityView {
   id: string
@@ -89,6 +91,7 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
       ? fundConfirmationDate(t.navDate, { qdii: isQdiiFund(t.asset.symbol, t.asset.name) })
       : t.navDate,
     settlementDate: t.settlementDate,
+    navSource: t.navSource,
     assetClass: t.asset.cls,
     internal: t.internal,
     voidedAt: t.voidedAt,
@@ -342,6 +345,8 @@ export interface DashboardData {
   goals: GoalView[]
   quotes: { symbol: string; name: string; price: number; prevClose: number; changePct: number; source: string; asOf: string }[]
   provider: string
+  period: ReviewPeriod
+  review: ReviewResult
 }
 
 export interface WatchData {
@@ -494,7 +499,88 @@ export async function getWatchData(ctxOverride?: FamilyCtx): Promise<WatchData |
   return { state, series, currentContributions: Math.round(contributionsNow) }
 }
 
-export async function getDashboard(): Promise<DashboardData | null> {
+function dashboardNavPoints(
+  symbol: string,
+  priceMap: Awaited<ReturnType<typeof loadPriceSeries>>,
+): AssetNavPoint[] {
+  const series = priceMap.get(symbol)
+  if (!series) return []
+  return series.times.map((_, index) => ({
+    date: series.valuationDates[index],
+    nav: series.closes[index],
+    source: series.sources[index],
+  }))
+}
+
+async function loadDashboardReview(
+  state: EngineState,
+  series: SeriesPoint[],
+  period: ReviewPeriod,
+): Promise<ReviewResult> {
+  const range = reviewRange(period)
+  const reviewAssets = state.assets.filter(isInvestableAsset)
+  const assetIds = new Set(reviewAssets.map((asset) => asset.id))
+  const transactions = state.ledgerTxs.filter((tx) => assetIds.has(tx.assetId))
+  const symbols = reviewAssets.filter((asset) => asset.cls !== 'CASH').map((asset) => asset.symbol)
+  const [priceMap, rateAt] = await Promise.all([
+    loadPriceSeries(prisma, symbols),
+    fxRateAtFactory(prisma, reviewAssets.map((asset) => asset.currency)),
+  ])
+  const assets = reviewAssets.map((asset) => {
+    const prices = dashboardNavPoints(asset.symbol, priceMap)
+    const liveQuote = state.quotes.get(asset.symbol)
+    if (liveQuote && asset.cls !== 'CASH') {
+      const liveDate = liveQuote.tradingDate || dateKeyAt(new Date(liveQuote.asOf))
+      const point = { date: liveDate, nav: liveQuote.price, source: liveQuote.source }
+      const index = prices.findIndex((item) => item.date === liveDate)
+      if (index >= 0) prices[index] = point
+      else prices.push(point)
+    }
+    prices.sort((a, b) => a.date.localeCompare(b.date))
+    return {
+      assetId: asset.id,
+      name: asset.name,
+      symbol: asset.symbol,
+      cls: asset.cls,
+      style: null,
+      currency: asset.currency,
+      series: buildAssetPerformanceSeries({
+        asset,
+        transactions,
+        prices,
+        to: new Date(`${range.endDate}T23:59:59Z`),
+        currencyRate: (date) => rateAt(asset.currency, date),
+      }),
+    }
+  })
+
+  const portfolioSeries = reconstructReviewPortfolioSeries({
+    series: series.map((point) => ({
+      date: point.date,
+      netWorth: point.investable,
+      contributions: point.contributions,
+      valuationStatus: point.valuationStatus,
+      valuationCoverage: point.valuationCoverage,
+      latestValuationDate: point.latestValuationDate,
+      valuationGaps: point.valuationGaps,
+    })),
+    assets,
+    transactions,
+    rateAt: (currency, date) => rateAt(currency, date),
+  })
+
+  return buildReviewResult({
+    portfolioSeries,
+    assets,
+    transactions,
+    startDate: range.startDate,
+    endDate: range.endDate,
+    label: range.label,
+    rateAt: (currency, date) => rateAt(currency, date),
+  })
+}
+
+export async function getDashboard(period: ReviewPeriod = 'THIS_MONTH'): Promise<DashboardData | null> {
   const ctx = await getSession()
   if (!ctx) return null
   const db = scopedDb(prisma, ctx)
@@ -540,7 +626,10 @@ export async function getDashboard(): Promise<DashboardData | null> {
   else series.push(livePoint)
 
   const ago30 = snaps.length > 30 ? Number(snaps[snaps.length - 30].netWorth) : null
-  const goals = await loadGoals(ctx, state)
+  const [goals, review] = await Promise.all([
+    loadGoals(ctx, state),
+    loadDashboardReview(state, series, period),
+  ])
 
   // 收益归因
   const twr = twrSeries(
@@ -599,6 +688,8 @@ export async function getDashboard(): Promise<DashboardData | null> {
     goals,
     quotes,
     provider: providerLabel(),
+    period,
+    review,
   }
 }
 

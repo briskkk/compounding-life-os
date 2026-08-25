@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-08-14
+last_verified: 2026-08-25
 ---
 
 # 领域模型
@@ -23,7 +23,7 @@ last_verified: 2026-08-14
 资产类别：STOCK、FUND、ETF、CASH、GOLD、REAL_ESTATE、HUAWEI_STOCK。
 
 - CASH：数量就是余额，使用 DEPOSIT/WITHDRAW。
-- REAL_ESTATE 或 `manual=true`：使用最近 VALUATION，缺失时回落成本；不可自由投资。
+- REAL_ESTATE 或 `manual=true`：使用最近 VALUATION，缺失时回落成本。房产和手动非黄金资产不可自由投资；GOLD 恒为可交易、可投资资产，`manual` 只表示估值来源。
 - HUAWEI_STOCK：长期资产，使用买入、分红、估值流水；不进入投资组合、看盘和收益率。
 - 其余市场资产：优先行情价，缺失时按成本估值。
 
@@ -84,7 +84,7 @@ last_verified: 2026-08-14
 
 - 剩余成本：移动平均成本。
 - 净资产：全部资产当前价值 − 当前负债。
-- 可自由投资：现金 + 可交易上市/基金资产；排除手动估值、房产与华为员工持股。
-- 净投入：外部 DEPOSIT − WITHDRAW；内部腿、转账和已冲正流水排除。
+- 可自由投资：现金 + 可交易上市/基金/黄金资产；排除手动非黄金资产、房产与华为员工持股。
+- 净投入：外部 DEPOSIT − WITHDRAW；内部腿、转账和已冲正流水排除。无现金结算腿的历史 GOLD 买卖按组合外转入/转出兼容；已有结算腿时仍是内部换仓。
 - TWR：逐日剔除外部现金流后链式复利。
 - XIRR：外部资金流与期末价值求资金加权年化。

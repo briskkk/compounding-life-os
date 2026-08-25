@@ -6,9 +6,11 @@ import { fxRateAtFactory } from './market/fx'
 import { loadPriceSeries } from './market/persist'
 import { alignBenchmark, BENCHMARK_INDICES, DEFAULT_BENCHMARK_SYMBOL } from './engine/benchmark'
 import { buildAssetPerformanceSeries, type AssetNavPoint } from './engine/asset-performance'
-import { performanceBetween, performancePresetRange, type PerformanceRange } from './engine/period-performance'
-import { buildReviewResult, type ReviewPeriod, type ReviewResult } from './engine/review'
+import { performanceBetween, type PerformanceRange } from './engine/period-performance'
+import { buildReviewResult, reconstructReviewPortfolioSeries, reviewRange, type ReviewPeriod, type ReviewResult } from './engine/review'
 import { dateKeyAt } from './engine/watch-market'
+import { isInvestableAsset } from './asset-classification'
+import type { ValuationGap } from './engine/valuation-status'
 
 export interface SavedReviewView {
   id: string
@@ -42,21 +44,6 @@ export interface ReviewPageData {
   savedReview: SavedReviewView | null
 }
 
-function quarterRange(now: Date): PerformanceRange {
-  const endDate = dateKeyAt(now)
-  const month = Number(endDate.slice(5, 7))
-  const quarterMonth = Math.floor((month - 1) / 3) * 3 + 1
-  return {
-    label: '本季度',
-    startDate: `${endDate.slice(0, 4)}-${String(quarterMonth).padStart(2, '0')}-01`,
-    endDate,
-  }
-}
-
-export function reviewRange(period: ReviewPeriod, now = new Date()): PerformanceRange {
-  return period === 'THIS_QUARTER' ? quarterRange(now) : performancePresetRange(period, now)
-}
-
 function benchmarkFrom(value?: string): string {
   return BENCHMARK_INDICES.some((item) => item.symbol === value) ? value! : DEFAULT_BENCHMARK_SYMBOL
 }
@@ -78,6 +65,52 @@ function navPoints(
   }))
 }
 
+function liveValuationFields(
+  watch: NonNullable<Awaited<ReturnType<typeof getWatchData>>>,
+): {
+  coverage: number | null
+  latestDate: string | null
+  gaps: ValuationGap[]
+} {
+  const marketPositions = watch.state.valued.filter((position) => (
+    isInvestableAsset(position.asset)
+    && !position.asset.manual
+    && position.asset.cls !== 'CASH'
+    && position.asset.cls !== 'REAL_ESTATE'
+    && Math.abs(position.investable) >= 0.005
+  ))
+  const totalValue = marketPositions.reduce((sum, position) => sum + Math.abs(position.investable), 0)
+  const pricedValue = marketPositions.reduce((sum, position) => (
+    sum + (watch.state.quotes.has(position.asset.symbol) ? Math.abs(position.investable) : 0)
+  ), 0)
+  const latestDate = [...watch.state.quotes.values()].reduce<string | null>((latest, quote) => {
+    const date = quote.tradingDate || dateKeyAt(new Date(quote.asOf))
+    return latest == null || date > latest ? date : latest
+  }, null)
+  const previousGaps = new Map(
+    (watch.series.at(-1)?.valuationGaps ?? []).map((gap) => [gap.symbol, gap]),
+  )
+  const missing = new Map<string, ValuationGap>()
+  for (const position of marketPositions) {
+    if (watch.state.quotes.has(position.asset.symbol)) continue
+    const previous = previousGaps.get(position.asset.symbol)
+    const current = missing.get(position.asset.symbol) ?? {
+      symbol: position.asset.symbol,
+      name: position.asset.name,
+      valuationDate: previous?.valuationDate ?? null,
+      valueCny: 0,
+      reason: previous?.reason === 'NO_PRICE' ? 'NO_PRICE' : 'PENDING',
+    }
+    current.valueCny += Math.round(position.investable)
+    missing.set(position.asset.symbol, current)
+  }
+  return {
+    coverage: totalValue > 0 ? pricedValue / totalValue : null,
+    latestDate,
+    gaps: [...missing.values()],
+  }
+}
+
 export async function getReviewPageData(options: {
   period?: string
   benchmark?: string
@@ -95,10 +128,7 @@ export async function getReviewPageData(options: {
     db.asset.findMany({ orderBy: { createdAt: 'asc' } }),
     db.account.findMany({ orderBy: { createdAt: 'asc' } }),
   ])
-  const reviewAssets = rawAssets.filter((asset) => (
-    asset.cls === 'CASH'
-    || (!asset.manual && asset.cls !== 'REAL_ESTATE' && asset.cls !== 'HUAWEI_STOCK')
-  ))
+  const reviewAssets = rawAssets.filter(isInvestableAsset)
   const assetIds = new Set(reviewAssets.map((asset) => asset.id))
   const transactions = watch.state.ledgerTxs.filter((tx) => assetIds.has(tx.assetId))
   const symbols = reviewAssets.filter((asset) => asset.cls !== 'CASH').map((asset) => asset.symbol)
@@ -143,15 +173,41 @@ export async function getReviewPageData(options: {
     }
   })
 
-  const portfolioSeries = watch.series.map((point) => ({
-    date: point.date,
-    netWorth: point.investable,
-    contributions: point.contributions,
-    valuationStatus: point.valuationStatus,
-    valuationCoverage: point.valuationCoverage,
-    latestValuationDate: point.latestValuationDate,
-    valuationGaps: point.valuationGaps,
-  }))
+  const portfolioSeries = reconstructReviewPortfolioSeries({
+    series: watch.series.map((point) => ({
+      date: point.date,
+      netWorth: point.investable,
+      contributions: point.contributions,
+      valuationStatus: point.valuationStatus,
+      valuationCoverage: point.valuationCoverage,
+      latestValuationDate: point.latestValuationDate,
+      valuationGaps: point.valuationGaps,
+    })),
+    assets,
+    transactions,
+    rateAt: (currency, date) => rateAt(currency, date),
+  })
+  // 标的归因已合入本次请求得到的实时报价，组合期末也必须使用同一批报价。
+  // 否则历史 Snapshot 与实时标的市值混算，会把行情时点差伪装成“待对账差额”。
+  const liveValuation = liveValuationFields(watch)
+  const livePoint = {
+    date: range.endDate,
+    netWorth: portfolioSeries.at(-1)?.date === range.endDate
+      ? portfolioSeries.at(-1)!.netWorth
+      : reconstructReviewPortfolioSeries({
+          series: [{ date: range.endDate, netWorth: 0, contributions: watch.currentContributions }],
+          assets,
+          transactions,
+          rateAt: (currency, date) => rateAt(currency, date),
+        })[0].netWorth,
+    contributions: watch.currentContributions,
+    valuationStatus: 'LIVE' as const,
+    valuationCoverage: liveValuation.coverage,
+    latestValuationDate: liveValuation.latestDate,
+    valuationGaps: liveValuation.gaps,
+  }
+  if (portfolioSeries.at(-1)?.date === livePoint.date) portfolioSeries[portfolioSeries.length - 1] = livePoint
+  else portfolioSeries.push(livePoint)
   const preliminary = performanceBetween(portfolioSeries, range.startDate, range.endDate, range.label)
   const benchmarkStart = new Date(`${range.startDate}T00:00:00Z`)
   benchmarkStart.setUTCDate(benchmarkStart.getUTCDate() - 10)

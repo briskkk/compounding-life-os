@@ -1,19 +1,30 @@
 import { test, expect } from '@playwright/test'
 
-test('终端首页：五大核心模块与双口径', async ({ page }) => {
+test('终端首页：财富结果、对账桥、贡献来源与状态同屏', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByText('财富轨迹')).toBeVisible()
-  await expect(page.getByText('流动性水位', { exact: true })).toBeVisible()
-  await expect(page.getByText('风险敞口')).toBeVisible()
-  await expect(page.getByText('FIRE 路径')).toBeVisible()
-  // 双口径与负债
-  await expect(page.getByText('可自由投资资产', { exact: true })).toBeVisible()
-  await expect(page.getByText(/负债率/).first()).toBeVisible()
-  // 收益归因
+  await expect(page.getByRole('heading', { name: '家庭财富总览' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '财富轨迹' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '本月利润从哪里来' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '可投资资产构成' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '状态速览' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'FIRE 路径' })).toBeVisible()
+  // 账本可对账结果与双口径
+  await expect(page.getByText('期初可投资资产', { exact: true })).toBeVisible()
   await expect(page.getByText('净投入').first()).toBeVisible()
-  await expect(page.getByText('TWR 年化').first()).toBeVisible()
+  await expect(page.getByText('投资收益', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('当前可投资资产', { exact: true })).toBeVisible()
+  await expect(page.getByText('本月 TWR', { exact: true })).toBeVisible()
+  await expect(page.getByText('负债率', { exact: true })).toBeVisible()
   // 图表渲染
   await expect(page.locator('.recharts-responsive-container').first()).toBeVisible()
+  // 周/月/季使用同一自然周期口径，并保持桌面端无横向压缩溢出
+  const periods = page.getByRole('navigation', { name: '总览周期' })
+  await expect(periods.getByRole('link', { name: '本月', exact: true })).toHaveAttribute('aria-current', 'page')
+  await periods.getByRole('link', { name: '本周', exact: true }).click()
+  await expect(page).toHaveURL(/period=week/)
+  await expect(page.getByRole('heading', { name: '本周利润从哪里来' })).toBeVisible()
+  await page.setViewportSize({ width: 1280, height: 800 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
 test('持仓页：类别汇总与明细表', async ({ page }) => {

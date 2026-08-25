@@ -1,6 +1,7 @@
 // 估值：持仓 × 价格来源 → 市值；同时给出「可自由投资」口径的切分
 import type { Position } from './ledger'
 import type { AssetInfo, PriceSource } from './types'
+import { isInvestableAsset } from '../asset-classification'
 
 export interface ValuedPosition extends Position {
   asset: AssetInfo
@@ -39,7 +40,8 @@ export function valuePosition(
     // 手动估值资产：最近估值优先，缺省回落到成本
     priceSource = pos.manualValue != null ? 'MANUAL' : 'COST'
     value = pos.manualValue ?? pos.costBasis * currencyRate(asset.currency, asOfDate)
-    investable = 0 // 不动产 / 手动估值资产默认不可自由投资
+    // 手动估值只决定价格来源；可交易黄金仍属于可投资资产。
+    investable = isInvestableAsset(asset) ? value : 0
     price = pos.quantity > 0 ? value / pos.quantity : null
   } else {
     const mkt = priceOf(asset.symbol) // 行情价已在查询层折算为人民币
@@ -47,11 +49,11 @@ export function valuePosition(
     priceSource = mkt != null ? 'MARKET' : 'COST'
     if (mkt != null) {
       value = pos.quantity * mkt
-      investable = value
+      investable = isInvestableAsset(asset) ? value : 0
     } else {
       // 无行情回落：以成本×汇率计值，保持人民币口径一致
       value = pos.costBasis * currencyRate(asset.currency, asOfDate)
-      investable = value
+      investable = isInvestableAsset(asset) ? value : 0
     }
   }
 

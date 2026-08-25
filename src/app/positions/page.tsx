@@ -17,7 +17,7 @@ import { CompositionChart, type CompositionDimension } from '@/components/compos
 import { PositionSourceTag, ValuationLegend, ValuationSourceSummary } from '@/components/valuation-source'
 import { parseHoldingSort, sortHoldings } from '@/lib/engine/holding-sort'
 import { HoldingSortSelect } from '@/components/holding-sort-select'
-import { isPortfolioAssetClass } from '@/lib/asset-classification'
+import { isInvestableAsset, isPortfolioAssetClass } from '@/lib/asset-classification'
 
 export const dynamic = 'force-dynamic'
 
@@ -229,7 +229,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
               </thead>
               <tbody className="divide-y divide-line/60">
                 {rows.map(({ position: p, dayPnlCny, dayPnlPct }) => {
-                  const illiquid = p.asset.cls === 'REAL_ESTATE' || p.asset.manual
+                  const illiquid = !isInvestableAsset(p.asset)
                   return (
                     <tr key={`${p.accountId}:${p.assetId}`} className="transition-colors hover:bg-panel2/50">
                       <td className="px-4 py-2.5">
