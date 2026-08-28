@@ -5,6 +5,7 @@ import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { buildPositionItem } from '@/lib/engine/position-view'
 import { apiReadAuthCtx } from '@/lib/services/api-auth'
+import { dateKeyAt } from '@/lib/engine/watch-market'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,11 +16,12 @@ export async function GET(req: NextRequest) {
   const ctx = auth.ctx
 
   const state = await loadEngineState(ctx)
+  const todayKey = dateKeyAt(new Date())
   const positions = mergePositionsByAsset(
     state.valued.filter((v) => isPortfolioAssetClass(v.asset.cls) && v.asset.cls !== 'CASH'),
   )
     .filter((v) => Math.abs(v.quantity) > 1e-9)
-    .map((v) => buildPositionItem(v, state.quotes.get(v.asset.symbol)))
+    .map((v) => buildPositionItem(v, state.quotes.get(v.asset.symbol), todayKey))
     .sort((a, b) => b.marketValue - a.marketValue)
 
   return NextResponse.json({ ok: true, positions })

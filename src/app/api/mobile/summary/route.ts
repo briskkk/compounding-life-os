@@ -6,6 +6,7 @@ import { scopedDb } from '@/lib/scoped'
 import { loadEngineState } from '@/lib/queries'
 import { apiReadAuthCtx } from '@/lib/services/api-auth'
 import { projectGoalViews } from '@/lib/engine/goal-views'
+import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -29,12 +30,12 @@ export async function GET(req: NextRequest) {
   ])
 
   const assetById = new Map(state.assets.map((a) => [a.id, a]))
+  const todayKey = dateKeyAt(new Date())
 
   // ── 总资产 / 现金流动性 / 当日盈亏（与 positions 口径一致）──
   let totalAssets = 0
   let cashLiquidity = 0
   let dayPnl = 0
-  let priorTotal = 0
   const accountValue = new Map<string, { marketValue: number; dayPnl: number }>()
   for (const p of state.valued) {
     const a = assetById.get(p.assetId)
@@ -42,10 +43,9 @@ export async function GET(req: NextRequest) {
     totalAssets += value
     if (a?.cls === 'CASH') cashLiquidity += value
     const quote = state.quotes.get(a?.symbol ?? '')
-    const prev = quote?.prevCloseCny
+    const prev = previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, todayKey)
     if (prev != null && prev > 0) {
       const prior = p.quantity * prev
-      priorTotal += prior
       dayPnl += value - prior
     }
     const bucket = accountValue.get(p.accountId) ?? { marketValue: 0, dayPnl: 0 }
@@ -53,7 +53,8 @@ export async function GET(req: NextRequest) {
     if (prev != null && prev > 0) bucket.dayPnl += value - p.quantity * prev
     accountValue.set(p.accountId, bucket)
   }
-  const dayPct = priorTotal > 0 ? (dayPnl / priorTotal) * 100 : 0
+  const dayBaseline = totalAssets - dayPnl
+  const dayPct = dayBaseline > 0 ? (dayPnl / dayBaseline) * 100 : 0
 
   // ── 30 日净资产增量 ──
   const latestSnapshot = await db.snapshot.findFirst({ orderBy: { date: 'desc' } })

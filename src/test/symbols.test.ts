@@ -1,7 +1,7 @@
 import { describe, expect, it, afterEach } from 'vitest'
 import { parseSymbol, toTencentCode, toTencentKlineCode, toSinaCode } from '@/lib/market/symbols'
 import { parseFundName, parseTencentName } from '@/lib/market/lookup'
-import { providerChain, simulatedAllowed, quoteSmart, historySmart } from '@/lib/market'
+import { providerChain, providerLabelsFor, simulatedAllowed, quoteSmart, historySmart } from '@/lib/market'
 
 describe('多市场代码解析', () => {
   it('A 股 / 场内 ETF', () => {
@@ -68,6 +68,20 @@ describe('行情源优先级链', () => {
     expect(() => providerChain('tencent,unknown')).toThrow('未知行情源')
     expect(() => providerChain('tencent,tencent')).toThrow('重复行情源')
     expect(providerChain('tencent,eastmoney-fund').map((p) => p.label)).toEqual(['TENCENT', 'EASTMONEY-FUND'])
+  })
+
+  it('按市场与能力分流，场内 ETF 不会进入场外基金净值源', () => {
+    const spec = 'tencent,eastmoney-kline,eastmoney-fund,sina'
+    expect(providerLabelsFor('515880', 'HISTORY', 'EXCHANGE', spec)).toEqual(['TENCENT', 'EASTMONEY-KLINE', 'SINA'])
+    expect(providerLabelsFor('USQQQM', 'HISTORY', 'EXCHANGE', spec)).toEqual(['TENCENT'])
+    expect(providerLabelsFor('005094', 'HISTORY', 'FUND', spec)).toEqual(['EASTMONEY-FUND'])
+    expect(providerLabelsFor('515880', 'QUOTE', 'EXCHANGE', spec)).toEqual(['TENCENT', 'SINA'])
+    expect(providerLabelsFor('sh000300', 'HISTORY', 'AUTO', spec)).toEqual(['TENCENT', 'EASTMONEY-KLINE', 'SINA'])
+  })
+
+  it('显式模拟环境仍可覆盖所有市场能力', () => {
+    expect(providerLabelsFor('515880', 'HISTORY', 'EXCHANGE', 'simulated')).toEqual(['SIMULATED'])
+    expect(providerLabelsFor('005094', 'HISTORY', 'FUND', 'simulated')).toEqual(['SIMULATED'])
   })
 })
 

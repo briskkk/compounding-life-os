@@ -266,7 +266,11 @@ export function WatchClient({
       <section className="hero-grid watch-hero">
         <div>
           <div className="eyebrow">今日涨跌（元）</div>
-          <h1 className={cx('num hero-number mt-4', totalPnl >= 0 ? 'text-up' : 'text-down')}>
+          <h1
+            className={cx('num hero-number mt-4', totalPnl >= 0 ? 'text-up' : 'text-down')}
+            data-testid="watch-today-pnl"
+            data-amount={totalPnl.toFixed(2)}
+          >
             {fmtCNY(totalPnl, { sign: true })}
           </h1>
           <div className={cx('num mt-4 text-[18px]', totalPnl >= 0 ? 'text-up' : 'text-down')}>

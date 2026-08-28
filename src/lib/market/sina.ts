@@ -25,7 +25,7 @@ export const sinaProvider: MarketDataProvider = {
     const f = payload.split(',')
     let price = NaN
     let prevClose = NaN
-    if (parsed.market === 'CN_A') {
+    if (parsed.market === 'CN_A' || parsed.market === 'INDEX') {
       // 名称,今开,昨收,现价,…
       price = Number(f[3])
       prevClose = Number(f[2])
@@ -42,7 +42,7 @@ export const sinaProvider: MarketDataProvider = {
     if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(prevClose) || prevClose <= 0) {
       throw new Error(`新浪源报价解析失败：${symbol}`)
     }
-    const rawTime = parsed.market === 'CN_A'
+    const rawTime = parsed.market === 'CN_A' || parsed.market === 'INDEX'
       ? `${f[30] ?? ''} ${f[31] ?? ''}`.trim()
       : parsed.market === 'HK'
         ? `${f[17] ?? ''} ${f[18] ?? ''}`.trim()
@@ -65,7 +65,7 @@ export const sinaProvider: MarketDataProvider = {
 
   async history(symbol: string, from: Date, to: Date): Promise<Bar[]> {
     const parsed = parseSymbol(symbol)
-    if (parsed.market !== 'CN_A') throw new Error(`新浪源历史仅覆盖 A 股：${symbol}`)
+    if (parsed.market !== 'CN_A' && parsed.market !== 'INDEX') throw new Error(`新浪源历史仅覆盖 A 股/指数：${symbol}`)
     const code = toSinaCode(parsed)
     const days = Math.min(1023, Math.ceil((to.getTime() - from.getTime()) / 86400000) + 10)
     const text = await fetchText(

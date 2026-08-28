@@ -7,9 +7,31 @@ import { closeAt } from './simulated'
 import { simulatedAllowed } from './index'
 import { parseSymbol } from './symbols'
 import { dateKeyAt } from '../engine/watch-market'
+import type { MarketRoute } from './index'
 
 const DAY = 86400000
 const REFRESH_OVERLAP_DAYS = 7
+
+export interface PersistHistoryResult {
+  symbol: string
+  count: number
+  source: string
+  status: 'FETCHED' | 'CACHED' | 'FAILED'
+  error?: string
+}
+
+/** 清理旧路由把场内标的误写为基金净值的派生行情，随后由交易所源重新回填。 */
+export async function purgeMisroutedFundBars(db: PrismaClient, marketSymbols: string[]): Promise<number> {
+  const symbols = [...new Set(marketSymbols)]
+  if (symbols.length === 0) return 0
+  const result = await db.priceBar.deleteMany({
+    where: {
+      symbol: { in: symbols },
+      source: 'EASTMONEY-FUND',
+    },
+  })
+  return result.count
+}
 
 async function historyWindows(
   db: PrismaClient,
@@ -68,18 +90,35 @@ export async function persistHistory(
   symbols: string[],
   from: Date,
   to: Date,
-): Promise<{ symbol: string; count: number; source: string }[]> {
-  const results: { symbol: string; count: number; source: string }[] = []
+  options?: { route?: MarketRoute },
+): Promise<PersistHistoryResult[]> {
+  const results: PersistHistoryResult[] = []
   for (const symbol of symbols) {
     let count = 0
+    let attempted = false
+    let fetched = false
     const sources = new Set<string>()
+    const errors: string[] = []
     for (const window of await historyWindows(db, symbol, from, to)) {
-      const { bars, source } = await historySmart(symbol, window.from, window.to)
+      attempted = true
+      const result = await historySmart(symbol, window.from, window.to, { route: options?.route })
+      if (result.status === 'FAILED') {
+        errors.push(...result.errors.map((item) => `${item.provider}: ${item.message}`))
+        continue
+      }
+      const { bars, source } = result
       if (bars.length === 0) continue
+      fetched = true
       count += await persistBars(db, symbol, bars, source)
       sources.add(source)
     }
-    results.push({ symbol, count, source: [...sources].join('+') || 'CACHED' })
+    results.push({
+      symbol,
+      count,
+      source: [...sources].join('+') || (attempted ? 'NONE' : 'CACHED'),
+      status: fetched ? 'FETCHED' : attempted ? 'FAILED' : 'CACHED',
+      ...(errors.length > 0 ? { error: [...new Set(errors)].join('；') } : {}),
+    })
   }
   return results
 }
@@ -90,18 +129,32 @@ export async function persistFundHistory(
   symbols: string[],
   from: Date,
   to: Date,
-): Promise<{ symbol: string; count: number; source: string }[]> {
-  const results: { symbol: string; count: number; source: string }[] = []
+): Promise<PersistHistoryResult[]> {
+  const results: PersistHistoryResult[] = []
   for (const symbol of symbols) {
     try {
       let count = 0
+      let attempted = false
       for (const window of await historyWindows(db, symbol, from, to)) {
+        attempted = true
         const bars = await eastmoneyFundProvider.history(symbol, window.from, window.to)
         count += await persistBars(db, symbol, bars, 'EASTMONEY-FUND')
       }
-      results.push({ symbol, count, source: count > 0 ? 'EASTMONEY-FUND' : 'CACHED' })
-    } catch {
-      results.push({ symbol, count: 0, source: 'EASTMONEY-FUND' })
+      results.push({
+        symbol,
+        count,
+        source: count > 0 ? 'EASTMONEY-FUND' : 'CACHED',
+        status: count > 0 ? 'FETCHED' : attempted ? 'FAILED' : 'CACHED',
+        ...(attempted && count === 0 ? { error: '东财基金源未返回历史净值' } : {}),
+      })
+    } catch (error) {
+      results.push({
+        symbol,
+        count: 0,
+        source: 'NONE',
+        status: 'FAILED',
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
   return results

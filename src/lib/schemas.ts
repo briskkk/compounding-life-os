@@ -80,6 +80,15 @@ export const assetInputSchema = z.object({
 
 export const assetUpdateSchema = z.object({
   name: z.string().min(1).max(60).optional(),
+  symbol: z
+    .string()
+    .min(1, '代码必填')
+    .max(20)
+    .transform((s) => s.toUpperCase().trim())
+    .optional(),
+  cls: z.enum(['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'REAL_ESTATE', 'HUAWEI_STOCK']).optional(),
+  currency: z.enum(['CNY', 'USD', 'HKD']).optional(),
+  manual: z.boolean().optional(),
   tags: z.string().max(120).optional(),
   note: z.string().max(1000).nullable().optional(),
   style: z
@@ -160,5 +169,42 @@ export const portfolioReviewInputSchema = z.object({
   const days = (Date.parse(`${value.endDate}T00:00:00Z`) - Date.parse(`${value.startDate}T00:00:00Z`)) / 86400000
   if (!Number.isFinite(days) || days > 100) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: '复盘区间不能超过 100 天', path: ['endDate'] })
+  }
+})
+
+const allocationClasses = ['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD'] as const
+
+export const allocationTargetsInputSchema = z.object({
+  targets: z.array(z.object({
+    cls: z.enum(allocationClasses),
+    targetWeight: z.number().min(0).max(1),
+    tolerance: z.number().min(0).max(0.2),
+  })).length(allocationClasses.length),
+}).superRefine((value, ctx) => {
+  const classes = new Set(value.targets.map((target) => target.cls))
+  if (classes.size !== allocationClasses.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '每个资产大类只能配置一次', path: ['targets'] })
+  }
+  const total = value.targets.reduce((sum, target) => sum + target.targetWeight, 0)
+  if (Math.abs(total - 1) > 0.0001) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '目标权重合计必须为 100%', path: ['targets'] })
+  }
+})
+
+export const cashPlanInputSchema = z.object({
+  title: z.string().trim().min(1, '事项名称必填').max(60),
+  direction: z.enum(['INFLOW', 'OUTFLOW', 'MILESTONE']),
+  amountCny: z.number().nonnegative('金额不能为负'),
+  dueDate: z.coerce.date(),
+  recurrence: z.enum(['NONE', 'MONTHLY', 'YEARLY']).default('NONE'),
+  endDate: z.coerce.date().nullable().default(null),
+  accountId: z.string().min(1).nullable().default(null),
+  note: z.string().trim().max(200).nullable().default(null),
+}).superRefine((value, ctx) => {
+  if (value.direction !== 'MILESTONE' && value.amountCny <= 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '收支事项金额必须大于 0', path: ['amountCny'] })
+  }
+  if (value.endDate && value.endDate.getTime() < value.dueDate.getTime()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '结束日期不能早于首次日期', path: ['endDate'] })
   }
 })

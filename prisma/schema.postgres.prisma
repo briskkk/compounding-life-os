@@ -46,6 +46,8 @@ model FamilySpace {
   snapshots        Snapshot[]
   portfolioReviews PortfolioReview[]
   importBatches    ImportBatch[]
+  allocationTargets AllocationTarget[]
+  cashPlans         CashPlan[]
   auditLogs        AuditLog[]
 }
 
@@ -128,6 +130,7 @@ model Account {
   note                String?
   createdAt           DateTime      @default(now())
   transactions        Transaction[]
+  cashPlans           CashPlan[]
 
   @@unique([familyId, name])
   @@index([familyId])
@@ -343,6 +346,54 @@ model Goal {
   createdAt           DateTime    @default(now())
 
   @@index([familyId])
+}
+
+// 用户设定的资产大类目标；只用于偏离观察，不产生交易或可写余额。
+model AllocationTarget {
+  id           String      @id @default(cuid())
+  familyId     String
+  family       FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  cls          AssetClass
+  targetWeight Float
+  tolerance    Float       @default(0.03)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([familyId, cls])
+  @@index([familyId])
+}
+
+enum CashPlanDirection {
+  INFLOW
+  OUTFLOW
+  MILESTONE
+}
+
+enum CashPlanRecurrence {
+  NONE
+  MONTHLY
+  YEARLY
+}
+
+// 未来现金安排；属于计划层，不计入账本、净资产或收益。
+model CashPlan {
+  id         String             @id @default(cuid())
+  familyId   String
+  family     FamilySpace        @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  accountId  String?
+  account    Account?           @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  title      String
+  direction  CashPlanDirection
+  amountCny  Decimal            @default(0)
+  dueDate    DateTime
+  recurrence CashPlanRecurrence @default(NONE)
+  endDate    DateTime?
+  note       String?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  @@index([familyId, dueDate])
+  @@index([accountId])
 }
 
 model Snapshot {

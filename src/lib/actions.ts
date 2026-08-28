@@ -12,8 +12,10 @@ import { rebuildSnapshots } from './snapshots'
 import {
   accountInputSchema,
   accountSettlementSchema,
+  allocationTargetsInputSchema,
   assetInputSchema,
   assetUpdateSchema,
+  cashPlanInputSchema,
   goalInputSchema,
   goalScenarioSchema,
   goalUpdateSchema,
@@ -28,7 +30,12 @@ import { buildSettlementLegs } from './engine/settlement'
 import { BENCHMARK_INDICES } from './engine/benchmark'
 import { createsSettlementCycle } from './engine/settlement-account'
 import { parseTags, serializeTags } from './engine/groups'
-import { persistFundHistory, persistHistory } from './market/persist'
+import {
+  persistFundHistory,
+  persistHistory,
+  purgeMisroutedFundBars,
+  type PersistHistoryResult,
+} from './market/persist'
 import { backfillHistoricalFx, fxRates, persistDailyFx } from './market/fx'
 import { fundNavQuoteOnDate } from './market/fund-nav'
 import { dateKeyAt } from './engine/watch-market'
@@ -47,6 +54,65 @@ import {
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T; warning?: string }
   | { ok: false; error: string }
+
+// ---------- 组合计划（不写入交易账本） ----------
+
+export async function saveAllocationTargets(input: unknown): Promise<ActionResult> {
+  try {
+    const ctx = await requireWrite()
+    const data = allocationTargetsInputSchema.parse(input)
+    await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      await txDb.allocationTarget.deleteMany({ where: { familyId: ctx.familyId } })
+      await txDb.allocationTarget.createMany({
+        data: data.targets.map((target) => ({ familyId: ctx.familyId, ...target })),
+      })
+      await audit(ctx, 'UPDATE', 'AllocationTarget', ctx.familyId, '更新资产大类目标配置', txDb)
+    })
+    revalidatePath('/allocation')
+    revalidatePath('/')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function createCashPlan(input: unknown): Promise<ActionResult<{ id: string }>> {
+  try {
+    const ctx = await requireWrite()
+    const data = cashPlanInputSchema.parse(input)
+    const plan = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      if (data.accountId) {
+        const account = await txDb.account.findFirst({ where: { id: data.accountId, familyId: ctx.familyId } })
+        if (!account) throw new Error('所选账户不存在或不属于当前家庭')
+      }
+      const created = await txDb.cashPlan.create({
+        data: { familyId: ctx.familyId, ...data },
+      })
+      await audit(ctx, 'CREATE', 'CashPlan', created.id, `${created.title} · ${created.direction}`, txDb)
+      return created
+    })
+    revalidatePath('/accounts')
+    return { ok: true, data: { id: plan.id } }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function deleteCashPlan(id: string): Promise<ActionResult> {
+  try {
+    const ctx = await requireWrite()
+    await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      const plan = await txDb.cashPlan.findFirst({ where: { id, familyId: ctx.familyId } })
+      if (!plan) throw new Error('计划事项不存在')
+      await txDb.cashPlan.delete({ where: { id } })
+      await audit(ctx, 'DELETE', 'CashPlan', id, plan.title, txDb)
+    })
+    revalidatePath('/accounts')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
 
 async function requireWrite(): Promise<FamilyCtx> {
   const ctx = await getSessionOrThrow()
@@ -490,20 +556,90 @@ export async function createAsset(input: unknown): Promise<ActionResult<{ id: st
   }
 }
 
-/** 更新资产（名称 / 标签 / 介绍 / 投资风格） */
+/**
+ * 更新资产。已有流水后代码、类别、币种与估值方式构成账本语义，不可改写；
+ * 名称、标签、介绍与投资风格不改变历史计算，始终可维护。
+ */
 export async function updateAsset(id: string, input: unknown): Promise<ActionResult> {
   try {
     const ctx = await requireWrite()
     const data = assetUpdateSchema.parse(input)
-    const patch: Record<string, unknown> = { ...data }
-    if (data.tags != null) patch.tags = serializeTags(parseTags(data.tags))
     await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
-      const updated = await txDb.asset.updateMany({ where: { id, familyId: ctx.familyId }, data: patch })
-      if (updated.count === 0) throw new Error('资产不存在或不属于当前家庭')
+      const asset = await txDb.asset.findFirst({ where: { id, familyId: ctx.familyId } })
+      if (!asset) throw new Error('资产不存在或不属于当前家庭')
+      const transactionCount = await txDb.transaction.count({ where: { assetId: id, familyId: ctx.familyId } })
+      const identityChanged = (
+        (data.symbol != null && data.symbol !== asset.symbol)
+        || (data.cls != null && data.cls !== asset.cls)
+        || (data.currency != null && data.currency !== asset.currency)
+        || (data.manual != null && data.manual !== asset.manual)
+      )
+      if (transactionCount > 0 && identityChanged) {
+        throw new Error('该资产已绑定流水，代码、类别、币种和估值方式已锁定。如录入错误，请新建正确资产并冲正相关流水')
+      }
+      if (transactionCount === 0 && data.symbol != null && data.symbol !== asset.symbol) {
+        const duplicate = await txDb.asset.findFirst({
+          where: { familyId: ctx.familyId, symbol: data.symbol, id: { not: id } },
+          select: { name: true },
+        })
+        if (duplicate) throw new Error(`代码 ${data.symbol} 已由资产“${duplicate.name}”使用`)
+      }
+
+      const patch: Record<string, unknown> = {
+        ...(data.name != null ? { name: data.name } : {}),
+        ...(data.tags != null ? { tags: serializeTags(parseTags(data.tags)) } : {}),
+        ...(data.note !== undefined ? { note: data.note } : {}),
+        ...(data.style !== undefined ? { style: data.style } : {}),
+      }
+      if (transactionCount === 0) {
+        if (data.symbol != null) patch.symbol = data.symbol
+        if (data.cls != null) patch.cls = data.cls
+        if (data.currency != null) patch.currency = data.currency
+
+        const nextClass = data.cls ?? asset.cls
+        if (nextClass === 'REAL_ESTATE' || nextClass === 'HUAWEI_STOCK') {
+          patch.manual = true
+        } else if (nextClass === 'CASH') {
+          patch.manual = false
+        } else if (data.manual != null) {
+          patch.manual = data.manual
+        }
+        if (!['STOCK', 'FUND', 'ETF'].includes(nextClass)) patch.style = null
+      }
+
+      await txDb.asset.update({ where: { id }, data: patch })
       await audit(ctx, 'UPDATE', 'Asset', id, JSON.stringify(patch), txDb)
+    })
+    revalidatePath(`/positions/${id}`)
+    revalidatePath('/positions')
+    revalidatePath('/accounts')
+    revalidatePath('/health')
+    revalidatePath('/allocation')
+    revalidatePath('/')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/** 仅删除尚未产生任何流水的误建资产，避免级联删除破坏账本审计链。 */
+export async function deleteAsset(id: string): Promise<ActionResult> {
+  try {
+    const ctx = await requireWrite()
+    await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      const asset = await txDb.asset.findFirst({ where: { id, familyId: ctx.familyId } })
+      if (!asset) throw new Error('资产不存在或不属于当前家庭')
+      const transactionCount = await txDb.transaction.count({ where: { assetId: id, familyId: ctx.familyId } })
+      if (transactionCount > 0) {
+        throw new Error(`该资产已有 ${transactionCount} 条流水，为保留完整账本和审计记录，不能删除`)
+      }
+      await txDb.asset.delete({ where: { id } })
+      await audit(ctx, 'DELETE', 'Asset', id, `${asset.symbol} ${asset.name}`, txDb)
     })
     revalidatePath('/positions')
     revalidatePath('/accounts')
+    revalidatePath('/health')
+    revalidatePath('/allocation')
     revalidatePath('/')
     return { ok: true }
   } catch (e) {
@@ -700,7 +836,7 @@ export async function upsertSavingsEntry(input: unknown): Promise<ActionResult<{
 // ---------- 行情 ----------
 
 /** 刷新行情：历史日线落库 + 重建快照 */
-export async function refreshPrices(): Promise<ActionResult<{ symbol: string; count: number; source: string }[]>> {
+export async function refreshPrices(): Promise<ActionResult<PersistHistoryResult[]>> {
   try {
     const ctx = await requireWrite()
     const db = scopedDb(prisma, ctx)
@@ -718,9 +854,10 @@ export async function refreshPrices(): Promise<ActionResult<{ symbol: string; co
       ...assets.filter((a) => a.cls !== 'FUND').map((a) => a.symbol),
       ...BENCHMARK_INDICES.map((index) => index.symbol),
     ]
+    const purgedMisrouted = await purgeMisroutedFundBars(prisma, marketSymbols)
     const results = [
       ...(await persistFundHistory(prisma, fundSymbols, from, new Date())),
-      ...(await persistHistory(prisma, marketSymbols, from, new Date())),
+      ...(await persistHistory(prisma, marketSymbols, from, new Date(), { route: 'EXCHANGE' })),
     ]
     // 只有外币组合才请求汇率：ECB 补历史，新浪保存当日实时值。
     const hasForeignCurrency = assets.some((asset) => asset.currency === 'USD' || asset.currency === 'HKD')
@@ -735,9 +872,23 @@ export async function refreshPrices(): Promise<ActionResult<{ symbol: string; co
     }
     const fxWritten = hasForeignCurrency ? await persistDailyFx(prisma, await fxRates(prisma)) : 0
     await rebuildSnapshots(prisma, ctx.familyId)
-    await audit(ctx, 'REFRESH', 'PriceBar', null, `清理模拟K线 ${purged.count} 条；汇率回填 ${fxBackfilled} 条，当日 ${fxWritten} 条；` + results.map((r) => `${r.symbol}:${r.count}@${r.source}`).join(' '))
+    const failed = results.filter((result) => result.status === 'FAILED')
+    await audit(
+      ctx,
+      'REFRESH',
+      'PriceBar',
+      null,
+      `清理模拟K线 ${purged.count} 条、误路由场内净值 ${purgedMisrouted} 条；汇率回填 ${fxBackfilled} 条，当日 ${fxWritten} 条；`
+        + results.map((r) => `${r.symbol}:${r.status}:${r.count}@${r.source}`).join(' '),
+    )
     revalidatePath('/')
-    return { ok: true, data: results, warning: fxBackfillWarning }
+    const warnings = [
+      fxBackfillWarning,
+      failed.length > 0
+        ? `${failed.length} 个标的历史行情刷新失败：${failed.map((item) => item.symbol).join('、')}`
+        : undefined,
+    ].filter((item): item is string => item != null)
+    return { ok: true, data: results, warning: warnings.join('；') || undefined }
   } catch (e) {
     return fail(e)
   }

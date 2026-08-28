@@ -14,13 +14,28 @@ import { MarketSourceTag, PositionSourceTag } from '@/components/valuation-sourc
 import { summarizeAccountPositions, type AccountPositionSummary } from '@/lib/engine/account-summary'
 import type { ValuedPosition } from '@/lib/engine/valuation'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
+import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
+import { buildCashCalendar } from '@/lib/engine/cash-calendar'
+import { CashPlanForm, DeleteCashPlanButton } from '@/components/cash-plan-form'
 
 export const dynamic = 'force-dynamic'
 
-type AccountView = 'overview' | 'assets' | 'liabilities'
+type AccountView = 'overview' | 'assets' | 'liabilities' | 'calendar'
 
 function parseView(value: string | undefined): AccountView {
-  return value === 'assets' || value === 'liabilities' ? value : 'overview'
+  return value === 'assets' || value === 'liabilities' || value === 'calendar' ? value : 'overview'
+}
+
+function monthKey(value?: string): string {
+  if (value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return value
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+function shiftMonth(value: string, delta: number): string {
+  const [year, month] = value.split('-').map(Number)
+  const date = new Date(year, month - 1 + delta, 1)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 
 function originalValue(
@@ -51,7 +66,7 @@ function DeltaAmount({ value }: { value: number | null }) {
 export default async function AccountsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>
+  searchParams: Promise<{ view?: string; month?: string }>
 }) {
   const sp = await searchParams
   const activeView = parseView(sp.view)
@@ -59,13 +74,16 @@ export default async function AccountsPage({
   if (!ctx) return <SetupScreen />
   const canWrite = ctx.role !== 'VIEWER'
   const db = scopedDb(prisma, ctx)
-  const [state, accounts, assets] = await Promise.all([
+  const selectedMonth = monthKey(sp.month)
+  const [state, accounts, assets, cashPlans] = await Promise.all([
     loadEngineState(ctx),
     db.account.findMany({ include: { settlementAccount: true }, orderBy: { createdAt: 'asc' } }),
     db.asset.findMany({ orderBy: { createdAt: 'asc' } }),
+    db.cashPlan.findMany({ include: { account: true }, orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }] }),
   ])
 
   const positionsByAccount = new Map<string, ValuedPosition[]>()
+  const todayKey = dateKeyAt(new Date())
   const valueByAsset = new Map<string, number>()
   const positionByAsset = new Map<string, ValuedPosition>()
   for (const position of state.valued) {
@@ -80,7 +98,10 @@ export default async function AccountsPage({
 
   const summaryByAccount = new Map(accounts.map((account) => {
     const positions = positionsByAccount.get(account.id) ?? []
-    return [account.id, summarizeAccountPositions(positions, (symbol) => state.quotes.get(symbol)?.prevCloseCny)]
+    return [account.id, summarizeAccountPositions(positions, (symbol) => {
+      const quote = state.quotes.get(symbol)
+      return previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, todayKey)
+    })]
   }))
   const cashAccountIds = new Set(
     state.valued.filter((position) => position.asset.cls === 'CASH' && Math.abs(position.value) > 1e-9).map((position) => position.accountId),
@@ -94,7 +115,7 @@ export default async function AccountsPage({
   const totalAssets = [...summaryByAccount.values()].reduce((sum, summary) => sum + summary.valueCny, 0)
   const totalCash = [...summaryByAccount.values()].reduce((sum, summary) => sum + summary.cashCny, 0)
   const dayPnlValues = [...summaryByAccount.values()].map((summary) => summary.dayPnlCny).filter((value): value is number => value != null)
-  const totalDayPnl = dayPnlValues.length > 0 ? dayPnlValues.reduce((sum, value) => sum + value, 0) : null
+  const totalDayPnl = dayPnlValues.reduce((sum, value) => sum + value, 0)
   const unsettledAccounts = accounts.filter((account) => (
     (account.type === 'BROKERAGE' || account.type === 'FUND') && !account.settlementAccountId
   ))
@@ -104,11 +125,43 @@ export default async function AccountsPage({
     const current = latestActivityByAccount.get(tx.accountId)
     if (!current || tx.occurredAt > current) latestActivityByAccount.set(tx.accountId, tx.occurredAt)
   }
+  const assetNameById = new Map(state.assets.map((asset) => [asset.id, asset.name]))
+  const cashCalendar = buildCashCalendar(
+    selectedMonth,
+    cashPlans.map((plan) => ({
+      id: plan.id,
+      title: plan.title,
+      direction: plan.direction,
+      amountCny: Number(plan.amountCny),
+      dueDate: plan.dueDate,
+      recurrence: plan.recurrence,
+      endDate: plan.endDate,
+      accountName: plan.account?.name ?? null,
+      note: plan.note,
+    })),
+    state.pendingSettlements.map((settlement) => ({
+      id: settlement.sellTxId ?? `${settlement.accountId}:${settlement.settlementDate.toISOString()}`,
+      title: `${settlement.sellAssetId ? assetNameById.get(settlement.sellAssetId) ?? '基金' : '基金'}赎回到账`,
+      amountCny: settlement.amount * (state.currencyRates[settlement.currency as keyof typeof state.currencyRates] ?? 1),
+      dueDate: settlement.settlementDate,
+    })),
+  )
+  const [calendarYear, calendarMonth] = selectedMonth.split('-').map(Number)
+  const calendarDays = new Date(calendarYear, calendarMonth, 0).getDate()
+  const calendarOffset = (new Date(calendarYear, calendarMonth - 1, 1).getDay() + 6) % 7
+  const eventsByDay = new Map<number, typeof cashCalendar.events>()
+  for (const event of cashCalendar.events) {
+    const day = event.date.getDate()
+    const list = eventsByDay.get(day) ?? []
+    list.push(event)
+    eventsByDay.set(day, list)
+  }
 
   const tabs: { view: AccountView; label: string; en: string; count: number }[] = [
     { view: 'overview', label: '账户概览', en: 'OVERVIEW', count: accounts.length },
     { view: 'assets', label: '资产目录', en: 'ASSETS', count: assets.length },
     { view: 'liabilities', label: '负债管理', en: 'LIABILITIES', count: state.liabilities.length },
+    { view: 'calendar', label: '资金日历', en: 'CASH CALENDAR', count: cashCalendar.events.length },
   ]
 
   return (
@@ -116,11 +169,17 @@ export default async function AccountsPage({
       <PageHeader
         kicker="Custody & cash routing"
         title="账户中心"
-        description="跨账户汇总可投资组合；华为股票在资产目录中作为长期资产独立维护。"
+        description={activeView === 'calendar'
+          ? '把账本派生的在途到账与未来现金计划放在同一时间轴；计划事项不会提前改变真实余额。'
+          : '跨账户汇总可投资组合；华为股票在资产目录中作为长期资产独立维护。'}
         right={(
           <div className="flex flex-wrap items-end gap-5">
             <div><div className="text-[14px] text-ink-faint">账户总资产</div><div className="num mt-2 whitespace-nowrap text-[34px] text-ink">{fmtCNY(totalAssets)}</div></div>
-            {canWrite && <a href="#new-account" className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-accent px-5 text-[14px] font-medium whitespace-nowrap text-bg">＋ 新建账户</a>}
+            {canWrite && (
+              <a href={activeView === 'calendar' ? '#new-cash-plan' : '#new-account'} className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-accent px-5 text-[14px] font-medium whitespace-nowrap text-bg">
+                ＋ {activeView === 'calendar' ? '添加计划' : '新建账户'}
+              </a>
+            )}
           </div>
         )}
       />
@@ -146,7 +205,12 @@ export default async function AccountsPage({
       {activeView === 'overview' && (
         <>
           <div className="metric-band">
-            <Stat label="今日盈亏" en="DAY P&L" value={<DeltaAmount value={totalDayPnl} />} hint="仅汇总有昨收行情的资产" />
+            <Stat
+              label="今日盈亏"
+              en="DAY P&L"
+              value={<span data-testid="accounts-today-pnl" data-amount={totalDayPnl.toFixed(2)}><DeltaAmount value={totalDayPnl} /></span>}
+              hint="仅汇总交易日属于北京时间今日的行情资产"
+            />
             <Stat label="现金余额" en="CASH" value={<span className="text-accent">{fmtCNY(totalCash)}</span>} sub={<span className="text-ink-dim">占资产 {fmtPct(totalAssets > 0 ? totalCash / totalAssets : null)}</span>} />
             <Stat
               label="账户结构"
@@ -355,6 +419,84 @@ export default async function AccountsPage({
             )}
           </div>
         </>
+      )}
+
+      {activeView === 'calendar' && (
+        <div className="cash-calendar-page">
+          <section className="cash-calendar-summary">
+            <div><span>当前现金</span><strong className="num">{fmtCNY(totalCash)}</strong><small>来自交易账本</small></div>
+            <i>+</i>
+            <div><span>本月计划流入</span><strong className="num text-up">{fmtCNY(cashCalendar.inflow)}</strong><small>其中在途确认 {fmtCNY(cashCalendar.confirmedInflow)}</small></div>
+            <i>−</i>
+            <div><span>本月计划流出</span><strong className="num text-down">{fmtCNY(cashCalendar.outflow)}</strong><small>仅计划，不扣减余额</small></div>
+            <i>=</i>
+            <div className="is-result"><span>月末计划后现金</span><strong className="num">{fmtCNY(totalCash + cashCalendar.net)}</strong><small>不含期间市场波动</small></div>
+          </section>
+
+          <section className="cash-calendar-layout">
+            <div className="cash-calendar-board">
+              <header>
+                <div><span className="eyebrow">Cash timeline</span><h2>{calendarYear} 年 {calendarMonth} 月</h2></div>
+                <nav aria-label="资金日历月份">
+                  <Link href={`/accounts?view=calendar&month=${shiftMonth(selectedMonth, -1)}`}>← 上月</Link>
+                  <Link href="/accounts?view=calendar">本月</Link>
+                  <Link href={`/accounts?view=calendar&month=${shiftMonth(selectedMonth, 1)}`}>下月 →</Link>
+                </nav>
+              </header>
+              <div className="cash-calendar-weekdays">
+                {['周一', '周二', '周三', '周四', '周五', '周六', '周日'].map((day) => <span key={day}>{day}</span>)}
+              </div>
+              <div className="cash-calendar-grid">
+                {Array.from({ length: calendarOffset }, (_, index) => <div key={`blank-${index}`} className="is-blank" />)}
+                {Array.from({ length: calendarDays }, (_, index) => {
+                  const day = index + 1
+                  const events = eventsByDay.get(day) ?? []
+                  const isToday = selectedMonth === monthKey() && day === new Date().getDate()
+                  return (
+                    <div key={day} className={cx('cash-calendar-day', isToday && 'is-today', events.length > 0 && 'has-events')}>
+                      <span className="num">{day}</span>
+                      <div>
+                        {events.map((event) => (
+                          <article key={event.id} className={`is-${event.direction.toLowerCase()}`} title={event.note ?? undefined}>
+                            <div><i /><strong>{event.title}</strong></div>
+                            {event.direction !== 'MILESTONE' && <b className="num">{event.direction === 'OUTFLOW' ? '−' : '+'}{fmtCNY(event.amountCny)}</b>}
+                            <small>{event.source === 'SETTLEMENT' ? '在途确认' : event.accountName ?? (event.recurrence === 'NONE' ? '一次计划' : event.recurrence === 'MONTHLY' ? '每月计划' : '每年计划')}</small>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <aside className="cash-calendar-sidebar">
+              {canWrite && (
+                <Panel title="添加计划事项" en="ADD PLAN" className="scroll-mt-6">
+                  <div id="new-cash-plan" />
+                  <CashPlanForm accounts={accounts.map((account) => ({ id: account.id, name: account.name }))} />
+                </Panel>
+              )}
+              <Panel title="本月事项" en="MONTH EVENTS" bodyClassName="p-0">
+                {cashCalendar.events.length === 0 ? <Empty>本月暂无资金安排</Empty> : (
+                  <div className="cash-calendar-agenda">
+                    {cashCalendar.events.map((event) => (
+                      <div key={event.id}>
+                        <span className="num">{String(event.date.getDate()).padStart(2, '0')}</span>
+                        <div><strong>{event.title}</strong><small>{event.source === 'SETTLEMENT' ? '账本派生 · 在途资金' : event.accountName ?? '未指定账户'}</small></div>
+                        <b className={cx('num', event.direction === 'INFLOW' ? 'text-up' : event.direction === 'OUTFLOW' ? 'text-down' : 'text-info')}>
+                          {event.direction === 'MILESTONE' ? '提醒' : `${event.direction === 'OUTFLOW' ? '−' : '+'}${fmtCNY(event.amountCny)}`}
+                        </b>
+                        {canWrite && event.planId && <DeleteCashPlanButton id={event.planId} />}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Panel>
+              <p className="cash-calendar-disclaimer">计划事项不会写入交易账本；实际发生后仍需录入流水。在途赎回由账本自动派生，不可在此删除。</p>
+            </aside>
+          </section>
+        </div>
       )}
     </div>
   )

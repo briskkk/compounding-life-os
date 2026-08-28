@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   dateKeyAt,
   isCurrentPortfolioDay,
+  previousCloseOnPortfolioDay,
   seriesPortfolioDate,
   seriesTradingDate,
   summarizeValuationDate,
@@ -24,6 +25,8 @@ describe('看盘交易日口径', () => {
     expect(isCurrentPortfolioDay('2026-07-31', '2026-07-31')).toBe(true)
     expect(isCurrentPortfolioDay('2026-07-31', '2026-08-01')).toBe(false)
     expect(isCurrentPortfolioDay(null, '2026-08-01')).toBe(false)
+    expect(previousCloseOnPortfolioDay(280, '2026-07-31', '2026-08-01')).toBeNull()
+    expect(previousCloseOnPortfolioDay(280, '2026-08-01', '2026-08-01')).toBe(280)
   })
 
   it('北京时间日期键不受运行机器时区影响', () => {

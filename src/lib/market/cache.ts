@@ -14,9 +14,17 @@ interface MarketRuntimeState {
   quoteCache: Map<string, CacheEntry>
   pendingQuotes: Map<string, Promise<QuoteData>>
   providerStats: Map<string, ProviderStat>
+  providerCircuits: Map<string, CircuitState>
   cacheHits: number
   cacheMisses: number
   coalesced: number
+}
+
+interface CircuitState {
+  provider: string
+  scope: string
+  consecutiveFailures: number
+  circuitOpenUntil: number | null
 }
 
 const globalForMarket = globalThis as unknown as { __portfolioMarketRuntime?: MarketRuntimeState }
@@ -24,10 +32,13 @@ const runtimeState = globalForMarket.__portfolioMarketRuntime ?? {
   quoteCache: new Map<string, CacheEntry>(),
   pendingQuotes: new Map<string, Promise<QuoteData>>(),
   providerStats: new Map<string, ProviderStat>(),
+  providerCircuits: new Map<string, CircuitState>(),
   cacheHits: 0,
   cacheMisses: 0,
   coalesced: 0,
 }
+// next dev 热更时 globalThis 可能保留旧结构，就地补齐新字段。
+runtimeState.providerCircuits ??= new Map<string, CircuitState>()
 globalForMarket.__portfolioMarketRuntime = runtimeState
 
 export function quoteCacheKey(chainLabel: string, symbol: string): string {
@@ -78,9 +89,41 @@ export interface ProviderStat {
 
 const CIRCUIT_FAILURE_THRESHOLD = 3
 const CIRCUIT_OPEN_MS = 60_000
+const DEFAULT_CIRCUIT_SCOPE = 'DEFAULT'
+
+function circuitKey(provider: string, scope: string): string {
+  return `${provider}|${scope}`
+}
+
+function circuitFor(provider: string, scope: string): CircuitState {
+  const key = circuitKey(provider, scope)
+  const circuit = runtimeState.providerCircuits.get(key) ?? {
+    provider,
+    scope,
+    consecutiveFailures: 0,
+    circuitOpenUntil: null,
+  }
+  runtimeState.providerCircuits.set(key, circuit)
+  return circuit
+}
+
+function syncProviderCircuitSummary(stat: ProviderStat): void {
+  const circuits = [...runtimeState.providerCircuits.values()].filter((item) => item.provider === stat.provider)
+  stat.consecutiveFailures = circuits.reduce((max, item) => Math.max(max, item.consecutiveFailures), 0)
+  stat.circuitOpenUntil = circuits.reduce<number | null>((latest, item) => {
+    if (item.circuitOpenUntil == null) return latest
+    return latest == null ? item.circuitOpenUntil : Math.max(latest, item.circuitOpenUntil)
+  }, null)
+}
 
 /** 记录一次 provider 调用结果（成功/失败 + 耗时 + 错误信息） */
-export function recordRequest(provider: string, ok: boolean, ms: number, error?: string): void {
+export function recordRequest(
+  provider: string,
+  ok: boolean,
+  ms: number,
+  error?: string,
+  circuitScope = DEFAULT_CIRCUIT_SCOPE,
+): void {
   const stat = runtimeState.providerStats.get(provider) ?? {
     provider,
     requests: 0,
@@ -92,33 +135,40 @@ export function recordRequest(provider: string, ok: boolean, ms: number, error?:
     consecutiveFailures: 0,
     circuitOpenUntil: null,
   }
+  const circuit = circuitFor(provider, circuitScope)
   stat.requests += 1
   stat.totalMs += ms
   if (ok) {
     stat.ok += 1
-    stat.consecutiveFailures = 0
-    stat.circuitOpenUntil = null
+    circuit.consecutiveFailures = 0
+    circuit.circuitOpenUntil = null
   }
   else {
     stat.failed += 1
-    stat.consecutiveFailures += 1
+    circuit.consecutiveFailures += 1
     stat.lastError = error ?? 'unknown error'
     stat.lastErrorAt = Date.now()
-    if (stat.consecutiveFailures >= CIRCUIT_FAILURE_THRESHOLD) {
-      stat.circuitOpenUntil = Date.now() + CIRCUIT_OPEN_MS
+    if (circuit.consecutiveFailures >= CIRCUIT_FAILURE_THRESHOLD) {
+      circuit.circuitOpenUntil = Date.now() + CIRCUIT_OPEN_MS
     }
   }
+  syncProviderCircuitSummary(stat)
   runtimeState.providerStats.set(provider, stat)
 }
 
-/** 连续失败的数据源短暂熔断，避免一次页面请求对已故障上游重复超时。 */
-export function providerCircuitOpen(provider: string, now = Date.now()): boolean {
+/** 报价/历史与各市场分开熔断，避免某一能力故障连带阻断其他资产。 */
+export function providerCircuitOpen(
+  provider: string,
+  now = Date.now(),
+  circuitScope = DEFAULT_CIRCUIT_SCOPE,
+): boolean {
+  const circuit = runtimeState.providerCircuits.get(circuitKey(provider, circuitScope))
+  if (!circuit?.circuitOpenUntil) return false
+  if (circuit.circuitOpenUntil > now) return true
+  circuit.circuitOpenUntil = null
+  circuit.consecutiveFailures = Math.max(0, CIRCUIT_FAILURE_THRESHOLD - 1)
   const stat = runtimeState.providerStats.get(provider)
-  if (!stat?.circuitOpenUntil) return false
-  if (stat.circuitOpenUntil > now) return true
-  stat.circuitOpenUntil = null
-  stat.consecutiveFailures = Math.max(0, CIRCUIT_FAILURE_THRESHOLD - 1)
-  runtimeState.providerStats.set(provider, stat)
+  if (stat) syncProviderCircuitSummary(stat)
   return false
 }
 
@@ -128,6 +178,7 @@ export interface MarketHealth {
 }
 
 export function marketHealth(): MarketHealth {
+  for (const stat of runtimeState.providerStats.values()) syncProviderCircuitSummary(stat)
   const providers = [...runtimeState.providerStats.values()].sort((a, b) => b.requests - a.requests)
   const total = runtimeState.cacheHits + runtimeState.cacheMisses
   return {
@@ -146,6 +197,7 @@ export function resetMarketHealth(): void {
   runtimeState.quoteCache.clear()
   runtimeState.pendingQuotes.clear()
   runtimeState.providerStats.clear()
+  runtimeState.providerCircuits.clear()
   runtimeState.cacheHits = 0
   runtimeState.cacheMisses = 0
   runtimeState.coalesced = 0

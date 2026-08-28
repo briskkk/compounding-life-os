@@ -7,7 +7,7 @@ import { apiReadAuthCtx } from '@/lib/services/api-auth'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { summarizeDailyPortfolio } from '@/lib/engine/daily-pnl'
-import { dateKeyAt } from '@/lib/engine/watch-market'
+import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -72,8 +72,13 @@ export async function GET(req: NextRequest) {
 
   // ── 当日盈亏与 30 日变化（复用 getDashboard 口径）────────
   const quoteBySymbol = new Map(
-    [...state.quotes.values()].map((q) => [q.symbol, { price: q.priceCny, prevClose: q.prevCloseCny }]),
+    [...state.quotes.values()].map((q) => [q.symbol, {
+      price: q.priceCny,
+      prevClose: q.prevCloseCny,
+      tradingDate: q.tradingDate ?? null,
+    }]),
   )
+  const todayKey = dateKeyAt(new Date())
   const mergedPositions = mergePositionsByAsset(
     state.valued.filter((v) => isPortfolioAssetClass(v.asset.cls)),
   ).filter((v) => Math.abs(v.quantity) > 1e-9)
@@ -84,9 +89,12 @@ export async function GET(req: NextRequest) {
     .filter((v) => !v.asset.manual && v.asset.cls !== 'CASH' && v.asset.cls !== 'REAL_ESTATE')
     .map((v) => {
       const quote = quoteBySymbol.get(v.asset.symbol)
+      const previousClose = quote
+        ? previousCloseOnPortfolioDay(quote.prevClose, quote.tradingDate, todayKey)
+        : null
       return {
         currentValueCny: quote ? v.quantity * quote.price : v.value,
-        previousValueCny: quote ? v.quantity * quote.prevClose : null,
+        previousValueCny: previousClose == null ? null : v.quantity * previousClose,
       }
     })
   const marketDay = summarizeDailyPortfolio(marketItems, staticValueCny)

@@ -36,8 +36,9 @@ describe('buildPositionItem（持仓项装配）', () => {
     const item = buildPositionItem(valuedPosition(), {
       priceCny: 1600,
       prevCloseCny: 1500,
+      tradingDate: '2026-08-25',
       source: 'TENCENT',
-    })
+    }, '2026-08-25')
     expect(item.dayPnl).toBe(10000)
     expect(item.dayPnlPct).toBeCloseTo(10000 / 150000)
     expect(item.avgCost).toBe(1500)
@@ -47,7 +48,7 @@ describe('buildPositionItem（持仓项装配）', () => {
   })
 
   it('缺昨收时当日盈亏为 0、百分比为 null，来源回落估值来源', () => {
-    const item = buildPositionItem(valuedPosition(), undefined)
+    const item = buildPositionItem(valuedPosition(), undefined, '2026-08-25')
     expect(item.dayPnl).toBe(0)
     expect(item.dayPnlPct).toBeNull()
     expect(item.source).toBe('MARKET')
@@ -57,14 +58,27 @@ describe('buildPositionItem（持仓项装配）', () => {
     const item = buildPositionItem(valuedPosition(), {
       priceCny: 1.234,
       prevCloseCny: 1.2,
+      tradingDate: '2026-08-25',
       source: 'FUND-ENGINE',
       confidencePct: 55,
-    })
+    }, '2026-08-25')
     expect(item.confidencePct).toBe(55)
   })
 
+  it('不把上一交易日报价计入北京时间今日盈亏', () => {
+    const item = buildPositionItem(valuedPosition(), {
+      priceCny: 1600,
+      prevCloseCny: 1500,
+      tradingDate: '2026-08-24',
+      source: 'TENCENT',
+    }, '2026-08-25')
+
+    expect(item.dayPnl).toBe(0)
+    expect(item.dayPnlPct).toBeNull()
+  })
+
   it('零数量时平均成本为 null', () => {
-    const item = buildPositionItem(valuedPosition({ quantity: 0, costCny: 0 }), undefined)
+    const item = buildPositionItem(valuedPosition({ quantity: 0, costCny: 0 }), undefined, '2026-08-25')
     expect(item.avgCost).toBeNull()
   })
 })

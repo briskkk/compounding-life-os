@@ -102,4 +102,20 @@ describe('recordRequest / marketHealth（健康打点）', () => {
     expect(providerCircuitOpen('TENCENT', openedUntil - 1)).toBe(true)
     expect(providerCircuitOpen('TENCENT', openedUntil + 1)).toBe(false)
   })
+
+  it('报价与历史、不同市场使用独立熔断域', () => {
+    const quoteScope = 'QUOTE:CN_A'
+    const historyScope = 'HISTORY:CN_A'
+    recordRequest('TENCENT', false, 10, 'quote timeout', quoteScope)
+    recordRequest('TENCENT', false, 10, 'quote timeout', quoteScope)
+    recordRequest('TENCENT', false, 10, 'quote timeout', quoteScope)
+    const openedUntil = marketHealth().providers[0].circuitOpenUntil!
+
+    expect(providerCircuitOpen('TENCENT', openedUntil - 1, quoteScope)).toBe(true)
+    expect(providerCircuitOpen('TENCENT', openedUntil - 1, historyScope)).toBe(false)
+    expect(providerCircuitOpen('TENCENT', openedUntil - 1, 'HISTORY:US')).toBe(false)
+
+    recordRequest('TENCENT', true, 8, undefined, historyScope)
+    expect(providerCircuitOpen('TENCENT', openedUntil - 1, quoteScope)).toBe(true)
+  })
 })

@@ -44,6 +44,17 @@ export function isCurrentPortfolioDay(tradingDate: string | null, todayKey: stri
   return tradingDate === todayKey
 }
 
+/** 只有报价交易日属于北京时间当前自然日时，昨收才可进入“今日涨跌”基线。 */
+export function previousCloseOnPortfolioDay(
+  previousClose: number | null | undefined,
+  tradingDate: string | null | undefined,
+  todayKey: string,
+): number | null {
+  return previousClose != null && Number.isFinite(previousClose) && isCurrentPortfolioDay(tradingDate ?? null, todayKey)
+    ? previousClose
+    : null
+}
+
 export interface DatedValuation {
   tradingDate: string | null
   valueCny: number

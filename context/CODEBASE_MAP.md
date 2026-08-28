@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-08-25
+last_verified: 2026-08-28
 ---
 
 # 代码地图
@@ -14,7 +14,7 @@ last_verified: 2026-08-25
 | --- | --- | --- |
 | 总览 | `src/app/page.tsx` | `getDashboard(period)`；净资产、周/月/季可投资资产结果桥、贡献来源、财富轨迹、构成、状态与 FIRE |
 | 持仓 | `src/app/positions/page.tsx` | `loadEngineState`；配置、分组、排序、当日盈亏 |
-| 资产详情 | `src/app/positions/[assetId]/page.tsx` | 价格/净值历史、基金估值、持仓概览与流水 |
+| 资产详情 | `src/app/positions/[assetId]/page.tsx` | 价格/净值历史、基金估值、持仓概览、流水与带账本锁的安全编辑/删除 |
 | 看盘 | `src/app/watch/page.tsx` | `getWatchData`；盘中曲线、区间绩效、基准、风险 |
 | 复盘 | `src/app/review/page.tsx` | `getReviewPageData`；周/月/季结果桥、贡献归因、时点、交易、风险与复盘笔记 |
 | 流水 | `src/app/transactions/page.tsx` | 筛选、分页、录入、CSV、冲正、导出 |
@@ -81,6 +81,13 @@ Route Handlers：
 - `src/lib/engine/daily-pnl.ts`、`intraday.ts`、`watch-market.ts`：当日和盘中组合。
 - `src/lib/engine/risk.ts`、`benchmark.ts`：回撤、波动、夏普和指数对齐。
 
+### 数据健康与组合计划
+
+- `src/app/health/page.tsx`：家庭数据质量检查队列与证据面板。
+- `src/app/allocation/page.tsx`、`src/lib/engine/allocation-drift.ts`：资产大类目标、容忍带与事实性偏离计算。
+- `src/app/accounts/page.tsx` 的 `calendar` 视图、`src/lib/engine/cash-calendar.ts`：计划现金事项与账本派生在途到账合并。
+- `src/components/allocation-target-editor.tsx`、`cash-plan-form.tsx`：受权限与审计保护的计划写入界面。
+
 ### FIRE
 
 - `src/lib/engine/projection.ts`、`covariance.ts`、`rng.ts`：确定性蒙特卡洛和 FIRE。
@@ -97,14 +104,14 @@ Route Handlers：
 ## 行情层
 
 - `src/lib/market/provider.ts`：统一 Quote/Bar 契约，含行情/净值/估值类型、接收时点与新鲜度语义。
-- `src/lib/market/index.ts`：严格 provider chain 配置与"真实失败不模拟"策略；`quoteSmart`/`historySmart` 带 30s 缓存、报价基本校验与健康打点。
-- `src/lib/market/cache.ts`：进程级行情 TTL 缓存、同标的并发请求合并、健康打点与连续故障短时熔断。
+- `src/lib/market/index.ts`：严格 provider chain 配置与"真实失败不模拟"策略；按基金/交易所路由、市场和报价/历史能力筛选 provider，`historySmart` 返回来源、状态与逐源错误。
+- `src/lib/market/cache.ts`：进程级行情 TTL 缓存、同标的并发请求合并、健康打点，以及按 `操作 × 市场` 隔离的连续故障短时熔断。
 - `src/lib/market/quote-time.ts`：A/H/美股交易所本地时间转 ISO，并判定实时/延迟/陈旧/休市/未知状态。
 - `src/lib/market/tencent.ts`、`sina.ts`：股票/指数行情。
 - `src/lib/market/eastmoney-kline.ts`：东财日 K（腾讯 K 线被 WAF 拦截时的兜底，OHLC 完整）。
 - `src/lib/market/eastmoney-fund.ts`：基金净值与官方盘中估值（FundValuationLast）切换、置信度三档。
 - `src/lib/market/fund-engine.ts`、`fund-holdings.ts`：基金估值、重仓、净值与校准。
-- `src/lib/market/persist.ts`：PriceBar 实际返回区间落库、早期缺口回填、尾部增量更新和估值日期观察。
+- `src/lib/market/persist.ts`：PriceBar 实际返回区间落库、早期缺口回填、尾部增量更新和估值日期观察；刷新结果明确区分 `FETCHED / CACHED / FAILED`。
 - `src/lib/market/fx.ts`：新浪实时汇率 + ECB 官方日度交叉汇率回填 + `RateBar` 按日折算；纯 CNY 组合不加载汇率。
 - `src/lib/market/intraday.ts`、`yahoo.ts`：分钟线。
 - `src/lib/market/symbols.ts`、`lookup.ts`：市场代码与资产识别。
@@ -118,6 +125,7 @@ Route Handlers：
 - `prisma/migrations/20260814090000_add_rate_bar/`：`RateBar` 表（历史汇率）。
 - `prisma/migrations/20260824150000_serialize_audit_chain/`：审计链作用域/父节点唯一约束，防止并发分叉。
 - `prisma/migrations/20260824173000_add_import_batches/`、`20260824183000_add_transaction_idempotency/`：CSV 批次幂等与 APP 写入幂等。
+- `prisma/migrations/20260825090000_add_portfolio_planning/`：目标配置与资金计划表。
 - `prisma/rls.sql`：PostgreSQL 原生 RLS。
 - `scripts/check-schema-sync.ts`：双 schema + RLS 清单一致性检查（CI 门禁）。
 - `scripts/init-empty.ts`：空白工作区初始化。
@@ -135,6 +143,7 @@ Route Handlers：
 - `src/test/projection.test.ts`、`covariance.test.ts`、`savings.test.ts`：FIRE。
 - `src/test/fund-*.test.ts`、`tencent.test.ts`、`symbols.test.ts`：市场与基金。
 - `src/test/rls.test.ts`、`audit.test.ts`：安全与审计。
+- `src/test/allocation-drift.test.ts`、`cash-calendar.test.ts`：目标偏离与重复资金事项。
 - `e2e/*.spec.ts`：主页面、账户、持仓、流水、复盘与 API。
 
 ## 修改联动提示

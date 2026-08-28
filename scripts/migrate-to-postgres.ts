@@ -32,6 +32,8 @@ async function main() {
   console.log('· 清空 PG 目标表…')
   await pg.$transaction([
     pg.auditLog.deleteMany(),
+    pg.cashPlan.deleteMany(),
+    pg.allocationTarget.deleteMany(),
     pg.snapshot.deleteMany(),
     pg.portfolioReview.deleteMany(),
     pg.transaction.deleteMany(),
@@ -66,6 +68,8 @@ async function main() {
     ['Liability', () => sqlite.liability.findMany() as Promise<unknown[]>, (r) => pg.liability.createMany({ data: r })],
     ['LiabilityEntry', () => sqlite.liabilityEntry.findMany() as Promise<unknown[]>, (r) => pg.liabilityEntry.createMany({ data: r })],
     ['Goal', () => sqlite.goal.findMany() as Promise<unknown[]>, (r) => pg.goal.createMany({ data: r })],
+    ['AllocationTarget', () => sqlite.allocationTarget.findMany() as Promise<unknown[]>, (r) => pg.allocationTarget.createMany({ data: r })],
+    ['CashPlan', () => sqlite.cashPlan.findMany() as Promise<unknown[]>, (r) => pg.cashPlan.createMany({ data: r })],
     ['SavingsEntry', () => sqlite.savingsEntry.findMany() as Promise<unknown[]>, (r) => pg.savingsEntry.createMany({ data: r })],
     ['Snapshot', () => sqlite.snapshot.findMany() as Promise<unknown[]>, (r) => pg.snapshot.createMany({ data: r })],
     ['PortfolioReview', () => sqlite.portfolioReview.findMany() as Promise<unknown[]>, (r) => pg.portfolioReview.createMany({ data: r })],
@@ -88,6 +92,7 @@ async function main() {
       ['Session', pg.session.count()], ['Invite', pg.invite.count()], ['Account', pg.account.count()],
       ['Asset', pg.asset.count()], ['ImportBatch', pg.importBatch.count()], ['Transaction', pg.transaction.count()],
       ['Liability', pg.liability.count()], ['LiabilityEntry', pg.liabilityEntry.count()], ['Goal', pg.goal.count()],
+      ['AllocationTarget', pg.allocationTarget.count()], ['CashPlan', pg.cashPlan.count()],
       ['SavingsEntry', pg.savingsEntry.count()], ['Snapshot', pg.snapshot.count()], ['PortfolioReview', pg.portfolioReview.count()],
       ['AuditLog', pg.auditLog.count()], ['PriceBar', pg.priceBar.count()], ['RateBar', pg.rateBar.count()],
       ['FundEstimate', pg.fundEstimate.count()], ['FundCalibration', pg.fundCalibration.count()],

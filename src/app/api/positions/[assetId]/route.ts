@@ -9,6 +9,7 @@ import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { historySmart } from '@/lib/market'
 import { eastmoneyFundProvider } from '@/lib/market/eastmoney-fund'
 import { buildPositionItem, toOhlcBars, buildTradeMarks, type OhlcBar } from '@/lib/engine/position-view'
+import { dateKeyAt } from '@/lib/engine/watch-market'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,6 +25,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ asse
   if (!asset) return NextResponse.json({ ok: false, error: '资产不存在' }, { status: 404 })
 
   const state = await loadEngineState(ctx)
+  const todayKey = dateKeyAt(new Date())
 
   // 实时报价（人民币口径；loadEngineState 已按基金/行情链取数并折算，raw 字段保留原币）
   const engineQuote = state.quotes.get(asset.symbol)
@@ -54,7 +56,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ asse
     }
   } else if (!asset.manual && asset.cls !== 'CASH' && asset.cls !== 'REAL_ESTATE') {
     try {
-      bars = toOhlcBars((await historySmart(asset.symbol, from, to)).bars)
+      bars = toOhlcBars((await historySmart(asset.symbol, from, to, { route: 'EXCHANGE' })).bars)
     } catch {
       bars = []
     }
@@ -66,7 +68,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ asse
   )
     .filter((v) => Math.abs(v.quantity) > 1e-9)
     .find((v) => v.assetId === asset.id)
-  const position = mergedPosition ? buildPositionItem(mergedPosition, state.quotes.get(asset.symbol)) : null
+  const position = mergedPosition ? buildPositionItem(mergedPosition, state.quotes.get(asset.symbol), todayKey) : null
 
   // 买卖点：有效 BUY/SELL 流水按日期升序
   const txs = await db.transaction.findMany({

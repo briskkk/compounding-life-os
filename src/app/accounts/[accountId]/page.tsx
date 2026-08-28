@@ -14,6 +14,7 @@ import { PositionSourceTag } from '@/components/valuation-source'
 import { positionDayPnlCny, summarizeAccountPositions } from '@/lib/engine/account-summary'
 import { holdingsIndex } from '@/lib/engine/ledger'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
+import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,13 +46,17 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
     }),
   ])
   if (!account) return notFound()
+  const todayKey = dateKeyAt(new Date())
 
   const positions = state.valued
     .filter((position) => position.accountId === account.id
       && isPortfolioAssetClass(position.asset.cls)
       && (Math.abs(position.quantity) > 1e-9 || Math.abs(position.value) > 1e-9))
     .sort((a, b) => b.value - a.value)
-  const summary = summarizeAccountPositions(positions, (symbol) => state.quotes.get(symbol)?.prevCloseCny)
+  const summary = summarizeAccountPositions(positions, (symbol) => {
+    const quote = state.quotes.get(symbol)
+    return previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, todayKey)
+  })
   const accountWeight = state.metrics.portfolioValue > 0 ? summary.valueCny / state.metrics.portfolioValue : null
   const cashAccountIds = new Set(
     state.valued.filter((position) => position.asset.cls === 'CASH' && Math.abs(position.value) > 1e-9).map((position) => position.accountId),
@@ -122,7 +127,10 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
                 <tbody className="divide-y divide-line/60">
                   {positions.map((position) => {
                     const quote = state.quotes.get(position.asset.symbol)
-                    const dayPnl = positionDayPnlCny(position, quote?.prevCloseCny)
+                    const dayPnl = positionDayPnlCny(
+                      position,
+                      previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, todayKey),
+                    )
                     return (
                       <tr key={position.assetId} className="transition-colors hover:bg-panel2/50">
                         <td className="px-4 py-3">

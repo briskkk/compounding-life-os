@@ -105,4 +105,25 @@ describe('行级安全（family 作用域）', () => {
       },
     })).rejects.toThrow(/VIEWER/)
   })
+
+  it('目标配置与资金计划同样受家庭作用域和只读角色保护', async () => {
+    const dbA = scopedDb(base, ctxOf(famA))
+    const target = await dbA.allocationTarget.create({
+      data: { familyId: famB, cls: 'CASH', targetWeight: 1, tolerance: 0.03 },
+    })
+    expect(target.familyId).toBe(famA)
+    const dbB = scopedDb(base, ctxOf(famB))
+    expect(await dbB.allocationTarget.count()).toBe(0)
+
+    const viewer = scopedDb(base, ctxOf(famA, 'VIEWER'))
+    await expect(viewer.cashPlan.create({
+      data: {
+        familyId: famA,
+        title: '只读成员计划',
+        direction: 'OUTFLOW',
+        amountCny: 100,
+        dueDate: new Date('2026-09-01T00:00:00Z'),
+      },
+    })).rejects.toThrow(/VIEWER/)
+  })
 })

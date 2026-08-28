@@ -8,7 +8,7 @@ import { refreshPrices } from '@/lib/actions'
 export function RefreshPricesButton() {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  const [done, setDone] = useState(false)
+  const [result, setResult] = useState<{ tone: 'ok' | 'warning' | 'error'; text: string } | null>(null)
   return (
     <button
       type="button"
@@ -16,15 +16,29 @@ export function RefreshPricesButton() {
       onClick={() =>
         startTransition(async () => {
           const res = await refreshPrices()
-          if (res.ok) setDone(true)
+          if (res.ok) {
+            setResult(res.warning
+              ? { tone: 'warning', text: res.warning }
+              : { tone: 'ok', text: '行情与快照已刷新' })
+          } else {
+            setResult({ tone: 'error', text: res.error })
+          }
           router.refresh()
-          setTimeout(() => setDone(false), 3000)
+          setTimeout(() => setResult(null), 6000)
         })
       }
-      className="h-11 shrink-0 whitespace-nowrap rounded-lg border border-line bg-transparent px-3 text-[14px] text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
-      title="拉取最新行情历史并重建快照"
+      className={`h-11 shrink-0 whitespace-nowrap rounded-lg border bg-transparent px-3 text-[14px] transition-colors disabled:opacity-40 ${
+        result?.tone === 'warning'
+          ? 'border-amber/50 text-amber'
+          : result?.tone === 'error'
+            ? 'border-up/50 text-up'
+            : result?.tone === 'ok'
+              ? 'border-down/40 text-down'
+              : 'border-line text-ink-dim hover:border-accent hover:text-accent'
+      }`}
+      title={result?.text ?? '拉取最新行情历史并重建快照'}
     >
-      {pending ? '刷新中…' : done ? '✓ 已刷新' : '↻ 行情'}
+      {pending ? '刷新中…' : result?.tone === 'warning' ? '⚠ 部分失败' : result?.tone === 'error' ? '× 刷新失败' : result?.tone === 'ok' ? '✓ 已刷新' : '↻ 行情'}
     </button>
   )
 }

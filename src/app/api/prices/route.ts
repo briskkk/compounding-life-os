@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
           }
         }
         try {
-          const q = await quoteSmart(s)
+          const q = await quoteSmart(s, { route: 'EXCHANGE' })
           const rate = cnyRateFor(s, rates)
           return {
             ...q,

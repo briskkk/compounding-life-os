@@ -7,7 +7,7 @@ import { tencentProvider } from './tencent'
 import { sinaProvider } from './sina'
 import { eastmoneyFundProvider } from './eastmoney-fund'
 import { eastmoneyKlineProvider } from './eastmoney-kline'
-import { parseSymbol } from './symbols'
+import { parseSymbol, type Market } from './symbols'
 import { cachedQuote, providerCircuitOpen, quoteCacheKey, recordRequest } from './cache'
 import type { Bar, MarketDataProvider, QuoteData } from './provider'
 
@@ -36,6 +36,49 @@ const REGISTRY: Record<string, MarketDataProvider> = {
   'eastmoney-fund': eastmoneyFundProvider,
   'eastmoney-kline': eastmoneyKlineProvider,
   simulated: simulatedProvider,
+}
+
+export type MarketOperation = 'QUOTE' | 'HISTORY'
+export type MarketRoute = 'AUTO' | 'EXCHANGE' | 'FUND'
+
+function routedMarket(symbol: string, route: MarketRoute): Market {
+  if (route === 'FUND') return 'FUND'
+  if (route === 'EXCHANGE' && /^\d{6}$/.test(symbol.trim())) return 'CN_A'
+  return parseSymbol(symbol).market
+}
+
+function providerSupports(label: string, operation: MarketOperation, market: Market): boolean {
+  if (label === PROVIDER_LABEL) return true
+  if (label === 'TENCENT') return ['CN_A', 'HK', 'US', 'INDEX'].includes(market)
+  if (label === 'EASTMONEY-KLINE') return operation === 'HISTORY' && ['CN_A', 'INDEX'].includes(market)
+  if (label === 'EASTMONEY-FUND') return market === 'FUND'
+  if (label === 'SINA') {
+    if (operation === 'QUOTE') return ['CN_A', 'HK', 'US', 'INDEX'].includes(market)
+    return ['CN_A', 'INDEX'].includes(market)
+  }
+  return false
+}
+
+/** 按市场和能力筛选已配置源，不向明知不支持的 provider 发起请求。 */
+export function providerLabelsFor(
+  symbol: string,
+  operation: MarketOperation,
+  route: MarketRoute = 'AUTO',
+  spec?: string,
+): string[] {
+  const market = routedMarket(symbol, route)
+  return providerChain(spec)
+    .filter((provider) => providerSupports(provider.label, operation, market))
+    .map((provider) => provider.label)
+}
+
+function providersFor(symbol: string, operation: MarketOperation, route: MarketRoute) {
+  const allowed = new Set(providerLabelsFor(symbol, operation, route))
+  return providerChain().filter((provider) => allowed.has(provider.label))
+}
+
+function circuitScope(operation: MarketOperation, market: Market): string {
+  return `${operation}:${market}`
 }
 
 export class MarketProviderConfigError extends Error {
@@ -83,12 +126,15 @@ export function getProvider(): MarketDataProvider {
 }
 
 /** 混合报价：沿链逐个尝试（30s TTL 缓存）；真实标的全链失败抛错，OTHER 标的回落模拟源 */
-export async function quoteSmart(symbol: string): Promise<QuoteData> {
-  const chain = providerChain()
+export async function quoteSmart(symbol: string, options?: { route?: MarketRoute }): Promise<QuoteData> {
+  const route = options?.route ?? 'AUTO'
+  const market = routedMarket(symbol, route)
+  const chain = providersFor(symbol, 'QUOTE', route)
+  const scope = circuitScope('QUOTE', market)
   const key = quoteCacheKey(chain.map((p) => p.label).join('+'), symbol)
   return cachedQuote(key, async () => {
     for (const provider of chain) {
-      if (providerCircuitOpen(provider.label)) continue
+      if (providerCircuitOpen(provider.label, Date.now(), scope)) continue
       const t0 = Date.now()
       try {
         const q = await provider.quote(symbol)
@@ -103,10 +149,10 @@ export async function quoteSmart(symbol: string): Promise<QuoteData> {
         ) {
           throw new Error(`${provider.label} 返回了无效报价：${symbol}`)
         }
-        recordRequest(provider.label, true, Date.now() - t0)
+        recordRequest(provider.label, true, Date.now() - t0, undefined, scope)
         return q
       } catch (e) {
-        recordRequest(provider.label, false, Date.now() - t0, e instanceof Error ? e.message : String(e))
+        recordRequest(provider.label, false, Date.now() - t0, e instanceof Error ? e.message : String(e), scope)
         /* 尝试下一源 */
       }
     }
@@ -115,35 +161,61 @@ export async function quoteSmart(symbol: string): Promise<QuoteData> {
   })
 }
 
-export async function historySmart(symbol: string, from: Date, to: Date): Promise<{ bars: Bar[]; source: string }> {
+export interface HistoryResult {
+  bars: Bar[]
+  source: string
+  status: 'OK' | 'FAILED'
+  errors: { provider: string; message: string }[]
+}
+
+export async function historySmart(
+  symbol: string,
+  from: Date,
+  to: Date,
+  options?: { route?: MarketRoute },
+): Promise<HistoryResult> {
+  const route = options?.route ?? 'AUTO'
+  const market = routedMarket(symbol, route)
+  const scope = circuitScope('HISTORY', market)
+  const errors: HistoryResult['errors'] = []
   let best: { bars: Bar[]; source: string } | null = null
   const coverageTolerance = from.getTime() + 14 * 86400000
-  for (const provider of providerChain()) {
-    if (providerCircuitOpen(provider.label)) continue
+  for (const provider of providersFor(symbol, 'HISTORY', route)) {
+    if (providerCircuitOpen(provider.label, Date.now(), scope)) {
+      errors.push({ provider: provider.label, message: '熔断中' })
+      continue
+    }
     const t0 = Date.now()
     try {
       const bars = await provider.history(symbol, from, to)
       if (bars.length > 0) {
-        recordRequest(provider.label, true, Date.now() - t0)
+        recordRequest(provider.label, true, Date.now() - t0, undefined, scope)
         const sorted = [...bars].sort((a, b) => a.date.getTime() - b.date.getTime())
         if (!best || sorted[0].date < best.bars[0].date || sorted.length > best.bars.length) {
           best = { bars: sorted, source: provider.label }
         }
         // 覆盖请求起点附近即可停止；长区间被腰斩时继续尝试下一源。
-        if (sorted[0].date.getTime() <= coverageTolerance) return { bars: sorted, source: provider.label }
+        if (sorted[0].date.getTime() <= coverageTolerance) {
+          return { bars: sorted, source: provider.label, status: 'OK', errors }
+        }
       } else {
-        recordRequest(provider.label, false, Date.now() - t0, `${symbol} 无历史数据`)
+        const message = `${symbol} 无历史数据`
+        errors.push({ provider: provider.label, message })
+        recordRequest(provider.label, false, Date.now() - t0, message, scope)
       }
     } catch (e) {
-      recordRequest(provider.label, false, Date.now() - t0, e instanceof Error ? e.message : String(e))
+      const message = e instanceof Error ? e.message : String(e)
+      errors.push({ provider: provider.label, message })
+      recordRequest(provider.label, false, Date.now() - t0, message, scope)
       /* 尝试下一源 */
     }
   }
-  if (best) return best
+  if (best) return { ...best, status: 'OK', errors }
   if (parseSymbol(symbol).market === 'OTHER' && simulatedAllowed()) {
-    return { bars: await simulatedProvider.history(symbol, from, to), source: PROVIDER_LABEL }
+    return { bars: await simulatedProvider.history(symbol, from, to), source: PROVIDER_LABEL, status: 'OK', errors }
   }
-  return { bars: [], source: 'NONE' }
+  if (errors.length === 0) errors.push({ provider: 'ROUTER', message: `没有支持 ${market} ${'HISTORY'} 的已配置行情源` })
+  return { bars: [], source: 'NONE', status: 'FAILED', errors }
 }
 
 export function providerLabel(): string {

@@ -144,7 +144,11 @@ export default async function OverviewPage({
             <div className="eyebrow">Net worth · 净资产</div>
             <div className="num overview-net-worth-value">{fmtCNY(d.state.netWorth)}</div>
             <div className="overview-net-worth-deltas">
-              <span className={cx('num', (d.marketDayPnl ?? 0) >= 0 ? 'text-up' : 'text-down')}>
+              <span
+                className={cx('num', (d.marketDayPnl ?? 0) >= 0 ? 'text-up' : 'text-down')}
+                data-testid="overview-today-pnl"
+                data-amount={d.marketDayPnl.toFixed(2)}
+              >
                 {(d.marketDayPnl ?? 0) >= 0 ? '↑' : '↓'} {fmtCNY(Math.abs(d.marketDayPnl ?? 0))}
                 <i>·</i>{fmtPct(d.marketDayPnlPct, { sign: true })} 今日
               </span>
@@ -262,19 +266,19 @@ export default async function OverviewPage({
         <div className="overview-compact-panel">
           <div className="overview-section-heading">
             <div><span className="eyebrow">Portfolio state</span><h2>状态速览</h2></div>
-            <Link href="/positions">查看详情 →</Link>
+            <Link href="/health">健康中心 →</Link>
           </div>
           <div className="overview-state-list">
-            <Link href="/positions" className={d.review.valuationGapCount > 0 ? 'is-warning' : 'is-ok'}>
+            <Link href="/health" className={d.review.valuationGapCount > 0 ? 'is-warning' : 'is-ok'}>
               <i /><span>{d.review.valuationGapCount > 0 ? `${d.review.valuationGapCount} 项资产估值存在缺口` : '当前估值无缺口'}</span><strong>{fmtPct(valuationCoverage)} 覆盖</strong>
             </Link>
             <Link href="/transactions" className={estimatedNavCount > 0 ? 'is-info' : 'is-ok'}>
               <i /><span>{estimatedNavCount > 0 ? `${estimatedNavCount} 笔基金净值待确认` : '无待确认基金净值'}</span><strong>{estimatedNavCount > 0 ? '可核对' : '已完成'}</strong>
             </Link>
-            <Link href="/positions" className={concentration && concentration.weight > 0.25 ? 'is-warning' : 'is-info'}>
+            <Link href="/allocation" className={concentration && concentration.weight > 0.25 ? 'is-warning' : 'is-info'}>
               <i /><span>{concentration ? `最大持仓 · ${concentration.name}` : '暂无非现金持仓'}</span><strong className="num">{concentration ? fmtPct(concentration.weight) : '—'}</strong>
             </Link>
-            <Link href="/review" className={d.state.pendingSettlements.length > 0 ? 'is-info' : 'is-ok'}>
+            <Link href="/accounts?view=calendar" className={d.state.pendingSettlements.length > 0 ? 'is-info' : 'is-ok'}>
               <i /><span>{d.state.pendingSettlements.length > 0 ? `${d.state.pendingSettlements.length} 笔赎回资金在途` : '当前无在途资金'}</span><strong className="num">{d.state.pendingSettlements.length > 0 ? fmtCNY(d.state.inTransit) : '已结清'}</strong>
             </Link>
           </div>

@@ -1,11 +1,13 @@
 // 持仓视图装配：positions 列表与资产详情共享的纯函数（人民币口径）
 import type { AssetClass } from './types'
 import type { ValuedPosition } from './valuation'
+import { previousCloseOnPortfolioDay } from './watch-market'
 
 /** 持仓项所需的报价视图（引擎里 EngineQuote 结构兼容，无需跨层引用） */
 export interface PositionQuoteView {
   priceCny: number
   prevCloseCny: number
+  tradingDate?: string | null
   source: string
   confidencePct?: number
 }
@@ -28,8 +30,13 @@ export interface PositionItem {
 }
 
 /** 将估值持仓 + 报价装配为 API 持仓项；缺昨收时当日盈亏为 0、百分比为 null */
-export function buildPositionItem(position: ValuedPosition, quote: PositionQuoteView | undefined): PositionItem {
-  const previousValueCny = quote ? position.quantity * quote.prevCloseCny : null
+export function buildPositionItem(
+  position: ValuedPosition,
+  quote: PositionQuoteView | undefined,
+  todayKey: string,
+): PositionItem {
+  const previousCloseCny = previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, todayKey)
+  const previousValueCny = previousCloseCny == null ? null : position.quantity * previousCloseCny
   const dayPnl = previousValueCny == null ? 0 : position.value - previousValueCny
   return {
     assetId: position.assetId,

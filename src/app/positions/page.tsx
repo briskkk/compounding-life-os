@@ -18,6 +18,7 @@ import { PositionSourceTag, ValuationLegend, ValuationSourceSummary } from '@/co
 import { parseHoldingSort, sortHoldings } from '@/lib/engine/holding-sort'
 import { HoldingSortSelect } from '@/components/holding-sort-select'
 import { isInvestableAsset, isPortfolioAssetClass } from '@/lib/asset-classification'
+import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,9 +47,11 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
   const activeSort = parseHoldingSort(sp.sort)
   const classOrder: AssetClass[] = ['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'REAL_ESTATE']
   const activeClass = classOrder.includes(sp.cls as AssetClass) ? sp.cls as AssetClass : null
+  const todayKey = dateKeyAt(new Date())
   const positionRows = mergedRows.map((position) => {
     const quote = state.quotes.get(position.asset.symbol)
-    const previousValueCny = quote ? position.quantity * quote.prevCloseCny : null
+    const previousCloseCny = previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, todayKey)
+    const previousValueCny = previousCloseCny == null ? null : position.quantity * previousCloseCny
     const dayPnlCny = previousValueCny == null ? null : position.value - previousValueCny
     return {
       position,
@@ -134,6 +137,9 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
             {fmtCNY(totalUnrealized, { sign: true })} · 持有收益
           </div>
           <p className="mt-5 text-[14px] text-ink-faint">{heldClassCount} 类资产 · {heldAccountCount} 个账户 · {mergedRows.length} 项持仓</p>
+          <Link href="/allocation" className="mt-5 inline-flex min-h-10 items-center rounded-lg border border-line px-3.5 text-[13px] text-ink-dim transition-colors hover:border-ink-faint hover:text-ink">
+            查看目标配置偏离 →
+          </Link>
         </div>
 
         <div>

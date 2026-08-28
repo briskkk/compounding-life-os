@@ -24,6 +24,7 @@ last_verified: 2026-08-25
 | 基金成交净值日与确认日分离 | 15:00 前按 T 日净值；QDII T+2 只延迟登记确认，不顺延成交净值日；可用份额按派生确认日生效 | [ADR-013](../docs/adr/013-separate-fund-nav-and-confirmation.md) |
 | 组合复盘只保存用户判断与证据快照 | 收益与贡献实时派生；差额显式对账；复盘记录不成为第二账本，也不生成自动建议 | [ADR-014](../docs/adr/014-portfolio-review-evidence.md) |
 | GOLD 恒为可交易可投资资产 | `manual` 只决定黄金估值来源；无结算腿黄金交易按组合外资金流兼容，有结算腿保持内部守恒 | [ADR-015](../docs/adr/015-tradable-gold-investable-scope.md) |
+| 计划数据与交易账本分离 | 目标权重和未来现金安排只用于观察/计划；不改余额、不生成交易、不自动买卖 | [ADR-016](../docs/adr/016-planning-data-separate-from-ledger.md) |
 
 ## 补充已定规则
 

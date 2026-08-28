@@ -20,7 +20,7 @@ import { summarizeDailyPortfolio } from './engine/daily-pnl'
 import { buildSavingsOverview, type SavingsOverview } from './engine/savings'
 import type { QuoteData } from './market/provider'
 import { isInvestableAsset, isPortfolioAssetClass } from './asset-classification'
-import { dateKeyAt } from './engine/watch-market'
+import { dateKeyAt, previousCloseOnPortfolioDay } from './engine/watch-market'
 import type { ValuationGap, ValuationStatus } from './engine/valuation-status'
 import { loadPriceSeries, priceAtFn, priceObservationAtFn } from './market/persist'
 import { computeWealthSeries } from './snapshots'
@@ -120,7 +120,7 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
           quotes.set(a.symbol, { ...q, priceCny: q.price, prevCloseCny: q.prevClose })
           return
         }
-        const q = await quoteSmart(a.symbol)
+        const q = await quoteSmart(a.symbol, { route: 'EXCHANGE' })
         const rate = cnyRateFor(a.symbol, rates)
         quotes.set(a.symbol, { ...q, priceCny: q.price * rate, prevCloseCny: q.prevClose * rate })
       } catch {
@@ -661,7 +661,11 @@ export async function getDashboard(period: ReviewPeriod = 'THIS_MONTH'): Promise
   const mergedPositions = mergePositionsByAsset(
     state.valued.filter((position) => isPortfolioAssetClass(position.asset.cls)),
   ).filter((v) => Math.abs(v.quantity) > 1e-9)
-  const quoteBySymbol = new Map(quotes.map((q) => [q.symbol, q]))
+  const quoteBySymbol = new Map(quotes.map((q) => [q.symbol, {
+    ...q,
+    tradingDate: state.quotes.get(q.symbol)?.tradingDate ?? null,
+  }]))
+  const todayKey = dateKeyAt(new Date())
   const staticValueCny = mergedPositions
     .filter((v) => v.asset.manual || v.asset.cls === 'CASH' || v.asset.cls === 'REAL_ESTATE')
     .reduce((sum, v) => sum + v.value, 0)
@@ -669,9 +673,12 @@ export async function getDashboard(period: ReviewPeriod = 'THIS_MONTH'): Promise
     .filter((v) => !v.asset.manual && v.asset.cls !== 'CASH' && v.asset.cls !== 'REAL_ESTATE')
     .map((v) => {
       const quote = quoteBySymbol.get(v.asset.symbol)
+      const previousClose = quote
+        ? previousCloseOnPortfolioDay(quote.prevClose, quote.tradingDate, todayKey)
+        : null
       return {
         currentValueCny: quote ? v.quantity * quote.price : v.value,
-        previousValueCny: quote ? v.quantity * quote.prevClose : null,
+        previousValueCny: previousClose == null ? null : v.quantity * previousClose,
       }
     })
   const marketDay = summarizeDailyPortfolio(marketItems, staticValueCny)

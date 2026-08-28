@@ -45,9 +45,10 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
   if (!asset) return notFound()
   const isLongTermAsset = isLongTermAssetClass(asset.cls)
 
-  const [state, accounts] = await Promise.all([
+  const [state, accounts, transactionCount] = await Promise.all([
     loadEngineState(ctx),
     db.account.findMany({ include: { settlementAccount: true }, orderBy: { createdAt: 'asc' } }),
+    db.transaction.count({ where: { assetId: asset.id } }),
   ])
   const positions = state.valued.filter((v) => v.assetId === asset.id)
 
@@ -99,7 +100,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
     ))
     const to = new Date()
     if (parseSymbol(asset.symbol).market !== 'OTHER') {
-      const live = await historySmart(asset.symbol, from, to)
+      const live = await historySmart(asset.symbol, from, to, { route: asset.cls === 'FUND' ? 'FUND' : 'EXCHANGE' })
       if (live.source !== PROVIDER_LABEL && live.bars.length > 0) {
         chartSource = live.source
         historyPrices = live.bars.map((bar) => toAssetNavPoint(bar.date, bar.close, live.source))
@@ -673,25 +674,30 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
       <section className="asset-workspace" aria-labelledby="asset-profile-title">
         <header className="asset-workspace-header">
           <div>
-            <div className="eyebrow">PROFILE</div>
-            <h2 id="asset-profile-title">简介</h2>
-            <p>记录资产分组、投资逻辑与后续跟踪重点，信息独立于交易账本。</p>
+            <div className="eyebrow">ASSET SETTINGS</div>
+            <h2 id="asset-profile-title">资产设置</h2>
+            <p>维护资产身份与跟踪档案。账本一旦产生流水，关键身份将自动锁定。</p>
           </div>
         </header>
         <div className="asset-form-surface asset-profile-surface">
           <div className="asset-form-intro">
-            <span>ASSET PROFILE</span>
+            <span>IDENTITY / PROFILE</span>
             <h3>维护资产信息</h3>
-            <p>标签用于组合分组；简介用于沉淀投资逻辑、目标仓位和跟踪要点。</p>
+            <p>无流水的误建资产可完整修改或删除；已入账资产仅允许维护不影响历史计算的信息。</p>
           </div>
           <div className="asset-form-body">
             <AssetMetaForm
-              layout="wide"
               assetId={asset.id}
+              initialSymbol={asset.symbol}
+              initialName={asset.name}
+              initialClass={asset.cls}
+              initialCurrency={asset.currency}
+              initialManual={asset.manual}
               initialTags={asset.tags}
               initialNote={asset.note ?? ''}
               initialStyle={asset.style}
-              showStyle={asset.cls === 'STOCK' || asset.cls === 'FUND' || asset.cls === 'ETF'}
+              transactionCount={transactionCount}
+              canWrite={ctx.role !== 'VIEWER'}
             />
           </div>
         </div>

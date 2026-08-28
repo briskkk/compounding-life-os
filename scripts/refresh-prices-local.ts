@@ -2,7 +2,7 @@
 // 用法：npx tsx scripts/refresh-prices-local.ts
 import { prisma } from '@/lib/db'
 import { BENCHMARK_INDICES } from '@/lib/engine/benchmark'
-import { persistFundHistory, persistHistory } from '@/lib/market/persist'
+import { persistFundHistory, persistHistory, purgeMisroutedFundBars } from '@/lib/market/persist'
 import { fxRates, persistDailyFx } from '@/lib/market/fx'
 import { rebuildSnapshots } from '@/lib/snapshots'
 
@@ -13,12 +13,14 @@ async function main() {
   const from = new Date(Date.now() - 800 * 86400000)
   const fundSymbols = assets.filter((a) => a.cls === 'FUND').map((a) => a.symbol)
   const marketSymbols = [...assets.filter((a) => a.cls !== 'FUND').map((a) => a.symbol), ...BENCHMARK_INDICES.map((i) => i.symbol)]
+  const purgedMisrouted = await purgeMisroutedFundBars(prisma, marketSymbols)
   const results = [
     ...(await persistFundHistory(prisma, fundSymbols, from, new Date())),
-    ...(await persistHistory(prisma, marketSymbols, from, new Date())),
+    ...(await persistHistory(prisma, marketSymbols, from, new Date(), { route: 'EXCHANGE' })),
   ]
+  console.log(`✓ 清理误路由场内净值 ${purgedMisrouted} 条`)
   const fxWritten = await persistDailyFx(prisma, await fxRates(prisma))
-  console.log(results.map((r) => `${r.symbol}:${r.count}@${r.source}`).join(' '))
+  console.log(results.map((r) => `${r.symbol}:${r.status}:${r.count}@${r.source}`).join(' '))
   console.log(`✓ 汇率落库 ${fxWritten} 条`)
   const days = await rebuildSnapshots(prisma, family.id)
   console.log(`✓ 快照重建 ${days} 天`)
