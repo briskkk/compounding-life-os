@@ -5,7 +5,10 @@ import { scopedDb } from '@/lib/scoped'
 import { verifyChain } from '@/lib/audit'
 import { marketHealth } from '@/lib/market/cache'
 import { SetupScreen, Tag } from '@/components/ui'
-import { cx, fmtCNY, fmtDate, fmtPct } from '@/lib/format'
+import { cx, fmtCNY, fmtDate, fmtDateTime, fmtPct } from '@/lib/format'
+import { HealthRepairActions } from '@/components/health-repair-actions'
+import { ConfirmFundNavButton } from '@/components/confirm-fund-nav-button'
+import { ConfirmFundSettlementButton } from '@/components/confirm-fund-settlement-button'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,12 +35,25 @@ export default async function DataHealthPage() {
   const dashboard = await getDashboard('THIS_MONTH')
   if (!dashboard) return <SetupScreen />
   const db = scopedDb(prisma, dashboard.ctx)
-  const [accounts, latestSnapshot, failedImports, allocationTargetCount, chain] = await Promise.all([
+  const [accounts, latestSnapshot, failedImports, allocationTargetCount, chain, refreshLogs, reconciliationLogs, fundEvents, settlementConfirmations] = await Promise.all([
     db.account.findMany({ orderBy: { createdAt: 'asc' } }),
     db.snapshot.findFirst({ orderBy: { date: 'desc' } }),
     db.importBatch.findMany({ where: { failedCount: { gt: 0 } }, orderBy: { createdAt: 'desc' }, take: 10 }),
     db.allocationTarget.count(),
     verifyChain(prisma, dashboard.ctx.familyId),
+    db.auditLog.findMany({ where: { action: 'REFRESH', entity: 'PriceBar' }, orderBy: { createdAt: 'desc' }, take: 10 }),
+    db.auditLog.findMany({ where: { action: 'RECONCILE', entity: 'Account' }, orderBy: { createdAt: 'desc' }, take: 100 }),
+    db.transaction.findMany({
+      where: {
+        voidedAt: null,
+        asset: { cls: 'FUND' },
+        OR: [{ navSource: 'ESTIMATE' }, { type: 'SELL', settlementDate: { not: null } }],
+      },
+      include: { asset: true, account: true },
+      orderBy: { occurredAt: 'desc' },
+      take: 80,
+    }),
+    db.auditLog.findMany({ where: { action: 'FUND_SETTLEMENT_CONFIRMED', entity: 'Transaction' }, select: { entityId: true } }),
   ])
   const issues: HealthIssue[] = []
   const state = dashboard.state
@@ -208,6 +224,45 @@ export default async function DataHealthPage() {
     })
   }
 
+  const reconciledAccountIds = new Set(reconciliationLogs.flatMap((log) => log.entityId ? [log.entityId] : []))
+  const unreconciledAccounts = accounts.filter((account) => !reconciledAccountIds.has(account.id))
+  if (unreconciledAccounts.length > 0) {
+    issues.push({
+      id: 'account-reconciliation',
+      severity: 'INFO',
+      category: '外部核对',
+      title: `${unreconciledAccounts.length} 个账户尚未建立外部余额凭证`,
+      detail: `可从券商、银行或基金平台账单录入核对时点：${unreconciledAccounts.slice(0, 4).map((account) => account.name).join('、')}。`,
+      metric: `${accounts.length - unreconciledAccounts.length}/${accounts.length}`,
+      href: '/reconciliation',
+      action: '开始对账',
+    })
+  }
+
+  const confirmedSettlementIds = new Set(settlementConfirmations.flatMap((log) => log.entityId ? [log.entityId] : []))
+  const dueFundSettlements = fundEvents.filter((tx) => (
+    tx.type === 'SELL'
+    && tx.settlementDate != null
+    && tx.settlementDate.getTime() <= Date.now()
+    && !confirmedSettlementIds.has(tx.id)
+  ))
+  const actionableFundEvents = fundEvents.filter((tx) => (
+    tx.navSource === 'ESTIMATE'
+    || (tx.type === 'SELL' && tx.settlementDate != null && !confirmedSettlementIds.has(tx.id))
+  ))
+  if (dueFundSettlements.length > 0) {
+    issues.push({
+      id: 'fund-settlement-confirmation',
+      severity: 'WARNING',
+      category: '基金确认',
+      title: `${dueFundSettlements.length} 笔基金赎回已到预计到账日`,
+      detail: '账本已按预计日期计入现金，请与基金平台或银行入账记录核对后确认；如金额不一致，请冲正原流水。',
+      metric: `${dueFundSettlements.length} 笔`,
+      href: '#fund-confirmation',
+      action: '核对到账',
+    })
+  }
+
   const order: Record<Severity, number> = { BLOCKING: 0, WARNING: 1, INFO: 2 }
   issues.sort((a, b) => order[a.severity] - order[b.severity])
   const blocking = issues.filter((issue) => issue.severity === 'BLOCKING').length
@@ -237,6 +292,13 @@ export default async function DataHealthPage() {
         </div>
         <div className="health-status-rail"><i /><i /><i /></div>
       </section>
+
+      {dashboard.ctx.role !== 'VIEWER' && (
+        <section className="health-repair-strip">
+          <div><span className="eyebrow">Safe repair</span><strong>先恢复行情与派生快照</strong><p>这两项操作不会新增、删除或改写任何交易流水。</p></div>
+          <HealthRepairActions />
+        </section>
+      )}
 
       <section className="health-layout">
         <div className="health-issue-panel">
@@ -275,6 +337,35 @@ export default async function DataHealthPage() {
           )}
           <p className="health-evidence-note">健康中心只诊断并提供修复入口，不会自动修改流水、估值或目标配置。</p>
         </aside>
+      </section>
+
+      <section className="health-job-center">
+        <header><div><span className="eyebrow">Market job center</span><h2>行情任务中心</h2></div><span>单家庭刷新 · 06:30 / 16:30 / 22:30</span></header>
+        <div className="health-job-grid">
+          <div className="health-job-schedule"><div><b className="num">06:30</b><span>美股收盘与外汇回填</span></div><div><b className="num">16:30</b><span>A/H 股收盘落库</span></div><div><b className="num">22:30</b><span>基金官方净值回填</span></div></div>
+          <div className="health-job-timeline">
+            {refreshLogs.length === 0 ? <p>尚无持久化刷新记录。手动刷新或定时任务完成后会显示在这里。</p> : refreshLogs.map((log) => {
+              const failed = (log.detail ?? '').includes('JOB_FAILED')
+                ? 1
+                : [...(log.detail ?? '').matchAll(/:FAILED:/g)].length
+              return <article key={log.id}><i className={failed > 0 ? 'is-warning' : 'is-ok'} /><time className="num">{fmtDateTime(log.createdAt)}</time><strong>{failed > 0 ? `${failed} 个标的失败` : '刷新完成'}</strong><span>{log.actorName}</span></article>
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section id="fund-confirmation" className="health-confirmation-center">
+        <header><div><span className="eyebrow">Fund closure</span><h2>基金确认闭环</h2></div><Link href="/transactions">查看全部流水 →</Link></header>
+        <div className="health-confirmation-list">
+          {actionableFundEvents.length === 0 ? <div className="health-empty"><strong>没有待确认的基金事件</strong><p>估算净值与赎回到账均已闭环。</p></div> : actionableFundEvents.map((tx) => {
+            const isEstimate = tx.navSource === 'ESTIMATE'
+            const isSettlement = tx.type === 'SELL' && tx.settlementDate != null
+            const settlementConfirmed = confirmedSettlementIds.has(tx.id)
+            const settlementDue = tx.settlementDate != null && tx.settlementDate.getTime() <= Date.now()
+            if (!isEstimate && (!isSettlement || settlementConfirmed)) return null
+            return <article key={tx.id}><div><span>{isEstimate ? '待官方净值' : settlementDue ? '待确认到账' : '等待到账日'}</span><strong>{tx.asset.name}</strong><small>{tx.account.name} · 交易 {fmtDate(tx.occurredAt)}{tx.settlementDate ? ` · 预计到账 ${fmtDate(tx.settlementDate)}` : ''}</small></div><b className="num">{fmtCNY(Number(tx.amount))}</b><div>{isEstimate && dashboard.ctx.role !== 'VIEWER' && <ConfirmFundNavButton id={tx.id} />}{!isEstimate && isSettlement && settlementDue && dashboard.ctx.role !== 'VIEWER' && <ConfirmFundSettlementButton id={tx.id} />}</div></article>
+          })}
+        </div>
       </section>
     </div>
   )

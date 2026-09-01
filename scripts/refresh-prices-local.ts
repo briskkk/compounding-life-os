@@ -5,6 +5,7 @@ import { BENCHMARK_INDICES } from '@/lib/engine/benchmark'
 import { persistFundHistory, persistHistory, purgeMisroutedFundBars } from '@/lib/market/persist'
 import { fxRates, persistDailyFx } from '@/lib/market/fx'
 import { rebuildSnapshots } from '@/lib/snapshots'
+import { recordAudit } from '@/lib/audit'
 
 async function main() {
   const family = await prisma.familySpace.findFirst({ orderBy: { createdAt: 'asc' } })
@@ -24,6 +25,30 @@ async function main() {
   console.log(`✓ 汇率落库 ${fxWritten} 条`)
   const days = await rebuildSnapshots(prisma, family.id)
   console.log(`✓ 快照重建 ${days} 天`)
+  const member = await prisma.member.findFirst({ where: { familyId: family.id }, orderBy: { createdAt: 'asc' } })
+  const slot = process.env.REFRESH_SLOT ?? 'manual-script'
+  await recordAudit(prisma, {
+    familyId: family.id,
+    actorId: member?.id ?? null,
+    actorName: `SYSTEM · ${slot}`,
+    action: 'REFRESH',
+    entity: 'PriceBar',
+    detail: `定时槽 ${slot}；清理误路由场内净值 ${purgedMisrouted} 条；汇率 ${fxWritten} 条；快照 ${days} 天；${results.map((r) => `${r.symbol}:${r.status}:${r.count}@${r.source}`).join(' ')}`,
+  })
 }
 
-main().finally(() => prisma.$disconnect())
+main().catch(async (error) => {
+  const family = await prisma.familySpace.findFirst({ orderBy: { createdAt: 'asc' } }).catch(() => null)
+  if (family) {
+    await recordAudit(prisma, {
+      familyId: family.id,
+      actorId: null,
+      actorName: `SYSTEM · ${process.env.REFRESH_SLOT ?? 'manual-script'}`,
+      action: 'REFRESH',
+      entity: 'PriceBar',
+      detail: `JOB_FAILED:${error instanceof Error ? error.message : String(error)}`,
+    }).catch(() => undefined)
+  }
+  console.error(error)
+  process.exitCode = 1
+}).finally(() => prisma.$disconnect())

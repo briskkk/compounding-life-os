@@ -47,6 +47,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/familywealth_test
       PGPASSWORD: postgres
+      PG_REHEARSAL_CONFIRM: disposable-database
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -54,9 +55,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx prisma db push --schema prisma/schema.postgres.prisma --skip-generate
-      - run: psql "$DATABASE_URL" -f prisma/rls.sql
-      - run: psql "$DATABASE_URL" -f scripts/verify-postgres-rls.sql
+      - run: npm run db:rehearse-postgres
 
   e2e:
     runs-on: ubuntu-latest

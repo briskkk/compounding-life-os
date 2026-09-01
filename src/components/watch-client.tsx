@@ -17,6 +17,8 @@ import { HoldingSortSelect } from './holding-sort-select'
 import { PortfolioHistory } from './portfolio-history'
 import type { PerformancePoint } from '@/lib/engine/period-performance'
 import type { LoadedBenchmark } from '@/lib/engine/benchmark'
+import type { DataSettlementState } from '@/lib/engine/data-settlement'
+import { DataSettlementRail } from './data-settlement-rail'
 
 export interface WatchHolding {
   assetId: string
@@ -72,6 +74,7 @@ export function WatchClient({
   initialSort,
   defaultRange,
   benchmarks,
+  settlement,
 }: {
   holdings: WatchHolding[]
   staticValueCny: number
@@ -83,6 +86,7 @@ export function WatchClient({
   initialSort: HoldingSort
   defaultRange?: string | null
   benchmarks: LoadedBenchmark[]
+  settlement: DataSettlementState
 }) {
   const [seriesMap, setSeriesMap] = useState<Map<string, IntradaySeries>>(new Map())
   const [quotes, setQuotes] = useState<Map<string, QuoteLite>>(new Map())
@@ -294,6 +298,8 @@ export function WatchClient({
         )}
         </div>
       </section>
+
+      <DataSettlementRail state={settlement} />
 
       <PortfolioHistory
         series={historySeries}

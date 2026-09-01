@@ -84,25 +84,28 @@ ensure_backup() {
 log "==> 确保数据库备份脚本与每日 03:00 cron 仍在"
 ensure_backup
 
-# ---------- 6b. 确保行情刷新脚本 + 每日 08:00 cron 仍在 ----------
-# 场外基金净值 T+1 晚间公布(QDII T+2),每天上午刷新一次即可回填前一交易日全部净值。
+# ---------- 6b. 确保行情刷新脚本 + 三段式 cron 仍在 ----------
+# 单家庭版本按市场收盘节奏刷新；QDII 仍以实际官方净值到达为准。
 ensure_refresh() {
   cat > "$PROJECT_DIR/deploy/server-refresh.sh" <<'EOF'
 #!/bin/bash
 set -e
 cd /opt/family-wealth-os
 # 拉取基金官方净值与市场行情,并重建快照(等效页面「↻ 行情」)
-docker compose exec -T app npx tsx scripts/refresh-prices-local.ts
+REFRESH_SLOT="${1:-manual}"
+docker compose exec -T -e REFRESH_SLOT="$REFRESH_SLOT" app npx tsx scripts/refresh-prices-local.ts
 EOF
   chmod +x "$PROJECT_DIR/deploy/server-refresh.sh"
 
   local tmp; tmp="$(mktemp)"
   crontab -l 2>/dev/null | grep -v "server-refresh.sh" > "$tmp" || true
-  echo "0 8 * * * /opt/family-wealth-os/deploy/server-refresh.sh >> /var/log/fwos-refresh.log 2>&1" >> "$tmp"
+  echo "30 6 * * * /opt/family-wealth-os/deploy/server-refresh.sh us-close >> /var/log/fwos-refresh.log 2>&1" >> "$tmp"
+  echo "30 16 * * * /opt/family-wealth-os/deploy/server-refresh.sh cn-close >> /var/log/fwos-refresh.log 2>&1" >> "$tmp"
+  echo "30 22 * * * /opt/family-wealth-os/deploy/server-refresh.sh fund-nav >> /var/log/fwos-refresh.log 2>&1" >> "$tmp"
   crontab "$tmp"
   rm -f "$tmp"
 }
-log "==> 确保行情刷新脚本与每日 08:00 cron 仍在"
+log "==> 确保行情刷新脚本与每日三段式 cron 仍在"
 ensure_refresh
 
 # ---------- 7. 健康检查 (带重试, 避免重启后短暂未就绪误判) ----------

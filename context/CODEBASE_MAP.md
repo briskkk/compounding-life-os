@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-08-28
+last_verified: 2026-09-01
 ---
 
 # 代码地图
@@ -83,7 +83,9 @@ Route Handlers：
 
 ### 数据健康与组合计划
 
-- `src/app/health/page.tsx`：家庭数据质量检查队列与证据面板。
+- `src/app/health/page.tsx`：家庭数据质量检查队列、安全修复、行情任务时间线与基金确认闭环。
+- `src/app/reconciliation/page.tsx`、`src/components/reconciliation-form.tsx`：外部账户余额与账本派生余额的追加式核对凭证。
+- `src/lib/engine/data-settlement.ts`、`src/components/data-settlement-rail.tsx`：实时/已结算证据计算与看盘低权重数据状态行；总览仅显示摘要，详细证据进入健康中心。
 - `src/app/allocation/page.tsx`、`src/lib/engine/allocation-drift.ts`：资产大类目标、容忍带与事实性偏离计算。
 - `src/app/accounts/page.tsx` 的 `calendar` 视图、`src/lib/engine/cash-calendar.ts`：计划现金事项与账本派生在途到账合并。
 - `src/components/allocation-target-editor.tsx`、`cash-plan-form.tsx`：受权限与审计保护的计划写入界面。

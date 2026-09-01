@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { getDashboard } from '@/lib/queries'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
-import { verifyChain } from '@/lib/audit'
 import { Empty, SetupScreen } from '@/components/ui'
 import { WealthChart } from '@/components/charts'
 import { C, CLASS_COLORS } from '@/lib/colors'
@@ -52,8 +51,6 @@ export default async function OverviewPage({
   const period = periodFrom(params.period)
   const d = await getDashboard(period)
   if (!d) return <SetupScreen />
-  const chain = await verifyChain(prisma, d.ctx.familyId)
-
   const db = scopedDb(prisma, d.ctx)
   const [accountCount, registeredAssetCount] = await Promise.all([
     db.account.count(),
@@ -160,9 +157,9 @@ export default async function OverviewPage({
           <div className="overview-data-quality">
             <i className={d.review.valuationGapCount > 0 ? 'is-warning' : undefined} />
             <span>
-              估值覆盖 {fmtPct(valuationCoverage)}
+              {d.review.valuationGapCount > 0 ? `${d.review.valuationGapCount} 项数据待更新` : '数据已更新'}
               <b>·</b>{latestValuationDate ? `最新估值日 ${latestValuationDate}` : '暂无估值日期'}
-              <b>·</b>{chain.ok ? `审计链完整 ${chain.count} 条` : '审计链待检查'}
+              <b>·</b><Link href="/health">查看数据状态 →</Link>
             </span>
           </div>
         </div>

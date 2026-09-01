@@ -64,6 +64,14 @@ export const accountSettlementSchema = z.object({
   settlementAccountId: z.string().min(1).nullable(),
 })
 
+export const accountReconciliationSchema = z.object({
+  accountId: z.string().min(1, '请选择账户'),
+  observedValueCny: z.number().nonnegative('外部余额不能为负'),
+  sourceName: z.string().min(1, '请填写凭证来源').max(80),
+  asOfDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '请选择核对日期'),
+  note: z.string().max(300).nullable().default(null),
+})
+
 export const assetInputSchema = z.object({
   symbol: z
     .string()

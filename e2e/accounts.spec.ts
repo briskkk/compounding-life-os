@@ -5,6 +5,7 @@ test('账户中心：概览、详情和账户级流水录入', async ({ page }) 
   await expect(page.getByRole('heading', { level: 1, name: '账户中心' })).toBeVisible()
   await expect(page.getByRole('columnheader', { name: '资产市值' })).toBeVisible()
   await expect(page.getByRole('columnheader', { name: '今日盈亏' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '行情数据状态' })).toHaveCount(0)
 
   const accountLinks = page.locator('tbody a[href^="/accounts/"]')
   const accountCount = await accountLinks.count()

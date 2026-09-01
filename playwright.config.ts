@@ -4,6 +4,8 @@ import { defineConfig } from '@playwright/test'
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
+  // 所有规格共享同一隔离种子家庭；串行执行避免跨规格写入互相污染。
+  workers: 1,
   // 隔离环境应当确定性通过；不使用重试掩盖首轮失败。
   retries: 0,
   use: { baseURL: 'http://localhost:3200' },

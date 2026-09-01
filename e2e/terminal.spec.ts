@@ -8,6 +8,8 @@ test('终端首页：财富结果、对账桥、贡献来源与状态同屏', as
   await expect(page.getByRole('heading', { name: '可投资资产构成' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '状态速览' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'FIRE 路径' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '行情数据状态' })).toHaveCount(0)
+  await expect(page.locator('.overview-data-quality').getByRole('link', { name: '查看数据状态 →' })).toBeVisible()
   // 账本可对账结果与双口径
   await expect(page.getByText('期初可投资资产', { exact: true })).toBeVisible()
   await expect(page.getByText('净投入').first()).toBeVisible()
@@ -46,6 +48,9 @@ test('持仓页：类别汇总与明细表', async ({ page }) => {
 
 test('看盘页：历史收益支持预设周期与自定义日期', async ({ page }) => {
   await page.goto('/watch')
+  const dataStatus = page.getByRole('region', { name: '行情数据状态' })
+  await expect(dataStatus).toBeVisible()
+  await expect(dataStatus).toContainText(/行情已覆盖|行情待更新|历史收盘数据仍有缺口|暂无需要行情更新/)
   await expect(page.getByRole('heading', { name: '组合历史收益' })).toBeVisible()
   await expect(page.getByText('收益金额', { exact: true })).toBeVisible()
   await expect(page.getByText('时间加权收益率', { exact: true })).toBeVisible()

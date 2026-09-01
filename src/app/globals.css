@@ -2341,6 +2341,12 @@ select option {
   white-space: nowrap;
 }
 
+@media (max-width: 1300px) {
+  .overview-net-worth-value {
+    font-size: 3rem;
+  }
+}
+
 .overview-net-worth-deltas {
   display: flex;
   flex-wrap: wrap;
@@ -2388,6 +2394,15 @@ select option {
   margin-inline: 0.4rem;
   color: var(--color-line);
   font-weight: 400;
+}
+
+.overview-data-quality a {
+  color: var(--color-info);
+  white-space: nowrap;
+}
+
+.overview-data-quality a:hover {
+  color: var(--color-ink);
 }
 
 .overview-result-bridge {
@@ -4127,6 +4142,50 @@ nav[aria-label="主导航"] a {
   }
 }
 
+/* ---------- 看盘数据状态 ---------- */
+
+.data-settlement-status {
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  min-height: 58px;
+  padding: 0.65rem 0.9rem;
+  border-block: 1px solid var(--color-line);
+}
+
+.data-settlement-status > i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-down);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-down) 10%, transparent);
+}
+
+.data-settlement-status.is-warning > i {
+  background: var(--color-amber);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-amber) 10%, transparent);
+}
+
+.data-settlement-status strong,
+.data-settlement-status span {
+  display: inline;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.data-settlement-status strong { color: var(--color-ink-dim); }
+.data-settlement-status span { margin-left: 0.75rem; color: var(--color-ink-faint); }
+.data-settlement-status span b { margin-inline: 0.45rem; color: var(--color-line); font-weight: 400; }
+
+.data-settlement-status > a {
+  white-space: nowrap;
+  color: var(--color-ink-faint);
+  font-size: 12px;
+}
+
+.data-settlement-status > a:hover { color: var(--color-info); }
+
 /* ---------- 数据健康中心 ---------- */
 
 .health-page,
@@ -4413,6 +4472,181 @@ nav[aria-label="主导航"] a {
   font-size: 12px;
   line-height: 1.6;
 }
+
+.health-repair-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 1.1rem 1.35rem;
+  border: 1px solid color-mix(in srgb, var(--color-down) 26%, var(--color-line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-down) 4%, var(--surface-1));
+}
+
+.health-repair-strip strong,
+.health-repair-strip p {
+  display: block;
+}
+
+.health-repair-strip strong { margin-top: 0.18rem; font-size: 15px; font-weight: 500; }
+.health-repair-strip p { margin-top: 0.25rem; color: var(--color-ink-faint); font-size: 12px; }
+
+.health-repair-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.health-repair-actions button,
+.health-inline-action button {
+  min-height: 38px;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  color: var(--color-accent);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.health-repair-actions button:hover,
+.health-inline-action button:hover { border-color: var(--color-accent); }
+.health-repair-actions button:disabled,
+.health-inline-action button:disabled { opacity: 0.45; }
+.health-repair-actions > span { max-width: 340px; color: var(--color-ink-dim); font-size: 11px; }
+
+.health-job-center,
+.health-confirmation-center {
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--surface-1);
+}
+
+.health-job-center > header,
+.health-confirmation-center > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.4rem 1.6rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.health-job-center h2,
+.health-confirmation-center h2 { margin-top: 0.2rem; font-size: 1.35rem; font-weight: 500; }
+.health-job-center > header > span,
+.health-confirmation-center > header > a { color: var(--color-ink-faint); font-size: 12px; }
+
+.health-job-grid {
+  display: grid;
+  grid-template-columns: minmax(420px, 0.8fr) minmax(520px, 1.2fr);
+}
+
+.health-job-schedule {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: center;
+  padding: 1.4rem;
+  border-right: 1px solid var(--color-line);
+}
+
+.health-job-schedule > div { padding-inline: 1rem; border-left: 1px solid var(--color-line); }
+.health-job-schedule > div:first-child { border-left: 0; }
+.health-job-schedule b,
+.health-job-schedule span { display: block; }
+.health-job-schedule b { color: var(--color-info); font-size: 17px; font-weight: 500; }
+.health-job-schedule span { margin-top: 0.35rem; color: var(--color-ink-faint); font-size: 11px; line-height: 1.5; }
+
+.health-job-timeline { max-height: 214px; overflow: auto; }
+.health-job-timeline > p { padding: 2rem; color: var(--color-ink-faint); font-size: 12px; }
+.health-job-timeline article { display: grid; grid-template-columns: 8px 150px 1fr 110px; align-items: center; gap: 0.7rem; padding: 0.75rem 1.2rem; border-top: 1px solid color-mix(in srgb, var(--color-line) 68%, transparent); font-size: 12px; }
+.health-job-timeline article:first-child { border-top: 0; }
+.health-job-timeline i { width: 6px; height: 6px; border-radius: 50%; background: var(--color-down); }
+.health-job-timeline i.is-warning { background: var(--color-amber); }
+.health-job-timeline time,
+.health-job-timeline span { color: var(--color-ink-faint); }
+.health-job-timeline strong { font-weight: 500; }
+
+.health-confirmation-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px 180px;
+  align-items: center;
+  gap: 1rem;
+  min-height: 92px;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--color-line);
+}
+
+.health-confirmation-list article:first-child { border-top: 0; }
+.health-confirmation-list article > div:first-child span,
+.health-confirmation-list article > div:first-child strong,
+.health-confirmation-list article > div:first-child small { display: block; }
+.health-confirmation-list article > div:first-child span { color: var(--color-amber); font-size: 11px; }
+.health-confirmation-list article > div:first-child strong { margin-top: 0.22rem; font-size: 15px; font-weight: 500; }
+.health-confirmation-list article > div:first-child small { margin-top: 0.25rem; color: var(--color-ink-faint); font-size: 11px; }
+.health-confirmation-list article > b { text-align: right; color: var(--color-ink-dim); font-size: 14px; font-weight: 500; }
+.health-confirmation-list article > div:last-child { justify-self: end; }
+.health-inline-action { display: inline-grid; justify-items: end; gap: 0.3rem; }
+.health-inline-action small { max-width: 180px; color: var(--color-up); font-size: 10px; text-align: right; }
+
+/* ---------- 账户对账 ---------- */
+
+.reconciliation-page { gap: 2rem; }
+
+.reconciliation-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 0.6fr)) minmax(360px, 1.4fr);
+  align-items: center;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--color-line);
+}
+
+.reconciliation-summary > div,
+.reconciliation-summary > p { height: 100%; padding: 1.2rem 1.35rem; background: var(--surface-1); }
+.reconciliation-summary span,
+.reconciliation-summary strong { display: block; }
+.reconciliation-summary span { color: var(--color-ink-faint); font-size: 12px; }
+.reconciliation-summary strong { margin-top: 0.35rem; font-size: 20px; font-weight: 500; }
+.reconciliation-summary p { color: var(--color-ink-dim); font-size: 12px; line-height: 1.7; }
+
+.reconciliation-form {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 0.8fr 1fr;
+  align-items: end;
+  gap: 1rem;
+}
+
+.reconciliation-form label { display: grid; gap: 0.45rem; }
+.reconciliation-form label > span { color: var(--color-ink-faint); font-size: 12px; }
+.reconciliation-form input,
+.reconciliation-form select { min-height: 42px; padding: 0.55rem 0.7rem; border: 1px solid var(--color-line); border-radius: 8px; background: var(--surface-2); color: var(--color-ink); font-size: 13px; }
+.reconciliation-form .is-wide { grid-column: 1 / 4; }
+.reconciliation-form button { min-height: 42px; border-radius: 8px; background: var(--color-accent); color: var(--color-bg); font-size: 13px; font-weight: 500; }
+.reconciliation-form > p { grid-column: 1 / -1; color: var(--color-down); font-size: 12px; }
+.reconciliation-form > p.is-error { color: var(--color-up); }
+
+.reconciliation-history article {
+  display: grid;
+  grid-template-columns: 170px minmax(260px, 1fr) 150px minmax(260px, 0.8fr);
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border-top: 1px solid var(--color-line);
+  font-size: 12px;
+}
+
+.reconciliation-history article:first-child { border-top: 0; }
+.reconciliation-history time,
+.reconciliation-history span,
+.reconciliation-history small { color: var(--color-ink-faint); }
+.reconciliation-history strong,
+.reconciliation-history span { display: block; }
+.reconciliation-history strong { color: var(--color-ink); font-size: 13px; font-weight: 500; }
+.reconciliation-history b { text-align: right; font-family: var(--font-mono); font-weight: 500; }
 
 /* ---------- 目标配置偏离 ---------- */
 

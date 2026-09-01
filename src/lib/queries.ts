@@ -27,6 +27,7 @@ import { computeWealthSeries } from './snapshots'
 import { fundConfirmationDate, isQdiiFund } from './engine/fund-order'
 import { buildAssetPerformanceSeries, type AssetNavPoint } from './engine/asset-performance'
 import { buildReviewResult, reconstructReviewPortfolioSeries, reviewRange, type ReviewPeriod, type ReviewResult } from './engine/review'
+import { buildDataSettlementState, type DataSettlementState } from './engine/data-settlement'
 
 export interface LiabilityView {
   id: string
@@ -353,6 +354,23 @@ export interface WatchData {
   state: EngineState
   series: SeriesPoint[]
   currentContributions: number
+  settlement: DataSettlementState
+}
+
+function dataSettlementFor(state: EngineState, series: SeriesPoint[]): DataSettlementState {
+  const liveItems = mergePositionsByAsset(state.valued)
+    .filter((position) => (
+      Math.abs(position.value) > 0.005
+      && !position.asset.manual
+      && position.asset.cls !== 'CASH'
+      && position.asset.cls !== 'REAL_ESTATE'
+    ))
+    .map((position) => ({
+      valueCny: position.value,
+      hasQuote: state.quotes.has(position.asset.symbol),
+      tradingDate: state.quotes.get(position.asset.symbol)?.tradingDate ?? null,
+    }))
+  return buildDataSettlementState(series, liveItems, dateKeyAt(new Date()))
 }
 
 function nextDateKey(key: string): Date {
@@ -496,7 +514,12 @@ export async function getWatchData(ctxOverride?: FamilyCtx): Promise<WatchData |
     point.contributions = Math.round(normalizedContributions[index])
   })
   const contributionsNow = [...flows.values()].reduce((sum, amount) => sum + amount, 0)
-  return { state, series, currentContributions: Math.round(contributionsNow) }
+  return {
+    state,
+    series,
+    currentContributions: Math.round(contributionsNow),
+    settlement: dataSettlementFor(state, series),
+  }
 }
 
 function dashboardNavPoints(

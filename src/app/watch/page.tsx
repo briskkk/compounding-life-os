@@ -92,6 +92,7 @@ export default async function WatchPage({ searchParams }: { searchParams: Promis
       initialSort={parseHoldingSort(sp.sort)}
       defaultRange={defaultRange}
       benchmarks={benchmarks}
+      settlement={watchData.settlement}
     />
   )
 }

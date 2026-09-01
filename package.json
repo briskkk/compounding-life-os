@@ -20,6 +20,7 @@
     "db:init": "tsx scripts/init-empty.ts",
     "db:backup": "tsx scripts/backup.ts",
     "db:restore": "tsx scripts/restore.ts",
+    "db:rehearse-postgres": "bash scripts/rehearse-postgres-contract.sh",
     "postinstall": "prisma generate",
     "auth:migrate": "tsx scripts/migrate-auth.ts",
     "auth:set-password": "tsx scripts/set-password.ts",

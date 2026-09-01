@@ -11,6 +11,7 @@ import { auditedTransaction, recordAudit } from './audit'
 import { rebuildSnapshots } from './snapshots'
 import {
   accountInputSchema,
+  accountReconciliationSchema,
   accountSettlementSchema,
   allocationTargetsInputSchema,
   assetInputSchema,
@@ -38,7 +39,7 @@ import {
 } from './market/persist'
 import { backfillHistoricalFx, fxRates, persistDailyFx } from './market/fx'
 import { fundNavQuoteOnDate } from './market/fund-nav'
-import { dateKeyAt } from './engine/watch-market'
+import { dateKeyAt, previousCloseOnPortfolioDay } from './engine/watch-market'
 import { type TransactionDraft } from './transaction-rules'
 import { getReviewPageData } from './review-data'
 import {
@@ -50,6 +51,8 @@ import {
   routedAccountIdForAsset,
   validateTransaction,
 } from './services/transactions'
+import { loadEngineState } from './queries'
+import { summarizeAccountPositions } from './engine/account-summary'
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T; warning?: string }
@@ -109,6 +112,47 @@ export async function deleteCashPlan(id: string): Promise<ActionResult> {
     })
     revalidatePath('/accounts')
     return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/**
+ * 记录外部账单与当前账本的核对凭证。凭证只追加审计证据，不直接调整资产或流水。
+ */
+export async function recordAccountReconciliation(input: unknown): Promise<ActionResult<{
+  ledgerValueCny: number
+  differenceCny: number
+}>> {
+  try {
+    const ctx = await requireWrite()
+    const data = accountReconciliationSchema.parse(input)
+    const account = await prisma.account.findFirst({ where: { id: data.accountId, familyId: ctx.familyId } })
+    if (!account) throw new Error('账户不存在或不属于当前家庭')
+    const state = await loadEngineState(ctx)
+    const todayKey = dateKeyAt(new Date())
+    if (data.asOfDate !== todayKey) throw new Error('当前版本仅支持核对今日账本，历史账单需先补齐当日行情后再开放')
+    const positions = state.valued.filter((position) => position.accountId === account.id)
+    const summary = summarizeAccountPositions(positions, (symbol) => {
+      const quote = state.quotes.get(symbol)
+      return previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, todayKey)
+    })
+    const ledgerValueCny = Math.round(summary.valueCny * 100) / 100
+    const differenceCny = Math.round((data.observedValueCny - ledgerValueCny) * 100) / 100
+    const detail = JSON.stringify({
+      version: 1,
+      accountName: account.name,
+      asOfDate: data.asOfDate,
+      observedValueCny: data.observedValueCny,
+      ledgerValueCny,
+      differenceCny,
+      sourceName: data.sourceName,
+      note: data.note,
+    })
+    await audit(ctx, 'RECONCILE', 'Account', account.id, detail)
+    revalidatePath('/reconciliation')
+    revalidatePath('/health')
+    return { ok: true, data: { ledgerValueCny, differenceCny } }
   } catch (e) {
     return fail(e)
   }
@@ -281,6 +325,52 @@ export async function confirmFundOfficialNav(id: string): Promise<ActionResult<{
     const warning = await refresh(ctx, corrected.affectedSince)
     revalidatePath('/transactions')
     return { ok: true, data: corrected, warning }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/** 标记基金赎回结算已由用户按外部账单核对；不修改账本金额。 */
+export async function confirmFundSettlement(id: string): Promise<ActionResult> {
+  try {
+    const ctx = await requireWrite()
+    const original = await prisma.transaction.findFirst({
+      where: {
+        id,
+        familyId: ctx.familyId,
+        type: 'SELL',
+        internal: false,
+        voidedAt: null,
+        settlementDate: { not: null },
+        asset: { cls: 'FUND' },
+      },
+      include: { asset: true, account: true },
+    })
+    if (!original?.settlementDate) throw new Error('该流水没有可确认的基金到账事件')
+    const today = dateKeyAt(new Date())
+    if (dateKeyAt(original.settlementDate) > today) throw new Error('预计到账日尚未到达，暂不能确认')
+    const existing = await prisma.auditLog.findFirst({
+      where: {
+        familyId: ctx.familyId,
+        action: 'FUND_SETTLEMENT_CONFIRMED',
+        entity: 'Transaction',
+        entityId: id,
+      },
+    })
+    if (existing) return { ok: true }
+    const settlementLeg = await prisma.transaction.findFirst({
+      where: { familyId: ctx.familyId, settleOfId: id, voidedAt: null },
+    })
+    await audit(ctx, 'FUND_SETTLEMENT_CONFIRMED', 'Transaction', id, JSON.stringify({
+      version: 1,
+      assetName: original.asset.name,
+      accountName: original.account.name,
+      settlementDate: dateKeyAt(original.settlementDate),
+      expectedAmount: settlementLeg ? Number(settlementLeg.amount) : Number(original.amount) - Number(original.fee),
+    }))
+    revalidatePath('/health')
+    revalidatePath('/accounts')
+    return { ok: true }
   } catch (e) {
     return fail(e)
   }
@@ -889,6 +979,19 @@ export async function refreshPrices(): Promise<ActionResult<PersistHistoryResult
         : undefined,
     ].filter((item): item is string => item != null)
     return { ok: true, data: results, warning: warnings.join('；') || undefined }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/** 安全重建派生快照：只重放流水与行情，不改变任何流水。 */
+export async function rebuildDerivedSnapshots(): Promise<ActionResult<{ days: number }>> {
+  try {
+    const ctx = await requireWrite()
+    const days = await rebuildSnapshots(prisma, ctx.familyId)
+    await audit(ctx, 'REBUILD', 'Snapshot', null, `按当前账本与行情重建 ${days} 天派生快照`)
+    for (const path of ['/', '/watch', '/accounts', '/review', '/health']) revalidatePath(path)
+    return { ok: true, data: { days } }
   } catch (e) {
     return fail(e)
   }
