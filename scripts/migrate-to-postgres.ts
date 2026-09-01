@@ -32,6 +32,8 @@ async function main() {
   console.log('· 清空 PG 目标表…')
   await pg.$transaction([
     pg.auditLog.deleteMany(),
+    pg.corporateAction.deleteMany(),
+    pg.fundTradePolicy.deleteMany(),
     pg.cashPlan.deleteMany(),
     pg.allocationTarget.deleteMany(),
     pg.snapshot.deleteMany(),
@@ -51,6 +53,7 @@ async function main() {
     pg.user.deleteMany(),
     pg.fundCalibration.deleteMany(),
     pg.fundEstimate.deleteMany(),
+    pg.marketProviderDaily.deleteMany(),
     pg.rateBar.deleteMany(),
     pg.priceBar.deleteMany(),
   ])
@@ -64,6 +67,8 @@ async function main() {
     ['Account', () => sqlite.account.findMany() as Promise<unknown[]>, (r) => pg.account.createMany({ data: r })],
     ['Asset', () => sqlite.asset.findMany() as Promise<unknown[]>, (r) => pg.asset.createMany({ data: r })],
     ['ImportBatch', () => sqlite.importBatch.findMany() as Promise<unknown[]>, (r) => pg.importBatch.createMany({ data: r })],
+    ['CorporateAction', () => sqlite.corporateAction.findMany() as Promise<unknown[]>, (r) => pg.corporateAction.createMany({ data: r })],
+    ['FundTradePolicy', () => sqlite.fundTradePolicy.findMany() as Promise<unknown[]>, (r) => pg.fundTradePolicy.createMany({ data: r })],
     ['Transaction', () => sqlite.transaction.findMany() as Promise<unknown[]>, (r) => pg.transaction.createMany({ data: r })],
     ['Liability', () => sqlite.liability.findMany() as Promise<unknown[]>, (r) => pg.liability.createMany({ data: r })],
     ['LiabilityEntry', () => sqlite.liabilityEntry.findMany() as Promise<unknown[]>, (r) => pg.liabilityEntry.createMany({ data: r })],
@@ -75,6 +80,7 @@ async function main() {
     ['PortfolioReview', () => sqlite.portfolioReview.findMany() as Promise<unknown[]>, (r) => pg.portfolioReview.createMany({ data: r })],
     ['AuditLog', () => sqlite.auditLog.findMany() as Promise<unknown[]>, (r) => pg.auditLog.createMany({ data: r })],
     ['PriceBar', () => sqlite.priceBar.findMany() as Promise<unknown[]>, (r) => pg.priceBar.createMany({ data: r })],
+    ['MarketProviderDaily', () => sqlite.marketProviderDaily.findMany() as Promise<unknown[]>, (r) => pg.marketProviderDaily.createMany({ data: r })],
     ['RateBar', () => sqlite.rateBar.findMany() as Promise<unknown[]>, (r) => pg.rateBar.createMany({ data: r })],
     ['FundEstimate', () => sqlite.fundEstimate.findMany() as Promise<unknown[]>, (r) => pg.fundEstimate.createMany({ data: r })],
     ['FundCalibration', () => sqlite.fundCalibration.findMany() as Promise<unknown[]>, (r) => pg.fundCalibration.createMany({ data: r })],
@@ -90,11 +96,11 @@ async function main() {
     Promise.all([
       ['FamilySpace', pg.familySpace.count()], ['User', pg.user.count()], ['Member', pg.member.count()],
       ['Session', pg.session.count()], ['Invite', pg.invite.count()], ['Account', pg.account.count()],
-      ['Asset', pg.asset.count()], ['ImportBatch', pg.importBatch.count()], ['Transaction', pg.transaction.count()],
+      ['Asset', pg.asset.count()], ['ImportBatch', pg.importBatch.count()], ['CorporateAction', pg.corporateAction.count()], ['FundTradePolicy', pg.fundTradePolicy.count()], ['Transaction', pg.transaction.count()],
       ['Liability', pg.liability.count()], ['LiabilityEntry', pg.liabilityEntry.count()], ['Goal', pg.goal.count()],
       ['AllocationTarget', pg.allocationTarget.count()], ['CashPlan', pg.cashPlan.count()],
       ['SavingsEntry', pg.savingsEntry.count()], ['Snapshot', pg.snapshot.count()], ['PortfolioReview', pg.portfolioReview.count()],
-      ['AuditLog', pg.auditLog.count()], ['PriceBar', pg.priceBar.count()], ['RateBar', pg.rateBar.count()],
+      ['AuditLog', pg.auditLog.count()], ['PriceBar', pg.priceBar.count()], ['MarketProviderDaily', pg.marketProviderDaily.count()], ['RateBar', pg.rateBar.count()],
       ['FundEstimate', pg.fundEstimate.count()], ['FundCalibration', pg.fundCalibration.count()],
     ].map(async ([name, count]) => [name, await count] as const)),
   ])

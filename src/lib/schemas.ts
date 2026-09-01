@@ -52,6 +52,65 @@ export const txInputSchema = z
 
 export type TxInputData = z.infer<typeof txInputSchema>
 
+const corporateActionTypes = [
+  'SPLIT',
+  'REVERSE_SPLIT',
+  'STOCK_DIVIDEND',
+  'RIGHTS_ISSUE',
+  'SYMBOL_CHANGE',
+  'MERGER_EXCHANGE',
+  'SPINOFF',
+  'CUSTODY_TRANSFER',
+  'CASH_DISTRIBUTION',
+  'FUND_REINVESTMENT',
+] as const
+
+export const corporateActionInputSchema = z
+  .object({
+    type: z.enum(corporateActionTypes),
+    accountId: z.string().min(1, '请选择来源账户'),
+    assetId: z.string().min(1, '请选择来源资产'),
+    targetAccountId: z.string().min(1).nullable().optional(),
+    targetAssetId: z.string().min(1).nullable().optional(),
+    effectiveAt: z.coerce.date(),
+    ratioNumerator: z.number().positive().nullable().optional(),
+    ratioDenominator: z.number().positive().nullable().optional(),
+    quantity: z.number().positive().nullable().optional(),
+    price: z.number().positive().nullable().optional(),
+    cashAmount: z.number().nonnegative().default(0),
+    fee: z.number().nonnegative().default(0),
+    costAllocation: z.number().min(0).max(1).nullable().optional(),
+    sourceName: z.string().min(1, '请填写事件来源').max(100),
+    sourceReference: z.string().max(500).nullable().optional(),
+    note: z.string().max(500).nullable().optional(),
+  })
+  .superRefine((value, ctx) => {
+    const ratioTypes = ['SPLIT', 'REVERSE_SPLIT', 'STOCK_DIVIDEND', 'SYMBOL_CHANGE', 'MERGER_EXCHANGE', 'SPINOFF']
+    if (ratioTypes.includes(value.type) && (!value.ratioNumerator || !value.ratioDenominator)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '该事件需要填写转换比例', path: ['ratioNumerator'] })
+    }
+    if (['SYMBOL_CHANGE', 'MERGER_EXCHANGE', 'SPINOFF'].includes(value.type) && !value.targetAssetId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '请选择目标资产', path: ['targetAssetId'] })
+    }
+    if (value.type === 'CUSTODY_TRANSFER' && !value.targetAccountId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '请选择转入账户', path: ['targetAccountId'] })
+    }
+    if (value.type === 'RIGHTS_ISSUE' && (!value.quantity || !value.price)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '配股需要填写数量和价格', path: ['quantity'] })
+    }
+    if (value.type === 'CASH_DISTRIBUTION' && value.cashAmount <= 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '现金分配金额必须大于 0', path: ['cashAmount'] })
+    }
+    if (value.type === 'FUND_REINVESTMENT' && (value.cashAmount <= 0 || !value.quantity || !value.price)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '红利再投需要填写分红金额、确认份额和净值', path: ['cashAmount'] })
+    }
+    if (value.type === 'SPINOFF' && (value.costAllocation == null || value.costAllocation <= 0)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '分拆需要填写转移给新资产的成本比例', path: ['costAllocation'] })
+    }
+  })
+
+export type CorporateActionInputData = z.infer<typeof corporateActionInputSchema>
+
 export const accountInputSchema = z.object({
   name: z.string().min(1, '名称必填').max(40),
   type: z.enum(['BROKERAGE', 'BANK', 'FUND', 'PROPERTY', 'OTHER']),
@@ -214,5 +273,28 @@ export const cashPlanInputSchema = z.object({
   }
   if (value.endDate && value.endDate.getTime() < value.dueDate.getTime()) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: '结束日期不能早于首次日期', path: ['endDate'] })
+  }
+})
+
+export const fundTradePolicyInputSchema = z.object({
+  assetId: z.string().min(1, '请选择基金'),
+  purchaseFeeRate: z.number().min(0).max(0.2, '申购费率不能高于 20%'),
+  redemptionFeeRules: z.array(z.object({
+    maxHoldingDays: z.number().int().min(0).max(36500),
+    rate: z.number().min(0).max(0.2, '赎回费率不能高于 20%'),
+  })).max(20),
+  purchaseSuspendedFrom: z.coerce.date().nullable().default(null),
+  purchaseSuspendedUntil: z.coerce.date().nullable().default(null),
+  sourceName: z.string().trim().min(1, '规则来源必填').max(80),
+  sourceReference: z.string().trim().max(500).nullable().default(null),
+  note: z.string().trim().max(300).nullable().default(null),
+}).superRefine((value, ctx) => {
+  const sorted = [...value.redemptionFeeRules].sort((a, b) => a.maxHoldingDays - b.maxHoldingDays)
+  if (new Set(sorted.map((rule) => rule.maxHoldingDays)).size !== sorted.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '赎回费率的持有天数上限不能重复', path: ['redemptionFeeRules'] })
+  }
+  if (value.purchaseSuspendedFrom && value.purchaseSuspendedUntil
+    && value.purchaseSuspendedFrom > value.purchaseSuspendedUntil) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '暂停结束日不能早于开始日', path: ['purchaseSuspendedUntil'] })
   }
 })

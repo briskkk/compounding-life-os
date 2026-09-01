@@ -23,6 +23,8 @@ export type TxType =
   | 'TRANSFER_OUT'
   | 'VALUATION'
   | 'VEST'
+  | 'SHARE_ADJUSTMENT'
+  | 'COST_ADJUSTMENT'
   | 'REVERSAL'
 
 export interface TxInput {

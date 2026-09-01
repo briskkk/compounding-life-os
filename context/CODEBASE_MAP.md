@@ -146,6 +146,10 @@ Route Handlers：
 - `src/test/fund-*.test.ts`、`tencent.test.ts`、`symbols.test.ts`：市场与基金。
 - `src/test/rls.test.ts`、`audit.test.ts`：安全与审计。
 - `src/test/allocation-drift.test.ts`、`cash-calendar.test.ts`：目标偏离与重复资金事项。
+- `src/app/corporate-actions/`、`src/lib/services/corporate-actions.ts`：公司行动证据包、生成流水与整体冲正。
+- `src/app/transactions/imports/`、`src/components/csv-import.tsx`：导入列映射、逐行修正、语义去重与批次追溯。
+- `src/app/fund-operations/`、`src/lib/engine/fund-policy.ts`：基金费率、暂停窗口和分红方式入口。
+- `src/app/health/market/`、`src/lib/market/quality.ts`：持久化来源质量与跨源价差核验。
 - `e2e/*.spec.ts`：主页面、账户、持仓、流水、复盘与 API。
 
 ## 修改联动提示

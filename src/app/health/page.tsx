@@ -276,7 +276,7 @@ export default async function DataHealthPage() {
     <div className="page-shell health-page">
       <header className="health-header">
         <div><span className="eyebrow">Data confidence center</span><h1>数据健康中心</h1><p>集中查看哪些数字可以直接使用、哪些仍依赖成本回落、手工估值或待确认事件。</p></div>
-        <Link href="/audit">审计记录 →</Link>
+        <div className="flex gap-6"><Link href="/health/market">行情质量 →</Link><Link href="/audit">审计记录 →</Link></div>
       </header>
 
       <section className={cx('health-status-hero', blocking > 0 ? 'is-blocking' : warnings > 0 ? 'is-warning' : 'is-healthy')}>
@@ -325,7 +325,7 @@ export default async function DataHealthPage() {
             <div><span>组合估值覆盖</span><strong className="num">{fmtPct(dashboard.review.valuationCoverage)}</strong><small>{dashboard.review.valuationGapCount} 项缺口</small></div>
             <div><span>最近快照</span><strong className="num">{latestSnapshot ? fmtDate(latestSnapshot.date) : '—'}</strong><small>{latestSnapshotAge == null ? '尚无快照' : latestSnapshotAge === 0 ? '今天已生成' : `${latestSnapshotAge} 天前`}</small></div>
             <div><span>审计链</span><strong>{chain.ok ? '完整' : '异常'}</strong><small>{chain.count} 条记录已校验</small></div>
-            <div><span>行情源运行记录</span><strong>{providerStats.length > 0 ? `${providerStats.length} 个源` : '尚无请求'}</strong><small>仅显示本进程实际调用结果</small></div>
+            <div><span>行情源运行记录</span><strong>{providerStats.length > 0 ? `${providerStats.length} 个源` : '尚无请求'}</strong><small><Link href="/health/market" className="text-accent">查看持久化日度证据</Link></small></div>
           </div>
           {providerStats.length > 0 && (
             <div className="health-provider-list">

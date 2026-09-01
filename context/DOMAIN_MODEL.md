@@ -41,6 +41,12 @@ last_verified: 2026-08-25
 
 有效流水按 `occurredAt` 重放。BUY 增加数量和成本；SELL 按移动平均单位成本减少剩余成本并实现盈亏；分红/利息增加已实现盈亏；费用减少已实现盈亏；REVERSAL 自身无持仓影响。
 
+`CorporateAction` 保存公司行动来源、日期、比例与生成流水关系，本身不参与持仓折叠。拆合股生成 `SHARE_ADJUSTMENT`，分拆成本生成 `COST_ADJUSTMENT`，换股/转托管/分红与红利再投展开为普通可冲正流水。内部调整类型不在通用流水表单中开放。
+
+`ImportBatch` 保存一次 CSV 的内容指纹、列映射、问题摘要与导入/重复/失败计数；`Transaction.importRowHash` 提供跨文件逐行幂等。批次只是来源证据，不替代交易流水。
+
+`FundTradePolicy` 保存场外基金的来源可核验交易规则。申购费率与赎回阶梯只供费用核对，暂停申购窗口参与普通 BUY 的服务端校验；现金分红和红利再投仍由公司行动进入账本。
+
 ### 负债
 
 `Liability` 是负债档案，余额由 `LiabilityEntry` 重放：DRAW 增加，REPAY 减少，ADJUST 设定/调整到指定口径。负债从总资产中扣除形成净资产。
@@ -86,6 +92,7 @@ last_verified: 2026-08-25
 - `PriceBar`：按 `(symbol, date)` 唯一，保存官方净值或市场收盘价及来源。
 - `FundEstimate`：分钟级基金内部估值和置信度。
 - `FundCalibration`：估算涨幅与官方涨幅的逐日误差。
+- `MarketProviderDaily`：按来源、能力和日期累计真实调用成功率、延迟和错误；不参与估值。跨源持仓检查结果按家庭追加到 `AuditLog`。
 - `User` / `Session` / `Invite`：账号、会话与邀请，无家庭作用域（与行情表同类，不套 RLS）。
 
 ## 核心计算口径

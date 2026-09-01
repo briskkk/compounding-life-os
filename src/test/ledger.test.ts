@@ -110,4 +110,37 @@ describe('账本折叠（移动平均成本）', () => {
     expect(pos.quantity).toBe(10380)
     expect(pos.realizedPnl).toBe(380)
   })
+
+  it('拆股只调整份额，保持总成本和已实现盈亏不变', () => {
+    const [pos] = foldTransactions([
+      tx({ type: 'BUY', quantity: 10, price: 100, amount: 1000, occurredAt: D('2025-01-01') }),
+      tx({ type: 'SHARE_ADJUSTMENT', quantity: 70, price: 8, occurredAt: D('2025-04-21') }),
+    ])
+    expect(pos.quantity).toBe(80)
+    expect(pos.availableQty).toBe(80)
+    expect(pos.costBasis).toBe(1000)
+    expect(pos.realizedPnl).toBe(0)
+  })
+
+  it('前复权历史在拆股日前使用拆分后的等价份额，避免价值跳变', () => {
+    const rows = [
+      tx({ type: 'BUY', quantity: 10, price: 100, amount: 1000, occurredAt: D('2025-01-01') }),
+      tx({ type: 'SHARE_ADJUSTMENT', quantity: 70, price: 8, occurredAt: D('2025-04-21') }),
+    ]
+    const [before] = foldTransactions(rows, D('2025-03-01'))
+    const [after] = foldTransactions(rows, D('2025-05-01'))
+    expect(before.quantity).toBe(80)
+    expect(after.quantity).toBe(80)
+    expect(before.costBasis).toBe(1000)
+  })
+
+  it('分拆成本分配只迁移剩余成本，不形成收益', () => {
+    const [pos] = foldTransactions([
+      tx({ type: 'BUY', quantity: 100, price: 20, amount: 2000 }),
+      tx({ type: 'COST_ADJUSTMENT', amount: -500, occurredAt: D('2025-03-01') }),
+    ])
+    expect(pos.quantity).toBe(100)
+    expect(pos.costBasis).toBe(1500)
+    expect(pos.realizedPnl).toBe(0)
+  })
 })

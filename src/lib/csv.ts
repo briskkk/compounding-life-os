@@ -26,31 +26,66 @@ export interface CsvRowResult {
   raw: Record<string, string>
 }
 
+export const CSV_FIELDS = ['date', 'time', 'account', 'symbol', 'type', 'quantity', 'price', 'amount', 'fee', 'note'] as const
+export type CsvField = typeof CSV_FIELDS[number]
+
+export const CSV_FIELD_LABEL: Record<CsvField, string> = {
+  date: '日期',
+  time: '时间',
+  account: '账户',
+  symbol: '代码',
+  type: '类型',
+  quantity: '数量',
+  price: '单价',
+  amount: '金额',
+  fee: '费用',
+  note: '备注',
+}
+
+export type CsvColumnMapping = Partial<Record<CsvField, string>>
+
 const HEADER_ALIASES: Record<string, string> = {
   日期: 'date',
+  交易日期: 'date',
+  成交日期: 'date',
   date: 'date',
   时间: 'time',
+  交易时间: 'time',
+  成交时间: 'time',
   time: 'time',
   账户: 'account',
+  账户名称: 'account',
   account: 'account',
   代码: 'symbol',
   symbol: 'symbol',
   证券代码: 'symbol',
+  资产代码: 'symbol',
+  基金代码: 'symbol',
   类型: 'type',
   type: 'type',
   方向: 'type',
+  交易类型: 'type',
+  业务名称: 'type',
   数量: 'quantity',
   quantity: 'quantity',
   份额: 'quantity',
+  成交数量: 'quantity',
+  成交份额: 'quantity',
   单价: 'price',
   price: 'price',
   价格: 'price',
+  成交价格: 'price',
+  成交净值: 'price',
   金额: 'amount',
+  成交金额: 'amount',
+  发生金额: 'amount',
   amount: 'amount',
   费用: 'fee',
   fee: 'fee',
   手续费: 'fee',
+  交易费用: 'fee',
   备注: 'note',
+  摘要: 'note',
   note: 'note',
 }
 
@@ -93,6 +128,39 @@ export function parseNum(raw: string | undefined): number | null {
 function normalizeHeader(h: string): string | null {
   const key = h.trim().toLowerCase()
   return HEADER_ALIASES[key] ?? HEADER_ALIASES[h.trim()] ?? null
+}
+
+export function suggestCsvMapping(headers: string[]): CsvColumnMapping {
+  const mapping: CsvColumnMapping = {}
+  for (const header of headers) {
+    const field = normalizeHeader(header) as CsvField | null
+    if (field && !mapping[field]) mapping[field] = header
+  }
+  return mapping
+}
+
+/** 按用户确认的列映射转换为规范字段；未映射的列不进入账本。 */
+export function applyCsvMapping(rows: Record<string, string>[], mapping: CsvColumnMapping): Record<string, string>[] {
+  return rows.map((row) => Object.fromEntries(
+    CSV_FIELDS
+      .filter((field) => mapping[field])
+      .map((field) => [field, row[mapping[field]!] ?? '']),
+  ))
+}
+
+/** 跨文件逐行幂等键；备注不参与，避免同一成交因备注差异重复入账。 */
+export function parsedTxKey(tx: ParsedTx): string {
+  const value = (number: number | null) => number == null ? '' : Number(number.toFixed(8)).toString()
+  return [
+    tx.accountId,
+    tx.assetId,
+    tx.type,
+    tx.occurredAt.toISOString(),
+    value(tx.quantity),
+    value(tx.price),
+    value(tx.amount),
+    value(tx.fee),
+  ].join('|')
 }
 
 /** rows: 由 papaparse(header:true) 或等价方式得到的对象数组 */

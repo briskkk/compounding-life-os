@@ -136,6 +136,38 @@ describe('createTransactionRecord（共享写服务）', () => {
     const routed = await routedAccountIdForAsset(base, famId, brokerId, cashId)
     expect(routed).toBe(bankId)
   })
+
+  it('基金暂停申购窗口拦截普通 BUY，但允许有证据的红利再投份额', async () => {
+    await base.fundTradePolicy.create({
+      data: {
+        familyId: famId,
+        assetId: fundId,
+        purchaseFeeRate: 0,
+        redemptionFeeRules: '[]',
+        purchaseSuspendedFrom: new Date('2026-08-20T00:00:00Z'),
+        purchaseSuspendedUntil: new Date('2026-08-27T00:00:00Z'),
+        sourceName: '测试公告',
+      },
+    })
+    const input = {
+      accountId: brokerId,
+      assetId: fundId,
+      type: 'BUY' as const,
+      quantity: 100,
+      price: 1,
+      amount: 100,
+      fee: 0,
+      occurredAt: new Date('2026-08-25T10:00:00Z'),
+      navDate: new Date('2026-08-25T00:00:00Z'),
+      navSource: 'OFFICIAL' as const,
+      note: '暂停期申购',
+      settleCash: false,
+    }
+    await expect(base.$transaction((tx) => createTransactionRecord(tx, ctx, input))).rejects.toThrow(/暂停申购/)
+    await expect(base.$transaction((tx) => createTransactionRecord(tx, ctx, input, {
+      allowSuspendedFundPurchase: true,
+    }))).resolves.toMatchObject({ id: expect.any(String) })
+  })
 })
 
 describe('reverseTransactionRecord（共享冲正服务）', () => {

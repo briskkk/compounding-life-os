@@ -17,16 +17,18 @@ import {
   assetInputSchema,
   assetUpdateSchema,
   cashPlanInputSchema,
+  corporateActionInputSchema,
   goalInputSchema,
   goalScenarioSchema,
   goalUpdateSchema,
+  fundTradePolicyInputSchema,
   liabilityEntryInputSchema,
   liabilityInputSchema,
   portfolioReviewInputSchema,
   savingsEntryInputSchema,
   txInputSchema,
 } from './schemas'
-import { parseCsvRows, type CsvLookup, type ParsedTx } from './csv'
+import { parseCsvRows, parsedTxKey, type CsvColumnMapping, type CsvLookup, type ParsedTx } from './csv'
 import { buildSettlementLegs } from './engine/settlement'
 import { BENCHMARK_INDICES } from './engine/benchmark'
 import { createsSettlementCycle } from './engine/settlement-account'
@@ -40,6 +42,8 @@ import {
 import { backfillHistoricalFx, fxRates, persistDailyFx } from './market/fx'
 import { fundNavQuoteOnDate } from './market/fund-nav'
 import { dateKeyAt, previousCloseOnPortfolioDay } from './engine/watch-market'
+import { fundSettlementDate, isQdiiFund } from './engine/fund-order'
+import { compareProviderQuotes } from './market'
 import { type TransactionDraft } from './transaction-rules'
 import { getReviewPageData } from './review-data'
 import {
@@ -51,6 +55,7 @@ import {
   routedAccountIdForAsset,
   validateTransaction,
 } from './services/transactions'
+import { createCorporateActionRecord, reverseCorporateActionRecord } from './services/corporate-actions'
 import { loadEngineState } from './queries'
 import { summarizeAccountPositions } from './engine/account-summary'
 
@@ -112,6 +117,163 @@ export async function deleteCashPlan(id: string): Promise<ActionResult> {
     })
     revalidatePath('/accounts')
     return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+// ---------- 基金交易规则 ----------
+
+export async function saveFundTradePolicy(input: unknown): Promise<ActionResult<{ id: string }>> {
+  try {
+    const ctx = await requireWrite()
+    const data = fundTradePolicyInputSchema.parse(input)
+    const saved = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      const asset = await txDb.asset.findFirst({ where: { id: data.assetId, familyId: ctx.familyId, cls: 'FUND' } })
+      if (!asset) throw new Error('所选资产不是当前家庭的场外基金')
+      const values = {
+        purchaseFeeRate: data.purchaseFeeRate,
+        redemptionFeeRules: JSON.stringify([...data.redemptionFeeRules].sort((a, b) => a.maxHoldingDays - b.maxHoldingDays)),
+        purchaseSuspendedFrom: data.purchaseSuspendedFrom,
+        purchaseSuspendedUntil: data.purchaseSuspendedUntil,
+        sourceName: data.sourceName,
+        sourceReference: data.sourceReference || null,
+        note: data.note || null,
+      }
+      const existing = await txDb.fundTradePolicy.findFirst({ where: { familyId: ctx.familyId, assetId: asset.id } })
+      const policy = existing
+        ? await txDb.fundTradePolicy.update({ where: { id: existing.id }, data: values })
+        : await txDb.fundTradePolicy.create({ data: { familyId: ctx.familyId, assetId: asset.id, ...values } })
+      await audit(ctx, existing ? 'UPDATE' : 'CREATE', 'FundTradePolicy', policy.id, `${asset.symbol} ${asset.name} · ${data.sourceName}`, txDb)
+      return policy
+    })
+    revalidatePath('/fund-operations')
+    revalidatePath('/transactions')
+    revalidatePath(`/positions/${data.assetId}`)
+    return { ok: true, data: { id: saved.id } }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function deleteFundTradePolicy(id: string): Promise<ActionResult> {
+  try {
+    const ctx = await requireWrite()
+    await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      const policy = await txDb.fundTradePolicy.findFirst({
+        where: { id, familyId: ctx.familyId },
+        include: { asset: true },
+      })
+      if (!policy) throw new Error('基金规则不存在')
+      await txDb.fundTradePolicy.delete({ where: { id } })
+      await audit(ctx, 'DELETE', 'FundTradePolicy', id, `${policy.asset.symbol} ${policy.asset.name}`, txDb)
+    })
+    revalidatePath('/fund-operations')
+    revalidatePath('/transactions')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+// ---------- 公司行动账本 ----------
+
+export async function createCorporateAction(input: unknown): Promise<ActionResult<{ id: string }>> {
+  try {
+    const ctx = await requireWrite()
+    const data = corporateActionInputSchema.parse(input)
+    const created = await auditedTransaction(prisma, ctx.familyId, async (txDb) => (
+      createCorporateActionRecord(txDb, ctx, data)
+    ), { timeout: 30_000 })
+    const warning = await rebuildSnapshotsForFamily(prisma, ctx.familyId, created.affectedSince)
+    for (const path of ['/corporate-actions', '/transactions', '/positions', '/watch', '/review', '/', '/health']) {
+      revalidatePath(path)
+    }
+    return { ok: true, data: { id: created.id }, warning }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function reverseCorporateAction(id: string): Promise<ActionResult> {
+  try {
+    const ctx = await requireWrite()
+    const reversed = await auditedTransaction(prisma, ctx.familyId, async (txDb) => (
+      reverseCorporateActionRecord(txDb, ctx, id)
+    ), { timeout: 30_000 })
+    const warning = await rebuildSnapshotsForFamily(prisma, ctx.familyId, reversed.affectedSince)
+    for (const path of ['/corporate-actions', '/transactions', '/positions', '/watch', '/review', '/', '/health']) {
+      revalidatePath(path)
+    }
+    return { ok: true, warning }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+// ---------- 行情源质量 ----------
+
+export async function runMarketQualityCheck(): Promise<ActionResult<{
+  checked: number
+  comparable: number
+  divergent: number
+  failed: number
+}>> {
+  try {
+    const ctx = await requireWrite()
+    const state = await loadEngineState(ctx)
+    const byAsset = new Map<string, { id: string; symbol: string; name: string; cls: 'STOCK' | 'ETF' | 'FUND'; value: number }>()
+    for (const position of state.valued) {
+      if (!['STOCK', 'ETF', 'FUND'].includes(position.asset.cls) || position.quantity <= 1e-9) continue
+      const current = byAsset.get(position.assetId)
+      const value = Math.abs(position.value)
+      if (current) current.value += value
+      else byAsset.set(position.assetId, {
+        id: position.assetId,
+        symbol: position.asset.symbol,
+        name: position.asset.name,
+        cls: position.asset.cls as 'STOCK' | 'ETF' | 'FUND',
+        value,
+      })
+    }
+    const subjects = [...byAsset.values()].sort((a, b) => b.value - a.value).slice(0, 20)
+    const rows: Array<{
+      assetId: string
+      symbol: string
+      name: string
+      cls: string
+      sources: Awaited<ReturnType<typeof compareProviderQuotes>>
+      spreadBps: number | null
+    }> = []
+    for (let offset = 0; offset < subjects.length; offset += 4) {
+      const batch = subjects.slice(offset, offset + 4)
+      rows.push(...await Promise.all(batch.map(async (asset) => {
+        const sources = await compareProviderQuotes(asset.symbol, { route: asset.cls === 'FUND' ? 'FUND' : 'AUTO' })
+        const prices = sources.flatMap((source) => source.status === 'OK' && source.price != null ? [source.price] : [])
+        const spreadBps = prices.length >= 2
+          ? Math.round(((Math.max(...prices) - Math.min(...prices)) / Math.min(...prices)) * 1_000_000) / 100
+          : null
+        return { assetId: asset.id, symbol: asset.symbol, name: asset.name, cls: asset.cls, sources, spreadBps }
+      })))
+    }
+    const summary = {
+      checked: rows.length,
+      comparable: rows.filter((row) => row.spreadBps != null).length,
+      divergent: rows.filter((row) => row.spreadBps != null && row.spreadBps > 30).length,
+      failed: rows.filter((row) => !row.sources.some((source) => source.status === 'OK')).length,
+    }
+    await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      await audit(ctx, 'MARKET_QUALITY_CHECK', 'MarketProvider', ctx.familyId, JSON.stringify({
+        version: 1,
+        checkedAt: new Date().toISOString(),
+        thresholdBps: 30,
+        summary,
+        rows,
+      }), txDb)
+    })
+    revalidatePath('/health/market')
+    revalidatePath('/health')
+    return { ok: true, data: summary }
   } catch (e) {
     return fail(e)
   }
@@ -381,11 +543,12 @@ export async function confirmFundSettlement(id: string): Promise<ActionResult> {
 export async function importTransactions(
   rows: Record<string, string>[],
   settle = false,
-  meta?: { sourceName?: string },
+  meta?: { sourceName?: string; mapping?: CsvColumnMapping },
 ): Promise<ActionResult<{
   batchId: string
   imported: number
   failed: number
+  duplicates: number
   errors: { row: number; errors: string[] }[]
   duplicateBatch: boolean
   totalAmount: number
@@ -412,6 +575,7 @@ export async function importTransactions(
           batchId: existingBatch.id,
           imported: 0,
           failed: existingBatch.failedCount,
+          duplicates: existingBatch.duplicateCount,
           errors: [],
           duplicateBatch: true,
           totalAmount: Number(existingBatch.totalAmount),
@@ -426,9 +590,45 @@ export async function importTransactions(
       assetBySymbol: new Map(assets.map((a) => [a.symbol.toUpperCase(), a.id])),
     }
     const parsed = parseCsvRows(rows, lookup)
-    const valid = parsed.filter((r) => r.ok && r.tx)
+    const validCandidates = parsed.filter((r): r is typeof r & { tx: ParsedTx } => r.ok && r.tx != null)
     const failed = parsed.filter((r) => !r.ok).map((r) => ({ row: r.row, errors: r.errors }))
-    const toCreate = valid.map((r) => ({ ...r.tx!, note: r.tx!.note }))
+    const dateTimes = validCandidates.map((row) => row.tx.occurredAt.getTime())
+    const existingRows = dateTimes.length === 0 ? [] : await prisma.transaction.findMany({
+      where: {
+        familyId: ctx.familyId,
+        occurredAt: { gte: new Date(Math.min(...dateTimes)), lte: new Date(Math.max(...dateTimes)) },
+        voidedAt: null,
+        internal: false,
+        type: { not: 'REVERSAL' },
+      },
+    })
+    const knownKeys = new Set(existingRows.map((tx) => parsedTxKey({
+      accountId: tx.accountId,
+      assetId: tx.assetId,
+      type: tx.type,
+      quantity: tx.quantity == null ? null : Number(tx.quantity),
+      price: tx.price == null ? null : Number(tx.price),
+      amount: Number(tx.amount),
+      fee: Number(tx.fee),
+      occurredAt: tx.occurredAt,
+      note: tx.note,
+    })))
+    const seenKeys = new Set<string>()
+    const duplicates: { row: number; reason: string }[] = []
+    const valid = validCandidates.filter((row) => {
+      const key = parsedTxKey(row.tx)
+      if (knownKeys.has(key) || seenKeys.has(key)) {
+        duplicates.push({ row: row.row, reason: knownKeys.has(key) ? '账本已有相同流水' : '文件内重复行' })
+        return false
+      }
+      seenKeys.add(key)
+      return true
+    })
+    const toCreate = valid.map((r) => ({
+      ...r.tx,
+      note: r.tx.note,
+      importRowHash: createHash('sha256').update(parsedTxKey(r.tx)).digest('hex'),
+    }))
     const totalAmount = toCreate.reduce((sum, tx) => sum + tx.amount, 0)
     const totalFees = toCreate.reduce((sum, tx) => sum + tx.fee, 0)
     const batchId = await auditedTransaction(
@@ -443,16 +643,22 @@ export async function importTransactions(
               rowCount: rows.length,
               importedCount: valid.length,
               failedCount: failed.length,
+              duplicateCount: duplicates.length,
               settleCash: settle,
               totalAmount,
               totalFees,
+              issuesJson: JSON.stringify({ failed, duplicates }),
+              mappingJson: JSON.stringify(meta?.mapping ?? {}),
               createdBy: ctx.memberId,
             },
           })
           for (const tx of toCreate) {
             const accountId = await routedAccountIdForAsset(txDb, ctx.familyId, tx.accountId, tx.assetId)
             const entry = { ...tx, accountId }
-            await validateTransaction(txDb, ctx, { ...entry, type: entry.type as TransactionDraft['type'] })
+            const validated = await validateTransaction(txDb, ctx, { ...entry, type: entry.type as TransactionDraft['type'] })
+            const settlementDate = entry.type === 'SELL' && validated.asset.cls === 'FUND' && validated.navDate
+              ? fundSettlementDate(validated.navDate, { qdii: isQdiiFund(validated.asset.symbol, validated.asset.name) })
+              : null
             const created = await txDb.transaction.create({
               data: {
                 familyId: ctx.familyId,
@@ -464,7 +670,10 @@ export async function importTransactions(
                 amount: tx.amount,
                 fee: tx.fee,
                 occurredAt: tx.occurredAt,
+                navDate: validated.navDate,
+                settlementDate,
                 note: tx.note,
+                importRowHash: tx.importRowHash,
                 importBatchId: batch.id,
               },
             })
@@ -474,7 +683,9 @@ export async function importTransactions(
               throw new Error('CSV 中存在未配置资金账户的交易账户；请先完成账户配置，或关闭现金联动结算')
             }
             if (settlement) {
-              const legs = buildSettlementLegs(entry as ParsedTx, settlement.cashAssetId, settlement.accountId)
+              const legs = buildSettlementLegs(entry as ParsedTx, settlement.cashAssetId, settlement.accountId, {
+                settleAt: settlementDate ?? undefined,
+              })
               for (const leg of legs) {
                 await txDb.transaction.create({
                   data: {
@@ -493,7 +704,7 @@ export async function importTransactions(
             'IMPORT',
             'ImportBatch',
             batch.id,
-            `CSV 导入 ${valid.length} 条，失败 ${failed.length} 条；金额 ${totalAmount.toFixed(2)}，费用 ${totalFees.toFixed(2)}${settle ? '（含现金结算）' : ''}`,
+            `CSV 导入 ${valid.length} 条，重复 ${duplicates.length} 条，失败 ${failed.length} 条；金额 ${totalAmount.toFixed(2)}，费用 ${totalFees.toFixed(2)}${settle ? '（含现金结算）' : ''}`,
             txDb,
           )
           return batch.id
@@ -508,13 +719,13 @@ export async function importTransactions(
       const warning = await refresh(ctx, affectedSince)
       return {
         ok: true,
-        data: { batchId, imported: valid.length, failed: failed.length, errors: failed, duplicateBatch: false, totalAmount, totalFees },
+        data: { batchId, imported: valid.length, failed: failed.length, duplicates: duplicates.length, errors: failed, duplicateBatch: false, totalAmount, totalFees },
         warning,
       }
     }
     return {
       ok: true,
-      data: { batchId, imported: 0, failed: failed.length, errors: failed, duplicateBatch: false, totalAmount, totalFees },
+      data: { batchId, imported: 0, failed: failed.length, duplicates: duplicates.length, errors: failed, duplicateBatch: false, totalAmount, totalFees },
     }
   } catch (e) {
     return fail(e)

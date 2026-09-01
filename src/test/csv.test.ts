@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseCsvRows, type CsvLookup } from '@/lib/csv'
+import { applyCsvMapping, parseCsvRows, parsedTxKey, suggestCsvMapping, type CsvLookup } from '@/lib/csv'
 
 const lookup: CsvLookup = {
   accountByName: new Map([['华泰证券', 'acc1']]),
@@ -67,5 +67,44 @@ describe('CSV 导入解析', () => {
     )
     expect(r.ok).toBe(true)
     expect(r.tx?.type).toBe('BUY')
+  })
+
+  it('自定义券商列可手动映射后进入统一预检', () => {
+    const source = [{ 成交日期: '2026-01-15', 资金账号: '华泰证券', 标的: '510300', 买卖: '买入', 成交数量: '10', 成交价格: '4' }]
+    const mapped = applyCsvMapping(source, {
+      date: '成交日期',
+      account: '资金账号',
+      symbol: '标的',
+      type: '买卖',
+      quantity: '成交数量',
+      price: '成交价格',
+    })
+    const [result] = parseCsvRows(mapped, lookup)
+    expect(result.ok).toBe(true)
+    expect(result.tx?.amount).toBe(40)
+  })
+
+  it('标准别名自动生成字段映射，逐行指纹忽略备注差异', () => {
+    expect(suggestCsvMapping(['日期', '证券代码', '方向', '成交额'])).toMatchObject({
+      date: '日期',
+      symbol: '证券代码',
+      type: '方向',
+    })
+    const [a, b] = parseCsvRows([
+      { 日期: '2026-01-15', 账户: '华泰证券', 代码: '510300', 类型: '买入', 数量: '10', 单价: '4', 备注: '第一次导入' },
+      { 日期: '2026-01-15', 账户: '华泰证券', 代码: '510300', 类型: '买入', 数量: '10', 单价: '4', 备注: '另一份文件' },
+    ], lookup)
+    expect(parsedTxKey(a.tx!)).toBe(parsedTxKey(b.tx!))
+  })
+
+  it('常见券商导出表头可自动映射', () => {
+    expect(suggestCsvMapping(['交易日期', '账户名称', '基金代码', '交易类型', '成交金额', '交易费用'])).toEqual({
+      date: '交易日期',
+      account: '账户名称',
+      symbol: '基金代码',
+      type: '交易类型',
+      amount: '成交金额',
+      fee: '交易费用',
+    })
   })
 })

@@ -100,6 +100,16 @@ export function applyTransaction(pos: Position, tx: TxInput, cls: AssetClass): v
       // 仅为兼容历史 RSU 审计流水；该分类已由华为股票替代，不再改变持仓。
       break
     }
+    case 'SHARE_ADJUSTMENT': {
+      // 拆股、缩股和送股只改变数量；总成本与已实现盈亏保持不变。
+      pos.quantity = roundMoney(pos.quantity + q)
+      break
+    }
+    case 'COST_ADJUSTMENT': {
+      // 分拆/换股的成本分配；不得改变现金、数量或已实现盈亏。
+      pos.costBasis = roundMoney(Math.max(0, pos.costBasis + tx.amount))
+      break
+    }
     case 'REVERSAL': {
       // 冲正标记流水：本身无持仓影响（被冲正的原始流水以 voidedAt 排除）
       break
@@ -117,6 +127,10 @@ export type LedgerTx = TxInput & {
 /** 可用份额折叠：申购/转入按确认完成日生效；赎回/转出按发生日即时冻结扣减。 */
 function applyAvailability(pos: Position, tx: TxInput, asOfMs: number): void {
   const q = tx.quantity ?? 0
+  if (tx.type === 'SHARE_ADJUSTMENT') {
+    pos.availableQty = roundMoney(pos.availableQty + q)
+    return
+  }
   if (q <= 0) return
   if (tx.type === 'BUY' || tx.type === 'TRANSFER_IN') {
     const confirmMs = endOfDay(tx.confirmationDate ?? tx.navDate ?? tx.occurredAt).getTime()
@@ -141,6 +155,19 @@ export function foldTransactions(txs: LedgerTx[], upTo?: Date): Position[] {
     applyTransaction(pos, tx, tx.assetClass)
     applyAvailability(pos, tx, asOfMs)
     map.set(key, pos)
+  }
+  // 行情历史使用前复权价格。回放拆分日前的财富时，把当时份额换算为
+  // 当前份额口径，避免“前复权价格 × 拆分前数量”制造虚假跳变。
+  if (cutoff !== null) {
+    for (const tx of txs) {
+      if (tx.voidedAt || tx.type !== 'SHARE_ADJUSTMENT' || tx.occurredAt.getTime() <= cutoff) continue
+      const factor = tx.price ?? 0
+      if (!Number.isFinite(factor) || factor <= 0) continue
+      const pos = map.get(positionKey(tx.accountId, tx.assetId))
+      if (!pos) continue
+      pos.quantity = roundMoney(pos.quantity * factor)
+      pos.availableQty = roundMoney(pos.availableQty * factor)
+    }
   }
   return [...map.values()].filter(
     (p) => Math.abs(p.quantity) > 1e-9 || p.manualValue != null || p.realizedPnl !== 0,

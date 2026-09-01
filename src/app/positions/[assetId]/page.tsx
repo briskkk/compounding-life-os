@@ -41,7 +41,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
   if (!ctx) return notFound()
   const db = scopedDb(prisma, ctx)
 
-  const asset = await db.asset.findFirst({ where: { id: assetId } })
+  const asset = await db.asset.findFirst({ where: { id: assetId }, include: { fundTradePolicy: true } })
   if (!asset) return notFound()
   const isLongTermAsset = isLongTermAssetClass(asset.cls)
 
@@ -615,6 +615,13 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
                     name: asset.name,
                     cls: asset.cls,
                     currency: asset.currency,
+                    fundPolicy: asset.fundTradePolicy ? {
+                      purchaseFeeRate: asset.fundTradePolicy.purchaseFeeRate,
+                      redemptionFeeRules: asset.fundTradePolicy.redemptionFeeRules,
+                      purchaseSuspendedFrom: asset.fundTradePolicy.purchaseSuspendedFrom?.toISOString() ?? null,
+                      purchaseSuspendedUntil: asset.fundTradePolicy.purchaseSuspendedUntil?.toISOString() ?? null,
+                      sourceName: asset.fundTradePolicy.sourceName,
+                    } : null,
                   }]}
                 />
               ) : (

@@ -25,6 +25,8 @@ const SCOPED_MODELS = new Set([
   'ImportBatch',
   'AllocationTarget',
   'CashPlan',
+  'CorporateAction',
+  'FundTradePolicy',
   'AuditLog',
 ])
 

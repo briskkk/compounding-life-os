@@ -48,6 +48,8 @@ model FamilySpace {
   importBatches    ImportBatch[]
   allocationTargets AllocationTarget[]
   cashPlans         CashPlan[]
+  corporateActions  CorporateAction[]
+  fundTradePolicies FundTradePolicy[]
   auditLogs        AuditLog[]
 }
 
@@ -130,6 +132,8 @@ model Account {
   note                String?
   createdAt           DateTime      @default(now())
   transactions        Transaction[]
+  corporateActions    CorporateAction[] @relation("CorporateActionSourceAccount")
+  targetActions       CorporateAction[] @relation("CorporateActionTargetAccount")
   cashPlans           CashPlan[]
 
   @@unique([familyId, name])
@@ -171,8 +175,31 @@ model Asset {
   note         String?
   createdAt    DateTime      @default(now())
   transactions Transaction[]
+  corporateActions CorporateAction[] @relation("CorporateActionSourceAsset")
+  targetActions    CorporateAction[] @relation("CorporateActionTargetAsset")
+  fundTradePolicy  FundTradePolicy?
 
   @@unique([familyId, symbol])
+  @@index([familyId])
+}
+
+// 基金交易规则只保存平台披露与用户核验的操作参数；不会替代账本流水或官方净值。
+model FundTradePolicy {
+  id                     String      @id @default(cuid())
+  familyId               String
+  family                 FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  assetId                String      @unique
+  asset                  Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  purchaseFeeRate        Float       @default(0)
+  redemptionFeeRules     String      @default("[]")
+  purchaseSuspendedFrom  DateTime?
+  purchaseSuspendedUntil DateTime?
+  sourceName             String
+  sourceReference        String?
+  note                   String?
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
+
   @@index([familyId])
 }
 
@@ -190,6 +217,8 @@ enum TxType {
   TRANSFER_OUT
   VALUATION
   VEST
+  SHARE_ADJUSTMENT
+  COST_ADJUSTMENT
   REVERSAL
 }
 
@@ -217,14 +246,19 @@ model Transaction {
   settleOfId        String?
   importBatchId     String?
   importBatch       ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importRowHash     String?
+  corporateActionId String?
+  corporateAction   CorporateAction? @relation(fields: [corporateActionId], references: [id], onDelete: SetNull)
   clientRequestId   String?
   clientRequestHash String?
   createdAt         DateTime     @default(now())
 
   @@unique([familyId, clientRequestId])
+  @@unique([familyId, importRowHash])
   @@index([familyId, occurredAt])
   @@index([familyId, assetId])
   @@index([importBatchId])
+  @@index([corporateActionId])
 }
 
 model ImportBatch {
@@ -236,15 +270,66 @@ model ImportBatch {
   rowCount      Int
   importedCount Int
   failedCount   Int
+  duplicateCount Int          @default(0)
   settleCash    Boolean       @default(false)
   totalAmount   Decimal       @default(0)
   totalFees     Decimal       @default(0)
+  issuesJson    String        @default("[]")
+  mappingJson   String        @default("{}")
   createdBy     String
   createdAt     DateTime      @default(now())
   transactions  Transaction[]
 
   @@unique([familyId, contentHash])
   @@index([familyId, createdAt])
+}
+
+enum CorporateActionType {
+  SPLIT
+  REVERSE_SPLIT
+  STOCK_DIVIDEND
+  RIGHTS_ISSUE
+  SYMBOL_CHANGE
+  MERGER_EXCHANGE
+  SPINOFF
+  CUSTODY_TRANSFER
+  CASH_DISTRIBUTION
+  FUND_REINVESTMENT
+}
+
+model CorporateAction {
+  id               String              @id @default(cuid())
+  familyId         String
+  family           FamilySpace         @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  accountId        String
+  account          Account             @relation("CorporateActionSourceAccount", fields: [accountId], references: [id], onDelete: Cascade)
+  targetAccountId  String?
+  targetAccount    Account?            @relation("CorporateActionTargetAccount", fields: [targetAccountId], references: [id], onDelete: SetNull)
+  assetId          String
+  asset            Asset               @relation("CorporateActionSourceAsset", fields: [assetId], references: [id], onDelete: Cascade)
+  targetAssetId    String?
+  targetAsset      Asset?              @relation("CorporateActionTargetAsset", fields: [targetAssetId], references: [id], onDelete: SetNull)
+  type             CorporateActionType
+  effectiveAt      DateTime
+  ratioNumerator   Decimal?
+  ratioDenominator Decimal?
+  quantityBefore   Decimal?
+  quantityAfter    Decimal?
+  cashAmount       Decimal             @default(0)
+  fee              Decimal             @default(0)
+  costAllocation   Float?
+  sourceName       String?
+  sourceReference  String?
+  note             String?
+  reversedAt       DateTime?
+  createdBy        String
+  createdAt        DateTime            @default(now())
+  transactions     Transaction[]
+
+  @@index([familyId, effectiveAt])
+  @@index([accountId, assetId])
+  @@index([targetAccountId])
+  @@index([targetAssetId])
 }
 
 // ---------- 负债 ----------
@@ -469,6 +554,25 @@ model PriceBar {
 
   @@unique([symbol, date])
   @@index([symbol])
+}
+
+// 行情调用的日度可观测证据；全局数据，不绑定某个家庭，也不参与估值计算。
+model MarketProviderDaily {
+  id          String   @id @default(cuid())
+  provider    String
+  scope       String
+  date        DateTime
+  requests    Int      @default(0)
+  ok          Int      @default(0)
+  failed      Int      @default(0)
+  totalMs     Int      @default(0)
+  lastError   String?
+  lastErrorAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([provider, scope, date])
+  @@index([date])
 }
 
 // 历史外汇汇率（全局共享，无 familyId，不参与 RLS）：按 (pair, date) 唯一

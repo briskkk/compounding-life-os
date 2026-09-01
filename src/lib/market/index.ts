@@ -9,6 +9,7 @@ import { eastmoneyFundProvider } from './eastmoney-fund'
 import { eastmoneyKlineProvider } from './eastmoney-kline'
 import { parseSymbol, type Market } from './symbols'
 import { cachedQuote, providerCircuitOpen, quoteCacheKey, recordRequest } from './cache'
+import { recordProviderObservation } from './quality'
 import type { Bar, MarketDataProvider, QuoteData } from './provider'
 
 const DEFAULT_PROVIDER_SPEC = 'tencent,eastmoney-kline,eastmoney-fund,sina'
@@ -149,10 +150,15 @@ export async function quoteSmart(symbol: string, options?: { route?: MarketRoute
         ) {
           throw new Error(`${provider.label} 返回了无效报价：${symbol}`)
         }
-        recordRequest(provider.label, true, Date.now() - t0, undefined, scope)
+        const elapsed = Date.now() - t0
+        recordRequest(provider.label, true, elapsed, undefined, scope)
+        await recordProviderObservation({ provider: provider.label, scope, ok: true, ms: elapsed })
         return q
       } catch (e) {
-        recordRequest(provider.label, false, Date.now() - t0, e instanceof Error ? e.message : String(e), scope)
+        const elapsed = Date.now() - t0
+        const message = e instanceof Error ? e.message : String(e)
+        recordRequest(provider.label, false, elapsed, message, scope)
+        await recordProviderObservation({ provider: provider.label, scope, ok: false, ms: elapsed, error: message })
         /* 尝试下一源 */
       }
     }
@@ -189,7 +195,9 @@ export async function historySmart(
     try {
       const bars = await provider.history(symbol, from, to)
       if (bars.length > 0) {
-        recordRequest(provider.label, true, Date.now() - t0, undefined, scope)
+        const elapsed = Date.now() - t0
+        recordRequest(provider.label, true, elapsed, undefined, scope)
+        await recordProviderObservation({ provider: provider.label, scope, ok: true, ms: elapsed })
         const sorted = [...bars].sort((a, b) => a.date.getTime() - b.date.getTime())
         if (!best || sorted[0].date < best.bars[0].date || sorted.length > best.bars.length) {
           best = { bars: sorted, source: provider.label }
@@ -201,12 +209,16 @@ export async function historySmart(
       } else {
         const message = `${symbol} 无历史数据`
         errors.push({ provider: provider.label, message })
-        recordRequest(provider.label, false, Date.now() - t0, message, scope)
+        const elapsed = Date.now() - t0
+        recordRequest(provider.label, false, elapsed, message, scope)
+        await recordProviderObservation({ provider: provider.label, scope, ok: false, ms: elapsed, error: message })
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       errors.push({ provider: provider.label, message })
-      recordRequest(provider.label, false, Date.now() - t0, message, scope)
+      const elapsed = Date.now() - t0
+      recordRequest(provider.label, false, elapsed, message, scope)
+      await recordProviderObservation({ provider: provider.label, scope, ok: false, ms: elapsed, error: message })
       /* 尝试下一源 */
     }
   }
@@ -222,4 +234,48 @@ export function providerLabel(): string {
   return providerChain()
     .map((p) => p.label)
     .join('→')
+}
+
+export interface ProviderQuoteComparison {
+  provider: string
+  status: 'OK' | 'FAILED' | 'SKIPPED'
+  price: number | null
+  asOf: string | null
+  ms: number | null
+  message: string | null
+}
+
+/** 人工质量检查：逐一请求所有已配置且支持该标的的报价源，不使用链路缓存。 */
+export async function compareProviderQuotes(
+  symbol: string,
+  options?: { route?: MarketRoute },
+): Promise<ProviderQuoteComparison[]> {
+  const route = options?.route ?? 'AUTO'
+  const market = routedMarket(symbol, route)
+  const scope = circuitScope('QUOTE', market)
+  const results: ProviderQuoteComparison[] = []
+  for (const provider of providersFor(symbol, 'QUOTE', route)) {
+    if (providerCircuitOpen(provider.label, Date.now(), scope)) {
+      results.push({ provider: provider.label, status: 'SKIPPED', price: null, asOf: null, ms: null, message: '熔断中' })
+      continue
+    }
+    const started = Date.now()
+    try {
+      const quote = await provider.quote(symbol)
+      if (quote.symbol !== symbol || !Number.isFinite(quote.price) || quote.price <= 0 || !Number.isFinite(new Date(quote.asOf).getTime())) {
+        throw new Error(`${provider.label} 返回了无效报价`)
+      }
+      const ms = Date.now() - started
+      recordRequest(provider.label, true, ms, undefined, scope)
+      await recordProviderObservation({ provider: provider.label, scope, ok: true, ms })
+      results.push({ provider: provider.label, status: 'OK', price: quote.price, asOf: quote.asOf, ms, message: null })
+    } catch (error) {
+      const ms = Date.now() - started
+      const message = error instanceof Error ? error.message : String(error)
+      recordRequest(provider.label, false, ms, message, scope)
+      await recordProviderObservation({ provider: provider.label, scope, ok: false, ms, error: message })
+      results.push({ provider: provider.label, status: 'FAILED', price: null, asOf: null, ms, message })
+    }
+  }
+  return results
 }

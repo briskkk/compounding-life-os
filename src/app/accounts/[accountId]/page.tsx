@@ -36,7 +36,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
   const [account, accounts, assets, state, recentTransactions] = await Promise.all([
     db.account.findFirst({ where: { id: accountId }, include: { settlementAccount: true } }),
     db.account.findMany({ include: { settlementAccount: true }, orderBy: { createdAt: 'asc' } }),
-    db.asset.findMany({ orderBy: { createdAt: 'asc' } }),
+    db.asset.findMany({ include: { fundTradePolicy: true }, orderBy: { createdAt: 'asc' } }),
     loadEngineState(ctx),
     db.transaction.findMany({
       where: { accountId, asset: { cls: { not: 'HUAWEI_STOCK' } } },
@@ -203,6 +203,13 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
                   name: asset.name,
                   cls: asset.cls,
                   currency: asset.currency,
+                  fundPolicy: asset.fundTradePolicy ? {
+                    purchaseFeeRate: asset.fundTradePolicy.purchaseFeeRate,
+                    redemptionFeeRules: asset.fundTradePolicy.redemptionFeeRules,
+                    purchaseSuspendedFrom: asset.fundTradePolicy.purchaseSuspendedFrom?.toISOString() ?? null,
+                    purchaseSuspendedUntil: asset.fundTradePolicy.purchaseSuspendedUntil?.toISOString() ?? null,
+                    sourceName: asset.fundTradePolicy.sourceName,
+                  } : null,
                 }))}
               />
             </Panel>

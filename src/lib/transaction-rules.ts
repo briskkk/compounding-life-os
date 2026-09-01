@@ -1,7 +1,7 @@
 import type { AssetClass } from './engine/types'
 
 export interface TransactionDraft {
-  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'INTEREST' | 'FEE' | 'DEPOSIT' | 'WITHDRAW' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'VALUATION' | 'VEST'
+  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'INTEREST' | 'FEE' | 'DEPOSIT' | 'WITHDRAW' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'VALUATION' | 'VEST' | 'SHARE_ADJUSTMENT' | 'COST_ADJUSTMENT'
   quantity: number | null
   price: number | null
   amount: number
@@ -85,25 +85,22 @@ export function assertTransactionTimeline(txs: TimelineTransaction[], asset: Tra
     .map((tx) => {
       const adds = tx.type === 'BUY' || tx.type === 'TRANSFER_IN'
       const removes = tx.type === 'SELL' || tx.type === 'TRANSFER_OUT'
-      if (!adds && !removes) return null
+      const adjusts = tx.type === 'SHARE_ADJUSTMENT'
+      if (!adds && !removes && !adjusts) return null
       const effective = adds ? (tx.confirmationDate ?? tx.navDate ?? tx.occurredAt) : tx.occurredAt
-      return { tx, adds, effective }
+      const delta = adjusts ? (tx.quantity ?? 0) : adds ? (tx.quantity ?? 0) : -(tx.quantity ?? 0)
+      return { tx, delta, effective }
     })
-    .filter((e): e is { tx: TimelineTransaction; adds: boolean; effective: Date } => e != null)
+    .filter((e): e is { tx: TimelineTransaction; delta: number; effective: Date } => e != null)
     // 同日先入账后卖出：确认日当天份额即可赎回
     .sort((a, b) => a.effective.getTime() - b.effective.getTime()
-      || (a.adds === b.adds ? (a.tx.sequence ?? 0) - (b.tx.sequence ?? 0) : a.adds ? -1 : 1))
+      || ((a.delta >= 0) === (b.delta >= 0) ? (a.tx.sequence ?? 0) - (b.tx.sequence ?? 0) : a.delta >= 0 ? -1 : 1))
 
   let available = 0
-  for (const { tx, adds } of events) {
-    const q = tx.quantity ?? 0
-    if (adds) {
-      available += q
-    } else {
-      if (q > available + EPSILON) {
-        throw new Error(`数量不足：${tx.occurredAt.toISOString().slice(0, 10)} 可用（已确认）${available}，请求 ${q}`)
-      }
-      available -= q
+  for (const { tx, delta } of events) {
+    if (delta < 0 && -delta > available + EPSILON) {
+      throw new Error(`数量不足：${tx.occurredAt.toISOString().slice(0, 10)} 可用（已确认）${available}，请求 ${-delta}`)
     }
+    available += delta
   }
 }

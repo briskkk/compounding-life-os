@@ -13,6 +13,8 @@ export const TX_TYPE_LABEL: Record<TxType, string> = {
   TRANSFER_OUT: '转出',
   VALUATION: '估值',
   VEST: '历史归属',
+  SHARE_ADJUSTMENT: '份额调整',
+  COST_ADJUSTMENT: '成本分配',
   REVERSAL: '冲正',
 }
 

@@ -26,6 +26,7 @@ last_verified: 2026-08-28
 | GOLD 恒为可交易可投资资产 | `manual` 只决定黄金估值来源；无结算腿黄金交易按组合外资金流兼容，有结算腿保持内部守恒 | [ADR-015](../docs/adr/015-tradable-gold-investable-scope.md) |
 | 计划数据与交易账本分离 | 目标权重和未来现金安排只用于观察/计划；不改余额、不生成交易、不自动买卖 | [ADR-016](../docs/adr/016-planning-data-separate-from-ledger.md) |
 | 运行核对只追加证据 | 实时/结算分轨；账户对账、任务与到账确认写审计凭证，不建立可写余额 | [ADR-017](../docs/adr/017-operational-evidence-not-second-ledger.md) |
+| 运营事件、基金规则与行情质量分层 | 公司行动展开为流水；规则与质量只保存证据，不自动改持仓、费用或行情源 | [ADR-018](../docs/adr/018-operational-ledgers-and-market-quality.md) |
 
 ## 补充已定规则
 

@@ -9,6 +9,7 @@ import { AssetPicker } from './asset-picker'
 import { TX_TYPE_LABEL } from '@/lib/labels'
 import type { TxType } from '@/lib/engine/types'
 import { estimateShares, fundConfirmationDate, fundNavDate, fundSettlementDate, isQdiiFund } from '@/lib/engine/fund-order'
+import { isFundPurchaseSuspended, purchaseFeeReference } from '@/lib/engine/fund-policy'
 import { cx, fmtPrice, fmtQty } from '@/lib/format'
 
 const NEEDS_QTY: TxType[] = ['BUY', 'SELL', 'TRANSFER_IN', 'TRANSFER_OUT']
@@ -48,7 +49,20 @@ export function TxForm({
   layout = 'compact',
 }: {
   accounts: { id: string; name: string; currency: string; settlementAccountId: string | null; settlementAccountName: string | null }[]
-  assets: { id: string; symbol: string; name: string; cls: string; currency: string }[]
+  assets: {
+    id: string
+    symbol: string
+    name: string
+    cls: string
+    currency: string
+    fundPolicy?: {
+      purchaseFeeRate: number
+      redemptionFeeRules: string
+      purchaseSuspendedFrom: string | null
+      purchaseSuspendedUntil: string | null
+      sourceName: string
+    } | null
+  }[]
   /** `${accountId}:${assetId}` → 当前持仓（卖出关联与超卖拦截用） */
   holdings?: Record<string, HoldingInfo>
   initialAccountId?: string
@@ -110,6 +124,11 @@ export function TxForm({
   const confirmationDate = navDate ? fundConfirmationDate(navDate, { qdii }) : null
   const effectiveSettleDateText = settleTouched ? settleDateText : (defaultSettleDate ? localDateInput(defaultSettleDate) : '')
   const fundNavLabel = navDate ? localDateInput(navDate) : null
+  const fundPolicy = selectedAsset?.fundPolicy ?? null
+  const purchaseSuspended = Boolean(isFund && type === 'BUY' && fundPolicy && isFundPurchaseSuspended(orderDate, {
+    purchaseSuspendedFrom: fundPolicy.purchaseSuspendedFrom ? new Date(fundPolicy.purchaseSuspendedFrom) : null,
+    purchaseSuspendedUntil: fundPolicy.purchaseSuspendedUntil ? new Date(fundPolicy.purchaseSuspendedUntil) : null,
+  }))
 
   // 基金资产选中后按成交净值日拉取：历史日期必须精确取当日官方净值，不能混用最新净值。
   useEffect(() => {
@@ -164,6 +183,9 @@ export function TxForm({
   // 卖出预计到账金额
   const sellAmount = type === 'SELL' && quantity != null && price != null ? quantity * price : null
   const sellOvershoot = type === 'SELL' && quantity != null && holding != null && quantity > holding.availableQty + 1e-8
+  const purchaseFeeEstimate = isFund && type === 'BUY' && fundPolicy && amount != null
+    ? purchaseFeeReference(amount, fundPolicy.purchaseFeeRate)
+    : 0
 
   function switchType(next: TxType) {
     setType(next)
@@ -211,6 +233,10 @@ export function TxForm({
 
     if (sellOvershoot) {
       setMsg({ ok: false, text: `可卖份额不足：当前可卖 ${fmtQty(holding!.availableQty)} 份` })
+      return
+    }
+    if (purchaseSuspended) {
+      setMsg({ ok: false, text: '该基金在所选日期暂停申购；请核对规则来源或改用正确日期' })
       return
     }
 
@@ -275,7 +301,7 @@ export function TxForm({
               {Object.entries(TX_TYPE_LABEL).filter(([key]) => (
                 isLongTermAsset
                   ? key === 'BUY' || key === 'SELL' || key === 'DIVIDEND' || key === 'VALUATION'
-                  : key !== 'REVERSAL' && key !== 'VEST'
+                  : key !== 'REVERSAL' && key !== 'VEST' && key !== 'SHARE_ADJUSTMENT' && key !== 'COST_ADJUSTMENT'
               )).map(([k, v]) => (
                 <option key={k} value={k}>
                   {v}
@@ -462,6 +488,9 @@ export function TxForm({
           {fundQuoteState === 'error' && (
             <p className="text-up">净值未公布且盘中估算不可用 —— 按金额申购暂不可用，可改用「按份额录入」。</p>
           )}
+          {purchaseSuspended && (
+            <p className="text-down">该日期处于暂停申购窗口，普通申购不能写入账本。</p>
+          )}
           {navDate && (
             <p className="text-ink-dim">
               成交净值日 <span className="num text-ink">{fundNavLabel}</span>
@@ -490,6 +519,15 @@ export function TxForm({
               预计确认份额 <span className="num text-accent">{fmtQty(estimatedShareQty)} 份</span>
               <span className="text-ink-faint"> · 以 {fundNavLabel} 确认净值为准</span>
             </p>
+          )}
+          {type === 'BUY' && fundPolicy && (
+            <div className="mt-3 border-t border-line pt-3 text-[12px] text-ink-dim">
+              <span>规则来源 {fundPolicy.sourceName}</span>
+              <span className="text-ink-faint"> · 申购费率 {(fundPolicy.purchaseFeeRate * 100).toFixed(3).replace(/0+$/, '').replace(/\.$/, '')}%</span>
+              {purchaseFeeEstimate > 0 && (
+                <button type="button" onClick={() => setFeeText(String(purchaseFeeEstimate))} className="ml-3 text-accent">采用参考费用 {purchaseFeeEstimate.toFixed(2)}</button>
+              )}
+            </div>
           )}
           {type === 'SELL' && (
             <>
@@ -544,7 +582,7 @@ export function TxForm({
           )}
           <div className="tx-form-message"><FormMsg msg={msg} /></div>
         </div>
-        <button type="submit" disabled={pending || sellOvershoot} className={cx(btnCls, 'tx-form-submit')}>
+        <button type="submit" disabled={pending || sellOvershoot || purchaseSuspended} className={cx(btnCls, 'tx-form-submit')}>
           {pending ? '写入中…' : isLongTermAsset ? '保存长期资产记录' : '写入账本'}
         </button>
       </div>

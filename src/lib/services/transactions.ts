@@ -8,6 +8,7 @@ import type { FamilyCtx } from '@/lib/scoped'
 import { buildSettlementLegs } from '@/lib/engine/settlement'
 import { foldTransactions, roundMoney, type LedgerTx } from '@/lib/engine/ledger'
 import { estimateShares, fundConfirmationDate, fundNavDate, isQdiiFund } from '@/lib/engine/fund-order'
+import { isFundPurchaseSuspended } from '@/lib/engine/fund-policy'
 import { assertTransactionRules, assertTransactionTimeline, type TransactionDraft } from '@/lib/transaction-rules'
 import type { TxInputData } from '@/lib/schemas'
 
@@ -73,6 +74,7 @@ export async function validateTransaction(
     occurredAt: Date
     navDate?: Date | null
   },
+  options?: { allowSuspendedFundPurchase?: boolean },
 ) {
   const [account, asset] = await Promise.all([
     db.account.findFirst({ where: { id: data.accountId, familyId: ctx.familyId } }),
@@ -82,6 +84,12 @@ export async function validateTransaction(
   if (!asset) throw new Error('资产不存在或不属于当前家庭')
   if (account.currency !== asset.currency) throw new Error('账户与资产币种不一致')
   const qdii = asset.cls === 'FUND' && isQdiiFund(asset.symbol, asset.name)
+  if (asset.cls === 'FUND' && data.type === 'BUY' && !options?.allowSuspendedFundPurchase) {
+    const policy = await db.fundTradePolicy.findFirst({ where: { familyId: ctx.familyId, assetId: asset.id } })
+    if (policy && isFundPurchaseSuspended(data.occurredAt, policy)) {
+      throw new Error('该基金在所选日期暂停申购；请核对基金公告，或通过“分红再投资”事件记录自动获得的份额')
+    }
+  }
 
   const rows = await db.transaction.findMany({
     where: { familyId: ctx.familyId, accountId: data.accountId, assetId: data.assetId },
@@ -151,13 +159,20 @@ export async function createTransactionRecord(
   db: ServiceDb,
   ctx: FamilyCtx,
   data: TxInputData,
-  options?: { clientRequestId?: string; clientRequestHash?: string },
+  options?: {
+    clientRequestId?: string
+    clientRequestHash?: string
+    corporateActionId?: string
+    allowSuspendedFundPurchase?: boolean
+  },
 ): Promise<{ id: string; affectedSince: Date }> {
   const settleCash = data.settleCash ?? (data.type === 'BUY' || data.type === 'SELL')
   const canSettleCash = ['BUY', 'SELL', 'DIVIDEND', 'INTEREST', 'FEE'].includes(data.type)
   const accountId = await routedAccountIdForAsset(db, ctx.familyId, data.accountId, data.assetId)
   const entry = { ...data, accountId }
-  const { navDate: effectiveNavDate } = await validateTransaction(db, ctx, entry)
+  const { navDate: effectiveNavDate } = await validateTransaction(db, ctx, entry, {
+    allowSuspendedFundPurchase: options?.allowSuspendedFundPurchase,
+  })
   const tx = await db.transaction.create({
     data: {
       familyId: ctx.familyId,
@@ -175,6 +190,7 @@ export async function createTransactionRecord(
       note: data.note,
       clientRequestId: options?.clientRequestId ?? null,
       clientRequestHash: options?.clientRequestHash ?? null,
+      corporateActionId: options?.corporateActionId ?? null,
     },
   })
   if (settleCash && canSettleCash) {
@@ -194,6 +210,7 @@ export async function createTransactionRecord(
           ...leg,
           note: `结算 · #${tx.id.slice(0, 8)}`,
           settleOfId: tx.id,
+          corporateActionId: options?.corporateActionId ?? null,
         },
       })
     }

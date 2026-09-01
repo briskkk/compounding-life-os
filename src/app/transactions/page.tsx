@@ -29,7 +29,7 @@ const PAGE_SIZE = 100
 export default async function TransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ account?: string; type?: string; q?: string; page?: string }>
+  searchParams: Promise<{ account?: string; type?: string; q?: string; page?: string; batch?: string }>
 }) {
   const sp = await searchParams
   const ctx = await getSession()
@@ -39,7 +39,7 @@ export default async function TransactionsPage({
 
   const [accounts, assets] = await Promise.all([
     db.account.findMany({ include: { settlementAccount: true } }),
-    db.asset.findMany({ where: { cls: { not: 'HUAWEI_STOCK' } } }),
+    db.asset.findMany({ where: { cls: { not: 'HUAWEI_STOCK' } }, include: { fundTradePolicy: true } }),
   ])
   // 卖出自动关联：折叠全量账本得到各 (账户 × 资产) 的当前/可用份额（不拉行情，纯账本回放）
   const allTxs = await db.transaction.findMany({ orderBy: [{ occurredAt: 'asc' }, { createdAt: 'asc' }] })
@@ -68,6 +68,7 @@ export default async function TransactionsPage({
     asset: { cls: { not: 'HUAWEI_STOCK' as const } },
     ...(sp.account ? { accountId: sp.account } : {}),
     ...(sp.type ? { type: sp.type as TxType } : {}),
+    ...(sp.batch ? { importBatchId: sp.batch } : {}),
   }
   const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1)
   const [txs, total] = await Promise.all([
@@ -84,6 +85,7 @@ export default async function TransactionsPage({
   const filterParams = new URLSearchParams()
   if (sp.account) filterParams.set('account', sp.account)
   if (sp.type) filterParams.set('type', sp.type)
+  if (sp.batch) filterParams.set('batch', sp.batch)
   const pageHref = (target: number) => {
     const params = new URLSearchParams(filterParams)
     if (target > 1) params.set('page', String(target))
@@ -100,6 +102,9 @@ export default async function TransactionsPage({
         right={(
           <div className="flex flex-wrap items-center gap-5">
             <div><div className="text-[14px] text-ink-faint">交易笔数</div><div className="num mt-2 text-[28px] text-ink">{total}</div></div>
+            <Link href="/corporate-actions" className="inline-flex min-h-11 shrink-0 items-center text-[14px] whitespace-nowrap text-accent">公司行动 →</Link>
+            <Link href="/fund-operations" className="inline-flex min-h-11 shrink-0 items-center text-[14px] whitespace-nowrap text-accent">基金规则 →</Link>
+            <Link href="/transactions/imports" className="inline-flex min-h-11 shrink-0 items-center text-[14px] whitespace-nowrap text-accent">导入批次 →</Link>
             {canWrite && <a href="#new-entry" className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-accent px-5 text-[14px] font-medium whitespace-nowrap text-bg">新增流水</a>}
           </div>
         )}
@@ -235,6 +240,13 @@ export default async function TransactionsPage({
               name: a.name,
               cls: a.cls,
               currency: a.currency,
+              fundPolicy: a.fundTradePolicy ? {
+                purchaseFeeRate: a.fundTradePolicy.purchaseFeeRate,
+                redemptionFeeRules: a.fundTradePolicy.redemptionFeeRules,
+                purchaseSuspendedFrom: a.fundTradePolicy.purchaseSuspendedFrom?.toISOString() ?? null,
+                purchaseSuspendedUntil: a.fundTradePolicy.purchaseSuspendedUntil?.toISOString() ?? null,
+                sourceName: a.fundTradePolicy.sourceName,
+              } : null,
             }))}
           />
         </Panel>
