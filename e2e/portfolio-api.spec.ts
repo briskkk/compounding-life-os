@@ -313,6 +313,16 @@ test.describe('APP 幂等写入与游标分页', () => {
     expect(currentJson.period).toBe('THIS_MONTH')
     expect(currentJson.result).toBeTruthy()
 
+    const historical = await request.get('/api/reviews/current?period=THIS_MONTH&month=2026-08&benchmark=sh000300')
+    expect(historical.ok()).toBeTruthy()
+    const historicalJson = await historical.json()
+    expect(historicalJson.range).toMatchObject({
+      label: '2026年8月',
+      startDate: '2026-08-01',
+      endDate: '2026-08-31',
+    })
+    expect(historicalJson.result.performance.curve.every((point: { date: string }) => point.date <= '2026-08-31')).toBe(true)
+
     const saved = await request.get('/api/reviews?limit=5')
     expect(saved.ok()).toBeTruthy()
     const savedJson = await saved.json()

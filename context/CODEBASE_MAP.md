@@ -16,7 +16,7 @@ last_verified: 2026-09-01
 | 持仓 | `src/app/positions/page.tsx` | `loadEngineState`；配置、分组、排序、当日盈亏 |
 | 资产详情 | `src/app/positions/[assetId]/page.tsx` | 价格/净值历史、基金估值、持仓概览、流水与带账本锁的安全编辑/删除 |
 | 看盘 | `src/app/watch/page.tsx` | `getWatchData`；盘中曲线、区间绩效、基准、风险 |
-| 复盘 | `src/app/review/page.tsx` | `getReviewPageData`；周/月/季结果桥、贡献归因、时点、交易、风险与复盘笔记 |
+| 复盘 | `src/app/review/page.tsx` | `getReviewPageData`；周/月/季及任意历史自然月的结果桥、贡献归因、时点、交易、风险与复盘笔记 |
 | 流水 | `src/app/transactions/page.tsx` | 筛选、分页、录入、CSV、冲正、导出 |
 | FIRE | `src/app/goals/page.tsx` | 目标编辑、储蓄、情景实验室、蒙特卡洛结果 |
 | 账户 | `src/app/accounts/page.tsx`、`accounts/[accountId]/page.tsx` | 账户、资产目录、结算关系、负债 |
@@ -36,7 +36,7 @@ Route Handlers：
 - `src/app/api/positions/route.ts`、`positions/[assetId]/route.ts`：持仓与资产详情（移动端）。
 - `src/app/api/mobile/summary/route.ts`：移动端总览/账户/FIRE 数据包。
 - `src/app/api/transactions/route.ts`：移动端流水幂等写入（`Idempotency-Key`）与游标分页列表。
-- `src/app/api/reviews/route.ts`、`reviews/current/route.ts`：已保存复盘游标列表与本期复盘证据包。
+- `src/app/api/reviews/route.ts`、`reviews/current/route.ts`：已保存复盘游标列表与复盘证据包；月度证据支持 `month=YYYY-MM` 历史自然月深链。
 - `src/app/api/monthly-summary/route.ts`：单月聚合（用户会话优先，回落 Bearer `PORTFOLIO_API_KEY`，只读）。
 - `src/app/api/monthly-trend/route.ts`：近 N 个月趋势（`?months=1..24`，默认 12）+ 负债真实余额（foldLiability）。
 - `src/app/api/assets/route.ts`：资产构成（7 类全量 composition）+ 净资产曲线（最近 90 个快照日）。

@@ -368,7 +368,11 @@ export async function savePortfolioReview(input: unknown): Promise<ActionResult<
     const data = portfolioReviewInputSchema.parse(input)
     const startDate = new Date(`${data.startDate}T00:00:00Z`)
     const endDate = new Date(`${data.endDate}T00:00:00Z`)
-    const evidence = await getReviewPageData({ period: data.period, benchmark: data.benchmarkSymbol })
+    const evidence = await getReviewPageData({
+      period: data.period,
+      benchmark: data.benchmarkSymbol,
+      month: data.period === 'THIS_MONTH' ? data.startDate.slice(0, 7) : undefined,
+    })
     if (!evidence || evidence.range.startDate !== data.startDate || evidence.range.endDate !== data.endDate) {
       throw new Error('复盘区间已经变化，请刷新页面后重试')
     }

@@ -13,6 +13,14 @@ import { pendingSettlementsAt, type LedgerTx } from './ledger'
 
 export type ReviewPeriod = 'THIS_WEEK' | 'THIS_MONTH' | 'THIS_QUARTER'
 
+const REVIEW_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/
+
+function monthEnd(month: string): string {
+  const year = Number(month.slice(0, 4))
+  const monthIndex = Number(month.slice(5, 7))
+  return new Date(Date.UTC(year, monthIndex, 0)).toISOString().slice(0, 10)
+}
+
 function quarterRange(now: Date): PerformanceRange {
   const endDate = dateKeyAt(now)
   const month = Number(endDate.slice(5, 7))
@@ -24,8 +32,23 @@ function quarterRange(now: Date): PerformanceRange {
   }
 }
 
-export function reviewRange(period: ReviewPeriod, now = new Date()): PerformanceRange {
-  return period === 'THIS_QUARTER' ? quarterRange(now) : performancePresetRange(period, now)
+export function reviewRange(period: ReviewPeriod, now = new Date(), month?: string): PerformanceRange {
+  if (period !== 'THIS_MONTH') {
+    return period === 'THIS_QUARTER' ? quarterRange(now) : performancePresetRange(period, now)
+  }
+
+  const today = dateKeyAt(now)
+  const currentMonth = today.slice(0, 7)
+  const selectedMonth = month && REVIEW_MONTH_PATTERN.test(month) && month <= currentMonth
+    ? month
+    : currentMonth
+  if (selectedMonth === currentMonth) return performancePresetRange('THIS_MONTH', now)
+
+  return {
+    label: `${Number(selectedMonth.slice(0, 4))}年${Number(selectedMonth.slice(5, 7))}月`,
+    startDate: `${selectedMonth}-01`,
+    endDate: monthEnd(selectedMonth),
+  }
 }
 
 export interface ReviewAssetInput {

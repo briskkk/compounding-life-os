@@ -44,6 +44,15 @@ function tone(value: number | null) {
   return value == null ? 'text-ink-faint' : toneOf(value) === 'up' ? 'text-up' : toneOf(value) === 'down' ? 'text-down' : 'text-ink-dim'
 }
 
+function shiftMonth(month: string, delta: number): string {
+  const date = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1 + delta, 1))
+  return date.toISOString().slice(0, 7)
+}
+
+function displayMonth(month: string): string {
+  return `${Number(month.slice(0, 4))}年${Number(month.slice(5, 7))}月`
+}
+
 function Metric({ label, value, detail, className }: {
   label: string
   value: string
@@ -108,6 +117,10 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
   const selected = result.assets.find((row) => row.key === selectedAsset) ?? null
   const maxDay = Math.max(1, ...result.timing.days.map((day) => Math.abs(day.amount)))
   const reconciliation = RECONCILIATION_STATUS[result.reconciliationStatus]
+  const selectedMonth = data.month ?? data.currentMonth
+  const previousMonth = shiftMonth(selectedMonth, -1)
+  const nextMonth = shiftMonth(selectedMonth, 1)
+  const isHistoricalMonth = data.period === 'THIS_MONTH' && selectedMonth < data.currentMonth
 
   const rows = useMemo<ReviewContribution[]>(() => {
     if (dimension === 'asset') return result.assets
@@ -135,11 +148,15 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
     }))
   }, [dimension, result.assets, result.classes, result.sources])
 
-  function href(next: { period?: string; benchmark?: string }) {
+  function href(next: { period?: string; benchmark?: string; month?: string }) {
+    const period = next.period ?? data.period
     const params = new URLSearchParams({
-      period: next.period ?? data.period,
+      period,
       benchmark: next.benchmark ?? data.benchmarkSymbol,
     })
+    if (period === 'THIS_MONTH') {
+      params.set('month', next.month ?? (data.period === 'THIS_MONTH' ? selectedMonth : data.currentMonth))
+    }
     return `/review?${params.toString()}`
   }
 
@@ -171,12 +188,34 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
           <h1 className="page-title">这段时间，钱从哪里赚来</h1>
           <p className="page-description">从结果、贡献、时点、决策和风险五个视角复核组合。所有数字由流水与历史估值重放，复盘笔记由你自己判断。</p>
         </div>
-        <div className="review-periods" aria-label="复盘周期">
-          {PERIODS.map((period) => (
-            <Link key={period.value} href={href({ period: period.value })} className={data.period === period.value ? 'is-active' : ''}>
-              {period.label}
-            </Link>
-          ))}
+        <div className="review-range-controls">
+          <div className="review-periods" aria-label="复盘周期">
+            {PERIODS.map((period) => (
+              <Link key={period.value} href={href({ period: period.value })} className={data.period === period.value ? 'is-active' : ''}>
+                {period.label}
+              </Link>
+            ))}
+          </div>
+          {data.period === 'THIS_MONTH' && (
+            <div className={cx('review-month-control', isHistoricalMonth && 'has-current')} role="group" aria-label="复盘月份">
+              <Link className="review-month-step" href={href({ month: previousMonth })} aria-label="查看上一个月"><span aria-hidden="true">‹</span></Link>
+              <label className="review-month-value" htmlFor="review-month">
+                <span aria-hidden="true">{displayMonth(selectedMonth)}</span>
+                <input
+                  id="review-month"
+                  type="month"
+                  aria-label="选择复盘月份"
+                  value={selectedMonth}
+                  max={data.currentMonth}
+                  onChange={(event) => router.replace(href({ month: event.target.value }))}
+                />
+              </label>
+              {nextMonth <= data.currentMonth
+                ? <Link className="review-month-step" href={href({ month: nextMonth })} aria-label="查看下一个月"><span aria-hidden="true">›</span></Link>
+                : <button className="review-month-step" type="button" aria-label="已经是当前月" disabled><span aria-hidden="true">›</span></button>}
+              {isHistoricalMonth && <Link className="review-month-current" aria-label="回到本月" href={href({ month: data.currentMonth })}>当前月</Link>}
+            </div>
+          )}
         </div>
       </header>
 
@@ -274,14 +313,14 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
             </footer>
           </article>
 
-          <article className="review-transit-card" aria-label="当前在途资金">
+          <article className="review-transit-card" aria-label={isHistoricalMonth ? '期末在途资金' : '当前在途资金'}>
             <header>
               <span className="page-kicker">ASSET STATUS</span>
-              <b>{data.pendingSettlements.length > 0 ? `${data.pendingSettlements.length} 笔待到账` : '当前无在途'}</b>
+              <b>{data.pendingSettlements.length > 0 ? `${data.pendingSettlements.length} 笔待到账` : isHistoricalMonth ? '期末无在途' : '当前无在途'}</b>
             </header>
-            <h3>赎回在途资金</h3>
+            <h3>{isHistoricalMonth ? '月末赎回在途资金' : '赎回在途资金'}</h3>
             <strong className="num">{fmtCNY(data.inTransit)}</strong>
-            <p>份额已扣减、现金尚未到账；金额计入可投资资产，但不作为利润贡献。</p>
+            <p>{isHistoricalMonth ? `按 ${range.endDate} 期末状态回放；` : ''}份额已扣减、现金尚未到账；金额计入可投资资产，但不作为利润贡献。</p>
             {data.pendingSettlements.length > 0 ? (
               <div className="review-transit-list">
                 {data.pendingSettlements.map((settlement) => (

@@ -66,6 +66,31 @@ describe('组合复盘归因', () => {
     })
   })
 
+  it('按完整自然月解析历史月份，并拒绝未来或非法月份', () => {
+    const now = new Date('2026-09-02T12:00:00+08:00')
+
+    expect(reviewRange('THIS_MONTH', now, '2026-08')).toEqual({
+      label: '2026年8月',
+      startDate: '2026-08-01',
+      endDate: '2026-08-31',
+    })
+    expect(reviewRange('THIS_MONTH', now, '2024-02')).toEqual({
+      label: '2024年2月',
+      startDate: '2024-02-01',
+      endDate: '2024-02-29',
+    })
+    expect(reviewRange('THIS_MONTH', now, '2026-10')).toEqual({
+      label: '本月',
+      startDate: '2026-09-01',
+      endDate: '2026-09-02',
+    })
+    expect(reviewRange('THIS_MONTH', now, 'not-a-month')).toEqual({
+      label: '本月',
+      startDate: '2026-09-01',
+      endDate: '2026-09-02',
+    })
+  })
+
   it('标的金额和多期链接百分点都与组合收益严格对账', () => {
     const portfolio = [
       { date: '2026-07-31', netWorth: 200, contributions: 200, valuationStatus: 'SETTLED' as const, valuationCoverage: 1 },

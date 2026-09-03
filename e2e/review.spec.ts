@@ -43,3 +43,25 @@ test('组合复盘：1280px 桌面视口金额不拆行且无横向溢出', asyn
   expect(amountLines).toBe(1)
   await expect(page.getByRole('button', { name: '完成本期复盘' })).toBeVisible()
 })
+
+test('组合复盘：可深链查看完整历史自然月', async ({ page }) => {
+  await page.goto('/review?period=THIS_MONTH&month=2026-08&benchmark=sh000300')
+
+  await expect(page).toHaveURL(/month=2026-08/)
+  await expect(page.getByText('PORTFOLIO REVIEW · 2026-08-01 — 2026-08-31')).toBeVisible()
+  await expect(page.getByText('2026年8月投资收益')).toBeVisible()
+  await expect(page.locator('#review-month')).toHaveValue('2026-08')
+  await expect(page.getByRole('link', { name: '回到本月' })).toBeVisible()
+  await expect(page.getByLabel('期末在途资金')).toBeVisible()
+
+  await page.getByLabel('复盘笔记').fill('E2E：2026 年 8 月独立复盘。')
+  await page.getByRole('button', { name: '保存草稿' }).click()
+  await expect(page.getByText(/草稿已保存/)).toBeVisible()
+  await page.reload()
+  await expect(page.getByLabel('复盘笔记')).toHaveValue('E2E：2026 年 8 月独立复盘。')
+
+  await page.getByRole('link', { name: '查看上一个月' }).click()
+  await expect(page).toHaveURL(/month=2026-07/)
+  await expect(page.getByText('PORTFOLIO REVIEW · 2026-07-01 — 2026-07-31')).toBeVisible()
+  await expect(page.getByLabel('复盘笔记')).not.toHaveValue('E2E：2026 年 8 月独立复盘。')
+})

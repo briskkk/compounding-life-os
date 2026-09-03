@@ -11,6 +11,7 @@ import { buildReviewResult, reconstructReviewPortfolioSeries, reviewRange, type 
 import { dateKeyAt } from './engine/watch-market'
 import { isInvestableAsset } from './asset-classification'
 import type { ValuationGap } from './engine/valuation-status'
+import { pendingSettlementsAt, roundMoney } from './engine/ledger'
 
 export interface SavedReviewView {
   id: string
@@ -42,6 +43,8 @@ export interface ReviewPageData {
   inTransit: number
   pendingSettlements: ReviewPendingSettlementView[]
   savedReview: SavedReviewView | null
+  month: string | null
+  currentMonth: string
 }
 
 function benchmarkFrom(value?: string): string {
@@ -114,6 +117,7 @@ function liveValuationFields(
 export async function getReviewPageData(options: {
   period?: string
   benchmark?: string
+  month?: string
 } = {}, ctxOverride?: FamilyCtx): Promise<ReviewPageData | null> {
   const ctx = ctxOverride ?? await getSession()
   if (!ctx) return null
@@ -121,7 +125,12 @@ export async function getReviewPageData(options: {
   if (!watch) return null
 
   const period = periodFrom(options.period)
-  const range = reviewRange(period)
+  const now = new Date()
+  const today = dateKeyAt(now)
+  const currentMonth = today.slice(0, 7)
+  const range = reviewRange(period, now, options.month)
+  const selectedMonth = period === 'THIS_MONTH' ? range.startDate.slice(0, 7) : null
+  const isLiveRange = range.endDate === today
   const benchmarkSymbol = benchmarkFrom(options.benchmark)
   const db = scopedDb(prisma, ctx)
   const [rawAssets, rawAccounts] = await Promise.all([
@@ -140,7 +149,7 @@ export async function getReviewPageData(options: {
   const assets = reviewAssets.map((asset) => {
     const prices = navPoints(asset.symbol, priceMap)
     const liveQuote = watch.state.quotes.get(asset.symbol)
-    if (liveQuote && asset.cls !== 'CASH') {
+    if (isLiveRange && liveQuote && asset.cls !== 'CASH') {
       const liveDate = liveQuote.tradingDate || dateKeyAt(new Date(liveQuote.asOf))
       const liveNav = liveQuote.price
       const index = prices.findIndex((point) => point.date === liveDate)
@@ -187,27 +196,29 @@ export async function getReviewPageData(options: {
     transactions,
     rateAt: (currency, date) => rateAt(currency, date),
   })
-  // 标的归因已合入本次请求得到的实时报价，组合期末也必须使用同一批报价。
-  // 否则历史 Snapshot 与实时标的市值混算，会把行情时点差伪装成“待对账差额”。
-  const liveValuation = liveValuationFields(watch)
-  const livePoint = {
-    date: range.endDate,
-    netWorth: portfolioSeries.at(-1)?.date === range.endDate
-      ? portfolioSeries.at(-1)!.netWorth
-      : reconstructReviewPortfolioSeries({
-          series: [{ date: range.endDate, netWorth: 0, contributions: watch.currentContributions }],
-          assets,
-          transactions,
-          rateAt: (currency, date) => rateAt(currency, date),
-        })[0].netWorth,
-    contributions: watch.currentContributions,
-    valuationStatus: 'LIVE' as const,
-    valuationCoverage: liveValuation.coverage,
-    latestValuationDate: liveValuation.latestDate,
-    valuationGaps: liveValuation.gaps,
+  // 只有截至今日的周期才合入本次请求的实时报价；历史月严格保留历史证据。
+  // 当前周期的组合期末与标的归因必须使用同一批报价，避免把行情时点差伪装成“待对账差额”。
+  if (isLiveRange) {
+    const liveValuation = liveValuationFields(watch)
+    const livePoint = {
+      date: range.endDate,
+      netWorth: portfolioSeries.at(-1)?.date === range.endDate
+        ? portfolioSeries.at(-1)!.netWorth
+        : reconstructReviewPortfolioSeries({
+            series: [{ date: range.endDate, netWorth: 0, contributions: watch.currentContributions }],
+            assets,
+            transactions,
+            rateAt: (currency, date) => rateAt(currency, date),
+          })[0].netWorth,
+      contributions: watch.currentContributions,
+      valuationStatus: 'LIVE' as const,
+      valuationCoverage: liveValuation.coverage,
+      latestValuationDate: liveValuation.latestDate,
+      valuationGaps: liveValuation.gaps,
+    }
+    if (portfolioSeries.at(-1)?.date === livePoint.date) portfolioSeries[portfolioSeries.length - 1] = livePoint
+    else portfolioSeries.push(livePoint)
   }
-  if (portfolioSeries.at(-1)?.date === livePoint.date) portfolioSeries[portfolioSeries.length - 1] = livePoint
-  else portfolioSeries.push(livePoint)
   const preliminary = performanceBetween(portfolioSeries, range.startDate, range.endDate, range.label)
   const benchmarkStart = new Date(`${range.startDate}T00:00:00Z`)
   benchmarkStart.setUTCDate(benchmarkStart.getUTCDate() - 10)
@@ -237,13 +248,15 @@ export async function getReviewPageData(options: {
   })
   const assetNameById = new Map(rawAssets.map((asset) => [asset.id, asset.name]))
   const accountNameById = new Map(rawAccounts.map((account) => [account.id, account.name]))
-  const pendingSettlements = watch.state.pendingSettlements.map((settlement) => ({
+  const rangeEnd = new Date(`${range.endDate}T12:00:00+08:00`)
+  const settlementsAtRangeEnd = pendingSettlementsAt(transactions, rangeEnd)
+  const pendingSettlements = settlementsAtRangeEnd.map((settlement) => ({
     id: settlement.sellTxId,
     assetName: settlement.sellAssetId
       ? assetNameById.get(settlement.sellAssetId) ?? '基金赎回'
       : '基金赎回',
     accountName: accountNameById.get(settlement.accountId) ?? '资金账户',
-    amount: settlement.amount * rateAt(settlement.currency, new Date()),
+    amount: settlement.amount * rateAt(settlement.currency, rangeEnd),
     originalAmount: settlement.amount,
     currency: settlement.currency,
     soldAt: settlement.soldAt ? dateKeyAt(settlement.soldAt) : null,
@@ -257,7 +270,7 @@ export async function getReviewPageData(options: {
     benchmarkSymbol,
     benchmarks: BENCHMARK_INDICES,
     result,
-    inTransit: watch.state.inTransit,
+    inTransit: roundMoney(pendingSettlements.reduce((sum, settlement) => sum + settlement.amount, 0)),
     pendingSettlements,
     savedReview: savedReview ? {
       id: savedReview.id,
@@ -267,5 +280,7 @@ export async function getReviewPageData(options: {
       completedAt: savedReview.completedAt?.toISOString() ?? null,
       updatedAt: savedReview.updatedAt.toISOString(),
     } : null,
+    month: selectedMonth,
+    currentMonth,
   }
 }
