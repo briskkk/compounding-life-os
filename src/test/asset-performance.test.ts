@@ -130,6 +130,27 @@ describe('单资产历史收益', () => {
     expect(result.curve.at(-1)?.dailyAmount).toBe(5)
   })
 
+  it('份额未知的基金申购金额进入资产序列但不计为收益', () => {
+    const fund: AssetInfo = { ...stock, cls: 'FUND', symbol: '110022' }
+    const series = buildAssetPerformanceSeries({
+      asset: fund,
+      transactions: [tx({
+        id: 'pending-fund-buy',
+        type: 'BUY',
+        assetClass: 'FUND',
+        amount: 1000,
+        navSource: 'PENDING',
+        navDate: new Date('2025-01-02T12:00:00+08:00'),
+        occurredAt: new Date('2025-01-02T12:00:00+08:00'),
+      })],
+      prices: [{ date: '2025-01-02', nav: 1 }],
+      to: new Date('2025-01-02T12:00:00+08:00'),
+    })
+
+    expect(series.at(-1)).toMatchObject({ quantity: 0, netWorth: 1000, contributions: 1000 })
+    expect(performanceBetween(series, '2025-01-02', '2025-01-02').amount).toBeNull()
+  })
+
   it('外币现金和价格未更新的外币资产仍确认汇率收益', () => {
     const usdCash: AssetInfo = {
       ...stock,

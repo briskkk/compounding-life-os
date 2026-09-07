@@ -6,10 +6,16 @@ import { persistFundHistory, persistHistory, purgeMisroutedFundBars } from '@/li
 import { fxRates, persistDailyFx } from '@/lib/market/fx'
 import { rebuildSnapshots } from '@/lib/snapshots'
 import { recordAudit } from '@/lib/audit'
+import { scanSplitEvents } from '@/lib/services/split-discovery'
 
 async function main() {
   const family = await prisma.familySpace.findFirst({ orderBy: { createdAt: 'asc' } })
   if (!family) throw new Error('未初始化家庭空间')
+  const scanner = await prisma.member.findFirst({ where: { familyId: family.id, role: { in: ['OWNER', 'ADMIN'] } } })
+  if (scanner) {
+    const scan = await scanSplitEvents(prisma, { familyId: family.id, memberId: scanner.id, memberName: `SYSTEM · ${process.env.REFRESH_SLOT ?? 'manual-script'}`, role: scanner.role, userId: scanner.userId ?? '' })
+    console.log(`拆分检查：${scan.events.length} 条线索，${scan.errors.length} 个失败；待核对事件见 /corporate-actions`)
+  }
   const assets = await prisma.asset.findMany({ where: { familyId: family.id, manual: false, cls: { notIn: ['CASH', 'REAL_ESTATE'] } } })
   const from = new Date(Date.now() - 800 * 86400000)
   const fundSymbols = assets.filter((a) => a.cls === 'FUND').map((a) => a.symbol)

@@ -7,6 +7,8 @@ import { fmtDate, fmtMoney, fmtQty } from '@/lib/format'
 import { Empty, PageHeader, Panel, SetupScreen, Tag } from '@/components/ui'
 import { CorporateActionForm } from '@/components/corporate-action-form'
 import { ReverseCorporateActionButton } from '@/components/reverse-corporate-action-button'
+import { splitCandidates } from '@/lib/services/split-discovery'
+import { SplitDiscoveryPanel } from '@/components/split-discovery-panel'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +26,7 @@ export default async function CorporateActionsPage() {
     }),
   ])
   const active = actions.filter((action) => !action.reversedAt)
+  const scan = await splitCandidates(prisma, ctx.familyId)
   const cashEvents = active.filter((action) => ['CASH_DISTRIBUTION', 'FUND_REINVESTMENT'].includes(action.type))
   const quantityEvents = active.length - cashEvents.length
 
@@ -42,6 +45,8 @@ export default async function CorporateActionsPage() {
     </section>
 
     {ctx.role !== 'VIEWER' && <Panel title="记录公司行动" en="EVIDENCE → LEDGER"><CorporateActionForm accounts={accounts.map((account) => ({ id: account.id, name: account.name, currency: account.currency }))} assets={assets.map((asset) => ({ id: asset.id, symbol: asset.symbol, name: asset.name, cls: asset.cls, currency: asset.currency }))} /></Panel>}
+
+    <Panel title="拆分公告核对" en="ANNOUNCEMENTS"><SplitDiscoveryPanel scan={scan} readOnly={ctx.role === 'VIEWER'} /></Panel>
 
     <Panel title="事件历史" en="REPLAYABLE HISTORY" bodyClassName="p-0" right={<span className="num text-[12px] text-ink-faint">最近 {actions.length} 项</span>}>
       {actions.length === 0 ? <Empty>尚未记录公司行动；普通买卖仍在交易流水中录入。</Empty> : <div className="overflow-x-auto"><table className="w-full min-w-[1120px] text-[14px]"><thead><tr className="border-b border-line text-left text-[12px] tracking-[0.12em] text-ink-faint"><th className="px-5 py-3 font-normal">生效日 / 类型</th><th className="px-5 py-3 font-normal">来源资产</th><th className="px-5 py-3 font-normal">变化</th><th className="px-5 py-3 font-normal">成本 / 现金</th><th className="px-5 py-3 font-normal">证据</th><th className="px-5 py-3 text-right font-normal">状态</th></tr></thead><tbody>{actions.map((action) => {

@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 export default async function ReviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; benchmark?: string; month?: string }>
+  searchParams: Promise<{ period?: string; benchmark?: string; month?: string; date?: string }>
 }) {
   const params = await searchParams
   const data = await getReviewPageData(params)

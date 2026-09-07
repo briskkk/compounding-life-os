@@ -7,6 +7,8 @@ export interface TransactionDraft {
   amount: number
   /** 基金成交净值所属日 */
   navDate?: Date | null
+  /** PENDING 表示只已知申购金额，净值与份额待确认 */
+  navSource?: string | null
 }
 
 export interface TimelineTransaction {
@@ -54,7 +56,7 @@ export function assertTransactionRules(
     throw new Error('现金资产请使用存入 / 取出，不应使用买入 / 卖出')
   }
 
-  if (draft.type === 'BUY' || draft.type === 'SELL') {
+  if ((draft.type === 'BUY' || draft.type === 'SELL') && draft.navSource !== 'PENDING') {
     const expected = (draft.quantity ?? 0) * (draft.price ?? 0)
     // 基金份额按两位小数确认，「金额 = 份额 × 净值」存在舍入误差；其余资产保持严格口径
     const tolerance = asset.cls === 'FUND'

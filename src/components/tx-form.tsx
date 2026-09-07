@@ -202,7 +202,7 @@ export function TxForm({
     let qty = quantity
     let px = price
     let amt = amount
-    let navSource: 'OFFICIAL' | 'ESTIMATE' | null = null
+    let navSource: 'OFFICIAL' | 'ESTIMATE' | 'PENDING' | null = null
     let navDateValue: Date | null = null
     let settleDateValue: Date | null = null
 
@@ -212,13 +212,19 @@ export function TxForm({
         setMsg({ ok: false, text: '请填写申购金额' })
         return
       }
-      if (!fundQuote) {
-        setMsg({ ok: false, text: '净值未公布或盘中估算不可用，请改用「按份额录入」或稍后重试' })
-        return
+      if (fundQuote) {
+        px = fundQuote.price
+        qty = estimateShares(amt, px)
+        navSource = fundQuote.source
+      } else {
+        if (!settle) {
+          setMsg({ ok: false, text: '份额未知时必须联动资金账户；请先配置资金账户并勾选现金联动结算' })
+          return
+        }
+        px = null
+        qty = null
+        navSource = 'PENDING'
       }
-      px = fundQuote.price
-      qty = estimateShares(amt, px)
-      navSource = fundQuote.source
       navDateValue = navDate
     } else if (isFund && (type === 'BUY' || type === 'SELL')) {
       navSource = fundQuote?.source ?? null
@@ -259,7 +265,12 @@ export function TxForm({
     })
     setPending(false)
     if (res.ok) {
-      setMsg({ ok: true, text: res.warning ?? (isLongTermAsset ? '长期资产记录已保存' : '已写入账本，快照已重建') })
+      setMsg({
+        ok: true,
+        text: res.warning ?? (navSource === 'PENDING'
+          ? '申购已写入账本，净值与份额待官方确认'
+          : isLongTermAsset ? '长期资产记录已保存' : '已写入账本，快照已重建'),
+      })
       form.reset()
       setType(defaultType)
       setSettle(Boolean(selectedAccount?.settlementAccountName))
@@ -486,7 +497,7 @@ export function TxForm({
             </div>
           {fundQuoteState === 'loading' && <p className="text-ink-faint">正在获取对应净值…</p>}
           {fundQuoteState === 'error' && (
-            <p className="text-up">净值未公布且盘中估算不可用 —— 按金额申购暂不可用，可改用「按份额录入」。</p>
+            <p className="text-amber">净值尚未取得。可先按申购金额写入账本；份额保持待确认，不会用估算数混入持仓。</p>
           )}
           {purchaseSuspended && (
             <p className="text-down">该日期处于暂停申购窗口，普通申购不能写入账本。</p>
@@ -518,6 +529,12 @@ export function TxForm({
             <p className="mt-1 text-ink-dim">
               预计确认份额 <span className="num text-accent">{fmtQty(estimatedShareQty)} 份</span>
               <span className="text-ink-faint"> · 以 {fundNavLabel} 确认净值为准</span>
+            </p>
+          )}
+          {type === 'BUY' && fundMode === 'amount' && fundQuoteState === 'error' && amount != null && amount > 0 && (
+            <p className="mt-1 text-ink-dim">
+              申购待确认 <span className="num text-amber">{amount.toFixed(2)}</span>
+              <span className="text-ink-faint"> · 官方净值到达后再折算份额</span>
             </p>
           )}
           {type === 'BUY' && fundPolicy && (

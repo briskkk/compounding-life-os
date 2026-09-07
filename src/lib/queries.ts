@@ -2,7 +2,15 @@
 import { prisma } from './db'
 import { scopedDb, type FamilyCtx } from './scoped'
 import { getSession, getSessionOrThrow } from './session'
-import { foldTransactions, pendingSettlementsAt, roundMoney, type LedgerTx, type PendingSettlement } from './engine/ledger'
+import {
+  foldTransactions,
+  pendingFundPurchasesAt,
+  pendingSettlementsAt,
+  roundMoney,
+  type LedgerTx,
+  type PendingFundPurchase,
+  type PendingSettlement,
+} from './engine/ledger'
 import { valuePositions, type ValuedPosition } from './engine/valuation'
 import { aggregate, type Metrics } from './engine/metrics'
 import { projectFireGoal, monthsBetween, type FireProjectionResult } from './engine/projection'
@@ -48,8 +56,11 @@ export interface EngineState {
   liabilityEntries: LiabilityEntryInput[]
   netWorth: number // 总资产（含在途资金）− 总负债
   investable: number // 可自由投资（含在途资金）
-  /** 在途资金（赎回已申报、资金未到账），并入 netWorth / investable */
+  /** 全部在途资产（申购待确认 + 赎回未到账），并入 netWorth / investable */
   inTransit: number
+  purchaseInTransit: number
+  redemptionInTransit: number
+  pendingFundPurchases: PendingFundPurchase[]
   pendingSettlements: PendingSettlement[]
   ledgerTxs: LedgerTx[]
   currencyRates: { CNY: number; USD: number; HKD: number }
@@ -135,9 +146,12 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
   const valued = valuePositions(positions, new Map(assets.map((a) => [a.id, a])), (s) => quotes.get(s)?.priceCny, currencyRate)
   const metrics = aggregate(valued)
 
-  // 在途资金：赎回已申报、结算腿未到账 —— 并入总资产与可自由投资口径（ADR-012）
+  // 在途资产：赎回未到账 + 净值份额待确认的申购（ADR-012 / ADR-019）
   const pendingSettlements = pendingSettlementsAt(ledgerTxs, new Date())
-  const inTransit = roundMoney(pendingSettlements.reduce((s, p) => s + p.amount * currencyRate(p.currency), 0))
+  const pendingFundPurchases = pendingFundPurchasesAt(ledgerTxs, new Date())
+  const redemptionInTransit = roundMoney(pendingSettlements.reduce((s, p) => s + p.amount * currencyRate(p.currency), 0))
+  const purchaseInTransit = roundMoney(pendingFundPurchases.reduce((s, p) => s + p.amount * currencyRate(p.currency), 0))
+  const inTransit = roundMoney(redemptionInTransit + purchaseInTransit)
 
   const balanceByLiability = new Map<string, number>()
   for (const l of liabilitiesRaw) {
@@ -164,6 +178,9 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
     netWorth: metrics.netWorth + inTransit - liabilitiesTotal,
     investable: metrics.investable + inTransit,
     inTransit,
+    purchaseInTransit,
+    redemptionInTransit,
+    pendingFundPurchases,
     pendingSettlements,
     ledgerTxs,
     currencyRates: { CNY: 1, USD: rates.USDCNY, HKD: rates.HKDCNY },

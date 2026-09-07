@@ -28,19 +28,25 @@ export const txInputSchema = z
     /** 基金成交净值所属日（可选；缺省按 occurredAt 与 15:00 临界推算） */
     navDate: z.coerce.date().nullable().optional(),
     /** 净值来源：OFFICIAL / ESTIMATE（可选元数据） */
-    navSource: z.enum(['OFFICIAL', 'ESTIMATE']).nullable().optional(),
+    navSource: z.enum(['OFFICIAL', 'ESTIMATE', 'PENDING']).nullable().optional(),
     /** 预计资金到账日（基金赎回在途；必须不早于 occurredAt 当日） */
     settlementDate: z.coerce.date().nullable().optional(),
     note: z.string().max(200).nullable(),
     settleCash: z.boolean().optional(),
   })
   .superRefine((v, ctx) => {
-    const needsQty = ['BUY', 'SELL', 'TRANSFER_IN', 'TRANSFER_OUT', 'VEST'].includes(v.type)
+    const pendingFundPurchase = v.type === 'BUY' && v.navSource === 'PENDING'
+    const needsQty = ['BUY', 'SELL', 'TRANSFER_IN', 'TRANSFER_OUT', 'VEST'].includes(v.type) && !pendingFundPurchase
     if (needsQty && (!v.quantity || v.quantity <= 0)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: '该类型需要正数数量', path: ['quantity'] })
     }
-    if (['BUY', 'SELL'].includes(v.type) && (!v.price || v.price <= 0)) {
+    if (['BUY', 'SELL'].includes(v.type) && !pendingFundPurchase && (!v.price || v.price <= 0)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: '该类型需要正数单价', path: ['price'] })
+    }
+    if (v.navSource === 'PENDING') {
+      if (v.type !== 'BUY' || v.quantity != null || v.price != null || v.amount <= 0 || !v.navDate) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: '待确认基金申购必须只填正数金额和成交净值日', path: ['navSource'] })
+      }
     }
     if (v.settlementDate && v.settlementDate.getTime() < new Date(v.occurredAt).setHours(0, 0, 0, 0)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: '预计到账日不能早于成交日', path: ['settlementDate'] })
@@ -223,7 +229,7 @@ export const liabilityEntryInputSchema = z.object({
 })
 
 export const portfolioReviewInputSchema = z.object({
-  period: z.enum(['THIS_WEEK', 'THIS_MONTH', 'THIS_QUARTER']),
+  period: z.enum(['THIS_DAY', 'THIS_WEEK', 'THIS_MONTH', 'THIS_QUARTER']),
   benchmarkSymbol: z.enum(['sh000300', 'sh000001', 'sz399006', 'sh000688']),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

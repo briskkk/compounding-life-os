@@ -25,7 +25,7 @@ async function positionAt(
   const asset = await db.asset.findFirst({ where: { id: assetId, familyId } })
   if (!asset) throw new Error('资产不存在或不属于当前家庭')
   const rows = await db.transaction.findMany({
-    where: { familyId, accountId, assetId },
+    where: { familyId, accountId, assetId, occurredAt: { lte: at } },
     orderBy: [{ occurredAt: 'asc' }, { createdAt: 'asc' }],
   })
   const qdii = asset.cls === 'FUND' && isQdiiFund(asset.symbol, asset.name)
@@ -91,7 +91,10 @@ export async function createCorporateActionRecord(
   if (data.effectiveAt.getTime() > endOfToday().getTime()) throw new Error('公司行动生效日不能晚于今天')
   const [sourceAccount, sourceState, targetAccount, targetAsset] = await Promise.all([
     db.account.findFirst({ where: { id: data.accountId, familyId: ctx.familyId } }),
-    positionAt(db, ctx.familyId, data.accountId, data.assetId, data.effectiveAt),
+    positionAt(db, ctx.familyId, data.accountId, data.assetId,
+      ['SPLIT', 'REVERSE_SPLIT', 'STOCK_DIVIDEND'].includes(data.type)
+        ? new Date(data.effectiveAt.getTime() - 1)
+        : data.effectiveAt),
     data.targetAccountId
       ? db.account.findFirst({ where: { id: data.targetAccountId, familyId: ctx.familyId } })
       : null,

@@ -160,6 +160,7 @@ export default async function TransactionsPage({
                   <td className="px-2 py-2">
                     <Tag tone={TONE_BY_TYPE[t.type] ?? 'dim'}>{TX_TYPE_LABEL[t.type]}</Tag>
                     {t.internal && <span className="ml-1 text-[12px] text-ink-faint">结算</span>}
+                    {t.navSource === 'PENDING' && <span className="ml-1 text-[12px] text-amber">份额待确认</span>}
                   </td>
                   <td className="max-w-[180px] truncate px-2 py-2 text-ink">
                     {t.asset.name}
@@ -191,7 +192,7 @@ export default async function TransactionsPage({
                           <ReverseButton id={t.id} label={`${TX_TYPE_LABEL[t.type]} ${fmtCNY(Number(t.amount))}`} />
                           {t.asset.cls === 'FUND'
                             && (t.type === 'BUY' || t.type === 'SELL')
-                            && t.navSource === 'ESTIMATE'
+                            && (t.navSource === 'ESTIMATE' || t.navSource === 'PENDING')
                             && t.navDate
                             && <ConfirmFundNavButton id={t.id} />}
                         </>

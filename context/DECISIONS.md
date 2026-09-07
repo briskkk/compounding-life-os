@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-08-28
+last_verified: 2026-09-04
 ---
 
 # 已确认决策
@@ -27,8 +27,11 @@ last_verified: 2026-08-28
 | 计划数据与交易账本分离 | 目标权重和未来现金安排只用于观察/计划；不改余额、不生成交易、不自动买卖 | [ADR-016](../docs/adr/016-planning-data-separate-from-ledger.md) |
 | 运行核对只追加证据 | 实时/结算分轨；账户对账、任务与到账确认写审计凭证，不建立可写余额 | [ADR-017](../docs/adr/017-operational-evidence-not-second-ledger.md) |
 | 运营事件、基金规则与行情质量分层 | 公司行动展开为流水；规则与质量只保存证据，不自动改持仓、费用或行情源 | [ADR-018](../docs/adr/018-operational-ledgers-and-market-quality.md) |
+| 份额未知的基金申购先记录金额 | `PENDING` BUY 不猜净值份额，必须现金联动；金额作为在途资产派生，官方确认走冲正替换 | [ADR-019](../docs/adr/019-pending-fund-purchase-evidence.md) |
 
 ## 补充已定规则
+
+- 拆分发现与核对入账见 [ADR-020](../docs/adr/020-split-discovery-and-confirmation.md)：公开数据只生成线索，官方除权日及券商新增份额核对后幂等展开流水，并更新完整前复权历史。
 
 - 基础展示币种为 CNY；USD/HKD 以当前汇率折人民币。
 - 内部现金结算腿与转账不计入外部投入。

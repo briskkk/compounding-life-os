@@ -33,3 +33,34 @@ test('资产选择器：打开不闪关、搜索过滤、键盘选中', async ({
   await expect(page.locator('form div.cursor-text input')).toHaveCount(0)
   await expect(page.locator('form div.cursor-text span').first()).toContainText('·')
 })
+
+test('场外基金：净值份额未知时先按金额记录，并进入当日复盘', async ({ page }) => {
+  await page.route('**/api/prices?**', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ quotes: [] }) })
+  })
+  await page.goto('/transactions')
+
+  const form = page.locator('#new-entry form')
+  await form.locator('select[name="accountId"]').selectOption({ label: '天天基金' })
+  await form.locator('div.cursor-text').click()
+  await form.locator('div.cursor-text input').fill('110022')
+  await page.keyboard.press('Enter')
+  await expect(form.getByText('净值尚未取得')).toBeVisible()
+
+  await form.locator('input[name="amount"]').fill('1234')
+  await form.locator('input[name="note"]').fill('E2E 当日申购待确认')
+  const occurredAt = await form.locator('input[name="occurredAt"]').inputValue()
+  await expect(form.getByText('申购待确认')).toContainText('1234.00')
+  await form.getByRole('button', { name: '写入账本' }).click()
+  await expect(form.getByText('申购已写入账本')).toBeVisible()
+
+  const row = page.locator('tbody tr').filter({ hasText: 'E2E 当日申购待确认' })
+  await expect(row).toContainText('份额待确认')
+  await expect(row.getByRole('button', { name: '确认净值' })).toBeVisible()
+
+  await page.goto(`/review?period=THIS_DAY&date=${occurredAt}&benchmark=sh000300`)
+  await expect(page.locator('#decisions')).toContainText('E2E 当日申购待确认')
+  await expect(page.locator('#decisions')).toContainText('份额待确认')
+  await expect(page.getByLabel('当前在途资产')).toContainText('申购待确认')
+  await expect(page.getByLabel('收益对账状态')).not.toContainText('+¥1,234.00')
+})

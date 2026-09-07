@@ -11,7 +11,7 @@ import { buildReviewResult, reconstructReviewPortfolioSeries, reviewRange, type 
 import { dateKeyAt } from './engine/watch-market'
 import { isInvestableAsset } from './asset-classification'
 import type { ValuationGap } from './engine/valuation-status'
-import { pendingSettlementsAt, roundMoney } from './engine/ledger'
+import { pendingFundPurchasesAt, pendingSettlementsAt, roundMoney } from './engine/ledger'
 
 export interface SavedReviewView {
   id: string
@@ -33,6 +33,17 @@ export interface ReviewPendingSettlementView {
   settlementDate: string
 }
 
+export interface ReviewPendingPurchaseView {
+  id: string
+  assetName: string
+  accountName: string
+  amount: number
+  originalAmount: number
+  currency: string
+  orderedAt: string
+  navDate: string
+}
+
 export interface ReviewPageData {
   ctx: FamilyCtx
   period: ReviewPeriod
@@ -41,10 +52,13 @@ export interface ReviewPageData {
   benchmarks: typeof BENCHMARK_INDICES
   result: ReviewResult
   inTransit: number
+  pendingPurchases: ReviewPendingPurchaseView[]
   pendingSettlements: ReviewPendingSettlementView[]
   savedReview: SavedReviewView | null
   month: string | null
+  date: string | null
   currentMonth: string
+  currentDate: string
 }
 
 function benchmarkFrom(value?: string): string {
@@ -52,7 +66,7 @@ function benchmarkFrom(value?: string): string {
 }
 
 function periodFrom(value?: string): ReviewPeriod {
-  return value === 'THIS_WEEK' || value === 'THIS_QUARTER' ? value : 'THIS_MONTH'
+  return value === 'THIS_DAY' || value === 'THIS_WEEK' || value === 'THIS_QUARTER' ? value : 'THIS_MONTH'
 }
 
 function navPoints(
@@ -118,6 +132,7 @@ export async function getReviewPageData(options: {
   period?: string
   benchmark?: string
   month?: string
+  date?: string
 } = {}, ctxOverride?: FamilyCtx): Promise<ReviewPageData | null> {
   const ctx = ctxOverride ?? await getSession()
   if (!ctx) return null
@@ -128,8 +143,9 @@ export async function getReviewPageData(options: {
   const now = new Date()
   const today = dateKeyAt(now)
   const currentMonth = today.slice(0, 7)
-  const range = reviewRange(period, now, options.month)
+  const range = reviewRange(period, now, options.month, options.date)
   const selectedMonth = period === 'THIS_MONTH' ? range.startDate.slice(0, 7) : null
+  const selectedDate = period === 'THIS_DAY' ? range.startDate : null
   const isLiveRange = range.endDate === today
   const benchmarkSymbol = benchmarkFrom(options.benchmark)
   const db = scopedDb(prisma, ctx)
@@ -250,6 +266,7 @@ export async function getReviewPageData(options: {
   const accountNameById = new Map(rawAccounts.map((account) => [account.id, account.name]))
   const rangeEnd = new Date(`${range.endDate}T12:00:00+08:00`)
   const settlementsAtRangeEnd = pendingSettlementsAt(transactions, rangeEnd)
+  const purchasesAtRangeEnd = pendingFundPurchasesAt(transactions, rangeEnd)
   const pendingSettlements = settlementsAtRangeEnd.map((settlement) => ({
     id: settlement.sellTxId,
     assetName: settlement.sellAssetId
@@ -262,6 +279,20 @@ export async function getReviewPageData(options: {
     soldAt: settlement.soldAt ? dateKeyAt(settlement.soldAt) : null,
     settlementDate: dateKeyAt(settlement.settlementDate),
   }))
+  const pendingPurchases = purchasesAtRangeEnd.map((purchase) => ({
+    id: purchase.buyTxId,
+    assetName: assetNameById.get(purchase.assetId) ?? '基金申购',
+    accountName: accountNameById.get(purchase.accountId) ?? '基金账户',
+    amount: purchase.amount * rateAt(purchase.currency, rangeEnd),
+    originalAmount: purchase.amount,
+    currency: purchase.currency,
+    orderedAt: dateKeyAt(purchase.orderedAt),
+    navDate: dateKeyAt(purchase.navDate),
+  }))
+  const inTransit = roundMoney(
+    pendingSettlements.reduce((sum, settlement) => sum + settlement.amount, 0)
+    + pendingPurchases.reduce((sum, purchase) => sum + purchase.amount, 0),
+  )
 
   return {
     ctx,
@@ -270,7 +301,8 @@ export async function getReviewPageData(options: {
     benchmarkSymbol,
     benchmarks: BENCHMARK_INDICES,
     result,
-    inTransit: roundMoney(pendingSettlements.reduce((sum, settlement) => sum + settlement.amount, 0)),
+    inTransit,
+    pendingPurchases,
     pendingSettlements,
     savedReview: savedReview ? {
       id: savedReview.id,
@@ -281,6 +313,8 @@ export async function getReviewPageData(options: {
       updatedAt: savedReview.updatedAt.toISOString(),
     } : null,
     month: selectedMonth,
+    date: selectedDate,
     currentMonth,
+    currentDate: today,
   }
 }

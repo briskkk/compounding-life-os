@@ -11,6 +11,7 @@ import { cx, fmtCNY, fmtDateTime, fmtPct, toneOf } from '@/lib/format'
 type Dimension = 'asset' | 'source' | 'class'
 
 const PERIODS = [
+  { value: 'THIS_DAY', label: '按日' },
   { value: 'THIS_WEEK', label: '本周' },
   { value: 'THIS_MONTH', label: '本月' },
   { value: 'THIS_QUARTER', label: '本季度' },
@@ -51,6 +52,17 @@ function shiftMonth(month: string, delta: number): string {
 
 function displayMonth(month: string): string {
   return `${Number(month.slice(0, 4))}年${Number(month.slice(5, 7))}月`
+}
+
+function shiftDate(date: string, delta: number): string {
+  const value = new Date(`${date}T00:00:00Z`)
+  value.setUTCDate(value.getUTCDate() + delta)
+  return value.toISOString().slice(0, 10)
+}
+
+function displayDate(date: string): string {
+  const [year, month, day] = date.split('-').map(Number)
+  return `${year}年${month}月${day}日`
 }
 
 function Metric({ label, value, detail, className }: {
@@ -118,9 +130,14 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
   const maxDay = Math.max(1, ...result.timing.days.map((day) => Math.abs(day.amount)))
   const reconciliation = RECONCILIATION_STATUS[result.reconciliationStatus]
   const selectedMonth = data.month ?? data.currentMonth
+  const selectedDate = data.date ?? data.currentDate
   const previousMonth = shiftMonth(selectedMonth, -1)
   const nextMonth = shiftMonth(selectedMonth, 1)
+  const previousDate = shiftDate(selectedDate, -1)
+  const nextDate = shiftDate(selectedDate, 1)
   const isHistoricalMonth = data.period === 'THIS_MONTH' && selectedMonth < data.currentMonth
+  const isHistoricalDate = data.period === 'THIS_DAY' && selectedDate < data.currentDate
+  const pendingFundEventCount = data.pendingPurchases.length + data.pendingSettlements.length
 
   const rows = useMemo<ReviewContribution[]>(() => {
     if (dimension === 'asset') return result.assets
@@ -148,7 +165,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
     }))
   }, [dimension, result.assets, result.classes, result.sources])
 
-  function href(next: { period?: string; benchmark?: string; month?: string }) {
+  function href(next: { period?: string; benchmark?: string; month?: string; date?: string }) {
     const period = next.period ?? data.period
     const params = new URLSearchParams({
       period,
@@ -156,6 +173,9 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
     })
     if (period === 'THIS_MONTH') {
       params.set('month', next.month ?? (data.period === 'THIS_MONTH' ? selectedMonth : data.currentMonth))
+    }
+    if (period === 'THIS_DAY') {
+      params.set('date', next.date ?? (data.period === 'THIS_DAY' ? selectedDate : data.currentDate))
     }
     return `/review?${params.toString()}`
   }
@@ -196,6 +216,26 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
               </Link>
             ))}
           </div>
+          {data.period === 'THIS_DAY' && (
+            <div className={cx('review-month-control', isHistoricalDate && 'has-current')} role="group" aria-label="复盘日期">
+              <Link className="review-month-step" href={href({ date: previousDate })} aria-label="查看前一天"><span aria-hidden="true">‹</span></Link>
+              <label className="review-month-value" htmlFor="review-date">
+                <span aria-hidden="true">{displayDate(selectedDate)}</span>
+                <input
+                  id="review-date"
+                  type="date"
+                  aria-label="选择复盘日期"
+                  value={selectedDate}
+                  max={data.currentDate}
+                  onChange={(event) => router.replace(href({ date: event.target.value }))}
+                />
+              </label>
+              {nextDate <= data.currentDate
+                ? <Link className="review-month-step" href={href({ date: nextDate })} aria-label="查看后一天"><span aria-hidden="true">›</span></Link>
+                : <button className="review-month-step" type="button" aria-label="已经是今天" disabled><span aria-hidden="true">›</span></button>}
+              {isHistoricalDate && <Link className="review-month-current" aria-label="回到今天" href={href({ date: data.currentDate })}>今天</Link>}
+            </div>
+          )}
           {data.period === 'THIS_MONTH' && (
             <div className={cx('review-month-control', isHistoricalMonth && 'has-current')} role="group" aria-label="复盘月份">
               <Link className="review-month-step" href={href({ month: previousMonth })} aria-label="查看上一个月"><span aria-hidden="true">‹</span></Link>
@@ -313,16 +353,22 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
             </footer>
           </article>
 
-          <article className="review-transit-card" aria-label={isHistoricalMonth ? '期末在途资金' : '当前在途资金'}>
+          <article className="review-transit-card" aria-label={isHistoricalMonth || isHistoricalDate ? '期末在途资产' : '当前在途资产'}>
             <header>
               <span className="page-kicker">ASSET STATUS</span>
-              <b>{data.pendingSettlements.length > 0 ? `${data.pendingSettlements.length} 笔待到账` : isHistoricalMonth ? '期末无在途' : '当前无在途'}</b>
+              <b>{pendingFundEventCount > 0 ? `${pendingFundEventCount} 笔待确认` : isHistoricalMonth || isHistoricalDate ? '期末无在途' : '当前无在途'}</b>
             </header>
-            <h3>{isHistoricalMonth ? '月末赎回在途资金' : '赎回在途资金'}</h3>
+            <h3>{isHistoricalMonth ? '月末基金在途资产' : isHistoricalDate ? '当日基金在途资产' : '基金在途资产'}</h3>
             <strong className="num">{fmtCNY(data.inTransit)}</strong>
-            <p>{isHistoricalMonth ? `按 ${range.endDate} 期末状态回放；` : ''}份额已扣减、现金尚未到账；金额计入可投资资产，但不作为利润贡献。</p>
-            {data.pendingSettlements.length > 0 ? (
+            <p>{isHistoricalMonth || isHistoricalDate ? `按 ${range.endDate} 期末状态回放；` : ''}申购金额待折算份额，或赎回份额已扣减但现金未到账。金额计入可投资资产，不作为利润贡献。</p>
+            {pendingFundEventCount > 0 ? (
               <div className="review-transit-list">
+                {data.pendingPurchases.map((purchase) => (
+                  <div key={purchase.id}>
+                    <span><b>{purchase.assetName}</b><small>{purchase.accountName} · 申购待确认</small></span>
+                    <span className="num"><b>{fmtCNY(purchase.amount)}</b><small>{purchase.navDate} 净值待确认</small></span>
+                  </div>
+                ))}
                 {data.pendingSettlements.map((settlement) => (
                   <div key={settlement.id}>
                     <span><b>{settlement.assetName}</b><small>{settlement.accountName}</small></span>
@@ -330,7 +376,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
                   </div>
                 ))}
               </div>
-            ) : <div className="review-transit-empty">没有待到账的赎回结算。</div>}
+            ) : <div className="review-transit-empty">没有待确认的申购或待到账的赎回。</div>}
           </article>
         </div>
       </section>
@@ -374,7 +420,9 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
               <span className={decision.action.includes('减') || decision.action.includes('清') ? 'is-sell' : 'is-buy'}>{decision.action}</span>
               <div><strong>{decision.name}</strong><small>{decision.symbol}{decision.note ? ` · ${decision.note}` : ''}</small></div>
               <b className="num">{fmtCNY(decision.amount)}</b>
-              <em className={cx('num', tone(decision.afterReturnPct))}>之后 {fmtPct(decision.afterReturnPct, { sign: true })}</em>
+              <em className={cx('num', tone(decision.afterReturnPct))}>
+                {decision.sharesPending ? '份额待确认' : `之后 ${fmtPct(decision.afterReturnPct, { sign: true })}`}
+              </em>
             </article>
           ))}
         </div>

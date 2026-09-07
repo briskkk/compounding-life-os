@@ -215,6 +215,48 @@ export function pendingSettlementsAt(txs: LedgerTx[], asOf: Date): PendingSettle
   return result
 }
 
+/** 只已知申购金额、尚未得到官方净值与确认份额的场外基金申购。 */
+export interface PendingFundPurchase {
+  buyTxId: string
+  assetId: string
+  accountId: string
+  amount: number
+  currency: string
+  orderedAt: Date
+  navDate: Date
+  confirmationDate: Date | null
+}
+
+/**
+ * 申购待确认是账本中的 BUY 事件派生视图：不猜净值或份额，仅以已划出申购金额保持财富守恒。
+ * 官方净值确认后，原流水被冲正并替换为有份额的正式 BUY，本派生项自然消失。
+ */
+export function pendingFundPurchasesAt(txs: LedgerTx[], asOf: Date): PendingFundPurchase[] {
+  const cutoff = endOfDay(asOf).getTime()
+  return txs
+    .filter((tx) => (
+      !tx.voidedAt
+      && tx.type === 'BUY'
+      && tx.assetClass === 'FUND'
+      && tx.navSource === 'PENDING'
+      && tx.quantity == null
+      && tx.price == null
+      && tx.amount > 0
+      && tx.navDate != null
+      && tx.occurredAt.getTime() <= cutoff
+    ))
+    .map((tx) => ({
+      buyTxId: tx.id ?? `${tx.accountId}:${tx.assetId}:${tx.occurredAt.getTime()}`,
+      assetId: tx.assetId,
+      accountId: tx.accountId,
+      amount: tx.amount,
+      currency: tx.currency ?? 'CNY',
+      orderedAt: tx.occurredAt,
+      navDate: tx.navDate!,
+      confirmationDate: tx.confirmationDate ?? null,
+    }))
+}
+
 /** 按 (accountId, assetId) 索引的持仓快照（表单卖出关联 / 超卖拦截用） */
 export function holdingsIndex(positions: Position[]): Record<string, { quantity: number; availableQty: number }> {
   const map: Record<string, { quantity: number; availableQty: number }> = {}

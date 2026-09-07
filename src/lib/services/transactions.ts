@@ -73,6 +73,7 @@ export async function validateTransaction(
     amount: number
     occurredAt: Date
     navDate?: Date | null
+    navSource?: string | null
   },
   options?: { allowSuspendedFundPurchase?: boolean },
 ) {
@@ -83,6 +84,11 @@ export async function validateTransaction(
   if (!account) throw new Error('账户不存在或不属于当前家庭')
   if (!asset) throw new Error('资产不存在或不属于当前家庭')
   if (account.currency !== asset.currency) throw new Error('账户与资产币种不一致')
+  if (data.navSource === 'PENDING') {
+    if (asset.cls !== 'FUND' || data.type !== 'BUY' || data.quantity != null || data.price != null || !data.navDate) {
+      throw new Error('只有场外基金申购可以先记录金额、后确认净值与份额')
+    }
+  }
   const qdii = asset.cls === 'FUND' && isQdiiFund(asset.symbol, asset.name)
   if (asset.cls === 'FUND' && data.type === 'BUY' && !options?.allowSuspendedFundPurchase) {
     const policy = await db.fundTradePolicy.findFirst({ where: { familyId: ctx.familyId, assetId: asset.id } })
@@ -168,6 +174,9 @@ export async function createTransactionRecord(
 ): Promise<{ id: string; affectedSince: Date }> {
   const settleCash = data.settleCash ?? (data.type === 'BUY' || data.type === 'SELL')
   const canSettleCash = ['BUY', 'SELL', 'DIVIDEND', 'INTEREST', 'FEE'].includes(data.type)
+  if (data.navSource === 'PENDING' && !settleCash) {
+    throw new Error('份额未知的基金申购必须联动资金账户，以保证账本资金守恒')
+  }
   const accountId = await routedAccountIdForAsset(db, ctx.familyId, data.accountId, data.assetId)
   const entry = { ...data, accountId }
   const { navDate: effectiveNavDate } = await validateTransaction(db, ctx, entry, {
@@ -294,14 +303,18 @@ export async function correctEstimatedFundTransactionRecord(
   if (original.asset.cls !== 'FUND' || (original.type !== 'BUY' && original.type !== 'SELL')) {
     throw new Error('只有基金申购或赎回可以确认官方净值')
   }
-  if (original.navSource !== 'ESTIMATE' || !original.navDate) throw new Error('该流水不属于待确认的估算净值')
+  if ((original.navSource !== 'ESTIMATE' && original.navSource !== 'PENDING') || !original.navDate) {
+    throw new Error('该流水不属于待确认的基金申购或估算净值')
+  }
   const oldQuantity = Number(original.quantity ?? 0)
   const oldPrice = Number(original.price ?? 0)
   const newQuantity = original.type === 'BUY'
     ? estimateShares(Number(original.amount), officialNav)
     : oldQuantity
   if (newQuantity <= 0) throw new Error('官方净值无法得到有效份额')
-  const newAmount = roundMoney(newQuantity * officialNav)
+  const newAmount = original.type === 'BUY'
+    ? Number(original.amount)
+    : roundMoney(newQuantity * officialNav)
   const settlementCount = await db.transaction.count({ where: { familyId: ctx.familyId, settleOfId: id } })
 
   await reverseTransactionRecord(db, ctx, id)

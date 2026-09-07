@@ -90,7 +90,7 @@ export default async function OverviewPage({
     .sort((a, b) => b.value - a.value)
   const allocationTotal = allocationRows.reduce((sum, item) => sum + item.value, 0) + d.state.inTransit
   const estimatedNavCount = d.state.ledgerTxs.filter((tx) => (
-    !tx.voidedAt && tx.assetClass === 'FUND' && tx.navSource === 'ESTIMATE'
+    !tx.voidedAt && tx.assetClass === 'FUND' && (tx.navSource === 'ESTIMATE' || tx.navSource === 'PENDING')
   )).length
   const primaryGoal = d.goals[0]
   const valuationCoverage = d.review.valuationCoverage
@@ -275,8 +275,8 @@ export default async function OverviewPage({
             <Link href="/allocation" className={concentration && concentration.weight > 0.25 ? 'is-warning' : 'is-info'}>
               <i /><span>{concentration ? `最大持仓 · ${concentration.name}` : '暂无非现金持仓'}</span><strong className="num">{concentration ? fmtPct(concentration.weight) : '—'}</strong>
             </Link>
-            <Link href="/accounts?view=calendar" className={d.state.pendingSettlements.length > 0 ? 'is-info' : 'is-ok'}>
-              <i /><span>{d.state.pendingSettlements.length > 0 ? `${d.state.pendingSettlements.length} 笔赎回资金在途` : '当前无在途资金'}</span><strong className="num">{d.state.pendingSettlements.length > 0 ? fmtCNY(d.state.inTransit) : '已结清'}</strong>
+            <Link href="/accounts?view=calendar" className={d.state.pendingSettlements.length + d.state.pendingFundPurchases.length > 0 ? 'is-info' : 'is-ok'}>
+              <i /><span>{d.state.pendingSettlements.length + d.state.pendingFundPurchases.length > 0 ? `${d.state.pendingSettlements.length + d.state.pendingFundPurchases.length} 笔基金资产在途` : '当前无在途资产'}</span><strong className="num">{d.state.inTransit > 0 ? fmtCNY(d.state.inTransit) : '已结清'}</strong>
             </Link>
           </div>
         </div>

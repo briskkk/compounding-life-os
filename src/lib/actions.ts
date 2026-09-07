@@ -9,6 +9,9 @@ import { scopedDb, type FamilyCtx } from './scoped'
 import { getSessionOrThrow } from './session'
 import { auditedTransaction, recordAudit } from './audit'
 import { rebuildSnapshots } from './snapshots'
+import { scanSplitEvents } from './services/split-discovery'
+import { applyConfirmedSplit } from './services/split-apply'
+import type { SplitConfirmation } from './services/split-discovery'
 import {
   accountInputSchema,
   accountReconciliationSchema,
@@ -177,6 +180,24 @@ export async function deleteFundTradePolicy(id: string): Promise<ActionResult> {
 }
 
 // ---------- 公司行动账本 ----------
+
+export async function checkSplitAnnouncements(): Promise<ActionResult> {
+  try {
+    const ctx = await requireWrite()
+    const scan = await scanSplitEvents(prisma, ctx)
+    revalidatePath('/corporate-actions')
+    return { ok: true, warning: scan.errors.length ? `${scan.errors.length} 个标的检查失败，请查看详情` : undefined }
+  } catch (error) { return fail(error) }
+}
+
+export async function confirmDiscoveredSplit(input: SplitConfirmation): Promise<ActionResult> {
+  try {
+    const ctx = await requireWrite()
+    const result = await applyConfirmedSplit(prisma, ctx, input)
+    for (const path of ['/corporate-actions', '/transactions', '/positions', '/watch', '/review', '/', '/health']) revalidatePath(path)
+    return { ok: true, warning: result.warning }
+  } catch (error) { return fail(error) }
+}
 
 export async function createCorporateAction(input: unknown): Promise<ActionResult<{ id: string }>> {
   try {
@@ -372,6 +393,7 @@ export async function savePortfolioReview(input: unknown): Promise<ActionResult<
       period: data.period,
       benchmark: data.benchmarkSymbol,
       month: data.period === 'THIS_MONTH' ? data.startDate.slice(0, 7) : undefined,
+      date: data.period === 'THIS_DAY' ? data.startDate : undefined,
     })
     if (!evidence || evidence.range.startDate !== data.startDate || evidence.range.endDate !== data.endDate) {
       throw new Error('复盘区间已经变化，请刷新页面后重试')
@@ -478,8 +500,9 @@ export async function confirmFundOfficialNav(id: string): Promise<ActionResult<{
       where: { id, familyId: ctx.familyId, voidedAt: null },
       include: { asset: true },
     })
-    if (!original?.navDate || original.asset.cls !== 'FUND' || original.navSource !== 'ESTIMATE') {
-      throw new Error('该流水没有待确认的基金估算净值')
+    if (!original?.navDate || original.asset.cls !== 'FUND'
+      || (original.navSource !== 'ESTIMATE' && original.navSource !== 'PENDING')) {
+      throw new Error('该流水没有待确认的基金净值或份额')
     }
     const quote = await fundNavQuoteOnDate(prisma, original.asset.symbol, dateKeyAt(original.navDate))
     if (!quote || quote.source !== 'EASTMONEY-FUND' || quote.kind !== 'OFFICIAL_NAV') {
@@ -1144,6 +1167,7 @@ export async function upsertSavingsEntry(input: unknown): Promise<ActionResult<{
 export async function refreshPrices(): Promise<ActionResult<PersistHistoryResult[]>> {
   try {
     const ctx = await requireWrite()
+    const splitScan = await scanSplitEvents(prisma, ctx)
     const db = scopedDb(prisma, ctx)
     const [assets, earliestTransaction] = await Promise.all([
       db.asset.findMany({ where: { manual: false, cls: { notIn: ['CASH', 'REAL_ESTATE'] } } }),
@@ -1188,6 +1212,8 @@ export async function refreshPrices(): Promise<ActionResult<PersistHistoryResult
     )
     revalidatePath('/')
     const warnings = [
+      splitScan.events.length ? '发现拆分公告线索，请到公司行动页核对' : undefined,
+      splitScan.errors.length ? `拆分检查有 ${splitScan.errors.length} 个标的失败，请到公司行动页查看` : undefined,
       fxBackfillWarning,
       failed.length > 0
         ? `${failed.length} 个标的历史行情刷新失败：${failed.map((item) => item.symbol).join('、')}`

@@ -10,6 +10,8 @@ last_verified: 2026-08-23
 Accepted
 
 > 2026-08-23：其中“QDII 顺延确认净值日”的规则已由 [ADR-013](013-separate-fund-nav-and-confirmation.md) 修订。`navDate` 现表示成交净值所属日，T+1/T+2 确认完成日独立派生。
+>
+> 2026-09-04：其中“净值未知则拒绝落库”已由 [ADR-019](019-pending-fund-purchase-evidence.md) 修订。申购可先只记金额与净值日，份额保持待确认，但必须联动现金。
 
 ## 背景
 

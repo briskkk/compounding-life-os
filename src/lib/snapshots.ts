@@ -1,6 +1,6 @@
 // 财富轨迹快照：按日回放账本 + 历史行情估值 + 负债余额 + 净投入，落库为 Snapshot 行
 import type { PrismaClient } from '@prisma/client'
-import { foldTransactions, pendingSettlementsAt, roundMoney, type LedgerTx } from './engine/ledger'
+import { foldTransactions, pendingFundPurchasesAt, pendingSettlementsAt, roundMoney, type LedgerTx } from './engine/ledger'
 import { valuePositions } from './engine/valuation'
 import { totalLiabilities, type LiabilityEntryInput } from './engine/liabilities'
 import { cumulativeContributions, dailyNetFlows } from './engine/attribution'
@@ -75,9 +75,10 @@ export function computeWealthSeries(
       assetsTotal += v.value
       investable += v.investable
     }
-    // 在途资金：赎回已申报（份额已扣）但现金结算腿发生在当日之后 —— 并入总资产与可自由投资（ADR-012）
+    // 在途资产：赎回未到账 + 只已知金额、净值份额待确认的申购（ADR-012 / ADR-019）
     const inTransit = roundMoney(
-      pendingSettlementsAt(txs, date).reduce((s, p) => s + p.amount * currencyRate(p.currency, date), 0),
+      pendingSettlementsAt(txs, date).reduce((s, p) => s + p.amount * currencyRate(p.currency, date), 0)
+      + pendingFundPurchasesAt(txs, date).reduce((s, p) => s + p.amount * currencyRate(p.currency, date), 0),
     )
     assetsTotal += inTransit
     investable += inTransit
@@ -215,6 +216,7 @@ export async function rebuildSnapshots(
       ? fundConfirmationDate(t.navDate, { qdii: isQdiiFund(t.asset.symbol, t.asset.name) })
       : t.navDate,
     settlementDate: t.settlementDate,
+    navSource: t.navSource,
     assetClass: t.asset.cls,
     internal: t.internal,
     voidedAt: t.voidedAt,

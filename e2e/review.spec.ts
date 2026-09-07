@@ -8,7 +8,7 @@ test('组合复盘：归因切换、周期深链与草稿保存', async ({ page 
   await expect(page.getByRole('heading', { name: '利润和亏损由谁贡献' })).toBeVisible()
   await expect(page.locator('.review-contribution-list').getByText('待对账差额')).toHaveCount(0)
   await expect(page.getByLabel('收益对账状态')).toBeVisible()
-  await expect(page.getByLabel('当前在途资金')).toContainText('不作为利润贡献')
+  await expect(page.getByLabel('当前在途资产')).toContainText('不作为利润贡献')
 
   await page.getByRole('tab', { name: '按来源' }).click()
   await expect(page.getByText('市场价格与汇率')).toBeVisible()
@@ -27,6 +27,20 @@ test('组合复盘：归因切换、周期深链与草稿保存', async ({ page 
   await page.reload()
   await expect(page.getByLabel('复盘笔记')).toHaveValue('E2E：记录本期利润来源与风险变化。')
   await expect(page.getByText('草稿', { exact: true })).toBeVisible()
+})
+
+test('组合复盘：按日查看并在历史日之间切换', async ({ page }) => {
+  await page.goto('/review?period=THIS_DAY&date=2026-08-24&benchmark=sh000300')
+
+  await expect(page).toHaveURL(/period=THIS_DAY/)
+  await expect(page.getByText('PORTFOLIO REVIEW · 2026-08-24 — 2026-08-24')).toBeVisible()
+  await expect(page.locator('#review-date')).toHaveValue('2026-08-24')
+  await expect(page.getByText('2026年8月24日投资收益')).toBeVisible()
+  await expect(page.getByRole('link', { name: '回到今天' })).toBeVisible()
+
+  await page.getByRole('link', { name: '查看前一天' }).click()
+  await expect(page).toHaveURL(/date=2026-08-23/)
+  await expect(page.locator('#review-date')).toHaveValue('2026-08-23')
 })
 
 test('组合复盘：1280px 桌面视口金额不拆行且无横向溢出', async ({ page }) => {
@@ -52,7 +66,7 @@ test('组合复盘：可深链查看完整历史自然月', async ({ page }) => 
   await expect(page.getByText('2026年8月投资收益')).toBeVisible()
   await expect(page.locator('#review-month')).toHaveValue('2026-08')
   await expect(page.getByRole('link', { name: '回到本月' })).toBeVisible()
-  await expect(page.getByLabel('期末在途资金')).toBeVisible()
+  await expect(page.getByLabel('期末在途资产')).toBeVisible()
 
   await page.getByLabel('复盘笔记').fill('E2E：2026 年 8 月独立复盘。')
   await page.getByRole('button', { name: '保存草稿' }).click()

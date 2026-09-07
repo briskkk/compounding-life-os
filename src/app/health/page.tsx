@@ -47,7 +47,7 @@ export default async function DataHealthPage() {
       where: {
         voidedAt: null,
         asset: { cls: 'FUND' },
-        OR: [{ navSource: 'ESTIMATE' }, { type: 'SELL', settlementDate: { not: null } }],
+        OR: [{ navSource: { in: ['ESTIMATE', 'PENDING'] } }, { type: 'SELL', settlementDate: { not: null } }],
       },
       include: { asset: true, account: true },
       orderBy: { occurredAt: 'desc' },
@@ -157,14 +157,16 @@ export default async function DataHealthPage() {
     })
   }
 
-  const estimatedNav = state.ledgerTxs.filter((tx) => !tx.voidedAt && tx.assetClass === 'FUND' && tx.navSource === 'ESTIMATE')
+  const estimatedNav = state.ledgerTxs.filter((tx) => (
+    !tx.voidedAt && tx.assetClass === 'FUND' && (tx.navSource === 'ESTIMATE' || tx.navSource === 'PENDING')
+  ))
   if (estimatedNav.length > 0) {
     issues.push({
       id: 'estimated-nav',
       severity: 'WARNING',
       category: '基金确认',
-      title: `${estimatedNav.length} 笔基金交易仍使用估算净值`,
-      detail: '官方成交净值到达后应确认替换；系统会保留原估算记录的冲正链。',
+      title: `${estimatedNav.length} 笔基金净值或份额待确认`,
+      detail: '官方成交净值到达后应确认替换；系统会保留原记录的冲正链。',
       metric: `${estimatedNav.length} 笔`,
       href: '/transactions',
       action: '确认净值',
@@ -178,7 +180,7 @@ export default async function DataHealthPage() {
       category: '在途资金',
       title: `${state.pendingSettlements.length} 笔赎回资金尚未到账`,
       detail: `最晚预计 ${fmtDate([...state.pendingSettlements].sort((a, b) => b.settlementDate.getTime() - a.settlementDate.getTime())[0].settlementDate)} 到账；当前已计入净资产与可投资口径。`,
-      metric: fmtCNY(state.inTransit),
+      metric: fmtCNY(state.redemptionInTransit),
       href: '/accounts?view=calendar',
       action: '查看日历',
     })
@@ -247,7 +249,7 @@ export default async function DataHealthPage() {
     && !confirmedSettlementIds.has(tx.id)
   ))
   const actionableFundEvents = fundEvents.filter((tx) => (
-    tx.navSource === 'ESTIMATE'
+    tx.navSource === 'ESTIMATE' || tx.navSource === 'PENDING'
     || (tx.type === 'SELL' && tx.settlementDate != null && !confirmedSettlementIds.has(tx.id))
   ))
   if (dueFundSettlements.length > 0) {
@@ -358,12 +360,12 @@ export default async function DataHealthPage() {
         <header><div><span className="eyebrow">Fund closure</span><h2>基金确认闭环</h2></div><Link href="/transactions">查看全部流水 →</Link></header>
         <div className="health-confirmation-list">
           {actionableFundEvents.length === 0 ? <div className="health-empty"><strong>没有待确认的基金事件</strong><p>估算净值与赎回到账均已闭环。</p></div> : actionableFundEvents.map((tx) => {
-            const isEstimate = tx.navSource === 'ESTIMATE'
+            const isEstimate = tx.navSource === 'ESTIMATE' || tx.navSource === 'PENDING'
             const isSettlement = tx.type === 'SELL' && tx.settlementDate != null
             const settlementConfirmed = confirmedSettlementIds.has(tx.id)
             const settlementDue = tx.settlementDate != null && tx.settlementDate.getTime() <= Date.now()
             if (!isEstimate && (!isSettlement || settlementConfirmed)) return null
-            return <article key={tx.id}><div><span>{isEstimate ? '待官方净值' : settlementDue ? '待确认到账' : '等待到账日'}</span><strong>{tx.asset.name}</strong><small>{tx.account.name} · 交易 {fmtDate(tx.occurredAt)}{tx.settlementDate ? ` · 预计到账 ${fmtDate(tx.settlementDate)}` : ''}</small></div><b className="num">{fmtCNY(Number(tx.amount))}</b><div>{isEstimate && dashboard.ctx.role !== 'VIEWER' && <ConfirmFundNavButton id={tx.id} />}{!isEstimate && isSettlement && settlementDue && dashboard.ctx.role !== 'VIEWER' && <ConfirmFundSettlementButton id={tx.id} />}</div></article>
+            return <article key={tx.id}><div><span>{isEstimate ? tx.navSource === 'PENDING' ? '份额待确认' : '待官方净值' : settlementDue ? '待确认到账' : '等待到账日'}</span><strong>{tx.asset.name}</strong><small>{tx.account.name} · 交易 {fmtDate(tx.occurredAt)}{tx.settlementDate ? ` · 预计到账 ${fmtDate(tx.settlementDate)}` : ''}</small></div><b className="num">{fmtCNY(Number(tx.amount))}</b><div>{isEstimate && dashboard.ctx.role !== 'VIEWER' && <ConfirmFundNavButton id={tx.id} />}{!isEstimate && isSettlement && settlementDue && dashboard.ctx.role !== 'VIEWER' && <ConfirmFundSettlementButton id={tx.id} />}</div></article>
           })}
         </div>
       </section>

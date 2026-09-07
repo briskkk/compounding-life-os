@@ -16,6 +16,9 @@ test('公司行动账本说明事件与流水边界', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '事件是证据，流水才改变持仓' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '记录公司行动' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '事件历史' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '拆分公告核对' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '检查拆分公告' })).toBeVisible()
+  await expect(page.getByText(/尚未接入券商账户自动核对/)).toBeVisible()
 })
 
 test('导入中心展示批次来源，CSV 可进入字段映射检查', async ({ page }) => {

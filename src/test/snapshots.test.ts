@@ -41,6 +41,23 @@ describe('财富快照窗口', () => {
     expect(points.at(-1)?.contributions).toBe(10000)
   })
 
+  it('份额未知的基金申购以在途资产保持财富守恒', () => {
+    const assets: AssetInfo[] = [
+      { id: 'fund', symbol: '000001', name: '测试基金', cls: 'FUND', manual: false, currency: 'CNY' },
+      { id: 'cash', symbol: 'CASH-CNY', name: '现金', cls: 'CASH', manual: false, currency: 'CNY' },
+    ]
+    const txs: LedgerTx[] = [
+      { id: 'cash-open', accountId: 'cash-account', assetId: 'cash', type: 'DEPOSIT', quantity: null, price: null, amount: 2000, fee: 0, occurredAt: D('2026-01-01T00:00:00Z'), assetClass: 'CASH' },
+      { id: 'pending-buy', accountId: 'fund-account', assetId: 'fund', type: 'BUY', quantity: null, price: null, amount: 1000, fee: 2, occurredAt: D('2026-01-02T00:00:00Z'), navDate: D('2026-01-02T00:00:00Z'), navSource: 'PENDING', assetClass: 'FUND' },
+      { id: 'cash-leg', settleOfId: 'pending-buy', accountId: 'cash-account', assetId: 'cash', type: 'WITHDRAW', quantity: null, price: null, amount: 1002, fee: 0, occurredAt: D('2026-01-02T00:00:00Z'), assetClass: 'CASH', internal: true },
+    ]
+
+    const points = computeWealthSeries(txs, assets, [], D('2026-01-01T00:00:00Z'), D('2026-01-02T00:00:00Z'), () => undefined)
+
+    expect(points.map((point) => point.investable)).toEqual([2000, 1998])
+    expect(points.at(-1)?.contributions).toBe(2000)
+  })
+
   it('可交易黄金无买入结算腿时记外部投入，卖出有结算腿时保持组合内守恒', () => {
     const assets: AssetInfo[] = [
       { id: 'gold', symbol: 'AU999', name: '可交易黄金', cls: 'GOLD', manual: true, currency: 'CNY' },

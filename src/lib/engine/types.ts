@@ -40,7 +40,7 @@ export interface TxInput {
   navDate?: Date | null
   /** 派生的份额确认完成日（不落库；普通基金 T+1、QDII T+2） */
   confirmationDate?: Date | null
-  /** 净值来源标记：OFFICIAL 官方净值 / ESTIMATE 盘中估算（缺省 null = 手工录入） */
+  /** 净值来源标记：OFFICIAL 官方 / ESTIMATE 盘中估算 / PENDING 净值与份额待确认 */
   navSource?: string | null
   /** 预计资金到账日（基金赎回在途；缺省 = occurredAt 即时结算） */
   settlementDate?: Date | null

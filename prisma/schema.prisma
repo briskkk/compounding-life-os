@@ -228,7 +228,7 @@ model Transaction {
   fee               Decimal      @default(0)
   occurredAt        DateTime
   navDate           DateTime? // 基金确认净值日（申购/赎回份额按该日净值确认；缺省 = occurredAt）
-  navSource         String? // 净值来源：OFFICIAL 官方净值 / ESTIMATE 盘中估算（缺省 null = 手工录入）
+  navSource         String? // 净值状态：OFFICIAL 官方 / ESTIMATE 盘中估算 / PENDING 净值份额待确认
   settlementDate    DateTime? // 预计资金到账日（基金赎回在途；缺省 = occurredAt 即时结算）
   note              String?
   internal          Boolean      @default(false) // 内部结算腿（买卖联动现金、转账），不计入外部投入

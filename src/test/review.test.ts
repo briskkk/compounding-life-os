@@ -46,9 +46,14 @@ function tx(input: Partial<LedgerTx> & Pick<LedgerTx, 'assetId' | 'type' | 'occu
 }
 
 describe('组合复盘归因', () => {
-  it('把周、月、季度统一解析为北京时间自然周期', () => {
+  it('把日、周、月、季度统一解析为北京时间自然周期', () => {
     const now = new Date('2026-08-24T12:00:00+08:00')
 
+    expect(reviewRange('THIS_DAY', now)).toEqual({
+      label: '今日',
+      startDate: '2026-08-24',
+      endDate: '2026-08-24',
+    })
     expect(reviewRange('THIS_WEEK', now)).toEqual({
       label: '本周',
       startDate: '2026-08-24',
@@ -64,6 +69,18 @@ describe('组合复盘归因', () => {
       startDate: '2026-07-01',
       endDate: '2026-08-24',
     })
+  })
+
+  it('按日复盘支持历史日期并拒绝未来或无效日期', () => {
+    const now = new Date('2026-09-04T12:00:00+08:00')
+
+    expect(reviewRange('THIS_DAY', now, undefined, '2026-09-02')).toEqual({
+      label: '2026年9月2日',
+      startDate: '2026-09-02',
+      endDate: '2026-09-02',
+    })
+    expect(reviewRange('THIS_DAY', now, undefined, '2026-09-05').label).toBe('今日')
+    expect(reviewRange('THIS_DAY', now, undefined, '2026-02-31').label).toBe('今日')
   })
 
   it('按完整自然月解析历史月份，并拒绝未来或非法月份', () => {
@@ -260,5 +277,37 @@ describe('组合复盘归因', () => {
     const valuationGap = result.risks.find((risk) => risk.key === 'VALUATION_GAP')
     expect(valuationGap?.start).toBe(0)
     expect(valuationGap?.end).toBeCloseTo(0.2)
+  })
+
+  it('份额待确认的基金申购不展示伪造的区间后收益', () => {
+    const pendingBuy = tx({
+      assetId: 'fund',
+      assetClass: 'FUND',
+      type: 'BUY',
+      amount: 1_234,
+      navSource: 'PENDING',
+      navDate: D('2026-09-04'),
+      occurredAt: D('2026-09-04'),
+    })
+    const result = buildReviewResult({
+      portfolioSeries: [
+        { date: '2026-09-03', netWorth: 0, contributions: 0, valuationStatus: 'FLOW_ONLY' as const },
+        { date: '2026-09-04', netWorth: 1_234, contributions: 1_234, valuationStatus: 'FLOW_ONLY' as const },
+      ],
+      assets: [asset('fund', '基金', 'FUND', [
+        ['2026-09-03', 0, 0, 'FLOW_ONLY'],
+        ['2026-09-04', 1_234, 1_234, 'FLOW_ONLY'],
+      ])],
+      transactions: [pendingBuy],
+      startDate: '2026-09-04',
+      endDate: '2026-09-04',
+      label: '今日',
+    })
+
+    expect(result.behavior.decisions[0]).toMatchObject({
+      amount: 1_234,
+      sharesPending: true,
+      afterReturnPct: null,
+    })
   })
 })

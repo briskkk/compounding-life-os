@@ -1,4 +1,4 @@
-import { foldTransactions, type LedgerTx } from './ledger'
+import { foldTransactions, pendingFundPurchasesAt, type LedgerTx } from './ledger'
 import { dateKeyAt } from './watch-market'
 import type { AssetInfo } from './types'
 import type { ValuationGap, ValuationStatus } from './valuation-status'
@@ -159,6 +159,14 @@ export function buildAssetPerformanceSeries({
     } else {
       nav = quantity > 0 ? costBasis / quantity : null
       netWorth = costBasis * dailyRate
+    }
+    // 份额未知的基金申购已经划出现金，但不能伪造份额。
+    // 把已知申购金额并入该基金的资产日序列，使资产归因与组合同样守恒。
+    if (asset.cls === 'FUND') {
+      netWorth += pendingFundPurchasesAt(txs, replayDate).reduce(
+        (sum, purchase) => sum + purchase.amount * dailyRate,
+        0,
+      )
     }
 
     const dailyTxs = transactionsByDate.get(date) ?? []

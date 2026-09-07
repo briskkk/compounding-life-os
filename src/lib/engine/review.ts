@@ -11,9 +11,10 @@ import type { AssetPerformancePoint } from './asset-performance'
 import type { AssetClass, AssetStyle } from './types'
 import { pendingSettlementsAt, type LedgerTx } from './ledger'
 
-export type ReviewPeriod = 'THIS_WEEK' | 'THIS_MONTH' | 'THIS_QUARTER'
+export type ReviewPeriod = 'THIS_DAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'THIS_QUARTER'
 
 const REVIEW_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/
+const REVIEW_DATE_PATTERN = /^\d{4}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/
 
 function monthEnd(month: string): string {
   const year = Number(month.slice(0, 4))
@@ -32,12 +33,24 @@ function quarterRange(now: Date): PerformanceRange {
   }
 }
 
-export function reviewRange(period: ReviewPeriod, now = new Date(), month?: string): PerformanceRange {
+export function reviewRange(period: ReviewPeriod, now = new Date(), month?: string, date?: string): PerformanceRange {
+  const today = dateKeyAt(now)
+  if (period === 'THIS_DAY') {
+    const selectedDate = date && REVIEW_DATE_PATTERN.test(date) && date <= today
+      && dateKeyAt(new Date(`${date}T12:00:00+08:00`)) === date
+      ? date
+      : today
+    const [year, selectedMonth, day] = selectedDate.split('-').map(Number)
+    return {
+      label: selectedDate === today ? '今日' : `${year}年${selectedMonth}月${day}日`,
+      startDate: selectedDate,
+      endDate: selectedDate,
+    }
+  }
   if (period !== 'THIS_MONTH') {
     return period === 'THIS_QUARTER' ? quarterRange(now) : performancePresetRange(period, now)
   }
 
-  const today = dateKeyAt(now)
   const currentMonth = today.slice(0, 7)
   const selectedMonth = month && REVIEW_MONTH_PATTERN.test(month) && month <= currentMonth
     ? month
@@ -120,6 +133,7 @@ export interface ReviewDecision {
   amount: number
   quantity: number
   afterReturnPct: number | null
+  sharesPending: boolean
   note: string | null
 }
 
@@ -307,6 +321,7 @@ function buildDecisions(
     if (!asset) continue
     const result = performanceBetween(asset.series, date, endDate)
     const gross = tx.amount > 0 ? tx.amount : quantity * (tx.price ?? 0)
+    const sharesPending = tx.navSource === 'PENDING'
     decisions.push({
       id: tx.id ?? `${tx.assetId}-${tx.occurredAt.getTime()}`,
       date,
@@ -318,7 +333,8 @@ function buildDecisions(
         : after <= 1e-9 ? '清仓' : '减仓',
       amount: gross * rateAt(tx.currency ?? asset.currency, tx.occurredAt),
       quantity,
-      afterReturnPct: result.pct,
+      afterReturnPct: sharesPending ? null : result.pct,
+      sharesPending,
       note: tx.note ?? null,
     })
   }

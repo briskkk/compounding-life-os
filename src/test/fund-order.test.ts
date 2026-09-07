@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { estimateShares, fundConfirmationDate, fundNavDate, fundSettlementDate, isQdiiFund, nextTradingDay } from '@/lib/engine/fund-order'
 import { chinaFundCalendarCoverage, isChinaFundTradingDay } from '@/lib/engine/china-trading-calendar'
-import { foldTransactions, holdingsIndex, pendingSettlementsAt, type LedgerTx } from '@/lib/engine/ledger'
+import { foldTransactions, holdingsIndex, pendingFundPurchasesAt, pendingSettlementsAt, type LedgerTx } from '@/lib/engine/ledger'
 import { assertTransactionRules, assertTransactionTimeline } from '@/lib/transaction-rules'
 import { buildSettlementLegs } from '@/lib/engine/settlement'
 
@@ -176,6 +176,26 @@ describe('在途资金（pendingSettlementsAt）', () => {
   })
 })
 
+describe('申购待确认（pendingFundPurchasesAt）', () => {
+  const purchase = tx({
+    id: 'pending-buy',
+    type: 'BUY',
+    amount: 1000,
+    navSource: 'PENDING',
+    navDate: D('2025-01-06'),
+    confirmationDate: D('2025-01-07'),
+  })
+
+  it('只保留已发生且份额未知的基金申购金额', () => {
+    expect(pendingFundPurchasesAt([purchase], D('2025-01-06'))).toEqual([
+      expect.objectContaining({ buyTxId: 'pending-buy', amount: 1000, assetId: 'fund1' }),
+    ])
+    expect(pendingFundPurchasesAt([{ ...purchase, occurredAt: D('2025-01-08') }], D('2025-01-06'))).toHaveLength(0)
+    expect(pendingFundPurchasesAt([{ ...purchase, voidedAt: D('2025-01-07') }], D('2025-01-06'))).toHaveLength(0)
+    expect(pendingFundPurchasesAt([{ ...purchase, quantity: 1000, price: 1 }], D('2025-01-06'))).toHaveLength(0)
+  })
+})
+
 describe('基金交易规则（容差与可用份额）', () => {
   const fund = { cls: 'FUND' as const, manual: false }
   const stock = { cls: 'STOCK' as const, manual: false }
@@ -192,6 +212,12 @@ describe('基金交易规则（容差与可用份额）', () => {
     expect(() => assertTransactionRules(
       { type: 'BUY', quantity: 1018.23, price: 0.9821, amount: 1000.02 }, stock,
     )).toThrow()
+  })
+
+  it('待确认申购不伪造净值与份额', () => {
+    expect(() => assertTransactionRules(
+      { type: 'BUY', quantity: null, price: null, amount: 1000, navSource: 'PENDING' }, fund,
+    )).not.toThrow()
   })
 
   it('卖出按可用份额校验，确认中的申购不可卖', () => {

@@ -29,6 +29,7 @@ export default async function AllocationPage() {
   const current = state.valued
     .filter((position) => position.investable > 0.005)
     .map((position) => ({ cls: position.asset.cls, amount: position.investable }))
+  if (state.purchaseInTransit > 0) current.push({ cls: 'FUND', amount: state.purchaseInTransit })
   const drift = buildAllocationDrift(
     current,
     savedTargets.map((target) => ({
@@ -36,7 +37,7 @@ export default async function AllocationPage() {
       targetWeight: target.targetWeight,
       tolerance: target.tolerance,
     })),
-    state.inTransit,
+    state.redemptionInTransit,
   )
   const canWrite = ctx.role !== 'VIEWER'
 
@@ -111,7 +112,7 @@ export default async function AllocationPage() {
               )
             })}
           </div>
-          <p className="allocation-scope-note">在途赎回资金按现金计入；房产、华为股票及其他不可投资资产不参与本页配置比例。</p>
+          <p className="allocation-scope-note">申购待确认金额按基金计入，在途赎回按现金计入；房产、华为股票及其他不可投资资产不参与本页配置比例。</p>
         </div>
 
         <aside className="allocation-editor-panel">

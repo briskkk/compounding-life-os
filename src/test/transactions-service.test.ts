@@ -232,4 +232,35 @@ describe('correctEstimatedFundTransactionRecord（官方净值修正）', () => 
     expect(await base.transaction.findFirst({ where: { settleOfId: original.id, voidedAt: { not: null } } })).not.toBeNull()
     expect(Number((await base.transaction.findFirst({ where: { settleOfId: corrected.id } }))?.amount)).toBe(1002)
   })
+
+  it('份额未知的申购可先联动扣减现金，再按官方净值替换', async () => {
+    const original = await base.$transaction((tx) =>
+      createTransactionRecord(tx, ctx, {
+        accountId: brokerId,
+        assetId: fundId,
+        type: 'BUY',
+        quantity: null,
+        price: null,
+        amount: 1000,
+        fee: 2,
+        occurredAt: new Date('2026-04-01T10:00:00Z'),
+        navDate: new Date('2026-04-01T00:00:00Z'),
+        navSource: 'PENDING',
+        note: '申购份额待确认',
+        settleCash: true,
+      }),
+    )
+    const pendingRow = await base.transaction.findUnique({ where: { id: original.id } })
+    expect(pendingRow?.quantity).toBeNull()
+    expect(pendingRow?.price).toBeNull()
+    expect(Number((await base.transaction.findFirst({ where: { settleOfId: original.id } }))?.amount)).toBe(1002)
+
+    const corrected = await base.$transaction((tx) =>
+      correctEstimatedFundTransactionRecord(tx, ctx, original.id, 1.25),
+    )
+    const newRow = await base.transaction.findUnique({ where: { id: corrected.id } })
+    expect(corrected).toMatchObject({ oldPrice: 0, oldQuantity: 0, newPrice: 1.25, newQuantity: 800 })
+    expect(Number(newRow?.amount)).toBe(1000)
+    expect(Number(newRow?.quantity)).toBe(800)
+  })
 })
