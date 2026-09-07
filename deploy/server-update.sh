@@ -109,20 +109,23 @@ log "==> 确保行情刷新脚本与每日三段式 cron 仍在"
 ensure_refresh
 
 # ---------- 7. 健康检查 (带重试, 避免重启后短暂未就绪误判) ----------
+# HTTPS 部署下: 80 端口 301 跳转到 443; 443 与 3000 返回 200/307 视为就绪。
+# 以 443 为基准判定公网就绪, 80 的 301 仅作信息展示, 不再误判为失败。
 log "==> 健康检查"
-HTTP_APP="000"; HTTP_NGINX="000"
+HTTP_APP="000"; HTTP_NGINX="000"; HTTP_HTTPS="000"
 for i in $(seq 1 10); do
   HTTP_APP=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 http://localhost:3000 || echo "000")
   HTTP_NGINX=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 http://127.0.0.1:80 || echo "000")
-  # 200 或 307(鉴权重定向) 均视为服务已就绪并正常响应
-  if { [ "$HTTP_APP" = "200" ] || [ "$HTTP_APP" = "307" ]; } && { [ "$HTTP_NGINX" = "200" ] || [ "$HTTP_NGINX" = "307" ]; }; then break; fi
-  log "    第 $i 次未就绪 (app=$HTTP_APP nginx=$HTTP_NGINX), 3s 后重试"
+  HTTP_HTTPS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 https://127.0.0.1 || echo "000")
+  # 应用就绪: 3000 -> 200/307; 公网就绪: 443 -> 200/307
+  if { [ "$HTTP_APP" = "200" ] || [ "$HTTP_APP" = "307" ]; } && { [ "$HTTP_HTTPS" = "200" ] || [ "$HTTP_HTTPS" = "307" ]; }; then break; fi
+  log "    第 $i 次未就绪 (app=$HTTP_APP nginx80=$HTTP_NGINX https443=$HTTP_HTTPS), 3s 后重试"
   sleep 3
 done
-echo "    应用(3000): $HTTP_APP | Nginx(80): $HTTP_NGINX"
-# 200 或 307(鉴权重定向) 均视为服务已就绪;两者皆非才算失败
-if { [ "$HTTP_APP" = "200" ] || [ "$HTTP_APP" = "307" ]; } && { [ "$HTTP_NGINX" = "200" ] || [ "$HTTP_NGINX" = "307" ]; }; then
-  log "✅ 更新成功, 服务已就绪 — 访问 http://111.229.116.222"
+echo "    应用(3000): $HTTP_APP | Nginx(80): $HTTP_NGINX | HTTPS(443): $HTTP_HTTPS"
+# 443 与 3000 均就绪即视为成功; 二者皆非才算失败
+if { [ "$HTTP_APP" = "200" ] || [ "$HTTP_APP" = "307" ]; } && { [ "$HTTP_HTTPS" = "200" ] || [ "$HTTP_HTTPS" = "307" ]; }; then
+  log "✅ 更新成功, 服务已就绪 — 访问 https://huayanpei.com"
 else
   log "⚠️ 健康检查未通过, 请排查: docker logs $APP_CONTAINER"
   exit 1
