@@ -6,7 +6,7 @@ import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { Empty, Panel, SetupScreen, Tag } from '@/components/ui'
 import { ValuationToggle } from '@/components/valuation-toggle'
-import { groupByTag, parseTags, UNTAGGED } from '@/lib/engine/groups'
+import { groupByTag, matchesTag, parseTags, UNTAGGED } from '@/lib/engine/groups'
 import { groupByStyle, sumByKey, UNCLASSIFIED_STYLE_KEY } from '@/lib/engine/composition'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { ASSET_CLASS_LABEL, ASSET_STYLE_LABEL, UNCLASSIFIED_STYLE_LABEL } from '@/lib/labels'
@@ -64,7 +64,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
     }
   })
   const filteredRows = positionRows.filter((row) => {
-    if (activeTag && !(assetTags.get(row.position.assetId) ?? []).includes(activeTag)) return false
+    if (activeTag && !matchesTag(assetTags.get(row.position.assetId), activeTag)) return false
     if (activeClass && row.position.asset.cls !== activeClass) return false
     return true
   })

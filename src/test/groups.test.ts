@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupByTag, parseTags, serializeTags, UNTAGGED } from '@/lib/engine/groups'
+import { groupByTag, matchesTag, parseTags, serializeTags, UNTAGGED } from '@/lib/engine/groups'
 import type { ValuedPosition } from '@/lib/engine/valuation'
 import type { AssetInfo } from '@/lib/engine/types'
 
@@ -59,6 +59,16 @@ describe('自定义分组', () => {
     const untagged = groups.find((g) => g.tag === UNTAGGED)!
     expect(untagged.value).toBe(200)
     expect(groups[0].value).toBeGreaterThanOrEqual(groups[groups.length - 1].value) // 按市值降序
+  })
+
+  it('未分组筛选包含空标签，且与聚合成员一致', () => {
+    const tags = new Map([['A', parseTags(' , ')], ['B', ['核心']], ['C', [UNTAGGED]]])
+    const valued = ['A', 'B', 'C', 'D'].map((id) => vp(id))
+    const filtered = valued.filter((p) => matchesTag(tags.get(p.assetId), UNTAGGED))
+    expect(filtered.map((p) => p.assetId)).toEqual(['A', 'C', 'D'])
+    expect(filtered.length).toBe(groupByTag(valued, tags).find((g) => g.tag === UNTAGGED)?.count)
+    expect(matchesTag([], '核心')).toBe(false)
+    expect(matchesTag(['核心', '长期'], '核心')).toBe(true)
   })
 
   it('unrealizedPct = 组内未实现 / 组内成本', () => {

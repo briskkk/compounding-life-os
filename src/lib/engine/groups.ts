@@ -20,6 +20,11 @@ export function parseTags(raw: string | null | undefined): string[] {
   return [...new Set(raw.split(',').map((s) => s.trim()).filter(Boolean))]
 }
 
+/** 筛选与聚合共用未分组语义；兼容同名显式标签。 */
+export function matchesTag(tags: string[] | undefined, tag: string): boolean {
+  return (tags?.length ? tags : [UNTAGGED]).includes(tag)
+}
+
 /** 标签数组 → 规范存储串（去重、逗号分隔） */
 export function serializeTags(tags: string[]): string {
   return [...new Set(tags.map((s) => s.trim()).filter(Boolean))].join(',')
