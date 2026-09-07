@@ -116,7 +116,9 @@ HTTP_APP="000"; HTTP_NGINX="000"; HTTP_HTTPS="000"
 for i in $(seq 1 10); do
   HTTP_APP=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 http://localhost:3000 || echo "000")
   HTTP_NGINX=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 http://127.0.0.1:80 || echo "000")
-  HTTP_HTTPS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 https://127.0.0.1 || echo "000")
+  # 本地 HTTPS 就绪探测: 证书签发给域名, 对 127.0.0.1 直连会有主机名不匹配,
+  # 故用 -k 忽略证书名校验, 仅确认 443 能正常响应(证书有效性由外网访问保证)。
+  HTTP_HTTPS=$(curl -sk -o /dev/null -w "%{http_code}" --connect-timeout 10 https://127.0.0.1 || echo "000")
   # 应用就绪: 3000 -> 200/307; 公网就绪: 443 -> 200/307
   if { [ "$HTTP_APP" = "200" ] || [ "$HTTP_APP" = "307" ]; } && { [ "$HTTP_HTTPS" = "200" ] || [ "$HTTP_HTTPS" = "307" ]; }; then break; fi
   log "    第 $i 次未就绪 (app=$HTTP_APP nginx80=$HTTP_NGINX https443=$HTTP_HTTPS), 3s 后重试"
