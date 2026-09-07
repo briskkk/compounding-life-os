@@ -1,0 +1,23 @@
+html {
+  color-scheme: dark;
+}
+
+html[data-theme='light'] {
+  color-scheme: light;
+  --color-bg: #f5f7fa;
+  --color-panel: #ffffff;
+  --color-panel2: #eaf0f6;
+  --color-line: #d5dde6;
+  --color-ink: #192633;
+  --color-ink-dim: #47596b;
+  --color-ink-faint: #607184;
+  --color-accent: #1768ad;
+  --color-info: #1768ad;
+  --color-up: #b84215;
+  --color-down: #15734e;
+  --color-violet: #7251b5;
+  --color-teal: #147774;
+  --color-amber: #8c6115;
+  --surface-1: rgba(25, 38, 51, 0.035);
+  --surface-2: rgba(25, 38, 51, 0.065);
+}

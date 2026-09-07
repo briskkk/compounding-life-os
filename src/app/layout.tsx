@@ -1,10 +1,12 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { headers } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import '@fontsource/jetbrains-mono/400.css'
 import '@fontsource/jetbrains-mono/500.css'
 import './globals.css'
+import './themes.css'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { prisma } from '@/lib/db'
 import { getSession, hasSession } from '@/lib/session'
 import { BRAND_NAME, BRAND_NAME_EN } from '@/lib/brand'
@@ -24,6 +26,7 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const theme = (await cookies()).get('portfolio-theme')?.value === 'light' ? 'light' : 'dark'
   const ctx = await getSession()
   // cookie 存在但会话失效（过期/被删除）时兜底重定向登录页（middleware 只做存在性检查）
   if (!ctx) {
@@ -52,7 +55,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const marketChain = marketChainLabel(providerLabel())
 
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" data-theme={theme}>
       <body>
         <div className="min-h-screen">
           <a href="#main-content" className="fixed left-4 top-4 z-[100] -translate-y-24 rounded bg-accent px-4 py-2 text-sm text-bg transition-transform focus:translate-y-0">跳至主要内容</a>
@@ -71,6 +74,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </div>
 
               <div className="flex min-w-0 flex-nowrap items-center justify-end gap-2.5">
+                <ThemeToggle initialTheme={theme} />
                 <div className="hidden text-right min-[1440px]:block">
                   <div className="text-[14px] font-medium text-ink">{family?.name ?? '未初始化'}</div>
                   <div className="num mt-0.5 text-[12px] tracking-[0.08em] text-ink-faint">{dateStr}</div>
