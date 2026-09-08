@@ -19,7 +19,7 @@ const PERIODS = [
 
 const CLASS_LABELS: Record<string, string> = {
   STOCK: '股票',
-  FUND: '主动基金',
+  FUND: '基金',
   ETF: 'ETF',
   CASH: '现金',
   GOLD: '黄金',

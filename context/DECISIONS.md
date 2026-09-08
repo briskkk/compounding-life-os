@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-09-04
+last_verified: 2026-09-07
 ---
 
 # 已确认决策
@@ -18,7 +18,9 @@ last_verified: 2026-09-04
 | TWR 与 XIRR 各司其职 | TWR 衡量组合；XIRR 衡量实际资金体验；非收益快照不造收益点 | [ADR-006](../docs/adr/006-performance-semantics.md) |
 | Local-first，保留 PG 生产路径 | SQLite 开箱即用；PostgreSQL 独立 schema + RLS 用于正式多家庭 | [ADR-007](../docs/adr/007-local-first-database-strategy.md) |
 | 家庭作用域与审计链属于安全边界 | 业务数据按 family scope；关键动作追加审计，不绕过权限层 | [ADR-008](../docs/adr/008-family-scope-and-audit.md) |
-| 洞察、建议与 LLM 层整体移除 | 规则建议与 LLM 解释帮助不大已删除；后续按需重新设计，代码与数据表不含该层 | [ADR-011](../docs/adr/011-remove-insights-advice-llm.md) |
+| 旧洞察、建议与通用 LLM 层保持移除 | 不恢复旧洞察页、资产聊天、规则建议及其数据表 | [ADR-011](../docs/adr/011-remove-insights-advice-llm.md) |
+| 长期复盘允许可选 AI 证据解释 | 确定性引擎先行；AI 默认关闭且只解释证据，不能计算、荐买卖或写账本；首个反事实采用“冻结起始持仓” | [ADR-021](../docs/adr/021-investment-intelligence-evidence-boundary.md) |
+| Investment Intelligence 默认覆盖全部可投资资产 | 现金、基金、ETF、股票和黄金进入结果/行为；房产、华为长期持股及手动非黄金资产排除；内部买卖不算外部投入 | [ADR-022](../docs/adr/022-investment-intelligence-investable-scope.md) |
 | Snapshot 是可重建缓存 | 流水/负债/行情为上游；快照可以删除重算，不能反向修正账本 | [ADR-010](../docs/adr/010-snapshots-are-derived.md) |
 | 基金确认与在途建模走事件拆分 | navDate/settlementDate 入流水、在途资金由折叠派生；不引入待确认状态表 | [ADR-012](../docs/adr/012-fund-order-confirmation.md) |
 | 基金成交净值日与确认日分离 | 15:00 前按 T 日净值；QDII T+2 只延迟登记确认，不顺延成交净值日；可用份额按派生确认日生效 | [ADR-013](../docs/adr/013-separate-fund-nav-and-confirmation.md) |

@@ -1,13 +1,13 @@
 ---
 status: canonical
-last_verified: 2026-08-05
+last_verified: 2026-09-07
 ---
 
 # ADR-011：移除洞察、建议与 LLM 层
 
 ## 状态
 
-Accepted
+Accepted。关于长期投资复盘的可选 AI 证据解释器，已由 [ADR-021](021-investment-intelligence-evidence-boundary.md) 窄范围补充；其余移除决定继续有效。
 
 ## 决策
 

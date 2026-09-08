@@ -79,3 +79,74 @@ test('组合复盘：可深链查看完整历史自然月', async ({ page }) => 
   await expect(page.getByText('PORTFOLIO REVIEW · 2026-07-01 — 2026-07-31')).toBeVisible()
   await expect(page.getByLabel('复盘笔记')).not.toHaveValue('E2E：2026 年 8 月独立复盘。')
 })
+
+test('长期复盘：成立以来/近五年/自然年范围切换、桥与数据资格', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/review/history')
+
+  await expect(page.getByRole('heading', { level: 1, name: '长期复盘：可投资组合是怎么走过来的' })).toBeVisible()
+  await expect(page.getByLabel('复盘模式').getByText('长期复盘')).toBeVisible()
+  await expect(page.getByLabel('长期复盘范围').getByText('成立以来')).toBeVisible()
+
+  // 桥：期初 + 净投入 + 投资收益 = 期末（文本同时存在，数值守恒由引擎单测覆盖）
+  await expect(page.locator('.review-outcome').getByText('可投资组合收益').first()).toBeVisible()
+  await expect(page.locator('.review-outcome').getByText('期初可投资资产')).toBeVisible()
+  await expect(page.getByLabel('资金体验与风险证据').getByText('XIRR · 资金体验')).toBeVisible()
+  await expect(page.getByLabel('资金体验与风险证据').getByText('年化波动率')).toBeVisible()
+  await expect(page.getByLabel('资金体验与风险证据').getByText('最大回撤 · TWR 路径')).toBeVisible()
+  await expect(page.getByLabel('资金体验与风险证据').getByText('收益回撤比 · Calmar')).toBeVisible()
+  await expect(page.getByLabel('资金体验与风险证据').getByText(/最长回本周期|最长未恢复区间/)).toBeVisible()
+  await expect(page.getByText('政策基准对比暂不可计算。')).toBeVisible()
+  await expect(page.getByText('数据资格与证据水位')).toBeVisible()
+
+  // 自然年切换
+  await page.getByRole('link', { name: '2026 年' }).click()
+  await expect(page).toHaveURL(/scope=2026/)
+  await expect(page.getByText('INVESTMENT HISTORY · INVESTABLE PORTFOLIO · 2026-01-01 —')).toBeVisible()
+  const historyAugust = (await page.locator('td[title^="2026-08"]').locator('small').textContent())?.trim()
+  await page.goto('/review?period=THIS_MONTH&month=2026-08')
+  const cyclicalAugust = (await page.locator('.review-outcome-main > strong').textContent())?.trim()
+  expect(historyAugust).toBe(cyclicalAugust)
+  await page.goto('/review/history?scope=2026')
+  // 近五年
+  await page.getByRole('link', { name: '近五年' }).click()
+  await expect(page).toHaveURL(/scope=FIVE_YEAR/)
+
+  // P0 扩展：年度路径 / 决策时间带 / 贡献归因
+  await page.getByRole('link', { name: '成立以来' }).click()
+  await expect(page.getByRole('heading', { name: '每一年，钱从哪里来、又去了哪里' })).toBeVisible()
+  await expect(page.locator('.ii-annual-card').first()).toBeVisible()
+  await expect(page.getByRole('table', { name: '月度可投资组合收益路径' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '决策时间带：路径、行为与数据缺口在同一时间轴上' })).toBeVisible()
+  await expect(page.locator('.ii-band-chart svg polyline')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '收益贡献与对账' })).toBeVisible()
+  await expect(page.getByText(/待对账差额 = 组合总收益/)).toBeVisible()
+  await page.getByRole('tab', { name: '按市场' }).click()
+  await expect(page.getByText('境内市场').first()).toBeVisible()
+})
+
+test('长期复盘：1280px 与 1440px 无页面级横向溢出', async ({ page }) => {
+  for (const width of [1280, 1440]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/review/history')
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect(overflow).toBeLessThanOrEqual(1)
+  }
+})
+
+test('决策库：事件表、资格与 1280/1440 无溢出', async ({ page }) => {
+  for (const width of [1280, 1440]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/review/decisions')
+    await expect(page.getByRole('heading', { name: '决策库：每笔买卖的确定性回看' })).toBeVisible()
+    await expect(page.getByText('买入事件')).toBeVisible()
+    await expect(page.getByLabel('复盘模式').getByText('决策库')).toHaveClass(/is-active/)
+    await expect(page.getByLabel('决策事件分页')).toContainText('当前显示')
+    const visibleRows = await page.locator('table.ii tbody tr').count()
+    expect(visibleRows).toBeGreaterThan(0)
+    expect(visibleRows).toBeLessThanOrEqual(50)
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect(overflow).toBeLessThanOrEqual(1)
+  }
+})

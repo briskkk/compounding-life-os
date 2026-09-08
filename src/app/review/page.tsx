@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { ReviewClient } from '@/components/review-client'
+import { ReviewModeNav } from '@/components/review-mode-nav'
 import { getReviewPageData } from '@/lib/review-data'
 
 export const dynamic = 'force-dynamic'
@@ -13,5 +14,10 @@ export default async function ReviewPage({
   const data = await getReviewPageData(params)
   if (!data) redirect('/login')
 
-  return <ReviewClient key={`${data.period}-${data.range.startDate}`} data={data} />
+  return (
+    <main className="page-shell review-shell">
+      <ReviewModeNav current="cyclical" />
+      <ReviewClient key={`${data.period}-${data.range.startDate}`} data={data} />
+    </main>
+  )
 }
