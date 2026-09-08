@@ -1,15 +1,13 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { scopedDb } from '@/lib/scoped'
-import { loadEngineState, contributionsAtDates } from '@/lib/queries'
+import { getWatchData, loadBenchmarkSeries } from '@/lib/queries'
 import { apiReadAuthCtx } from '@/lib/services/api-auth'
 import { annualized, dailyNetFlows, twrSeries, xirr, xirrFlowsFromTxs } from '@/lib/engine/attribution'
-import { performanceBetween, performancePresetRange, type PerformancePoint } from '@/lib/engine/period-performance'
+import { performanceBetween, performancePresetRange } from '@/lib/engine/period-performance'
 import { riskMetrics } from '@/lib/engine/risk'
 import { fxRatesForCurrencies } from '@/lib/market/fx'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
-import { dateKeyAt } from '@/lib/engine/watch-market'
-import type { ValuationStatus } from '@/lib/engine/valuation-status'
+import { alignBenchmark, BENCHMARK_INDICES, DEFAULT_BENCHMARK_SYMBOL } from '@/lib/engine/benchmark'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -38,45 +36,26 @@ export async function GET(req: NextRequest) {
   if (!auth.ctx) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const ctx = auth.ctx
 
-  const db = scopedDb(prisma, ctx)
+  const watch = await getWatchData(ctx)
+  if (!watch) return NextResponse.json({ error: '收益数据暂不可用' }, { status: 503 })
+  const state = watch.state
 
-  // ── 并行查询：实时引擎状态 + 全部快照 ─────────────────
-  const [state, snaps] = await Promise.all([
-    loadEngineState(ctx),
-    db.snapshot.findMany({ orderBy: { date: 'asc' } }),
-  ])
-
-  // ── 装配绩效序列（investable 为净值，含实时「今日」点）──
-  // 与看盘页 PortfolioHistory 的输入口径一致
+  // ── 装配绩效序列（与看盘页 PortfolioHistory 的历史输入口径一致）──
   const rates = await fxRatesForCurrencies(prisma, state.assets.map((asset) => asset.currency))
   const currencyRate = (cur: string) => (cur === 'USD' ? rates.USDCNY : cur === 'HKD' ? rates.HKDCNY : 1)
   const portfolioTxs = state.ledgerTxs.filter((tx) => isPortfolioAssetClass(tx.assetClass))
   const flows = dailyNetFlows(portfolioTxs, currencyRate)
 
-  const series: PerformancePoint[] = snaps.map((s) => ({
-    date: s.date.toISOString().slice(0, 10),
-    netWorth: Number(s.investable),
-    contributions: 0,
-    valuationStatus: s.valuationStatus as ValuationStatus,
+  const series = watch.series.map((point) => ({
+    date: point.date,
+    netWorth: point.investable,
+    contributions: point.contributions,
+    valuationStatus: point.valuationStatus,
+    valuationCoverage: point.valuationCoverage,
+    latestValuationDate: point.latestValuationDate,
+    valuationGaps: point.valuationGaps,
   }))
-  const normalizedContributions = contributionsAtDates(series, flows)
-  series.forEach((point, index) => {
-    point.contributions = normalizedContributions[index]
-  })
   const contributionsNow = [...flows.values()].reduce((sum, amount) => sum + amount, 0)
-
-  const todayKey = dateKeyAt(new Date())
-  const existingToday = series.at(-1)?.date === todayKey ? series.at(-1) : null
-  const livePoint: PerformancePoint = {
-    date: todayKey,
-    netWorth: state.investable,
-    contributions: contributionsNow,
-    valuationStatus: existingToday?.valuationStatus === 'CLOSED' || existingToday?.valuationStatus === 'FLOW_ONLY'
-      ? existingToday.valuationStatus
-      : 'LIVE',
-  }
-  if (existingToday) series[series.length - 1] = livePoint
-  else series.push(livePoint)
 
   // ── 收益归因（与总览页 Attribution 同口径）─────────────
   const twr = twrSeries(
@@ -93,6 +72,16 @@ export async function GET(req: NextRequest) {
   const range = performancePresetRange('ALL', new Date(), series[0]?.date)
   const performance = performanceBetween(series, range.startDate, range.endDate, range.label)
   const risk = riskMetrics(performance.curve)
+  const requestedBenchmark = req.nextUrl.searchParams.get('benchmark')
+  const benchmarkSymbol = BENCHMARK_INDICES.some((item) => item.symbol === requestedBenchmark)
+    ? requestedBenchmark!
+    : DEFAULT_BENCHMARK_SYMBOL
+  const benchmarkStart = new Date(`${performance.curve[0]?.date ?? range.startDate}T00:00:00Z`)
+  benchmarkStart.setUTCDate(benchmarkStart.getUTCDate() - 10)
+  const benchmark = performance.curve.length > 0
+    ? await loadBenchmarkSeries(benchmarkSymbol, benchmarkStart, new Date(`${range.endDate}T23:59:59Z`))
+    : []
+  const benchmarkCurve = alignBenchmark(performance.curve.map((point) => point.date), benchmark)
 
   return NextResponse.json({
     contributions: Math.round(contributionsNow),
@@ -102,5 +91,13 @@ export async function GET(req: NextRequest) {
     xirr: xirrValue,
     maxDrawdown: risk.maxDrawdown,
     annualizedVolatility: risk.volatility,
+    benchmarkSymbol,
+    curve: performance.curve.map((point, index) => ({
+      date: point.date,
+      pct: point.pct,
+      mwrPct: point.mwrPct,
+      benchmarkPct: benchmarkCurve[index] ?? null,
+      valuationStatus: point.valuationStatus ?? null,
+    })),
   })
 }

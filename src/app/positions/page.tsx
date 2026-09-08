@@ -7,7 +7,7 @@ import { scopedDb } from '@/lib/scoped'
 import { Empty, Panel, SetupScreen, Tag } from '@/components/ui'
 import { ValuationToggle } from '@/components/valuation-toggle'
 import { groupByTag, matchesTag, parseTags, UNTAGGED } from '@/lib/engine/groups'
-import { groupByStyle, sumByKey, UNCLASSIFIED_STYLE_KEY } from '@/lib/engine/composition'
+import { groupByMarket, groupByStyle, sumByKey, UNCLASSIFIED_STYLE_KEY } from '@/lib/engine/composition'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { ASSET_CLASS_LABEL, ASSET_STYLE_LABEL, UNCLASSIFIED_STYLE_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtCNYExact, fmtPct, fmtPrice, fmtQty } from '@/lib/format'
@@ -19,6 +19,7 @@ import { parseHoldingSort, sortHoldings } from '@/lib/engine/holding-sort'
 import { HoldingSortSelect } from '@/components/holding-sort-select'
 import { isInvestableAsset, isPortfolioAssetClass } from '@/lib/asset-classification'
 import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
+import { marketGroupLabel } from '@/lib/engine/market-group'
 
 export const dynamic = 'force-dynamic'
 
@@ -102,6 +103,19 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
     pct: s.pct,
     color: s.key === UNCLASSIFIED_STYLE_KEY ? C.inkFaint : SLICE_PALETTE[styleColorIdx++ % SLICE_PALETTE.length],
   }))
+  let marketColorIdx = 0
+  const marketSlices = groupByMarket(mergedRows.map((p) => ({
+    cls: p.asset.cls,
+    symbol: p.asset.symbol,
+    name: p.asset.name,
+    currency: p.asset.currency,
+    value: p.value,
+  }))).map((s) => ({
+    name: marketGroupLabel(s.key),
+    value: s.value,
+    pct: s.pct,
+    color: SLICE_PALETTE[marketColorIdx++ % SLICE_PALETTE.length],
+  }))
   let tagColorIdx = 0
   const tagSlices = groups
     .filter((g) => g.value > 0)
@@ -120,9 +134,15 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
       slices: styleSlices,
     },
     {
-      key: 'tag',
+      key: 'market',
       label: '市场分组',
-      caption: '按分组标签聚合；一个资产可属于多个分组，占比合计可能超过 100%。',
+      caption: '股票 / 基金 / ETF 按境内与境外市场聚合；QDII 使用已核验注册表识别。',
+      slices: marketSlices,
+    },
+    {
+      key: 'tag',
+      label: '自定义分组',
+      caption: '按资产标签聚合；一个资产可属于多个分组，占比合计可能超过 100%。',
       slices: tagSlices,
     },
   ]

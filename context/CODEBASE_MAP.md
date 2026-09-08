@@ -33,14 +33,16 @@ Route Handlers：
 - `src/app/api/account/*/route.ts`：改邮箱 / 改密码 / 会话管理与吊销 / 最近登录 / 偏好。
 - `src/app/api/family/route.ts`：家庭创建与信息；`family/members`：成员列表、角色、移除、重置密码；`family/invites`：邀请码生成/撤销；`family/join`：凭码加入；`family/switch`：切换家庭；`family/reset`：清空家庭数据。
 - `src/app/api/admin/backup/route.ts`：手动备份与最近备份列表（OWNER）。
-- `src/app/api/positions/route.ts`、`positions/[assetId]/route.ts`：持仓与资产详情（移动端）。
+- `src/app/api/positions/route.ts`、`positions/[assetId]/route.ts`：持仓与资产详情（移动端）；列表附投资风格、境内/境外市场分组与自定义标签。
 - `src/app/api/mobile/summary/route.ts`：移动端总览/账户/FIRE 数据包。
+- `src/app/api/mobile/returns-calendar/route.ts`：与 Web 看盘同源的日/月/年收益日历、估值缺口和当日流水。
 - `src/app/api/transactions/route.ts`：移动端流水幂等写入（`Idempotency-Key`）与游标分页列表。
-- `src/app/api/reviews/route.ts`、`reviews/current/route.ts`：已保存复盘游标列表与复盘证据包；月度证据支持 `month=YYYY-MM` 历史自然月深链。
+- `src/app/api/reviews/route.ts`、`reviews/current/route.ts`：已保存复盘游标列表、复盘证据包与笔记写入；月度证据支持 `month=YYYY-MM` 历史自然月深链。
+- `src/app/api/fund-operations/confirm-*`、`src/app/api/reconciliation/route.ts`：基金净值/到账确认与账户对账的移动端写入口。
 - `src/app/api/monthly-summary/route.ts`：单月聚合（用户会话优先，回落 Bearer `PORTFOLIO_API_KEY`，只读）。
 - `src/app/api/monthly-trend/route.ts`：近 N 个月趋势（`?months=1..24`，默认 12）+ 负债真实余额（foldLiability）。
 - `src/app/api/assets/route.ts`：资产构成（7 类全量 composition）+ 净资产曲线（最近 90 个快照日）。
-- `src/app/api/performance/route.ts`：收益归因（净投入/投资收益/TWR 累计与年化/XIRR）+ 风险指标（最大回撤/年化波动率）。
+- `src/app/api/performance/route.ts`：收益归因（净投入/投资收益/TWR 累计与年化/XIRR）+ 风险指标（最大回撤/年化波动率）+ TWR/MWR/基准曲线。
 
 ## 服务端边界
 
@@ -54,6 +56,7 @@ Route Handlers：
 - `src/lib/transaction-rules.ts`：交易不变量和历史时间线校验。
 - `src/lib/actions.ts`：全部业务写操作、审计、快照刷新、revalidate。
 - `src/lib/services/transactions.ts`：共享事务写服务（流水创建/冲正的校验、结算联动、审计、快照刷新）—— Server Actions 与移动端 API 复用同一写路径。
+- `src/lib/services/fund-confirmations.ts`、`reviews.ts`、`reconciliation.ts`：基金确认、复盘保存与账户对账的 Web / APP 共享写服务。
 - `src/lib/services/api-auth.ts`：API 认证分界：读可回落全局 Key，写必须真实用户会话。
 - `src/lib/queries.ts`：页面 View Model 装配、实时估值与目标；总览复用复盘引擎装配周/月/季贡献证据。
 - `src/lib/review-data.ts`：复盘页 View Model；历史价格/汇率、同源组合/资产日曲线、在途资金、基准与已保存记录装配。

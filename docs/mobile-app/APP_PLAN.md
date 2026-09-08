@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-08-24
+last_verified: 2026-09-08
 ---
 
 # 移动端 APP — 独立项目启动文档
@@ -59,10 +59,11 @@ Family Wealth OS 的移动端客户端,独立新建项目(不在本仓库开发)
 | 端点 | 用途 | 响应要点 |
 |---|---|---|
 | `GET /api/mobile/summary` | 移动端总览/账户/FIRE 数据包 | 净资产/负债/账户/目标投影/账本哈希,一次拉取 |
-| `GET /api/positions` | 持仓明细 | 资产、数量、`availableQty`（可用份额，排除确认中申购）、成本、市值、当日盈亏、来源 |
+| `GET /api/positions` | 持仓明细 | 资产、数量、`availableQty`、成本、市值、当日盈亏、来源、`style`、`marketGroup`、`tags[]` |
 | `GET /api/positions/[assetId]` | 资产详情 | 行情、K 线(120 日)、持仓、买卖点 |
-| `GET /api/assets` | 资产构成 | 7 类资产、占比、曲线 |
-| `GET /api/performance` | 区间收益归因与风险 | contributions / investmentReturn / twrCumulative / twrAnnualized / xirr / maxDrawdown / annualizedVolatility |
+| `GET /api/assets` | 资产构成 | 7 类资产、占比、曲线、投资风格与境内/境外维度 |
+| `GET /api/performance` | 区间收益归因与风险 | 标量指标 + TWR/MWR/基准逐观察点曲线 |
+| `GET /api/mobile/returns-calendar?month=` | 收益日历 | 真实收益观察日、估值缺口、当日流水、月/年汇总 |
 | `GET /api/monthly-summary?month=` | 月度净资产汇总 | 聚合字段与口径 |
 | `GET /api/monthly-trend?months=` | 净资产/负债月度趋势 | 默认 12 个月 |
 | `GET /api/goals` | FIRE / 储蓄目标 | 真实投影、成功概率与场景参数 |
@@ -76,6 +77,10 @@ Family Wealth OS 的移动端客户端,独立新建项目(不在本仓库开发)
 |---|---|---|
 | `POST /api/transactions` | 记一笔 | 与网页共用交易服务;建议每次提交携带 8–128 位 `Idempotency-Key`,断网重试不会重复入账;同键不同请求返回 409 |
 | `GET /api/transactions?assetId&limit&cursor` | 流水列表(溯源) | 最多 200 条;返回 `page: { limit, hasMore, nextCursor }` |
+| `POST /api/fund-operations/confirm-nav` | 确认基金官方净值 | 冲正 PENDING/ESTIMATE 流水并生成 OFFICIAL 替代流水 |
+| `POST /api/fund-operations/confirm-settlement` | 确认赎回到账 | 只追加到账审计证据，不覆盖结算金额 |
+| `PUT /api/reviews/current` | 保存复盘 | 保存用户笔记、草稿/完成态及只读指标快照 |
+| `POST /api/reconciliation` | 账户对账 | 追加外部余额与账本派生余额的 RECONCILE 证据 |
 
 ### 4.4 分页与幂等约定
 
@@ -103,7 +108,7 @@ Family Wealth OS 的移动端客户端,独立新建项目(不在本仓库开发)
 
 **目录建议**:`src/api/`(端点封装与类型)、`src/auth/`(token 存储:expo-secure-store)、`src/screens/`、`src/components/`(行情/图表,图表可用 victory-native)。
 
-## 7. 本仓库的服务端配合(2026-08-24 状态)
+## 7. 本仓库的服务端配合(2026-09-08 状态)
 
 | # | 事项 | 状态 | 说明 |
 |---|---|---|---|
@@ -113,6 +118,7 @@ Family Wealth OS 的移动端客户端,独立新建项目(不在本仓库开发)
 | 4 | 快照增量重建 | ✅ 完成 | 写操作只重算受影响日期起的快照 |
 | 5 | 行情缓存与健康 | ✅ 完成 | 报价 30s 缓存;`GET /api/health` 暴露 provider 健康 |
 | 6 | APP 重试安全 | ✅ 完成 | 交易 Idempotency-Key + 流水/审计/复盘游标分页 |
+| 7 | v1.2 收尾接口 | ✅ 完成 | 收益日历、构成维度、tags、基金确认、复盘写入、收益曲线与账户对账均已提供 REST |
 
 ## 8. 分阶段里程碑
 

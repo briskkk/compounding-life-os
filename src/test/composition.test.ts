@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupByStyle, isStyleEligibleClass, sumByKey, UNCLASSIFIED_STYLE_KEY } from '@/lib/engine/composition'
+import { groupByMarket, groupByStyle, isStyleEligibleClass, sumByKey, UNCLASSIFIED_STYLE_KEY } from '@/lib/engine/composition'
 import type { AssetStyle } from '@/lib/engine/types'
 
 describe('组合构成聚合', () => {
@@ -61,5 +61,18 @@ describe('组合构成聚合', () => {
 
   it('空持仓返回空切片数组', () => {
     expect(groupByStyle([], new Map())).toEqual([])
+  })
+
+  it('市场分组按 QDII 注册表、代码市场与币种归类', () => {
+    const slices = groupByMarket([
+      { cls: 'FUND', symbol: '012348', name: '天弘恒生科技', currency: 'CNY', value: 300 },
+      { cls: 'STOCK', symbol: 'USAAPL', name: 'Apple', currency: 'USD', value: 200 },
+      { cls: 'ETF', symbol: '510300', name: '沪深300ETF', currency: 'CNY', value: 500 },
+      { cls: 'CASH', symbol: 'CASH-USD', name: '美元现金', currency: 'USD', value: 1000 },
+    ])
+    expect(slices).toEqual([
+      { key: 'OFFSHORE', value: 500, pct: 0.5 },
+      { key: 'DOMESTIC', value: 500, pct: 0.5 },
+    ])
   })
 })

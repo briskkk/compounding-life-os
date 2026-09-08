@@ -9,6 +9,7 @@ import {
   reverseTransactionRecord,
   routedAccountIdForAsset,
 } from '@/lib/services/transactions'
+import { confirmFundOfficialNavRecord, confirmFundSettlementRecord } from '@/lib/services/fund-confirmations'
 
 const base = new PrismaClient({ datasourceUrl: `file:${path.resolve('prisma/test.db')}` })
 
@@ -262,5 +263,56 @@ describe('correctEstimatedFundTransactionRecord（官方净值修正）', () => 
     expect(corrected).toMatchObject({ oldPrice: 0, oldQuantity: 0, newPrice: 1.25, newQuantity: 800 })
     expect(Number(newRow?.amount)).toBe(1000)
     expect(Number(newRow?.quantity)).toBe(800)
+  })
+})
+
+describe('基金确认共享服务（Web Action / App REST 同源）', () => {
+  it('从已落库官方净值确认 PENDING 申购并重建为 OFFICIAL 流水', async () => {
+    const navDate = new Date('2026-05-06T00:00:00+08:00')
+    const original = await base.$transaction((tx) => createTransactionRecord(tx, ctx, {
+      accountId: brokerId,
+      assetId: fundId,
+      type: 'BUY',
+      quantity: null,
+      price: null,
+      amount: 500,
+      fee: 0,
+      occurredAt: new Date('2026-05-06T10:00:00+08:00'),
+      navDate,
+      navSource: 'PENDING',
+      note: 'REST 确认测试',
+      settleCash: true,
+    }))
+    await base.priceBar.create({
+      data: { symbol: 'SVCF01', date: navDate, close: 1.25, source: 'EASTMONEY-FUND' },
+    })
+
+    const result = await confirmFundOfficialNavRecord(base, ctx, original.id)
+    expect(result).toMatchObject({ oldQuantity: 0, newQuantity: 400, newPrice: 1.25 })
+    expect((await base.transaction.findUnique({ where: { id: original.id } }))?.voidedAt).not.toBeNull()
+    expect((await base.transaction.findUnique({ where: { id: result.id } }))?.navSource).toBe('OFFICIAL')
+  })
+
+  it('赎回到账确认只追加一次审计证据', async () => {
+    const sell = await base.$transaction((tx) => createTransactionRecord(tx, ctx, {
+      accountId: brokerId,
+      assetId: fundId,
+      type: 'SELL',
+      quantity: 10,
+      price: 1.3,
+      amount: 13,
+      fee: 0,
+      occurredAt: new Date('2026-06-01T10:00:00+08:00'),
+      navDate: new Date('2026-06-01T00:00:00+08:00'),
+      navSource: 'OFFICIAL',
+      settlementDate: new Date('2026-06-03T00:00:00+08:00'),
+      note: '到账确认测试',
+      settleCash: true,
+    }))
+    expect(await confirmFundSettlementRecord(base, ctx, sell.id)).toEqual({ replayed: false })
+    expect(await confirmFundSettlementRecord(base, ctx, sell.id)).toEqual({ replayed: true })
+    expect(await base.auditLog.count({
+      where: { familyId: famId, action: 'FUND_SETTLEMENT_CONFIRMED', entityId: sell.id },
+    })).toBe(1)
   })
 })

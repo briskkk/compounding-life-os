@@ -43,14 +43,12 @@ function formatMonth(d: Date): string {
 }
 
 /** 置信带曲线：均匀采样至 ≤120 点（与网页 goals 页采样口径一致） */
-function sampleProjection<T extends { month: number }>(points: T[], cap = 120): T[] {
+export function sampleProjection<T extends { month: number }>(points: T[], cap = 120): T[] {
   if (points.length <= cap) return points
-  const step = Math.max(1, Math.ceil(points.length / cap))
-  const sampled = points.filter((_, i) => i % step === 0)
-  if (sampled[sampled.length - 1]?.month !== points[points.length - 1]?.month) {
-    sampled.push(points[points.length - 1])
-  }
-  return sampled
+  if (cap <= 1) return points.length > 0 ? [points[points.length - 1]] : []
+  return Array.from({ length: cap }, (_, index) => (
+    points[Math.round(index * (points.length - 1) / (cap - 1))]
+  ))
 }
 
 function roundProjection(points: { month: number; p10: number; p50: number; p90: number }[]) {

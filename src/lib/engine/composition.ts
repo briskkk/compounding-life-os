@@ -1,5 +1,6 @@
 // 组合构成聚合：把持仓市值按维度聚成切片（金额 + 占比），供持仓页构成图使用
 import type { AssetClass, AssetStyle } from './types'
+import { marketGroupOf, type MarketGroup } from './market-group'
 
 export interface CompositionSlice {
   key: string
@@ -38,4 +39,21 @@ export function groupByStyle(
       .filter((p) => isStyleEligibleClass(p.cls))
       .map((p) => ({ key: assetStyles.get(p.assetId) ?? UNCLASSIFIED_STYLE_KEY, value: p.value })),
   )
+}
+
+/** 市场维度与投资风格使用同一可投资行情类资产范围。 */
+export function groupByMarket(
+  positions: {
+    cls: AssetClass
+    symbol: string
+    name: string
+    currency: string
+    value: number
+  }[],
+): (CompositionSlice & { key: MarketGroup })[] {
+  return sumByKey(
+    positions
+      .filter((position) => isStyleEligibleClass(position.cls))
+      .map((position) => ({ key: marketGroupOf(position), value: position.value })),
+  ) as (CompositionSlice & { key: MarketGroup })[]
 }

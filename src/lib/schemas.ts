@@ -137,6 +137,8 @@ export const accountReconciliationSchema = z.object({
   note: z.string().max(300).nullable().default(null),
 })
 
+export type AccountReconciliationInputData = z.infer<typeof accountReconciliationSchema>
+
 export const assetInputSchema = z.object({
   symbol: z
     .string()
@@ -244,6 +246,8 @@ export const portfolioReviewInputSchema = z.object({
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: '复盘区间不能超过 100 天', path: ['endDate'] })
   }
 })
+
+export type PortfolioReviewInputData = z.infer<typeof portfolioReviewInputSchema>
 
 const allocationClasses = ['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD'] as const
 

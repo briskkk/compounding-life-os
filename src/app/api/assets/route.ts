@@ -8,6 +8,10 @@ import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { summarizeDailyPortfolio } from '@/lib/engine/daily-pnl'
 import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
+import { groupByMarket, groupByStyle, UNCLASSIFIED_STYLE_KEY } from '@/lib/engine/composition'
+import { ASSET_STYLE_LABEL, UNCLASSIFIED_STYLE_LABEL } from '@/lib/labels'
+import { marketGroupLabel } from '@/lib/engine/market-group'
+import type { AssetStyle } from '@/lib/engine/types'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -43,12 +47,13 @@ export async function GET(req: NextRequest) {
   const db = scopedDb(prisma, ctx)
 
   // ── 并行查询：实时引擎状态 + 最近 90 个快照日 ─────────
-  const [state, recentSnapshots] = await Promise.all([
+  const [state, recentSnapshots, assets] = await Promise.all([
     loadEngineState(ctx),
     db.snapshot.findMany({
       orderBy: { date: 'desc' },
       take: 90,
     }),
+    db.asset.findMany({ select: { id: true, symbol: true, name: true, cls: true, currency: true, style: true } }),
   ])
 
   // ── 装配净资产曲线（取最近 90 个快照日，升序）─────────
@@ -69,6 +74,37 @@ export async function GET(req: NextRequest) {
       pct: grossAssets > 0 ? value / grossAssets : 0,
     }
   })
+
+  const assetMeta = new Map(assets.map((asset) => [asset.id, asset]))
+  const dimensionRows = mergePositionsByAsset(
+    state.valued.filter((position) => isPortfolioAssetClass(position.asset.cls)),
+  ).map((position) => {
+    const meta = assetMeta.get(position.assetId)
+    return {
+      assetId: position.assetId,
+      cls: position.asset.cls,
+      symbol: meta?.symbol ?? position.asset.symbol,
+      name: meta?.name ?? position.asset.name,
+      currency: meta?.currency ?? position.asset.currency,
+      value: position.value,
+    }
+  })
+  const styleById = new Map(assets.map((asset) => [asset.id, asset.style as AssetStyle | null]))
+  const dimensions = {
+    style: groupByStyle(dimensionRows, styleById).map((slice) => ({
+      name: slice.key === UNCLASSIFIED_STYLE_KEY
+        ? UNCLASSIFIED_STYLE_LABEL
+        : ASSET_STYLE_LABEL[slice.key as AssetStyle],
+      value: slice.value,
+      pct: slice.pct,
+    })),
+    market: groupByMarket(dimensionRows).map((slice) => ({
+      name: marketGroupLabel(slice.key),
+      key: slice.key,
+      value: slice.value,
+      pct: slice.pct,
+    })),
+  }
 
   // ── 当日盈亏与 30 日变化（复用 getDashboard 口径）────────
   const quoteBySymbol = new Map(
@@ -114,6 +150,7 @@ export async function GET(req: NextRequest) {
       ? { name: metrics.concentration.name, pct: metrics.concentration.weight }
       : null,
     composition,
+    dimensions,
     series,
   })
 }

@@ -6,6 +6,13 @@ last_verified: 2026-09-08
 
 # AI 工作变更记录
 
+## 2026-09-08 · APP v1.2 服务端需求 A/B 收口
+
+- 核验 A1/A2 已由 `/api/goals` 与 `/api/mobile/summary` 提供同源 FIRE 置信带、在途总额/明细及人民币折算；新增契约验收覆盖最多 120 个投影点。
+- 完成 B1–B3/B6：新增 `/api/mobile/returns-calendar`，并为资产/持仓接口补齐投资风格、境内/境外市场、自定义 tags 与 TWR/MWR/基准曲线；`CLOSED/NO_UPDATE/FLOW_ONLY` 不伪造收益点。
+- 完成 B4/B5/B7：基金净值/到账确认、复盘保存与账户对账新增真实会话 REST；Web Action 与 REST 共用服务层，保持冲正、审计、家庭作用域和 VIEWER 只读边界。
+- 验证：63 个测试文件、419 项单测，生产构建，全量 Playwright 85/85；最终 APP API 定向复跑 45/45，持仓构成页面定向复跑 2/2。
+
 ## 2026-09-08 · Investment Intelligence 扩大为全部可投资资产
 
 - 新增 ADR-022：长期复盘与决策库默认覆盖现金、基金、ETF、可交易股票和黄金，继续排除房产、华为长期持股及手动非黄金资产；基金子组合降为后续可选筛选，不再是主结果。

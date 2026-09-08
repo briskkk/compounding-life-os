@@ -43,24 +43,23 @@ import {
   type PersistHistoryResult,
 } from './market/persist'
 import { backfillHistoricalFx, fxRates, persistDailyFx } from './market/fx'
-import { fundNavQuoteOnDate } from './market/fund-nav'
-import { dateKeyAt, previousCloseOnPortfolioDay } from './engine/watch-market'
+import { dateKeyAt } from './engine/watch-market'
 import { fundSettlementDate, isQdiiFund } from './engine/fund-order'
 import { compareProviderQuotes } from './market'
 import { type TransactionDraft } from './transaction-rules'
-import { getReviewPageData } from './review-data'
 import {
   cashSettlementOf,
   createTransactionRecord,
-  correctEstimatedFundTransactionRecord,
   rebuildSnapshotsForFamily,
   reverseTransactionRecord,
   routedAccountIdForAsset,
   validateTransaction,
 } from './services/transactions'
+import { confirmFundOfficialNavRecord, confirmFundSettlementRecord } from './services/fund-confirmations'
+import { savePortfolioReviewRecord } from './services/reviews'
+import { recordAccountReconciliationEvidence } from './services/reconciliation'
 import { createCorporateActionRecord, reverseCorporateActionRecord } from './services/corporate-actions'
 import { loadEngineState } from './queries'
-import { summarizeAccountPositions } from './engine/account-summary'
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T; warning?: string }
@@ -310,32 +309,10 @@ export async function recordAccountReconciliation(input: unknown): Promise<Actio
   try {
     const ctx = await requireWrite()
     const data = accountReconciliationSchema.parse(input)
-    const account = await prisma.account.findFirst({ where: { id: data.accountId, familyId: ctx.familyId } })
-    if (!account) throw new Error('账户不存在或不属于当前家庭')
-    const state = await loadEngineState(ctx)
-    const todayKey = dateKeyAt(new Date())
-    if (data.asOfDate !== todayKey) throw new Error('当前版本仅支持核对今日账本，历史账单需先补齐当日行情后再开放')
-    const positions = state.valued.filter((position) => position.accountId === account.id)
-    const summary = summarizeAccountPositions(positions, (symbol) => {
-      const quote = state.quotes.get(symbol)
-      return previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, todayKey)
-    })
-    const ledgerValueCny = Math.round(summary.valueCny * 100) / 100
-    const differenceCny = Math.round((data.observedValueCny - ledgerValueCny) * 100) / 100
-    const detail = JSON.stringify({
-      version: 1,
-      accountName: account.name,
-      asOfDate: data.asOfDate,
-      observedValueCny: data.observedValueCny,
-      ledgerValueCny,
-      differenceCny,
-      sourceName: data.sourceName,
-      note: data.note,
-    })
-    await audit(ctx, 'RECONCILE', 'Account', account.id, detail)
+    const result = await recordAccountReconciliationEvidence(prisma, ctx, data)
     revalidatePath('/reconciliation')
     revalidatePath('/health')
-    return { ok: true, data: { ledgerValueCny, differenceCny } }
+    return { ok: true, data: result }
   } catch (e) {
     return fail(e)
   }
@@ -387,69 +364,11 @@ export async function savePortfolioReview(input: unknown): Promise<ActionResult<
   try {
     const ctx = await requireWrite()
     const data = portfolioReviewInputSchema.parse(input)
-    const startDate = new Date(`${data.startDate}T00:00:00Z`)
-    const endDate = new Date(`${data.endDate}T00:00:00Z`)
-    const evidence = await getReviewPageData({
-      period: data.period,
-      benchmark: data.benchmarkSymbol,
-      month: data.period === 'THIS_MONTH' ? data.startDate.slice(0, 7) : undefined,
-      date: data.period === 'THIS_DAY' ? data.startDate : undefined,
-    })
-    if (!evidence || evidence.range.startDate !== data.startDate || evidence.range.endDate !== data.endDate) {
-      throw new Error('复盘区间已经变化，请刷新页面后重试')
-    }
-    const evidenceResult = evidence.result
-    const metricsSnapshot = JSON.stringify({
-      amount: evidenceResult.performance.amount,
-      pct: evidenceResult.performance.pct,
-      mwrPct: evidenceResult.performance.curve.at(-1)?.mwrPct ?? null,
-      benchmarkSymbol: data.benchmarkSymbol,
-      benchmarkPct: evidenceResult.benchmarkPct,
-      alphaPct: evidenceResult.alphaPct,
-      maxDrawdown: evidenceResult.maxDrawdown,
-      valuationCoverage: evidenceResult.valuationCoverage,
-      reconciliationAmount: evidenceResult.reconciliationAmount,
-    })
-    const saved = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
-      const existing = await txDb.portfolioReview.findFirst({
-        where: { familyId: ctx.familyId, period: data.period, startDate },
-      })
-      const values = {
-        authorId: ctx.memberId,
-        authorName: ctx.memberName,
-        period: data.period,
-        status: data.status,
-        note: data.note.trim(),
-        metricsSnapshot,
-        endDate,
-        completedAt: data.status === 'COMPLETED' ? new Date() : null,
-      }
-      const record = existing
-        ? await txDb.portfolioReview.update({
-            where: { id: existing.id },
-            data: values,
-          })
-        : await txDb.portfolioReview.create({
-            data: {
-              familyId: ctx.familyId,
-              startDate,
-              ...values,
-            },
-          })
-      await audit(
-        ctx,
-        data.status === 'COMPLETED' ? 'COMPLETE' : 'SAVE_DRAFT',
-        'PortfolioReview',
-        record.id,
-        `${data.period} · ${data.startDate} 至 ${data.endDate}`,
-        txDb,
-      )
-      return record
-    })
+    const saved = await savePortfolioReviewRecord(prisma, ctx, data)
     revalidatePath('/review')
     return {
       ok: true,
-      data: { id: saved.id, status: saved.status, updatedAt: saved.updatedAt.toISOString() },
+      data: saved,
     }
   } catch (e) {
     return fail(e)
@@ -496,22 +415,7 @@ export async function confirmFundOfficialNav(id: string): Promise<ActionResult<{
 }>> {
   try {
     const ctx = await requireWrite()
-    const original = await prisma.transaction.findFirst({
-      where: { id, familyId: ctx.familyId, voidedAt: null },
-      include: { asset: true },
-    })
-    if (!original?.navDate || original.asset.cls !== 'FUND'
-      || (original.navSource !== 'ESTIMATE' && original.navSource !== 'PENDING')) {
-      throw new Error('该流水没有待确认的基金净值或份额')
-    }
-    const quote = await fundNavQuoteOnDate(prisma, original.asset.symbol, dateKeyAt(original.navDate))
-    if (!quote || quote.source !== 'EASTMONEY-FUND' || quote.kind !== 'OFFICIAL_NAV') {
-      throw new Error('该成交日官方净值尚未取得，请刷新行情后重试')
-    }
-    const corrected = await auditedTransaction(prisma, ctx.familyId, (txDb) =>
-      correctEstimatedFundTransactionRecord(txDb, ctx, id, quote.price),
-    )
-    const warning = await refresh(ctx, corrected.affectedSince)
+    const { warning, ...corrected } = await confirmFundOfficialNavRecord(prisma, ctx, id)
     revalidatePath('/transactions')
     return { ok: true, data: corrected, warning }
   } catch (e) {
@@ -523,40 +427,7 @@ export async function confirmFundOfficialNav(id: string): Promise<ActionResult<{
 export async function confirmFundSettlement(id: string): Promise<ActionResult> {
   try {
     const ctx = await requireWrite()
-    const original = await prisma.transaction.findFirst({
-      where: {
-        id,
-        familyId: ctx.familyId,
-        type: 'SELL',
-        internal: false,
-        voidedAt: null,
-        settlementDate: { not: null },
-        asset: { cls: 'FUND' },
-      },
-      include: { asset: true, account: true },
-    })
-    if (!original?.settlementDate) throw new Error('该流水没有可确认的基金到账事件')
-    const today = dateKeyAt(new Date())
-    if (dateKeyAt(original.settlementDate) > today) throw new Error('预计到账日尚未到达，暂不能确认')
-    const existing = await prisma.auditLog.findFirst({
-      where: {
-        familyId: ctx.familyId,
-        action: 'FUND_SETTLEMENT_CONFIRMED',
-        entity: 'Transaction',
-        entityId: id,
-      },
-    })
-    if (existing) return { ok: true }
-    const settlementLeg = await prisma.transaction.findFirst({
-      where: { familyId: ctx.familyId, settleOfId: id, voidedAt: null },
-    })
-    await audit(ctx, 'FUND_SETTLEMENT_CONFIRMED', 'Transaction', id, JSON.stringify({
-      version: 1,
-      assetName: original.asset.name,
-      accountName: original.account.name,
-      settlementDate: dateKeyAt(original.settlementDate),
-      expectedAmount: settlementLeg ? Number(settlementLeg.amount) : Number(original.amount) - Number(original.fee),
-    }))
+    await confirmFundSettlementRecord(prisma, ctx, id)
     revalidatePath('/health')
     revalidatePath('/accounts')
     return { ok: true }

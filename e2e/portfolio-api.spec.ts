@@ -6,7 +6,15 @@ import { test, expect } from '@playwright/test'
 const API_KEY = 'e2e-test-key'
 const AUTH = { headers: { authorization: `Bearer ${API_KEY}` } }
 
-const APP_ROUTES = ['/api/monthly-summary', '/api/monthly-trend', '/api/assets', '/api/performance']
+const APP_ROUTES = [
+  '/api/monthly-summary',
+  '/api/monthly-trend',
+  '/api/assets',
+  '/api/performance',
+  '/api/goals',
+  '/api/mobile/summary',
+  '/api/mobile/returns-calendar?month=2026-06',
+]
 
 function currentMonth(): string {
   const now = new Date()
@@ -46,7 +54,50 @@ test.describe('App API 认证（Bearer Token）', () => {
     const reverse = await context.request.post('/api/transactions/nonexistent/reverse', AUTH)
     expect(reverse.status()).toBe(401)
     expect((await reverse.json()).error).toBe('User session required')
+    for (const route of [
+      '/api/fund-operations/confirm-nav',
+      '/api/fund-operations/confirm-settlement',
+      '/api/reviews/current',
+      '/api/reconciliation',
+    ]) {
+      const response = route === '/api/reviews/current'
+        ? await context.request.put(route, AUTH)
+        : await context.request.post(route, AUTH)
+      expect(response.status()).toBe(401)
+      expect((await response.json()).error).toBe('User session required')
+    }
     await context.close()
+  })
+})
+
+test.describe('A：FIRE 投影与在途资产契约', () => {
+  test('goals 与 mobile summary 下发同源投影及完整在途结构', async ({ request }) => {
+    const [goalsResponse, summaryResponse] = await Promise.all([
+      request.get('/api/goals'),
+      request.get('/api/mobile/summary'),
+    ])
+    expect(goalsResponse.ok()).toBeTruthy()
+    expect(summaryResponse.ok()).toBeTruthy()
+    const goals = await goalsResponse.json()
+    const summary = await summaryResponse.json()
+    expect(goals.goals.length).toBeGreaterThan(0)
+    for (const goal of goals.goals) {
+      expect(goal.projection.points.length).toBeLessThanOrEqual(120)
+      expect(goal.projection.points[0]).toEqual(expect.objectContaining({
+        month: expect.any(Number),
+        p10: expect.any(Number),
+        p50: expect.any(Number),
+        p90: expect.any(Number),
+      }))
+    }
+    expect(summary.fire.map((goal: { id: string }) => goal.id)).toEqual(goals.goals.map((goal: { id: string }) => goal.id))
+    expect(summary.inTransit).toEqual(expect.objectContaining({
+      total: expect.any(Number),
+      purchase: expect.any(Number),
+      redemption: expect.any(Number),
+    }))
+    expect(Array.isArray(summary.pendingPurchases)).toBeTruthy()
+    expect(Array.isArray(summary.pendingSettlements)).toBeTruthy()
   })
 })
 
@@ -208,6 +259,14 @@ test.describe('/api/performance', () => {
     expect(typeof json.xirr).toBe('number')
     expect(typeof json.maxDrawdown).toBe('number')
     expect(typeof json.annualizedVolatility).toBe('number')
+    expect(json.benchmarkSymbol).toBe('sh000300')
+    expect(json.curve.length).toBeGreaterThan(0)
+    expect(json.curve[0]).toEqual(expect.objectContaining({
+      date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      pct: expect.any(Number),
+      mwrPct: expect.any(Number),
+    }))
+    expect('benchmarkPct' in json.curve[0]).toBeTruthy()
   })
 })
 
@@ -245,6 +304,13 @@ test.describe('/api/assets', () => {
     const valueSum = json.composition.reduce((s: number, c: { value: number }) => s + c.value, 0)
     expect(valueSum).toBeGreaterThan(json.netWorth)
 
+    expect(Array.isArray(json.dimensions.style)).toBeTruthy()
+    expect(Array.isArray(json.dimensions.market)).toBeTruthy()
+    expect(json.dimensions.style.length).toBeGreaterThan(0)
+    expect(json.dimensions.market.length).toBeGreaterThan(0)
+    expect(json.dimensions.style.reduce((sum: number, row: { pct: number }) => sum + row.pct, 0)).toBeCloseTo(1)
+    expect(json.dimensions.market.reduce((sum: number, row: { pct: number }) => sum + row.pct, 0)).toBeCloseTo(1)
+
     // 净资产曲线：最近 90 个快照日，升序
     expect(json.series.length).toBeGreaterThan(0)
     expect(json.series.length).toBeLessThanOrEqual(90)
@@ -254,6 +320,69 @@ test.describe('/api/assets', () => {
       expect(p.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
       expect(typeof p.netWorth).toBe('number')
       expect(typeof p.investable).toBe('number')
+    }
+  })
+})
+
+test.describe('B：移动端服务端收尾契约', () => {
+  test('收益日历只返回真实观察日，并附估值证据、流水和月年汇总', async ({ request }) => {
+    const response = await request.get('/api/mobile/returns-calendar?month=2026-06')
+    expect(response.ok()).toBeTruthy()
+    const json = await response.json()
+    expect(json.month).toBe('2026-06')
+    expect(json.days.length).toBeGreaterThan(0)
+    for (const day of json.days) {
+      expect(day.date.startsWith('2026-06-')).toBeTruthy()
+      expect(typeof day.pnl).toBe('number')
+      expect(day.pnlPct === null || typeof day.pnlPct === 'number').toBeTruthy()
+      expect(['CLOSED', 'NO_UPDATE', 'FLOW_ONLY']).not.toContain(day.valuationStatus)
+      expect(Array.isArray(day.gaps)).toBeTruthy()
+      expect(Array.isArray(day.transactions)).toBeTruthy()
+    }
+    expect(json.yearSummary.months).toHaveLength(12)
+    expect(json.monthSummary.observationDays).toBe(json.days.length)
+  })
+
+  test('持仓下发 style、marketGroup 与 tags', async ({ request }) => {
+    const response = await request.get('/api/positions')
+    expect(response.ok()).toBeTruthy()
+    const json = await response.json()
+    expect(json.positions.length).toBeGreaterThan(0)
+    for (const position of json.positions) {
+      expect(['DOMESTIC', 'OFFSHORE']).toContain(position.marketGroup)
+      expect(Array.isArray(position.tags)).toBeTruthy()
+      expect(position.style === null || typeof position.style === 'string').toBeTruthy()
+    }
+  })
+
+  test('复盘笔记可通过 REST 保存并由同一读取端点看到', async ({ request }) => {
+    const current = await request.get('/api/reviews/current?period=THIS_MONTH')
+    const evidence = await current.json()
+    const note = `App REST E2E ${Date.now()}`
+    const saved = await request.put('/api/reviews/current', {
+      data: { period: 'THIS_MONTH', startDate: evidence.range.startDate, note, status: 'DRAFT' },
+    })
+    expect(saved.ok()).toBeTruthy()
+    const reread = await request.get('/api/reviews/current?period=THIS_MONTH')
+    expect((await reread.json()).savedReview.note).toBe(note)
+  })
+
+  test('账户对账 REST 追加证据；基金确认 REST 对无效流水诚实拒绝', async ({ request }) => {
+    const summary = await (await request.get('/api/mobile/summary')).json()
+    const reconciled = await request.post('/api/reconciliation', {
+      data: {
+        accountId: summary.accounts[0].id,
+        observedValueCny: summary.accounts[0].marketValue,
+        source: 'E2E 外部账单',
+      },
+    })
+    expect(reconciled.ok()).toBeTruthy()
+    expect(typeof (await reconciled.json()).differenceCny).toBe('number')
+
+    for (const route of ['/api/fund-operations/confirm-nav', '/api/fund-operations/confirm-settlement']) {
+      const response = await request.post(route, { data: { transactionId: 'not-found' } })
+      expect(response.status()).toBe(400)
+      expect(typeof (await response.json()).error).toBe('string')
     }
   })
 })
