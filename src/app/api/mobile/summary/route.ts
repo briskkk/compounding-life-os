@@ -112,6 +112,42 @@ export async function GET(req: NextRequest) {
     annualReturn: v.annualReturn,
     inflation: v.inflation,
     annualSpend: v.annualSpend,
+    // v1.2：置信带曲线（p10/p50/p90），供 App FIRE 屏投影
+    projection: v.projection ?? null,
+  }))
+
+  // ── 在途资产（v1.2：待确认申购 + 赎回到账；并入 netWorth/investable）──
+  const accountNameById = new Map(accounts.map((a) => [a.id, a.name]))
+  const inTransit = {
+    total: Math.round(state.inTransit * 100) / 100,
+    purchase: Math.round(state.purchaseInTransit * 100) / 100,
+    redemption: Math.round(state.redemptionInTransit * 100) / 100,
+  }
+  const cnyRateFor = (cur: string) =>
+    cur === 'USD' ? state.currencyRates.USD : cur === 'HKD' ? state.currencyRates.HKD : 1
+  const pendingPurchases = state.pendingFundPurchases.map((p) => ({
+    id: p.buyTxId,
+    assetId: p.assetId,
+    assetName: assetById.get(p.assetId)?.name ?? null,
+    accountId: p.accountId,
+    accountName: accountNameById.get(p.accountId) ?? null,
+    amount: Math.round(p.amount * 100) / 100,
+    amountCny: Math.round(p.amount * cnyRateFor(p.currency) * 100) / 100,
+    currency: p.currency,
+    orderedAt: p.orderedAt.toISOString(),
+    navDate: p.navDate.toISOString(),
+  }))
+  const pendingSettlements = state.pendingSettlements.map((s) => ({
+    id: s.sellTxId,
+    assetId: s.sellAssetId,
+    assetName: s.sellAssetId ? (assetById.get(s.sellAssetId)?.name ?? null) : null,
+    accountId: s.accountId,
+    accountName: accountNameById.get(s.accountId) ?? null,
+    amount: Math.round(s.amount * 100) / 100,
+    amountCny: Math.round(s.amount * cnyRateFor(s.currency) * 100) / 100,
+    currency: s.currency,
+    soldAt: s.soldAt?.toISOString() ?? null,
+    settlementDate: s.settlementDate.toISOString(),
   }))
 
   return NextResponse.json({
@@ -132,6 +168,9 @@ export async function GET(req: NextRequest) {
     accounts: accountViews,
     liabilities: liabilitiesView,
     fire: fireGoals,
+    inTransit,
+    pendingPurchases,
+    pendingSettlements,
     ledger: { hash: lastAudit?.hash?.slice(0, 8) ?? null, txCount: state.txCount },
     positions: state.valued
       .filter((p) => p.asset.cls !== 'CASH' && Math.abs(p.quantity) > 1e-9)

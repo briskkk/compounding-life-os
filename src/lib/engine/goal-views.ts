@@ -25,6 +25,13 @@ export interface GoalView {
   retirementIncome: number
   monthlyContribution: number
   targetDate: string
+  /** 置信带曲线（按月 p10/p50/p90，≤120 采样；供移动端 FIRE 置信带/网页同源口径） */
+  projection?: {
+    points: { month: number; p10: number; p50: number; p90: number }[]
+    estimatedFireMonths: number | null
+    fireNumberAtRetirement: number
+    fundedRatio: number
+  }
 }
 
 const DAY = 86_400_000
@@ -33,6 +40,26 @@ function formatMonth(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   return `${y}-${m}`
+}
+
+/** 置信带曲线：均匀采样至 ≤120 点（与网页 goals 页采样口径一致） */
+function sampleProjection<T extends { month: number }>(points: T[], cap = 120): T[] {
+  if (points.length <= cap) return points
+  const step = Math.max(1, Math.ceil(points.length / cap))
+  const sampled = points.filter((_, i) => i % step === 0)
+  if (sampled[sampled.length - 1]?.month !== points[points.length - 1]?.month) {
+    sampled.push(points[points.length - 1])
+  }
+  return sampled
+}
+
+function roundProjection(points: { month: number; p10: number; p50: number; p90: number }[]) {
+  return points.map((pt) => ({
+    month: pt.month,
+    p10: Math.round(pt.p10 * 100) / 100,
+    p50: Math.round(pt.p50 * 100) / 100,
+    p90: Math.round(pt.p90 * 100) / 100,
+  }))
 }
 
 export function projectGoalViews(goals: Goal[], state: EngineState, now: Date = new Date()): GoalView[] {
@@ -77,6 +104,12 @@ export function projectGoalViews(goals: Goal[], state: EngineState, now: Date = 
         retirementIncome: Number(g.retirementIncome),
         monthlyContribution: Number(g.monthlyContribution),
         targetDate: g.targetDate.toISOString().slice(0, 10),
+        projection: {
+          points: roundProjection(sampleProjection(r.points)),
+          estimatedFireMonths: null,
+          fireNumberAtRetirement: 0,
+          fundedRatio: Math.round(r.fundedRatio * 1000) / 1000,
+        },
       }
     }
 
@@ -108,6 +141,12 @@ export function projectGoalViews(goals: Goal[], state: EngineState, now: Date = 
       retirementIncome: Number(g.retirementIncome),
       monthlyContribution: Number(g.monthlyContribution),
       targetDate: g.targetDate.toISOString().slice(0, 10),
+      projection: {
+        points: roundProjection(sampleProjection(r.points)),
+        estimatedFireMonths: r.estimatedFireMonths,
+        fireNumberAtRetirement: Math.round(r.fireNumberAtRetirement),
+        fundedRatio: Math.round(r.fundedRatio * 1000) / 1000,
+      },
     }
   })
 }
