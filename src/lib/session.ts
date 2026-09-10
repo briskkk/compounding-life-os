@@ -2,6 +2,7 @@
 // 未登录返回 null（调用方重定向 /login），不再回落第一个 OWNER
 import { cookies, headers } from 'next/headers'
 import { createHash } from 'node:crypto'
+import { cache } from 'react'
 import { prisma } from './db'
 import type { FamilyCtx } from './scoped'
 
@@ -48,7 +49,7 @@ export async function findSessionByToken(token: string) {
   return session
 }
 
-export async function getSession(): Promise<FamilyCtx | null> {
+const loadSession = async (): Promise<FamilyCtx | null> => {
   const token = await sessionToken()
   if (!token) return null
   const session = await findSessionByToken(token)
@@ -67,6 +68,9 @@ export async function getSession(): Promise<FamilyCtx | null> {
     userId: session.userId,
   }
 }
+
+/** 同一次 React 服务端渲染内去重 layout/page 的重复会话查询。 */
+export const getSession = cache(loadSession)
 
 /** 是否有有效会话（不校验家庭归属；用于"登录但未加入家庭"的引导） */
 export async function hasSession(): Promise<{ userId: string; familyId: string } | null> {

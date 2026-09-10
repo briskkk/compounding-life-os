@@ -1,6 +1,6 @@
 // 行情缓存与健康打点测试
 import { beforeEach, describe, expect, it } from 'vitest'
-import { cachedQuote, marketHealth, providerCircuitOpen, recordRequest, resetMarketHealth, QUOTE_TTL_MS } from '@/lib/market/cache'
+import { cachedQuote, cachedQuoteSWR, marketHealth, providerCircuitOpen, recordRequest, resetMarketHealth, QUOTE_TTL_MS } from '@/lib/market/cache'
 import type { QuoteData } from '@/lib/market/provider'
 
 function fakeQuote(symbol: string, price: number): QuoteData {
@@ -64,6 +64,50 @@ describe('cachedQuote（TTL 缓存）', () => {
     expect(calls).toBe(1)
     expect(marketHealth().cache.coalesced).toBe(1)
     expect(marketHealth().cache.misses).toBe(1)
+  })
+})
+
+describe('cachedQuoteSWR（首屏非阻塞缓存）', () => {
+  it('立即返回已落库行情，后台刷新后命中新值', async () => {
+    let resolveRefresh!: (quote: QuoteData) => void
+    const refresh = new Promise<QuoteData>((resolve) => {
+      resolveRefresh = resolve
+    })
+    const fallback = fakeQuote('AAA', 10)
+
+    const first = await cachedQuoteSWR('swr', fallback, () => refresh)
+    expect(first?.price).toBe(10)
+    expect(marketHealth().cache.staleServed).toBe(1)
+    expect(marketHealth().cache.backgroundRefreshes).toBe(1)
+
+    resolveRefresh(fakeQuote('AAA', 12))
+    await refresh
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const second = await cachedQuoteSWR('swr', fallback, async () => fakeQuote('AAA', 13))
+    expect(second?.price).toBe(12)
+  })
+
+  it('没有历史价时立即返回 null，且合并后台刷新', async () => {
+    let calls = 0
+    let resolveRefresh!: (quote: QuoteData) => void
+    const refresh = new Promise<QuoteData>((resolve) => {
+      resolveRefresh = resolve
+    })
+    const fetcher = () => {
+      calls += 1
+      return refresh
+    }
+
+    const [first, second] = await Promise.all([
+      cachedQuoteSWR('empty', null, fetcher),
+      cachedQuoteSWR('empty', null, fetcher),
+    ])
+    expect(first).toBeNull()
+    expect(second).toBeNull()
+    expect(calls).toBe(1)
+    expect(marketHealth().cache.coalesced).toBe(1)
+    resolveRefresh(fakeQuote('AAA', 15))
+    await refresh
   })
 })
 

@@ -8,7 +8,7 @@ import { sinaProvider } from './sina'
 import { eastmoneyFundProvider } from './eastmoney-fund'
 import { eastmoneyKlineProvider } from './eastmoney-kline'
 import { parseSymbol, type Market } from './symbols'
-import { cachedQuote, providerCircuitOpen, quoteCacheKey, recordRequest } from './cache'
+import { cachedQuote, cachedQuoteSWR, providerCircuitOpen, quoteCacheKey, recordRequest } from './cache'
 import { recordProviderObservation } from './quality'
 import type { Bar, MarketDataProvider, QuoteData } from './provider'
 
@@ -126,45 +126,62 @@ export function getProvider(): MarketDataProvider {
   return providerChain()[0]
 }
 
-/** 混合报价：沿链逐个尝试（30s TTL 缓存）；真实标的全链失败抛错，OTHER 标的回落模拟源 */
-export async function quoteSmart(symbol: string, options?: { route?: MarketRoute }): Promise<QuoteData> {
-  const route = options?.route ?? 'AUTO'
+function smartQuoteFetcher(symbol: string, route: MarketRoute): { key: string; fetchQuote: () => Promise<QuoteData> } {
   const market = routedMarket(symbol, route)
   const chain = providersFor(symbol, 'QUOTE', route)
   const scope = circuitScope('QUOTE', market)
   const key = quoteCacheKey(chain.map((p) => p.label).join('+'), symbol)
-  return cachedQuote(key, async () => {
-    for (const provider of chain) {
-      if (providerCircuitOpen(provider.label, Date.now(), scope)) continue
-      const t0 = Date.now()
-      try {
-        const q = await provider.quote(symbol)
-        if (
-          q.symbol !== symbol
-          || !Number.isFinite(q.price)
-          || q.price <= 0
-          || !Number.isFinite(q.prevClose)
-          || q.prevClose < 0
-          || !Number.isFinite(new Date(q.asOf).getTime())
-          || q.source.trim().length === 0
-        ) {
-          throw new Error(`${provider.label} 返回了无效报价：${symbol}`)
+  return {
+    key,
+    fetchQuote: async () => {
+      for (const provider of chain) {
+        if (providerCircuitOpen(provider.label, Date.now(), scope)) continue
+        const t0 = Date.now()
+        try {
+          const q = await provider.quote(symbol)
+          if (
+            q.symbol !== symbol
+            || !Number.isFinite(q.price)
+            || q.price <= 0
+            || !Number.isFinite(q.prevClose)
+            || q.prevClose < 0
+            || !Number.isFinite(new Date(q.asOf).getTime())
+            || q.source.trim().length === 0
+          ) {
+            throw new Error(`${provider.label} 返回了无效报价：${symbol}`)
+          }
+          const elapsed = Date.now() - t0
+          recordRequest(provider.label, true, elapsed, undefined, scope)
+          await recordProviderObservation({ provider: provider.label, scope, ok: true, ms: elapsed })
+          return q
+        } catch (e) {
+          const elapsed = Date.now() - t0
+          const message = e instanceof Error ? e.message : String(e)
+          recordRequest(provider.label, false, elapsed, message, scope)
+          await recordProviderObservation({ provider: provider.label, scope, ok: false, ms: elapsed, error: message })
+          /* 尝试下一源 */
         }
-        const elapsed = Date.now() - t0
-        recordRequest(provider.label, true, elapsed, undefined, scope)
-        await recordProviderObservation({ provider: provider.label, scope, ok: true, ms: elapsed })
-        return q
-      } catch (e) {
-        const elapsed = Date.now() - t0
-        const message = e instanceof Error ? e.message : String(e)
-        recordRequest(provider.label, false, elapsed, message, scope)
-        await recordProviderObservation({ provider: provider.label, scope, ok: false, ms: elapsed, error: message })
-        /* 尝试下一源 */
       }
-    }
-    if (parseSymbol(symbol).market === 'OTHER' && simulatedAllowed()) return simulatedProvider.quote(symbol)
-    throw new Error(`全部行情源均不可用：${symbol}`)
-  })
+      if (parseSymbol(symbol).market === 'OTHER' && simulatedAllowed()) return simulatedProvider.quote(symbol)
+      throw new Error(`全部行情源均不可用：${symbol}`)
+    },
+  }
+}
+
+/** 混合报价：沿链逐个尝试（30s TTL 缓存）；真实标的全链失败抛错，OTHER 标的回落模拟源 */
+export async function quoteSmart(symbol: string, options?: { route?: MarketRoute }): Promise<QuoteData> {
+  const request = smartQuoteFetcher(symbol, options?.route ?? 'AUTO')
+  return cachedQuote(request.key, request.fetchQuote)
+}
+
+/** SSR 首屏报价：立即使用真实旧行情，外部行情在后台更新缓存。 */
+export async function quoteSmartSWR(
+  symbol: string,
+  fallback: QuoteData | null,
+  options?: { route?: MarketRoute },
+): Promise<QuoteData | null> {
+  const request = smartQuoteFetcher(symbol, options?.route ?? 'AUTO')
+  return cachedQuoteSWR(request.key, fallback, request.fetchQuote)
 }
 
 export interface HistoryResult {

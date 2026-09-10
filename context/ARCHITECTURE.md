@@ -57,7 +57,7 @@ flowchart LR
 
 ### 刷新行情
 
-市场资产目录 → 基金官方净值或真实 provider chain → `PriceBar` 幂等落库 → 清理历史模拟 K 线 → 全量重建当前家庭快照 → 记录审计。服务器每日 08:00 由 `deploy/server-refresh.sh` 自动执行。
+日常链路先由账本重放识别当前持仓，再按美股收盘、境内收盘、基金净值三个时段分别调用真实 provider，幂等更新 `PriceBar` / `RateBar`，并从最早受影响行情日起增量重建快照。完整维护才扫描拆分、覆盖已清仓历史资产、补历史汇率、清理模拟 K 线并全量重建；服务器通过 `deploy/server-refresh.sh` 加锁执行三个每日增量任务与一个周末完整任务。
 
 ## 数据库策略
 
@@ -73,4 +73,3 @@ flowchart LR
 - E2E：`.next-e2e`，专用 SQLite 数据库，端口 3200，`MARKET_PROVIDER=simulated`。
 
 不得让两个进程共享同一个 dist 目录。
-

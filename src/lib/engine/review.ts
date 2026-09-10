@@ -9,7 +9,7 @@ import { riskMetrics } from './risk'
 import { dateKeyAt } from './watch-market'
 import type { AssetPerformancePoint } from './asset-performance'
 import type { AssetClass, AssetStyle } from './types'
-import { pendingSettlementsAt, type LedgerTx } from './ledger'
+import { foldTransactions, pendingFundPurchasesAt, pendingSettlementsAt, type LedgerTx } from './ledger'
 
 export type ReviewPeriod = 'THIS_DAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'THIS_QUARTER'
 
@@ -62,6 +62,37 @@ export function reviewRange(period: ReviewPeriod, now = new Date(), month?: stri
     startDate: `${selectedMonth}-01`,
     endDate: monthEnd(selectedMonth),
   }
+}
+
+/**
+ * 找出真正影响指定复盘区间的资产：期初/期末持仓、期内流水与两端在途。
+ * 用账本回放判定，因此历史月份不依赖“当前是否持有”。
+ */
+export function reviewRelevantAssetIds(
+  transactions: LedgerTx[],
+  startDate: string,
+  endDate: string,
+): Set<string> {
+  const beforeStart = new Date(`${startDate}T12:00:00+08:00`)
+  beforeStart.setDate(beforeStart.getDate() - 1)
+  const end = new Date(`${endDate}T12:00:00+08:00`)
+  const result = new Set<string>()
+
+  for (const asOf of [beforeStart, end]) {
+    for (const position of foldTransactions(transactions, asOf)) {
+      if (Math.abs(position.quantity) > 1e-9 || position.manualValue != null) result.add(position.assetId)
+    }
+    for (const purchase of pendingFundPurchasesAt(transactions, asOf)) result.add(purchase.assetId)
+    for (const settlement of pendingSettlementsAt(transactions, asOf)) {
+      if (settlement.sellAssetId) result.add(settlement.sellAssetId)
+      result.add(settlement.cashAssetId)
+    }
+  }
+  for (const tx of transactions) {
+    const date = dateKeyAt(tx.occurredAt)
+    if (!tx.voidedAt && date >= startDate && date <= endDate) result.add(tx.assetId)
+  }
+  return result
 }
 
 export interface ReviewAssetInput {

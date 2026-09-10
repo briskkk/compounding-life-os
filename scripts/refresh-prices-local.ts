@@ -1,46 +1,127 @@
-// 一次性：为 dev.db 补刷行情（等效页面「↻ 行情」refreshPrices 动作）
-// 用法：npx tsx scripts/refresh-prices-local.ts
+// 后台行情任务：按收盘时段刷新当前持仓；full 模式执行完整维护。
+// 用法：REFRESH_SLOT=us-close|cn-close|fund-nav|full npx tsx scripts/refresh-prices-local.ts
 import { prisma } from '@/lib/db'
-import { BENCHMARK_INDICES } from '@/lib/engine/benchmark'
 import { persistFundHistory, persistHistory, purgeMisroutedFundBars } from '@/lib/market/persist'
-import { fxRates, persistDailyFx } from '@/lib/market/fx'
+import { backfillHistoricalFx, fxRates, persistDailyFx } from '@/lib/market/fx'
 import { rebuildSnapshots } from '@/lib/snapshots'
 import { recordAudit } from '@/lib/audit'
 import { scanSplitEvents } from '@/lib/services/split-discovery'
+import { activeAssetIdsFromLedger, buildMarketRefreshPlan, refreshSlotOf } from '@/lib/market/refresh-plan'
+import type { AssetInfo } from '@/lib/engine/types'
+import type { LedgerTx } from '@/lib/engine/ledger'
+
+const DAY = 86400000
+
+function elapsed(startedAt: number) {
+  return Date.now() - startedAt
+}
 
 async function main() {
-  const family = await prisma.familySpace.findFirst({ orderBy: { createdAt: 'asc' } })
-  if (!family) throw new Error('未初始化家庭空间')
-  const scanner = await prisma.member.findFirst({ where: { familyId: family.id, role: { in: ['OWNER', 'ADMIN'] } } })
-  if (scanner) {
-    const scan = await scanSplitEvents(prisma, { familyId: family.id, memberId: scanner.id, memberName: `SYSTEM · ${process.env.REFRESH_SLOT ?? 'manual-script'}`, role: scanner.role, userId: scanner.userId ?? '' })
-    console.log(`拆分检查：${scan.events.length} 条线索，${scan.errors.length} 个失败；待核对事件见 /corporate-actions`)
+  const slot = refreshSlotOf(process.env.REFRESH_SLOT, 'full')
+  const families = await prisma.familySpace.findMany({ orderBy: { createdAt: 'asc' } })
+  if (families.length === 0) throw new Error('未初始化家庭空间')
+
+  for (const family of families) {
+    const startedAt = Date.now()
+    const timings = { splitScanMs: 0, historyMs: 0, fxMs: 0, snapshotsMs: 0 }
+    const [assetRows, transactionRows, member, scanner] = await Promise.all([
+      prisma.asset.findMany({ where: { familyId: family.id } }),
+      prisma.transaction.findMany({ where: { familyId: family.id }, include: { asset: true }, orderBy: { occurredAt: 'asc' } }),
+      prisma.member.findFirst({ where: { familyId: family.id }, orderBy: { createdAt: 'asc' } }),
+      prisma.member.findFirst({ where: { familyId: family.id, role: { in: ['OWNER', 'ADMIN'] } }, orderBy: { createdAt: 'asc' } }),
+    ])
+    const assets: AssetInfo[] = assetRows.map((asset) => ({
+      id: asset.id,
+      symbol: asset.symbol,
+      name: asset.name,
+      cls: asset.cls,
+      manual: asset.manual,
+      currency: asset.currency,
+    }))
+    const ledgerTxs: LedgerTx[] = transactionRows.map((tx) => ({
+      id: tx.id,
+      accountId: tx.accountId,
+      assetId: tx.assetId,
+      type: tx.type,
+      quantity: tx.quantity == null ? null : Number(tx.quantity),
+      price: tx.price == null ? null : Number(tx.price),
+      amount: Number(tx.amount),
+      fee: Number(tx.fee),
+      occurredAt: tx.occurredAt,
+      navDate: tx.navDate,
+      settlementDate: tx.settlementDate,
+      navSource: tx.navSource,
+      internal: tx.internal,
+      voidedAt: tx.voidedAt,
+      settleOfId: tx.settleOfId,
+      assetClass: tx.asset.cls,
+      currency: tx.asset.currency,
+    }))
+    const plan = buildMarketRefreshPlan(assets, activeAssetIdsFromLedger(ledgerTxs), slot)
+    const from = ledgerTxs[0]?.occurredAt ?? new Date(Date.now() - 800 * DAY)
+    const actorName = `SYSTEM · ${slot}`
+
+    if (slot === 'full' && scanner) {
+      const phaseAt = Date.now()
+      const scan = await scanSplitEvents(prisma, {
+        familyId: family.id,
+        memberId: scanner.id,
+        memberName: actorName,
+        role: scanner.role,
+        userId: scanner.userId ?? '',
+      })
+      timings.splitScanMs = elapsed(phaseAt)
+      console.log(`[${family.name}] 拆分检查：${scan.events.length} 条线索，${scan.errors.length} 个失败；待核对事件见 /corporate-actions`)
+    }
+
+    if (slot === 'full') await prisma.priceBar.deleteMany({ where: { source: 'SIMULATED' } })
+    const purgedMisrouted = await purgeMisroutedFundBars(prisma, plan.marketSymbols)
+    const historyAt = Date.now()
+    const [fundResults, marketResults] = await Promise.all([
+      persistFundHistory(prisma, plan.fundSymbols, from, new Date()),
+      persistHistory(prisma, plan.marketSymbols, from, new Date(), { route: 'EXCHANGE' }),
+    ])
+    const results = [...fundResults, ...marketResults]
+    timings.historyMs = elapsed(historyAt)
+
+    const fxAt = Date.now()
+    let fxBackfilled = 0
+    let fxBackfillWarning = ''
+    if (slot === 'full' && plan.hasForeignCurrency) {
+      try {
+        fxBackfilled = await backfillHistoricalFx(prisma, from)
+      } catch (error) {
+        fxBackfillWarning = `；历史汇率回填失败：${error instanceof Error ? error.message : String(error)}`
+      }
+    }
+    const fxWritten = plan.hasForeignCurrency ? await persistDailyFx(prisma, await fxRates(prisma)) : 0
+    timings.fxMs = elapsed(fxAt)
+
+    const snapshotsAt = Date.now()
+    const changedFrom = results
+      .map((result) => result.changedFrom ? new Date(result.changedFrom) : null)
+      .filter((date): date is Date => date != null && Number.isFinite(date.getTime()))
+      .sort((a, b) => a.getTime() - b.getTime())[0]
+    const today = new Date(Math.floor(Date.now() / DAY) * DAY)
+    const days = slot === 'full'
+      ? await rebuildSnapshots(prisma, family.id)
+      : await rebuildSnapshots(prisma, family.id, { affectedSince: changedFrom ?? today })
+    timings.snapshotsMs = elapsed(snapshotsAt)
+    const totalMs = elapsed(startedAt)
+    const detail = `定时槽 ${slot}；标的 ${results.length} 个；清理误路由场内净值 ${purgedMisrouted} 条；`
+      + `汇率回填 ${fxBackfilled} 条、当日 ${fxWritten} 条${fxBackfillWarning}；快照 ${days} 天；`
+      + `耗时 ${totalMs}ms（拆分 ${timings.splitScanMs} / 行情 ${timings.historyMs} / 汇率 ${timings.fxMs} / 快照 ${timings.snapshotsMs}）；`
+      + results.map((result) => `${result.symbol}:${result.status}:${result.count}@${result.source}`).join(' ')
+    console.log(`[${family.name}] ${detail}`)
+    await recordAudit(prisma, {
+      familyId: family.id,
+      actorId: member?.id ?? null,
+      actorName,
+      action: 'REFRESH',
+      entity: 'PriceBar',
+      detail,
+    })
   }
-  const assets = await prisma.asset.findMany({ where: { familyId: family.id, manual: false, cls: { notIn: ['CASH', 'REAL_ESTATE'] } } })
-  const from = new Date(Date.now() - 800 * 86400000)
-  const fundSymbols = assets.filter((a) => a.cls === 'FUND').map((a) => a.symbol)
-  const marketSymbols = [...assets.filter((a) => a.cls !== 'FUND').map((a) => a.symbol), ...BENCHMARK_INDICES.map((i) => i.symbol)]
-  const purgedMisrouted = await purgeMisroutedFundBars(prisma, marketSymbols)
-  const results = [
-    ...(await persistFundHistory(prisma, fundSymbols, from, new Date())),
-    ...(await persistHistory(prisma, marketSymbols, from, new Date(), { route: 'EXCHANGE' })),
-  ]
-  console.log(`✓ 清理误路由场内净值 ${purgedMisrouted} 条`)
-  const fxWritten = await persistDailyFx(prisma, await fxRates(prisma))
-  console.log(results.map((r) => `${r.symbol}:${r.status}:${r.count}@${r.source}`).join(' '))
-  console.log(`✓ 汇率落库 ${fxWritten} 条`)
-  const days = await rebuildSnapshots(prisma, family.id)
-  console.log(`✓ 快照重建 ${days} 天`)
-  const member = await prisma.member.findFirst({ where: { familyId: family.id }, orderBy: { createdAt: 'asc' } })
-  const slot = process.env.REFRESH_SLOT ?? 'manual-script'
-  await recordAudit(prisma, {
-    familyId: family.id,
-    actorId: member?.id ?? null,
-    actorName: `SYSTEM · ${slot}`,
-    action: 'REFRESH',
-    entity: 'PriceBar',
-    detail: `定时槽 ${slot}；清理误路由场内净值 ${purgedMisrouted} 条；汇率 ${fxWritten} 条；快照 ${days} 天；${results.map((r) => `${r.symbol}:${r.status}:${r.count}@${r.source}`).join(' ')}`,
-  })
 }
 
 main().catch(async (error) => {

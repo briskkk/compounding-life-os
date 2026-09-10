@@ -13,6 +13,19 @@ describe('估值来源分类', () => {
     expect(positionValuationSource('COST').quality).toBe('fallback')
   })
 
+  it('已落库旧行情显式标为历史值而非实时行情', () => {
+    expect(marketValuationSource('PERSISTED:TENCENT')).toMatchObject({
+      kind: 'STALE_MARKET',
+      label: '历史收盘',
+      quality: 'fallback',
+    })
+    expect(marketValuationSource('PERSISTED:EASTMONEY-FUND')).toMatchObject({
+      kind: 'STALE_MARKET',
+      label: '历史净值',
+      quality: 'fallback',
+    })
+  })
+
   it('手工估值不会被误标为真实行情', () => {
     expect(positionValuationSource('MANUAL', 'TENCENT').kind).toBe('MANUAL')
   })

@@ -318,7 +318,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
                     ? isLongTermAsset
                       ? '长期资产不接入行情，可在本页更新购股、分红和估值记录'
                       : '手动估值资产无行情序列，可在流水页录入估值'
-                    : '暂无真实历史数据 — 点击顶栏「↻ 行情」拉取历史日线'}
+                    : '暂无真实历史数据 — 等待自动刷新，或到数据健康中心完整补齐行情历史'}
               </Empty>
             </div>
           )}

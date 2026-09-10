@@ -7,6 +7,7 @@ export type ValuationSourceKind =
   | 'MANUAL'
   | 'COST_FALLBACK'
   | 'SIMULATED'
+  | 'STALE_MARKET'
   | 'FACE_VALUE'
   | 'UNAVAILABLE'
 
@@ -34,6 +35,20 @@ const PROVIDER_NAMES: Record<string, string> = {
 /** 将行情提供者映射为面向用户的估值口径，避免直接展示内部 source 代码。 */
 export function marketValuationSource(source: string | null | undefined): ValuationSourceMeta {
   const normalized = source?.trim().toUpperCase() ?? ''
+  if (normalized.startsWith('PERSISTED:')) {
+    const providerKey = normalized.slice('PERSISTED:'.length)
+    const isFundNav = providerKey === 'EASTMONEY-FUND'
+    return {
+      kind: 'STALE_MARKET',
+      label: isFundNav ? '历史净值' : '历史收盘',
+      provider: PROVIDER_NAMES[providerKey] ?? providerKey,
+      description: isFundNav
+        ? '首屏使用已落库的最近官方净值，实时值正在后台刷新。'
+        : '首屏使用已落库的最近真实收盘价，实时值正在后台刷新。',
+      tone: 'amber',
+      quality: 'fallback',
+    }
+  }
   if (normalized === 'EASTMONEY-ESTIMATE') {
     return {
       kind: 'MODEL_ESTIMATE',

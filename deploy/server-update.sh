@@ -91,8 +91,14 @@ ensure_refresh() {
 #!/bin/bash
 set -e
 cd /opt/family-wealth-os
-# 拉取基金官方净值与市场行情,并重建快照(等效页面「↻ 行情」)
+# 按收盘时段增量刷新；full 用于周末完整维护。
 REFRESH_SLOT="${1:-manual}"
+LOCK_FILE="/tmp/family-wealth-os-market-refresh.lock"
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  echo "[$(date)] 已有行情任务运行中，跳过 $REFRESH_SLOT"
+  exit 0
+fi
 docker compose exec -T -e REFRESH_SLOT="$REFRESH_SLOT" app npx tsx scripts/refresh-prices-local.ts
 EOF
   chmod +x "$PROJECT_DIR/deploy/server-refresh.sh"
@@ -102,6 +108,7 @@ EOF
   echo "30 6 * * * /opt/family-wealth-os/deploy/server-refresh.sh us-close >> /var/log/fwos-refresh.log 2>&1" >> "$tmp"
   echo "30 16 * * * /opt/family-wealth-os/deploy/server-refresh.sh cn-close >> /var/log/fwos-refresh.log 2>&1" >> "$tmp"
   echo "30 22 * * * /opt/family-wealth-os/deploy/server-refresh.sh fund-nav >> /var/log/fwos-refresh.log 2>&1" >> "$tmp"
+  echo "15 10 * * 6 /opt/family-wealth-os/deploy/server-refresh.sh full >> /var/log/fwos-refresh.log 2>&1" >> "$tmp"
   crontab "$tmp"
   rm -f "$tmp"
 }

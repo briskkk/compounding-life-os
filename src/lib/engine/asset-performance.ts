@@ -125,10 +125,22 @@ export function buildAssetPerformanceSeries({
   let lastPriceStatus: ValuationStatus | undefined
   let previousCurrencyRate: number | null = null
   let cumulativeFlow = 0
+  let positions: ReturnType<typeof foldTransactions> = []
+  let pendingFundAmount = 0
   const result: AssetPerformancePoint[] = []
 
   for (let index = 0; index < totalDays; index++) {
     const date = shiftDateKey(startKey, index)
+    const replayDate = utcDate(date)
+    const dailyTxs = transactionsByDate.get(date) ?? []
+    // 持仓只会在流水日变化。无流水日复用上一日的账本折叠结果，
+    // 但价格、汇率和估值状态仍逐日计算，不改变收益观测口径。
+    if (index === 0 || dailyTxs.length > 0) {
+      positions = foldTransactions(txs, replayDate)
+      pendingFundAmount = asset.cls === 'FUND'
+        ? pendingFundPurchasesAt(txs, replayDate).reduce((sum, purchase) => sum + purchase.amount, 0)
+        : 0
+    }
     while (priceIndex < sortedPrices.length && sortedPrices[priceIndex].date <= date) {
       lastMarketNav = sortedPrices[priceIndex].nav
       lastMarketDate = sortedPrices[priceIndex].date
@@ -136,9 +148,7 @@ export function buildAssetPerformanceSeries({
       priceIndex += 1
     }
 
-    const replayDate = utcDate(date)
     const dailyRate = currencyRateAt(currencyRate, replayDate)
-    const positions = foldTransactions(txs, replayDate)
     const quantity = positions.reduce((sum, position) => sum + position.quantity, 0)
     const costBasis = positions.reduce((sum, position) => sum + position.costBasis, 0)
     let nav: number | null = null
@@ -162,14 +172,8 @@ export function buildAssetPerformanceSeries({
     }
     // 份额未知的基金申购已经划出现金，但不能伪造份额。
     // 把已知申购金额并入该基金的资产日序列，使资产归因与组合同样守恒。
-    if (asset.cls === 'FUND') {
-      netWorth += pendingFundPurchasesAt(txs, replayDate).reduce(
-        (sum, purchase) => sum + purchase.amount * dailyRate,
-        0,
-      )
-    }
+    if (asset.cls === 'FUND') netWorth += pendingFundAmount * dailyRate
 
-    const dailyTxs = transactionsByDate.get(date) ?? []
     for (const tx of dailyTxs) {
       cumulativeFlow += transactionFlow(
         tx,

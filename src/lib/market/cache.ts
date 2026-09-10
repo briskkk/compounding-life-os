@@ -18,6 +18,8 @@ interface MarketRuntimeState {
   cacheHits: number
   cacheMisses: number
   coalesced: number
+  staleServed: number
+  backgroundRefreshes: number
 }
 
 interface CircuitState {
@@ -36,9 +38,13 @@ const runtimeState = globalForMarket.__portfolioMarketRuntime ?? {
   cacheHits: 0,
   cacheMisses: 0,
   coalesced: 0,
+  staleServed: 0,
+  backgroundRefreshes: 0,
 }
 // next dev 热更时 globalThis 可能保留旧结构，就地补齐新字段。
 runtimeState.providerCircuits ??= new Map<string, CircuitState>()
+runtimeState.staleServed ??= 0
+runtimeState.backgroundRefreshes ??= 0
 globalForMarket.__portfolioMarketRuntime = runtimeState
 
 export function quoteCacheKey(chainLabel: string, symbol: string): string {
@@ -71,6 +77,51 @@ export async function cachedQuote(
     })
   runtimeState.pendingQuotes.set(key, request)
   return request
+}
+
+function refreshQuoteInBackground(
+  key: string,
+  fetchQuote: () => Promise<QuoteData>,
+): void {
+  if (runtimeState.pendingQuotes.has(key)) {
+    runtimeState.coalesced += 1
+    return
+  }
+  runtimeState.cacheMisses += 1
+  runtimeState.backgroundRefreshes += 1
+  const request = fetchQuote()
+    .then((value) => {
+      runtimeState.quoteCache.set(key, { at: Date.now(), value })
+      return value
+    })
+    .finally(() => {
+      runtimeState.pendingQuotes.delete(key)
+    })
+  runtimeState.pendingQuotes.set(key, request)
+  // SSR 首屏不等待外部行情；失败由 provider 健康打点记录，下次请求可重试。
+  void request.catch(() => undefined)
+}
+
+/**
+ * SSR 用 stale-while-revalidate 报价缓存。
+ * 立即返回内存旧值或已落库的真实行情，并在后台刷新；
+ * 两者都不存在时返回 null，由估值引擎按成本回落。
+ */
+export async function cachedQuoteSWR(
+  key: string,
+  fallback: QuoteData | null,
+  fetchQuote: () => Promise<QuoteData>,
+): Promise<QuoteData | null> {
+  const hit = runtimeState.quoteCache.get(key)
+  if (hit && Date.now() - hit.at < QUOTE_TTL_MS) {
+    runtimeState.cacheHits += 1
+    return hit.value
+  }
+
+  const stale = hit?.value ?? fallback
+  if (stale) runtimeState.staleServed += 1
+  refreshQuoteInBackground(key, fetchQuote)
+  return stale
 }
 
 // ---------- 健康打点 ----------
@@ -174,7 +225,14 @@ export function providerCircuitOpen(
 
 export interface MarketHealth {
   providers: ProviderStat[]
-  cache: { hits: number; misses: number; coalesced: number; hitRate: number | null }
+  cache: {
+    hits: number
+    misses: number
+    coalesced: number
+    staleServed: number
+    backgroundRefreshes: number
+    hitRate: number | null
+  }
 }
 
 export function marketHealth(): MarketHealth {
@@ -187,6 +245,8 @@ export function marketHealth(): MarketHealth {
       hits: runtimeState.cacheHits,
       misses: runtimeState.cacheMisses,
       coalesced: runtimeState.coalesced,
+      staleServed: runtimeState.staleServed,
+      backgroundRefreshes: runtimeState.backgroundRefreshes,
       hitRate: total > 0 ? runtimeState.cacheHits / total : null,
     },
   }
@@ -201,4 +261,6 @@ export function resetMarketHealth(): void {
   runtimeState.cacheHits = 0
   runtimeState.cacheMisses = 0
   runtimeState.coalesced = 0
+  runtimeState.staleServed = 0
+  runtimeState.backgroundRefreshes = 0
 }

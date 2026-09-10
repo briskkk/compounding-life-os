@@ -296,7 +296,7 @@ export default async function DataHealthPage() {
 
       {dashboard.ctx.role !== 'VIEWER' && (
         <section className="health-repair-strip">
-          <div><span className="eyebrow">Safe repair</span><strong>先恢复行情与派生快照</strong><p>这两项操作不会新增、删除或改写任何交易流水。</p></div>
+          <div><span className="eyebrow">Safe repair</span><strong>行情与派生快照维护</strong><p>服务器按市场收盘时段自动增量刷新；这里保留完整补齐与重建作为人工修复，不会改写交易流水。</p></div>
           <HealthRepairActions />
         </section>
       )}

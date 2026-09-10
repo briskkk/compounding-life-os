@@ -107,43 +107,63 @@ export function WatchClient({
   useEffect(() => {
     if (symbols.length === 0) return
     let alive = true
+    let inFlight = false
+    const controller = new AbortController()
     const load = async () => {
+      if (inFlight || document.visibilityState !== 'visible') return
+      inFlight = true
       const primaryMarketSymbols = localMarketSymbols.length > 0 ? localMarketSymbols : overseasSymbols
       const secondaryMarketSymbols = localMarketSymbols.length > 0 ? overseasSymbols : []
-      const fetchSeries = (requestedSymbols: string[]) => fetch(`/api/intraday?symbols=${requestedSymbols.join(',')}`, { cache: 'no-store' })
+      const fetchSeries = (requestedSymbols: string[]) => fetch(`/api/intraday?symbols=${requestedSymbols.join(',')}`, {
+        cache: 'no-store',
+        signal: controller.signal,
+      })
         .then((response) => response.json() as Promise<{ asOf: string; series: Record<string, IntradaySeries> }>)
       const mergeSeries = (data: { asOf: string; series: Record<string, IntradaySeries> }) => {
         if (!alive) return
         setSeriesMap((previous) => new Map([...previous, ...Object.entries(data.series)]))
         setAsOf(data.asOf)
       }
-      const pricesRequest = fetch(`/api/prices?symbols=${symbols.join(',')}`, { cache: 'no-store' })
+      const pricesRequest = fetch(`/api/prices?symbols=${symbols.join(',')}`, {
+        cache: 'no-store',
+        signal: controller.signal,
+      })
         .then((response) => response.json() as Promise<{ quotes: QuoteLite[] }>)
       const marketRequest = primaryMarketSymbols.length > 0
         ? fetchSeries(primaryMarketSymbols)
         : Promise.resolve(null)
 
-      const [pricesResult, marketResult] = await Promise.allSettled([pricesRequest, marketRequest])
-      if (!alive) return
-      if (pricesResult.status === 'fulfilled') {
-        setQuotes(new Map(pricesResult.value.quotes.map((quote) => [quote.symbol, quote])))
-        setAsOf(pricesResult.value.quotes[0]?.asOf ?? null)
-      }
-      if (marketResult.status === 'fulfilled' && marketResult.value) {
-        mergeSeries(marketResult.value)
-      }
+      try {
+        const [pricesResult, marketResult] = await Promise.allSettled([pricesRequest, marketRequest])
+        if (!alive) return
+        if (pricesResult.status === 'fulfilled') {
+          setQuotes(new Map(pricesResult.value.quotes.map((quote) => [quote.symbol, quote])))
+          setAsOf(pricesResult.value.quotes[0]?.asOf ?? null)
+        }
+        if (marketResult.status === 'fulfilled' && marketResult.value) {
+          mergeSeries(marketResult.value)
+        }
 
-      // 海外行情与基金估值放到第二阶段并行补全，任一慢源都不再阻塞首条境内收益曲线。
-      await Promise.allSettled([
-        secondaryMarketSymbols.length > 0 ? fetchSeries(secondaryMarketSymbols).then(mergeSeries) : Promise.resolve(),
-        fundSymbols.length > 0 ? fetchSeries(fundSymbols).then(mergeSeries) : Promise.resolve(),
-      ])
+        // 海外行情与基金估值放到第二阶段并行补全，任一慢源都不再阻塞首条境内收益曲线。
+        await Promise.allSettled([
+          secondaryMarketSymbols.length > 0 ? fetchSeries(secondaryMarketSymbols).then(mergeSeries) : Promise.resolve(),
+          fundSymbols.length > 0 ? fetchSeries(fundSymbols).then(mergeSeries) : Promise.resolve(),
+        ])
+      } finally {
+        inFlight = false
+      }
     }
-    load()
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    void load()
     const t = setInterval(load, POLL_MS)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
       alive = false
+      controller.abort()
       clearInterval(t)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [fundSymbols, localMarketSymbols, overseasSymbols, symbols])
 

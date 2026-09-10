@@ -33,7 +33,6 @@ import {
 } from './schemas'
 import { parseCsvRows, parsedTxKey, type CsvColumnMapping, type CsvLookup, type ParsedTx } from './csv'
 import { buildSettlementLegs } from './engine/settlement'
-import { BENCHMARK_INDICES } from './engine/benchmark'
 import { createsSettlementCycle } from './engine/settlement-account'
 import { parseTags, serializeTags } from './engine/groups'
 import {
@@ -45,7 +44,10 @@ import {
 import { backfillHistoricalFx, fxRates, persistDailyFx } from './market/fx'
 import { dateKeyAt } from './engine/watch-market'
 import { fundSettlementDate, isQdiiFund } from './engine/fund-order'
+import { type LedgerTx } from './engine/ledger'
+import type { AssetInfo } from './engine/types'
 import { compareProviderQuotes } from './market'
+import { activeAssetIdsFromLedger, buildMarketRefreshPlan, type RefreshSlot } from './market/refresh-plan'
 import { type TransactionDraft } from './transaction-rules'
 import {
   cashSettlementOf,
@@ -1053,63 +1055,180 @@ export async function upsertSavingsEntry(input: unknown): Promise<ActionResult<{
 
 // ---------- 行情 ----------
 
-/** 刷新行情：历史日线落库 + 重建快照 */
-export async function refreshPrices(): Promise<ActionResult<PersistHistoryResult[]>> {
+export interface MarketRefreshSummary {
+  mode: 'CURRENT' | 'FULL'
+  symbols: number
+  snapshots: number
+  results: PersistHistoryResult[]
+  timings: {
+    splitScanMs: number
+    historyMs: number
+    fxMs: number
+    snapshotsMs: number
+    totalMs: number
+  }
+}
+
+function refreshLedgerRows(rows: Array<{
+  id: string
+  accountId: string
+  assetId: string
+  type: LedgerTx['type']
+  quantity: unknown
+  price: unknown
+  amount: unknown
+  fee: unknown
+  occurredAt: Date
+  navDate: Date | null
+  settlementDate: Date | null
+  navSource: string | null
+  internal: boolean
+  voidedAt: Date | null
+  settleOfId: string | null
+  asset: { cls: AssetInfo['cls']; currency: string }
+}>): LedgerTx[] {
+  return rows.map((tx) => ({
+    id: tx.id,
+    accountId: tx.accountId,
+    assetId: tx.assetId,
+    type: tx.type,
+    quantity: tx.quantity == null ? null : Number(tx.quantity),
+    price: tx.price == null ? null : Number(tx.price),
+    amount: Number(tx.amount),
+    fee: Number(tx.fee),
+    occurredAt: tx.occurredAt,
+    navDate: tx.navDate,
+    settlementDate: tx.settlementDate,
+    navSource: tx.navSource,
+    internal: tx.internal,
+    voidedAt: tx.voidedAt,
+    settleOfId: tx.settleOfId,
+    assetClass: tx.asset.cls,
+    currency: tx.asset.currency,
+  }))
+}
+
+async function runPriceRefresh(ctx: FamilyCtx, mode: 'CURRENT' | 'FULL'): Promise<{
+  summary: MarketRefreshSummary
+  warning?: string
+}> {
+  const startedAt = Date.now()
+  const timings = { splitScanMs: 0, historyMs: 0, fxMs: 0, snapshotsMs: 0, totalMs: 0 }
+  const splitScan = { events: [] as unknown[], errors: [] as string[] }
+  if (mode === 'FULL') {
+    const phaseAt = Date.now()
+    const scanned = await scanSplitEvents(prisma, ctx)
+    splitScan.events = scanned.events
+    splitScan.errors = scanned.errors
+    timings.splitScanMs = Date.now() - phaseAt
+  }
+
+  const db = scopedDb(prisma, ctx)
+  const [assetRows, transactionRows] = await Promise.all([
+    db.asset.findMany(),
+    db.transaction.findMany({ include: { asset: true }, orderBy: { occurredAt: 'asc' } }),
+  ])
+  const assets: AssetInfo[] = assetRows.map((asset) => ({
+    id: asset.id,
+    symbol: asset.symbol,
+    name: asset.name,
+    cls: asset.cls,
+    manual: asset.manual,
+    currency: asset.currency,
+  }))
+  const ledgerTxs = refreshLedgerRows(transactionRows)
+  const slot: RefreshSlot = mode === 'FULL' ? 'full' : 'manual'
+  const plan = buildMarketRefreshPlan(assets, activeAssetIdsFromLedger(ledgerTxs), slot)
+  const from = ledgerTxs[0]?.occurredAt ?? new Date(Date.now() - 800 * 86400000)
+  const to = new Date()
+
+  const purged = mode === 'FULL'
+    ? await prisma.priceBar.deleteMany({ where: { source: 'SIMULATED' } })
+    : { count: 0 }
+  const purgedMisrouted = await purgeMisroutedFundBars(prisma, plan.marketSymbols)
+  const historyAt = Date.now()
+  // 基金源与交易所源相互独立，各自内部仍串行，最多只有两个公开请求并发。
+  const [fundResults, marketResults] = await Promise.all([
+    persistFundHistory(prisma, plan.fundSymbols, from, to),
+    persistHistory(prisma, plan.marketSymbols, from, to, { route: 'EXCHANGE' }),
+  ])
+  const results = [...fundResults, ...marketResults]
+  timings.historyMs = Date.now() - historyAt
+
+  const fxAt = Date.now()
+  let fxBackfilled = 0
+  let fxBackfillWarning: string | undefined
+  if (mode === 'FULL' && plan.hasForeignCurrency) {
+    try {
+      fxBackfilled = await backfillHistoricalFx(prisma, from)
+    } catch (error) {
+      fxBackfillWarning = `历史汇率回填失败：${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+  const fxWritten = plan.hasForeignCurrency ? await persistDailyFx(prisma, await fxRates(prisma)) : 0
+  timings.fxMs = Date.now() - fxAt
+
+  const snapshotsAt = Date.now()
+  const changedFrom = results
+    .map((result) => result.changedFrom ? new Date(result.changedFrom) : null)
+    .filter((date): date is Date => date != null && Number.isFinite(date.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime())[0]
+  const today = new Date(Math.floor(Date.now() / 86400000) * 86400000)
+  const snapshots = mode === 'FULL'
+    ? await rebuildSnapshots(prisma, ctx.familyId)
+    : await rebuildSnapshots(prisma, ctx.familyId, { affectedSince: changedFrom ?? today })
+  timings.snapshotsMs = Date.now() - snapshotsAt
+  timings.totalMs = Date.now() - startedAt
+
+  const failed = results.filter((result) => result.status === 'FAILED')
+  await audit(
+    ctx,
+    'REFRESH',
+    'PriceBar',
+    null,
+    `${mode === 'FULL' ? '完整维护' : '当前持仓'} ${plan.fundSymbols.length + plan.marketSymbols.length} 个标的；`
+      + `清理模拟K线 ${purged.count} 条、误路由场内净值 ${purgedMisrouted} 条；汇率回填 ${fxBackfilled} 条，当日 ${fxWritten} 条；`
+      + `耗时 ${timings.totalMs}ms（拆分 ${timings.splitScanMs} / 行情 ${timings.historyMs} / 汇率 ${timings.fxMs} / 快照 ${timings.snapshotsMs}）；`
+      + results.map((result) => `${result.symbol}:${result.status}:${result.count}@${result.source}`).join(' '),
+  )
+  for (const path of ['/', '/watch', '/positions', '/review', '/health', '/health/market']) revalidatePath(path)
+  const warnings = [
+    splitScan.events.length ? '发现拆分公告线索，请到公司行动页核对' : undefined,
+    splitScan.errors.length ? `拆分检查有 ${splitScan.errors.length} 个标的失败，请到公司行动页查看` : undefined,
+    fxBackfillWarning,
+    failed.length > 0
+      ? `${failed.length} 个标的历史行情刷新失败：${failed.map((item) => item.symbol).join('、')}`
+      : undefined,
+  ].filter((item): item is string => item != null)
+  return {
+    summary: {
+      mode,
+      symbols: plan.fundSymbols.length + plan.marketSymbols.length,
+      snapshots,
+      results,
+      timings,
+    },
+    warning: warnings.join('；') || undefined,
+  }
+}
+
+/** 日常人工兜底：只刷新当前持仓和基准，并增量重建受影响快照。 */
+export async function refreshCurrentPrices(): Promise<ActionResult<MarketRefreshSummary>> {
   try {
     const ctx = await requireWrite()
-    const splitScan = await scanSplitEvents(prisma, ctx)
-    const db = scopedDb(prisma, ctx)
-    const [assets, earliestTransaction] = await Promise.all([
-      db.asset.findMany({ where: { manual: false, cls: { notIn: ['CASH', 'REAL_ESTATE'] } } }),
-      db.transaction.findFirst({ orderBy: { occurredAt: 'asc' } }),
-    ])
-    const from = earliestTransaction?.occurredAt ?? new Date(Date.now() - 800 * 86400000)
-    // 清理历史遗留的模拟源 K 线（确定性模拟序列可由价格函数按需重现，无需落库；
-    // 避免真实链路下被旧模拟数据优先命中）
-    const purged = await prisma.priceBar.deleteMany({ where: { source: 'SIMULATED' } })
-    // 基金资产落官方净值历史，其余走行情链路
-    const fundSymbols = assets.filter((a) => a.cls === 'FUND').map((a) => a.symbol)
-    const marketSymbols = [
-      ...assets.filter((a) => a.cls !== 'FUND').map((a) => a.symbol),
-      ...BENCHMARK_INDICES.map((index) => index.symbol),
-    ]
-    const purgedMisrouted = await purgeMisroutedFundBars(prisma, marketSymbols)
-    const results = [
-      ...(await persistFundHistory(prisma, fundSymbols, from, new Date())),
-      ...(await persistHistory(prisma, marketSymbols, from, new Date(), { route: 'EXCHANGE' })),
-    ]
-    // 只有外币组合才请求汇率：ECB 补历史，新浪保存当日实时值。
-    const hasForeignCurrency = assets.some((asset) => asset.currency === 'USD' || asset.currency === 'HKD')
-    let fxBackfilled = 0
-    let fxBackfillWarning: string | undefined
-    if (hasForeignCurrency) {
-      try {
-        fxBackfilled = await backfillHistoricalFx(prisma, from)
-      } catch (error) {
-        fxBackfillWarning = `历史汇率回填失败：${error instanceof Error ? error.message : String(error)}`
-      }
-    }
-    const fxWritten = hasForeignCurrency ? await persistDailyFx(prisma, await fxRates(prisma)) : 0
-    await rebuildSnapshots(prisma, ctx.familyId)
-    const failed = results.filter((result) => result.status === 'FAILED')
-    await audit(
-      ctx,
-      'REFRESH',
-      'PriceBar',
-      null,
-      `清理模拟K线 ${purged.count} 条、误路由场内净值 ${purgedMisrouted} 条；汇率回填 ${fxBackfilled} 条，当日 ${fxWritten} 条；`
-        + results.map((r) => `${r.symbol}:${r.status}:${r.count}@${r.source}`).join(' '),
-    )
-    revalidatePath('/')
-    const warnings = [
-      splitScan.events.length ? '发现拆分公告线索，请到公司行动页核对' : undefined,
-      splitScan.errors.length ? `拆分检查有 ${splitScan.errors.length} 个标的失败，请到公司行动页查看` : undefined,
-      fxBackfillWarning,
-      failed.length > 0
-        ? `${failed.length} 个标的历史行情刷新失败：${failed.map((item) => item.symbol).join('、')}`
-        : undefined,
-    ].filter((item): item is string => item != null)
-    return { ok: true, data: results, warning: warnings.join('；') || undefined }
+    const result = await runPriceRefresh(ctx, 'CURRENT')
+    return { ok: true, data: result.summary, warning: result.warning }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/** 数据修复：补齐全部历史、检查拆分、补历史汇率并全量重建快照。 */
+export async function refreshPrices(): Promise<ActionResult<MarketRefreshSummary>> {
+  try {
+    const ctx = await requireWrite()
+    const result = await runPriceRefresh(ctx, 'FULL')
+    return { ok: true, data: result.summary, warning: result.warning }
   } catch (e) {
     return fail(e)
   }

@@ -17,10 +17,10 @@ import { projectFireGoal, monthsBetween, type FireProjectionResult } from './eng
 import type { ClassWeights } from './engine/covariance'
 import { annualized, dailyNetFlows, twrSeries, xirr, xirrFlowsFromTxs } from './engine/attribution'
 import { totalLiabilities, type LiabilityEntryInput } from './engine/liabilities'
-import { quoteSmart, providerLabel, historySmart } from './market'
-import { cachedQuote } from './market/cache'
+import { quoteSmartSWR, providerLabel, historySmart } from './market'
+import { cachedQuoteSWR } from './market/cache'
 import { BENCHMARK_INDICES, type BenchmarkPoint, type LoadedBenchmark } from './engine/benchmark'
-import { cnyRateFor, fxRateAtFactory, fxRatesForCurrencies } from './market/fx'
+import { cnyRateFor, fxRateAtFactory, fxRatesForCurrenciesSWR } from './market/fx'
 import { eastmoneyFundProvider } from './market/eastmoney-fund'
 import type { AssetInfo, TxInput } from './engine/types'
 import { mergePositionsByAsset } from './engine/merge'
@@ -30,11 +30,11 @@ import type { QuoteData } from './market/provider'
 import { isInvestableAsset, isPortfolioAssetClass } from './asset-classification'
 import { dateKeyAt, previousCloseOnPortfolioDay } from './engine/watch-market'
 import type { ValuationGap, ValuationStatus } from './engine/valuation-status'
-import { loadPriceSeries, priceAtFn, priceObservationAtFn } from './market/persist'
+import { loadLatestPersistedQuotes, loadPriceSeries, priceAtFn, priceObservationAtFn } from './market/persist'
 import { computeWealthSeries } from './snapshots'
 import { fundConfirmationDate, isQdiiFund } from './engine/fund-order'
 import { buildAssetPerformanceSeries, type AssetNavPoint } from './engine/asset-performance'
-import { buildReviewResult, reconstructReviewPortfolioSeries, reviewRange, type ReviewPeriod, type ReviewResult } from './engine/review'
+import { buildReviewResult, reconstructReviewPortfolioSeries, reviewRange, reviewRelevantAssetIds, type ReviewPeriod, type ReviewResult } from './engine/review'
 import { buildDataSettlementState, type DataSettlementState } from './engine/data-settlement'
 
 export interface LiabilityView {
@@ -118,21 +118,41 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
     occurredAt: e.occurredAt,
   }))
 
-  // 实时报价（混合源，逐个容错；US/HK 标的按实时汇率折人民币）
-  // cls === 'FUND' 的资产统一走内部估值引擎（失败回落官方净值），其余走行情链路
-  const listedAssets = assets.filter((a) => !a.manual && a.cls !== 'CASH' && a.cls !== 'REAL_ESTATE')
-  const rates = await fxRatesForCurrencies(prisma, assets.map((asset) => asset.currency))
+  const positions = foldTransactions(ledgerTxs)
+  const pendingFundPurchases = pendingFundPurchasesAt(ledgerTxs, new Date())
+  const activeAssetIds = new Set(
+    positions
+      .filter((position) => Math.abs(position.quantity) > 1e-9)
+      .map((position) => position.assetId),
+  )
+
+  // SSR 只处理当前真实持仓：已清仓的历史资产不再发起外部报价。
+  // 首屏使用 PriceBar 中最近的真实行情，并在后台刷新 30s 内存缓存；无日线时保持引擎的成本回落。
+  const listedAssets = assets.filter((asset) => (
+    activeAssetIds.has(asset.id)
+    && !asset.manual
+    && asset.cls !== 'CASH'
+    && asset.cls !== 'REAL_ESTATE'
+  ))
+  const [rates, persistedQuotes] = await Promise.all([
+    fxRatesForCurrenciesSWR(prisma, assets.map((asset) => asset.currency)),
+    loadLatestPersistedQuotes(prisma, listedAssets.map((asset) => asset.symbol)),
+  ])
   const quotes = new Map<string, EngineQuote>()
   await Promise.all(
     listedAssets.map(async (a) => {
       try {
+        const persisted = persistedQuotes.get(a.symbol) ?? null
         if (a.cls === 'FUND') {
-          // 盘中估值 / 盘后官方净值（eastmoneyFundProvider 内部按净值日期切换；外层 30s 缓存）
-          const q = await cachedQuote(`fund|${a.symbol}`, () => eastmoneyFundProvider.quote(a.symbol))
+          const fallback = persisted ? { ...persisted, kind: 'OFFICIAL_NAV' as const } : null
+          const q = await cachedQuoteSWR(`fund|${a.symbol}`, fallback, () => eastmoneyFundProvider.quote(a.symbol))
+          if (!q) return
           quotes.set(a.symbol, { ...q, priceCny: q.price, prevCloseCny: q.prevClose })
           return
         }
-        const q = await quoteSmart(a.symbol, { route: 'EXCHANGE' })
+        const fallback = persisted ? { ...persisted, kind: 'MARKET' as const } : null
+        const q = await quoteSmartSWR(a.symbol, fallback, { route: 'EXCHANGE' })
+        if (!q) return
         const rate = cnyRateFor(a.symbol, rates)
         quotes.set(a.symbol, { ...q, priceCny: q.price * rate, prevCloseCny: q.prevClose * rate })
       } catch {
@@ -141,14 +161,12 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
     }),
   )
 
-  const positions = foldTransactions(ledgerTxs)
   const currencyRate = (cur: string) => (cur === 'USD' ? rates.USDCNY : cur === 'HKD' ? rates.HKDCNY : 1)
   const valued = valuePositions(positions, new Map(assets.map((a) => [a.id, a])), (s) => quotes.get(s)?.priceCny, currencyRate)
   const metrics = aggregate(valued)
 
   // 在途资产：赎回未到账 + 净值份额待确认的申购（ADR-012 / ADR-019）
   const pendingSettlements = pendingSettlementsAt(ledgerTxs, new Date())
-  const pendingFundPurchases = pendingFundPurchasesAt(ledgerTxs, new Date())
   const redemptionInTransit = roundMoney(pendingSettlements.reduce((s, p) => s + p.amount * currencyRate(p.currency), 0))
   const purchaseInTransit = roundMoney(pendingFundPurchases.reduce((s, p) => s + p.amount * currencyRate(p.currency), 0))
   const inTransit = roundMoney(redemptionInTransit + purchaseInTransit)
@@ -522,7 +540,7 @@ export async function getWatchData(ctxOverride?: FamilyCtx): Promise<WatchData |
   }))
   series = await extendWatchSeriesFromPrices(state, series)
 
-  const rates = await fxRatesForCurrencies(prisma, state.assets.map((asset) => asset.currency))
+  const rates = { USDCNY: state.currencyRates.USD, HKDCNY: state.currencyRates.HKD }
   const currencyRate = (currency: string) => currency === 'USD' ? rates.USDCNY : currency === 'HKD' ? rates.HKDCNY : 1
   const portfolioTxs = state.ledgerTxs.filter((tx) => isPortfolioAssetClass(tx.assetClass))
   const flows = dailyNetFlows(portfolioTxs, currencyRate)
@@ -558,7 +576,12 @@ async function loadDashboardReview(
   period: ReviewPeriod,
 ): Promise<ReviewResult> {
   const range = reviewRange(period)
-  const reviewAssets = state.assets.filter(isInvestableAsset)
+  const relevantAssetIds = reviewRelevantAssetIds(state.ledgerTxs, range.startDate, range.endDate)
+  // 早已清仓、期内无流水且无在途的历史资产对当期复盘无贡献。
+  const reviewAssets = state.assets.filter((asset) => (
+    isInvestableAsset(asset)
+    && relevantAssetIds.has(asset.id)
+  ))
   const assetIds = new Set(reviewAssets.map((asset) => asset.id))
   const transactions = state.ledgerTxs.filter((tx) => assetIds.has(tx.assetId))
   const symbols = reviewAssets.filter((asset) => asset.cls !== 'CASH').map((asset) => asset.symbol)
@@ -624,9 +647,11 @@ export async function getDashboard(period: ReviewPeriod = 'THIS_MONTH'): Promise
   const ctx = await getSession()
   if (!ctx) return null
   const db = scopedDb(prisma, ctx)
-  const family = await prisma.familySpace.findUnique({ where: { id: ctx.familyId } })
-  const state = await loadEngineState(ctx)
-  const snaps = await db.snapshot.findMany({ orderBy: { date: 'asc' } })
+  const [family, state, snaps] = await Promise.all([
+    prisma.familySpace.findUnique({ where: { id: ctx.familyId } }),
+    loadEngineState(ctx),
+    db.snapshot.findMany({ orderBy: { date: 'asc' } }),
+  ])
   const series: SeriesPoint[] = snaps.map((s) => ({
     date: s.date.toISOString().slice(0, 10),
     netWorth: Number(s.netWorth),
@@ -637,7 +662,7 @@ export async function getDashboard(period: ReviewPeriod = 'THIS_MONTH'): Promise
     ...snapshotValuationFields(s),
   }))
   // 追加实时「今日」点
-  const rates = await fxRatesForCurrencies(prisma, state.assets.map((asset) => asset.currency))
+  const rates = { USDCNY: state.currencyRates.USD, HKDCNY: state.currencyRates.HKD }
   const currencyRate = (cur: string) => (cur === 'USD' ? rates.USDCNY : cur === 'HKD' ? rates.HKDCNY : 1)
   const portfolioTxs = state.ledgerTxs.filter((tx) => isPortfolioAssetClass(tx.assetClass))
   const flows = dailyNetFlows(portfolioTxs, currencyRate)

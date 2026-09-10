@@ -7,6 +7,7 @@ import {
   fxRateAtFactory,
   fxRates,
   fxRatesForCurrencies,
+  fxRatesForCurrenciesSWR,
   loadFxSeries,
   persistDailyFx,
   resetFxCache,
@@ -128,6 +129,17 @@ describe('persistDailyFx / loadFxSeries（落库）', () => {
       vi.unstubAllGlobals()
       resetFxCache()
     }
+  })
+
+  it('SSR 立即返回已落库汇率，不等待实时源', async () => {
+    resetFxCache()
+    const never = new Promise<Response>(() => undefined)
+    const fetchSpy = vi.fn().mockReturnValue(never)
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const rates = await fxRatesForCurrenciesSWR(base, ['USD'])
+    expect(rates).toEqual({ USDCNY: 7.16, HKDCNY: 0.916 })
+    expect(fetchSpy).toHaveBeenCalledOnce()
   })
 
   it('历史回落汇率不会复制成当天的实时汇率记录', async () => {

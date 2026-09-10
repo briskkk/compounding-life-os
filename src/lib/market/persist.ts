@@ -1,6 +1,6 @@
 // 行情历史落库：PriceBar 按 (symbol, date) 去重，重建快照时优先读库
 import type { PrismaClient } from '@prisma/client'
-import type { Bar } from './provider'
+import type { Bar, QuoteData } from './provider'
 import { historySmart } from './index'
 import { eastmoneyFundProvider } from './eastmoney-fund'
 import { closeAt } from './simulated'
@@ -17,6 +17,7 @@ export interface PersistHistoryResult {
   count: number
   source: string
   status: 'FETCHED' | 'CACHED' | 'FAILED'
+  changedFrom?: string
   error?: string
 }
 
@@ -95,6 +96,7 @@ export async function persistHistory(
   const results: PersistHistoryResult[] = []
   for (const symbol of symbols) {
     let count = 0
+    let changedFrom: Date | undefined
     let attempted = false
     let fetched = false
     const sources = new Set<string>()
@@ -109,6 +111,8 @@ export async function persistHistory(
       const { bars, source } = result
       if (bars.length === 0) continue
       fetched = true
+      const firstBar = bars.reduce((earliest, bar) => bar.date < earliest ? bar.date : earliest, bars[0].date)
+      if (!changedFrom || firstBar < changedFrom) changedFrom = firstBar
       count += await persistBars(db, symbol, bars, source)
       sources.add(source)
     }
@@ -117,6 +121,7 @@ export async function persistHistory(
       count,
       source: [...sources].join('+') || (attempted ? 'NONE' : 'CACHED'),
       status: fetched ? 'FETCHED' : attempted ? 'FAILED' : 'CACHED',
+      ...(changedFrom ? { changedFrom: changedFrom.toISOString() } : {}),
       ...(errors.length > 0 ? { error: [...new Set(errors)].join('；') } : {}),
     })
   }
@@ -134,10 +139,15 @@ export async function persistFundHistory(
   for (const symbol of symbols) {
     try {
       let count = 0
+      let changedFrom: Date | undefined
       let attempted = false
       for (const window of await historyWindows(db, symbol, from, to)) {
         attempted = true
         const bars = await eastmoneyFundProvider.history(symbol, window.from, window.to)
+        if (bars.length > 0) {
+          const firstBar = bars.reduce((earliest, bar) => bar.date < earliest ? bar.date : earliest, bars[0].date)
+          if (!changedFrom || firstBar < changedFrom) changedFrom = firstBar
+        }
         count += await persistBars(db, symbol, bars, 'EASTMONEY-FUND')
       }
       results.push({
@@ -145,6 +155,7 @@ export async function persistFundHistory(
         count,
         source: count > 0 ? 'EASTMONEY-FUND' : 'CACHED',
         status: count > 0 ? 'FETCHED' : attempted ? 'FAILED' : 'CACHED',
+        ...(changedFrom ? { changedFrom: changedFrom.toISOString() } : {}),
         ...(attempted && count === 0 ? { error: '东财基金源未返回历史净值' } : {}),
       })
     } catch (error) {
@@ -174,11 +185,54 @@ export interface PriceObservation {
   nextValuationDate?: string | null
 }
 
+/**
+ * 读取每个标的最近两个真实日线观测，供 SSR 非阻塞估值。
+ * 模拟数据不可作为真实账本的行情回落。
+ */
+export async function loadLatestPersistedQuotes(
+  db: PrismaClient,
+  symbols: string[],
+): Promise<Map<string, QuoteData>> {
+  const uniqueSymbols = [...new Set(symbols)]
+  if (uniqueSymbols.length === 0) return new Map()
+  const rowsBySymbol = await Promise.all(uniqueSymbols.map(async (symbol) => ({
+    symbol,
+    rows: await db.priceBar.findMany({
+      where: { symbol, source: { not: 'SIMULATED' } },
+      orderBy: { date: 'desc' },
+      take: 2,
+      select: { date: true, close: true, source: true },
+    }),
+  })))
+  const receivedAt = new Date().toISOString()
+  const result = new Map<string, QuoteData>()
+  for (const { symbol, rows } of rowsBySymbol) {
+    const latest = rows[0]
+    if (!latest) continue
+    const price = Number(latest.close)
+    const prevClose = Number(rows[1]?.close ?? latest.close)
+    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(prevClose) || prevClose <= 0) continue
+    result.set(symbol, {
+      symbol,
+      price,
+      prevClose,
+      changePct: price / prevClose - 1,
+      asOf: latest.date.toISOString(),
+      receivedAt,
+      tradingDate: dateKeyAt(latest.date),
+      source: `PERSISTED:${latest.source}`,
+      freshness: 'STALE',
+    })
+  }
+  return result
+}
+
 /** 从 PriceBar 读出内存价格表 */
 export async function loadPriceSeries(db: PrismaClient, symbols: string[]): Promise<Map<string, PriceSeries>> {
   const rows = await db.priceBar.findMany({
     where: { symbol: { in: symbols } },
     orderBy: { date: 'asc' },
+    select: { symbol: true, date: true, close: true, source: true },
   })
   const map = new Map<string, PriceSeries>()
   for (const r of rows) {

@@ -12,6 +12,7 @@ import { ValuationSourceSummary } from '@/components/valuation-source'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 import type { AssetClass } from '@/lib/engine/types'
 import type { ReviewPeriod } from '@/lib/engine/review'
+import { compactRecentSeries } from '@/lib/engine/series-sampling'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,6 +77,12 @@ export default async function OverviewPage({
     ...d.review.assets.filter((item) => item.amount < -0.005).sort((a, b) => a.amount - b.amount).slice(0, 2),
   ]
   const maxContributor = Math.max(...contributors.map((item) => Math.abs(item.amount)), 1)
+  const wealthChartSeries = compactRecentSeries(d.series.map((point) => ({
+    date: point.date,
+    netWorth: point.netWorth,
+    investable: point.investable,
+    contributions: point.contributions,
+  })))
 
   const allocationByClass = new Map<AssetClass, number>()
   for (const position of d.state.valued) {
@@ -207,7 +214,7 @@ export default async function OverviewPage({
             <span>累计净投入 <b className="num">{fmtCNY(d.attribution.contributions)}</b></span>
             <span>累计投资收益 <b className={cx('num', d.attribution.gain >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(d.attribution.gain, { sign: true })}</b></span>
           </div>
-          <WealthChart data={d.series} showRange height={270} />
+          <WealthChart data={wealthChartSeries} showRange height={270} />
         </div>
 
         <aside className="overview-contributors" aria-labelledby="overview-contributors-title">

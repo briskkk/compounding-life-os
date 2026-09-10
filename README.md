@@ -132,7 +132,7 @@ npm run db:restore -- backups/fwos-时间戳.db   # 恢复前自动再备份当�
 ```
 
 - 设置页「数据」面板可一键手动备份、查看最近备份
-- 服务器部署建议配置**每日 08:00 行情刷新 cron**（自动回填前一交易日基金净值并重建快照，见 `deploy/server-refresh.sh`）与每日备份 cron
+- 服务器部署由 `server-update.sh` 自动维护分时行情 cron：06:30 境外场内、16:30 境内场内、22:30 基金官方净值，周六 10:15 完整维护；任务互斥并按受影响日期增量重建快照（见 `deploy/server-refresh.sh`）
 
 ## 🛠️ 开发
 

@@ -12,6 +12,7 @@ const SIMULATED_FX = { USDCNY: 7.1, HKDCNY: 0.91 }
 
 interface FxRuntimeState {
   cached: (FxRates & { cachedAt: number }) | null
+  pending: Promise<FxRates> | null
   lastError: string | null
   lastErrorAt: number | null
 }
@@ -19,9 +20,11 @@ interface FxRuntimeState {
 const globalForFx = globalThis as unknown as { __portfolioFxRuntime?: FxRuntimeState }
 const fxRuntime = globalForFx.__portfolioFxRuntime ?? {
   cached: null,
+  pending: null,
   lastError: null,
   lastErrorAt: null,
 }
+fxRuntime.pending ??= null
 globalForFx.__portfolioFxRuntime = fxRuntime
 
 export interface FxRates {
@@ -57,6 +60,31 @@ export async function fxRatesForCurrencies(
   return fxRates(db)
 }
 
+/** SSR 首屏优先使用已落库的真实汇率，同时后台刷新实时汇率。 */
+export async function fxRatesForCurrenciesSWR(
+  db: PrismaClient,
+  currencies: Iterable<string>,
+): Promise<FxConversionRates> {
+  if (!requiresForeignExchange(currencies)) return CNY_ONLY_RATES
+  if (providerChain().every((provider) => provider.label === 'SIMULATED')) return fxRates(db)
+
+  const cached = fxRuntime.cached
+  const cacheTtl = cached?.stale ? STALE_RETRY_TTL : TTL
+  if (cached && Date.now() - cached.cachedAt < cacheTtl) {
+    return { USDCNY: cached.USDCNY, HKDCNY: cached.HKDCNY }
+  }
+  if (cached) {
+    void refreshFxRates(db).catch(() => undefined)
+    return { USDCNY: cached.USDCNY, HKDCNY: cached.HKDCNY }
+  }
+
+  const historical = await lastRealRates(db)
+  if (!historical) return fxRates(db)
+  fxRuntime.cached = { ...historical, cachedAt: Date.now() }
+  void refreshFxRates(db).catch(() => undefined)
+  return { USDCNY: historical.USDCNY, HKDCNY: historical.HKDCNY }
+}
+
 function parseSinaFx(text: string): { USDCNY: number; HKDCNY: number } | null {
   const usd = Number(text.match(/fx_susdcny="([^"]*)"/)?.[1].split(',')[1])
   const hkd = Number(text.match(/fx_shkdcny="([^"]*)"/)?.[1].split(',')[1])
@@ -84,24 +112,7 @@ async function lastRealRates(db: PrismaClient): Promise<FxRates | null> {
   }
 }
 
-export async function fxRates(db: PrismaClient): Promise<FxRates> {
-  const simulatedOnly = providerChain().every((provider) => provider.label === 'SIMULATED')
-  if (simulatedOnly) {
-    const simulated: FxRates = {
-      ...SIMULATED_FX,
-      source: 'SIMULATED',
-      asOf: new Date().toISOString(),
-      stale: false,
-    }
-    fxRuntime.cached = { ...simulated, cachedAt: Date.now() }
-    return simulated
-  }
-  const cached = fxRuntime.cached
-  const cacheTtl = cached?.stale ? STALE_RETRY_TTL : TTL
-  if (cached && Date.now() - cached.cachedAt < cacheTtl) {
-    const { cachedAt: _cachedAt, ...rates } = cached
-    return rates
-  }
+async function fetchFxRates(db: PrismaClient): Promise<FxRates> {
   try {
     const res = await fetch('https://hq.sinajs.cn/list=fx_susdcny,fx_shkdcny', {
       headers: { Referer: 'https://finance.sina.com.cn' },
@@ -134,6 +145,36 @@ export async function fxRates(db: PrismaClient): Promise<FxRates> {
   return historical
 }
 
+function refreshFxRates(db: PrismaClient): Promise<FxRates> {
+  if (fxRuntime.pending) return fxRuntime.pending
+  const request = fetchFxRates(db).finally(() => {
+    fxRuntime.pending = null
+  })
+  fxRuntime.pending = request
+  return request
+}
+
+export async function fxRates(db: PrismaClient): Promise<FxRates> {
+  const simulatedOnly = providerChain().every((provider) => provider.label === 'SIMULATED')
+  if (simulatedOnly) {
+    const simulated: FxRates = {
+      ...SIMULATED_FX,
+      source: 'SIMULATED',
+      asOf: new Date().toISOString(),
+      stale: false,
+    }
+    fxRuntime.cached = { ...simulated, cachedAt: Date.now() }
+    return simulated
+  }
+  const cached = fxRuntime.cached
+  const cacheTtl = cached?.stale ? STALE_RETRY_TTL : TTL
+  if (cached && Date.now() - cached.cachedAt < cacheTtl) {
+    const { cachedAt: _cachedAt, ...rates } = cached
+    return rates
+  }
+  return refreshFxRates(db)
+}
+
 export function fxHealth(): {
   source: FxRates['source'] | null
   asOf: string | null
@@ -153,6 +194,7 @@ export function fxHealth(): {
 /** 测试用：清空汇率缓存和诊断状态。 */
 export function resetFxCache(): void {
   fxRuntime.cached = null
+  fxRuntime.pending = null
   fxRuntime.lastError = null
   fxRuntime.lastErrorAt = null
 }

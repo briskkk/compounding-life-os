@@ -232,4 +232,29 @@ describe('单资产历史收益', () => {
     expect(result.curve.at(-1)?.dailyPct).toBe(0)
     expect(result.curve.at(-1)?.dailyAmount).toBe(0)
   })
+
+  it('长期无流水区间复用持仓状态，且不改变拆分前复权份额', () => {
+    const series = buildAssetPerformanceSeries({
+      asset: stock,
+      transactions: [
+        tx({ type: 'BUY', quantity: 10, price: 100, amount: 1000 }),
+        tx({
+          type: 'SHARE_ADJUSTMENT',
+          quantity: 70,
+          price: 8,
+          occurredAt: new Date('2025-04-21T12:00:00+08:00'),
+        }),
+      ],
+      prices: [
+        { date: '2025-01-01', nav: 12.5 },
+        { date: '2025-04-21', nav: 12.5 },
+      ],
+      to: new Date('2025-04-22T12:00:00+08:00'),
+    })
+
+    expect(series.find((point) => point.date === '2025-02-15')?.quantity).toBe(80)
+    expect(series.find((point) => point.date === '2025-04-20')?.quantity).toBe(80)
+    expect(series.find((point) => point.date === '2025-04-21')?.quantity).toBe(80)
+    expect(series.at(-1)?.netWorth).toBe(1000)
+  })
 })

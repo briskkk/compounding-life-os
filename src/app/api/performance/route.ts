@@ -1,11 +1,9 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
 import { getWatchData, loadBenchmarkSeries } from '@/lib/queries'
 import { apiReadAuthCtx } from '@/lib/services/api-auth'
 import { annualized, dailyNetFlows, twrSeries, xirr, xirrFlowsFromTxs } from '@/lib/engine/attribution'
 import { performanceBetween, performancePresetRange } from '@/lib/engine/period-performance'
 import { riskMetrics } from '@/lib/engine/risk'
-import { fxRatesForCurrencies } from '@/lib/market/fx'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { alignBenchmark, BENCHMARK_INDICES, DEFAULT_BENCHMARK_SYMBOL } from '@/lib/engine/benchmark'
 
@@ -41,7 +39,7 @@ export async function GET(req: NextRequest) {
   const state = watch.state
 
   // ── 装配绩效序列（与看盘页 PortfolioHistory 的历史输入口径一致）──
-  const rates = await fxRatesForCurrencies(prisma, state.assets.map((asset) => asset.currency))
+  const rates = { USDCNY: state.currencyRates.USD, HKDCNY: state.currencyRates.HKD }
   const currencyRate = (cur: string) => (cur === 'USD' ? rates.USDCNY : cur === 'HKD' ? rates.HKDCNY : 1)
   const portfolioTxs = state.ledgerTxs.filter((tx) => isPortfolioAssetClass(tx.assetClass))
   const flows = dailyNetFlows(portfolioTxs, currencyRate)

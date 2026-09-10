@@ -1,6 +1,6 @@
 // 看盘：当日组合收益曲线（分钟级）+ 全持仓实时估值
 import { getWatchData, loadBenchmarks } from '@/lib/queries'
-import { cnyRateFor, fxRatesForCurrencies } from '@/lib/market/fx'
+import { cnyRateFor } from '@/lib/market/fx'
 import { SetupScreen } from '@/components/ui'
 import { WatchClient, type WatchHolding, type StaticRow } from '@/components/watch-client'
 import { providerLabel } from '@/lib/market'
@@ -22,7 +22,7 @@ export default async function WatchPage({ searchParams }: { searchParams: Promis
     : null
 
   const state = watchData.state
-  const rates = await fxRatesForCurrencies(prisma, state.assets.map((asset) => asset.currency))
+  const rates = { USDCNY: state.currencyRates.USD, HKDCNY: state.currencyRates.HKD }
   // 基准序列向前多取 10 天：保证期初基准日（可能落在非交易日）有可用收盘净值
   const benchmarks = watchData.series.length > 0
     ? await loadBenchmarks(new Date(new Date(`${watchData.series[0].date}T00:00:00`).getTime() - 10 * 86400000), new Date())

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildReviewResult, reconstructReviewPortfolioSeries, reviewRange, type ReviewAssetInput } from '@/lib/engine/review'
+import { buildReviewResult, reconstructReviewPortfolioSeries, reviewRange, reviewRelevantAssetIds, type ReviewAssetInput } from '@/lib/engine/review'
 import type { LedgerTx } from '@/lib/engine/ledger'
 
 const D = (value: string) => new Date(`${value}T10:00:00+08:00`)
@@ -106,6 +106,37 @@ describe('组合复盘归因', () => {
       startDate: '2026-09-01',
       endDate: '2026-09-02',
     })
+  })
+
+  it('历史复盘只保留区间持仓、流水和在途相关资产', () => {
+    const transactions = [
+      tx({ assetId: 'held', type: 'BUY', quantity: 10, price: 10, occurredAt: D('2026-07-01') }),
+      tx({ assetId: 'held', type: 'SELL', quantity: 10, price: 11, occurredAt: D('2026-09-01') }),
+      tx({ assetId: 'old', type: 'BUY', quantity: 10, price: 10, occurredAt: D('2026-05-01') }),
+      tx({ assetId: 'old', type: 'SELL', quantity: 10, price: 10, occurredAt: D('2026-06-01') }),
+      tx({ assetId: 'traded', type: 'BUY', quantity: 1, price: 10, occurredAt: D('2026-08-15') }),
+      tx({
+        id: 'pending',
+        assetId: 'pending-fund',
+        assetClass: 'FUND',
+        type: 'BUY',
+        amount: 100,
+        navSource: 'PENDING',
+        navDate: D('2026-07-31'),
+        occurredAt: D('2026-07-31'),
+      }),
+      tx({ id: 'sell', assetId: 'settling-fund', assetClass: 'FUND', type: 'SELL', amount: 50, occurredAt: D('2026-07-31') }),
+      tx({ id: 'cash-leg', settleOfId: 'sell', assetId: 'cash', assetClass: 'CASH', type: 'DEPOSIT', amount: 50, internal: true, occurredAt: D('2026-08-02') }),
+    ]
+
+    expect([...reviewRelevantAssetIds(transactions, '2026-08-01', '2026-08-31')]).toEqual(expect.arrayContaining([
+      'held',
+      'traded',
+      'pending-fund',
+      'settling-fund',
+      'cash',
+    ]))
+    expect(reviewRelevantAssetIds(transactions, '2026-08-01', '2026-08-31').has('old')).toBe(false)
   })
 
   it('标的金额和多期链接百分点都与组合收益严格对账', () => {

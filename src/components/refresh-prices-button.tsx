@@ -1,9 +1,9 @@
 'use client'
 
-// 刷新行情：历史日线落库 + 快照重建
+// 日常人工兜底：仅刷新当前持仓与基准，完整修复在数据健康中心执行。
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
-import { refreshPrices } from '@/lib/actions'
+import { refreshCurrentPrices } from '@/lib/actions'
 
 export function RefreshPricesButton() {
   const router = useRouter()
@@ -15,11 +15,14 @@ export function RefreshPricesButton() {
       disabled={pending}
       onClick={() =>
         startTransition(async () => {
-          const res = await refreshPrices()
+          const res = await refreshCurrentPrices()
           if (res.ok) {
             setResult(res.warning
               ? { tone: 'warning', text: res.warning }
-              : { tone: 'ok', text: '行情与快照已刷新' })
+              : {
+                  tone: 'ok',
+                  text: `已更新 ${res.data?.symbols ?? 0} 个标的 · ${((res.data?.timings.totalMs ?? 0) / 1000).toFixed(1)} 秒`,
+                })
           } else {
             setResult({ tone: 'error', text: res.error })
           }
@@ -36,9 +39,9 @@ export function RefreshPricesButton() {
               ? 'border-down/40 text-down'
               : 'border-line text-ink-dim hover:border-accent hover:text-accent'
       }`}
-      title={result?.text ?? '拉取最新行情历史并重建快照'}
+      title={result?.text ?? '自动刷新之外的人工兜底：更新当前持仓、基准与受影响快照'}
     >
-      {pending ? '刷新中…' : result?.tone === 'warning' ? '⚠ 部分失败' : result?.tone === 'error' ? '× 刷新失败' : result?.tone === 'ok' ? '✓ 已刷新' : '↻ 行情'}
+      {pending ? '刷新中…' : result?.tone === 'warning' ? '⚠ 部分失败' : result?.tone === 'error' ? '× 刷新失败' : result?.tone === 'ok' ? '✓ 已刷新' : '↻ 当前持仓'}
     </button>
   )
 }

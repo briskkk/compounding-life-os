@@ -7,7 +7,7 @@ import { loadPriceSeries } from './market/persist'
 import { alignBenchmark, BENCHMARK_INDICES, DEFAULT_BENCHMARK_SYMBOL } from './engine/benchmark'
 import { buildAssetPerformanceSeries, type AssetNavPoint } from './engine/asset-performance'
 import { performanceBetween, type PerformanceRange } from './engine/period-performance'
-import { buildReviewResult, reconstructReviewPortfolioSeries, reviewRange, type ReviewPeriod, type ReviewResult } from './engine/review'
+import { buildReviewResult, reconstructReviewPortfolioSeries, reviewRange, reviewRelevantAssetIds, type ReviewPeriod, type ReviewResult } from './engine/review'
 import { dateKeyAt } from './engine/watch-market'
 import { isInvestableAsset } from './asset-classification'
 import type { ValuationGap } from './engine/valuation-status'
@@ -136,9 +136,6 @@ export async function getReviewPageData(options: {
 } = {}, ctxOverride?: FamilyCtx): Promise<ReviewPageData | null> {
   const ctx = ctxOverride ?? await getSession()
   if (!ctx) return null
-  const watch = await getWatchData(ctx)
-  if (!watch) return null
-
   const period = periodFrom(options.period)
   const now = new Date()
   const today = dateKeyAt(now)
@@ -149,17 +146,33 @@ export async function getReviewPageData(options: {
   const isLiveRange = range.endDate === today
   const benchmarkSymbol = benchmarkFrom(options.benchmark)
   const db = scopedDb(prisma, ctx)
-  const [rawAssets, rawAccounts] = await Promise.all([
+  const [watch, rawAssets, rawAccounts] = await Promise.all([
+    getWatchData(ctx),
     db.asset.findMany({ orderBy: { createdAt: 'asc' } }),
     db.account.findMany({ orderBy: { createdAt: 'asc' } }),
   ])
-  const reviewAssets = rawAssets.filter(isInvestableAsset)
+  if (!watch) return null
+  const relevantAssetIds = reviewRelevantAssetIds(watch.state.ledgerTxs, range.startDate, range.endDate)
+  const reviewAssets = rawAssets.filter((asset) => isInvestableAsset(asset) && relevantAssetIds.has(asset.id))
   const assetIds = new Set(reviewAssets.map((asset) => asset.id))
   const transactions = watch.state.ledgerTxs.filter((tx) => assetIds.has(tx.assetId))
   const symbols = reviewAssets.filter((asset) => asset.cls !== 'CASH').map((asset) => asset.symbol)
-  const [priceMap, rateAt] = await Promise.all([
+  const benchmarkStart = new Date(`${range.startDate}T00:00:00Z`)
+  benchmarkStart.setUTCDate(benchmarkStart.getUTCDate() - 10)
+  const [priceMap, rateAt, benchmarkPoints, savedReview] = await Promise.all([
     loadPriceSeries(prisma, symbols),
     fxRateAtFactory(prisma, reviewAssets.map((asset) => asset.currency)),
+    loadBenchmarkSeries(
+      benchmarkSymbol,
+      benchmarkStart,
+      new Date(`${range.endDate}T23:59:59Z`),
+    ),
+    db.portfolioReview.findFirst({
+      where: {
+        period,
+        startDate: new Date(`${range.startDate}T00:00:00Z`),
+      },
+    }),
   ])
 
   const assets = reviewAssets.map((asset) => {
@@ -236,13 +249,6 @@ export async function getReviewPageData(options: {
     else portfolioSeries.push(livePoint)
   }
   const preliminary = performanceBetween(portfolioSeries, range.startDate, range.endDate, range.label)
-  const benchmarkStart = new Date(`${range.startDate}T00:00:00Z`)
-  benchmarkStart.setUTCDate(benchmarkStart.getUTCDate() - 10)
-  const benchmarkPoints = await loadBenchmarkSeries(
-    benchmarkSymbol,
-    benchmarkStart,
-    new Date(`${range.endDate}T23:59:59Z`),
-  )
   const aligned = alignBenchmark(preliminary.curve.map((point) => point.date), benchmarkPoints)
   const benchmarkPct = [...aligned].reverse().find((value) => value != null) ?? null
   const result = buildReviewResult({
@@ -254,13 +260,6 @@ export async function getReviewPageData(options: {
     label: range.label,
     benchmarkPct,
     rateAt: (currency, date) => rateAt(currency, date),
-  })
-
-  const savedReview = await db.portfolioReview.findFirst({
-    where: {
-      period,
-      startDate: new Date(`${range.startDate}T00:00:00Z`),
-    },
   })
   const assetNameById = new Map(rawAssets.map((asset) => [asset.id, asset.name]))
   const accountNameById = new Map(rawAccounts.map((account) => [account.id, account.name]))

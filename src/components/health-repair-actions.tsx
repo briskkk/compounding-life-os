@@ -18,7 +18,7 @@ export function HealthRepairActions() {
     if (operation === 'quotes') {
       const result = await refreshPrices()
       if (!result.ok) setMessage(result.error)
-      else setMessage(result.warning ?? '行情拉取完成，快照已经重建')
+      else setMessage(result.warning ?? `已补齐 ${result.data?.symbols ?? 0} 个标的并全量重建快照 · ${((result.data?.timings.totalMs ?? 0) / 1000).toFixed(1)} 秒`)
     } else {
       const result = await rebuildDerivedSnapshots()
       if (!result.ok) setMessage(result.error)
@@ -31,7 +31,7 @@ export function HealthRepairActions() {
   return (
     <div className="health-repair-actions">
       <button type="button" disabled={pending} onClick={() => run('quotes')}>
-        {active === 'quotes' ? '拉取中…' : '刷新行情与净值'}
+        {active === 'quotes' ? '完整补齐中…' : '完整补齐行情历史'}
       </button>
       <button type="button" disabled={pending} onClick={() => run('snapshots')}>
         {active === 'snapshots' ? '重建中…' : '重建派生快照'}

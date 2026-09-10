@@ -118,6 +118,7 @@ Route Handlers：
 - `src/lib/market/eastmoney-fund.ts`：基金净值与官方盘中估值（FundValuationLast）切换、置信度三档。
 - `src/lib/market/fund-engine.ts`、`fund-holdings.ts`：基金估值、重仓、净值与校准。
 - `src/lib/market/persist.ts`：PriceBar 实际返回区间落库、早期缺口回填、尾部增量更新和估值日期观察；刷新结果明确区分 `FETCHED / CACHED / FAILED`。
+- `src/lib/market/refresh-plan.ts`：从账本当前持仓生成日常/分市场/完整行情刷新计划，统一人工操作与后台定时任务的标的边界。
 - `src/lib/market/fx.ts`：新浪实时汇率 + ECB 官方日度交叉汇率回填 + `RateBar` 按日折算；纯 CNY 组合不加载汇率。
 - `src/lib/market/intraday.ts`、`yahoo.ts`：分钟线。
 - `src/lib/market/symbols.ts`、`lookup.ts`：市场代码与资产识别。
