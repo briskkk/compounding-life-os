@@ -5,9 +5,11 @@ test('P1 二级工作流从流水与健康中心可进入', async ({ page }) => 
   await expect(page.getByRole('link', { name: '公司行动 →' })).toHaveAttribute('href', '/corporate-actions')
   await expect(page.getByRole('link', { name: '基金规则 →' })).toHaveAttribute('href', '/fund-operations')
   await expect(page.getByRole('link', { name: '导入批次 →' })).toHaveAttribute('href', '/transactions/imports')
+  await expect(page.getByRole('link', { name: '份额确认 →' })).toHaveAttribute('href', '/fund-confirmations')
 
   await page.goto('/health')
   await expect(page.getByRole('link', { name: '行情质量 →' })).toHaveAttribute('href', '/health/market')
+  await expect(page.getByRole('link', { name: '进入份额核对 →' })).toHaveAttribute('href', '/fund-confirmations')
 })
 
 test('公司行动账本说明事件与流水边界', async ({ page }) => {

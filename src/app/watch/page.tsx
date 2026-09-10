@@ -56,10 +56,10 @@ export default async function WatchPage({ searchParams }: { searchParams: Promis
   const staticPositions = mergedPositions.filter(
     (v) => Math.abs(v.quantity) > 1e-9 && (v.asset.manual || v.asset.cls === 'CASH' || v.asset.cls === 'REAL_ESTATE'),
   )
-  const staticValueCny = staticPositions.reduce((s, v) => s + v.value, 0)
-  const staticInvestableValueCny = staticPositions.reduce((s, v) => s + v.investable, 0)
-  const staticRows: StaticRow[] = staticPositions
-    .map((v) => ({
+  const staticValueCny = staticPositions.reduce((s, v) => s + v.value, 0) + state.inTransit
+  const staticInvestableValueCny = staticPositions.reduce((s, v) => s + v.investable, 0) + state.inTransit
+  const staticRows: StaticRow[] = [
+    ...staticPositions.map((v) => ({
       assetId: v.assetId,
       symbol: v.asset.symbol,
       name: v.asset.name,
@@ -69,8 +69,17 @@ export default async function WatchPage({ searchParams }: { searchParams: Promis
           : `${v.asset.cls === 'CASH' ? '现金' : '手工估值'} · 无分时数据`,
       valueCny: v.value,
       priceSource: v.priceSource,
-    }))
-    .filter((row) => Math.abs(row.valueCny) >= 0.01)
+    })).filter((row) => Math.abs(row.valueCny) >= 0.01),
+    ...(Math.abs(state.inTransit) >= 0.01 ? [{
+      assetId: null,
+      symbol: 'IN-TRANSIT',
+      name: '在途资产',
+      note: `申购待确认 ${state.pendingFundPurchases.length} 笔 · 赎回待到账 ${state.pendingSettlements.length} 笔`,
+      valueCny: state.inTransit,
+      priceSource: 'FACE' as const,
+      sourceLabel: '账本在途金额',
+    }] : []),
+  ]
 
   return (
     <WatchClient

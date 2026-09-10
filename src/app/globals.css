@@ -4692,6 +4692,214 @@ nav[aria-label="主导航"] a {
 .health-inline-action { display: inline-grid; justify-items: end; gap: 0.3rem; }
 .health-inline-action small { max-width: 180px; color: var(--color-up); font-size: 10px; text-align: right; }
 
+/* ---------- 基金份额核对 ---------- */
+
+.fund-confirm-page { gap: 2rem; }
+
+.fund-confirm-back {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  padding: 0.55rem 0.9rem;
+  color: var(--color-ink-dim);
+  font-size: 13px;
+}
+
+.fund-confirm-back:hover { border-color: var(--color-ink-faint); color: var(--color-ink); }
+
+.fund-confirm-page .page-title { max-width: 760px; }
+.fund-confirm-page .page-description { max-width: 820px; }
+
+.fund-confirm-overview {
+  display: grid;
+  grid-template-columns: 190px 190px 250px minmax(360px, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--surface-1);
+}
+
+.fund-confirm-overview > div {
+  min-height: 126px;
+  padding: 1.25rem 1.4rem;
+  border-right: 1px solid var(--color-line);
+}
+
+.fund-confirm-overview span,
+.fund-confirm-overview small { display: block; color: var(--color-ink-faint); font-size: 11px; }
+.fund-confirm-overview strong { display: block; margin-top: 0.55rem; color: var(--color-ink); font-size: 26px; font-weight: 500; }
+.fund-confirm-overview small { margin-top: 0.45rem; line-height: 1.45; }
+.fund-confirm-overview > p { align-self: center; margin: 0; padding: 1.25rem 1.6rem; color: var(--color-ink-faint); font-size: 12px; line-height: 1.75; }
+.fund-confirm-overview > p b { margin-right: 0.55rem; color: var(--color-amber); font-weight: 500; }
+
+.fund-confirm-queue {
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--surface-1);
+}
+
+.fund-confirm-queue > header {
+  display: flex;
+  min-height: 82px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.fund-confirm-queue h2 { margin-top: 0.2rem; font-size: 1.35rem; font-weight: 500; }
+.fund-confirm-queue > header > span { color: var(--color-ink-faint); font-size: 12px; }
+
+.fund-confirm-card { border-top: 1px solid var(--color-line); }
+.fund-confirm-card:first-child { border-top: 0; }
+.fund-confirm-card.is-open { background: color-mix(in srgb, var(--color-info) 3%, var(--surface-1)); }
+
+.fund-confirm-card-summary {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 110px minmax(260px, 1fr) 150px 170px 26px;
+  align-items: center;
+  gap: 1.1rem;
+  min-height: 88px;
+  border: 0;
+  background: transparent;
+  padding: 1rem 1.5rem;
+  text-align: left;
+}
+
+.fund-confirm-card-summary:hover { background: color-mix(in srgb, var(--color-info) 4%, transparent); }
+.fund-confirm-card-summary:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -3px; }
+.fund-confirm-state { color: var(--color-amber); font-size: 11px; }
+.fund-confirm-identity strong,
+.fund-confirm-identity small,
+.fund-confirm-date small,
+.fund-confirm-date strong,
+.fund-confirm-amount small,
+.fund-confirm-amount strong { display: block; }
+.fund-confirm-identity strong { overflow: hidden; color: var(--color-ink); font-size: 15px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.fund-confirm-identity small,
+.fund-confirm-date small,
+.fund-confirm-amount small { margin-top: 0.25rem; color: var(--color-ink-faint); font-size: 11px; }
+.fund-confirm-date strong,
+.fund-confirm-amount strong { margin-top: 0.32rem; color: var(--color-ink-dim); font-size: 13px; font-weight: 500; }
+.fund-confirm-amount { text-align: right; }
+.fund-confirm-chevron { justify-self: end; color: var(--color-accent); font-family: var(--font-mono); font-size: 20px; }
+
+.fund-confirm-workspace { padding: 0 1.5rem 1.5rem; }
+
+.fund-confirm-evidence {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 12px 12px 0 0;
+  background: var(--surface-2);
+}
+
+.fund-confirm-step { display: grid; grid-template-columns: 28px 1fr; gap: 0.8rem; align-items: start; min-height: 86px; padding: 1.05rem 1.15rem; border-left: 1px solid var(--color-line); }
+.fund-confirm-step:first-child { border-left: 0; }
+.fund-confirm-step i { display: grid; width: 25px; height: 25px; place-items: center; border: 1px solid var(--color-info); border-radius: 50%; color: var(--color-info); font-family: var(--font-mono); font-size: 11px; font-style: normal; }
+.fund-confirm-step b,
+.fund-confirm-step small { display: block; }
+.fund-confirm-step b { color: var(--color-ink); font-size: 12px; font-weight: 500; }
+.fund-confirm-step small { margin-top: 0.36rem; color: var(--color-ink-faint); font-size: 11px; line-height: 1.55; }
+
+.fund-confirm-start,
+.fund-confirm-check {
+  border: 1px solid var(--color-line);
+  border-top: 0;
+  border-radius: 0 0 12px 12px;
+  background: var(--surface-1);
+}
+
+.fund-confirm-start { display: flex; align-items: center; justify-content: space-between; gap: 2rem; padding: 1.15rem; }
+.fund-confirm-start p { margin: 0; color: var(--color-ink-faint); font-size: 12px; }
+.fund-confirm-start button,
+.fund-confirm-submit { min-height: 42px; border-radius: 8px; padding: 0.55rem 1rem; font-size: 13px; white-space: nowrap; }
+.fund-confirm-start button { border: 1px solid var(--color-info); color: var(--color-info); }
+.fund-confirm-start button:hover { background: color-mix(in srgb, var(--color-info) 7%, transparent); }
+
+.fund-confirm-check {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(240px, 0.8fr) auto;
+  align-items: end;
+  gap: 1.1rem;
+  padding: 1.15rem;
+}
+
+.fund-confirm-check label > span,
+.fund-confirm-fixed > span { display: block; margin-bottom: 0.45rem; color: var(--color-ink-dim); font-size: 12px; }
+.fund-confirm-check label > div { display: flex; align-items: center; }
+.fund-confirm-check input { width: 100%; min-height: 42px; border: 1px solid var(--color-line); border-radius: 8px 0 0 8px; background: var(--surface-2); padding: 0.55rem 0.8rem; color: var(--color-ink); font-family: var(--font-mono); font-size: 15px; }
+.fund-confirm-check input:focus { border-color: var(--color-accent); outline: 0; }
+.fund-confirm-check label em { display: grid; min-height: 42px; place-items: center; border: 1px solid var(--color-line); border-left: 0; border-radius: 0 8px 8px 0; padding: 0 0.75rem; color: var(--color-ink-faint); font-size: 12px; font-style: normal; }
+.fund-confirm-check label > small,
+.fund-confirm-fixed small { display: block; margin-top: 0.42rem; color: var(--color-ink-faint); font-size: 10px; }
+.fund-confirm-fixed strong { display: block; min-height: 42px; color: var(--color-ink); font-size: 18px; font-weight: 500; }
+
+.fund-confirm-result { min-height: 66px; border-left: 2px solid var(--color-line); padding: 0.35rem 0 0.35rem 0.9rem; }
+.fund-confirm-result span,
+.fund-confirm-result strong,
+.fund-confirm-result small { display: block; }
+.fund-confirm-result span { color: var(--color-ink-faint); font-size: 11px; }
+.fund-confirm-result strong { margin-top: 0.25rem; color: var(--color-ink-dim); font-size: 16px; font-weight: 500; }
+.fund-confirm-result small { margin-top: 0.2rem; max-width: 300px; color: var(--color-ink-faint); font-size: 10px; line-height: 1.45; }
+.fund-confirm-result.is-match { border-color: var(--color-down); }
+.fund-confirm-result.is-match strong { color: var(--color-down); }
+.fund-confirm-result.is-mismatch { border-color: var(--color-amber); }
+.fund-confirm-result.is-mismatch strong { color: var(--color-amber); }
+
+.fund-confirm-submit { border: 1px solid var(--color-accent); background: var(--color-accent); color: var(--color-bg); }
+.fund-confirm-submit:disabled,
+.fund-confirm-start button:disabled { cursor: not-allowed; opacity: 0.4; }
+.fund-confirm-readonly { align-self: center; margin: 0; color: var(--color-ink-faint); font-size: 11px; }
+.fund-confirm-feedback { margin: 0.7rem 0 0; font-size: 11px; }
+.fund-confirm-feedback.is-error { color: var(--color-up); }
+.fund-confirm-feedback.is-ok { color: var(--color-down); }
+
+.fund-confirm-footnote {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  border-top: 1px solid var(--color-line);
+  padding-top: 1.2rem;
+}
+
+.fund-confirm-footnote > div { display: grid; grid-template-columns: 30px 1fr; gap: 0.75rem; }
+.fund-confirm-footnote span { color: var(--color-info); font-size: 11px; }
+.fund-confirm-footnote p { margin: 0; color: var(--color-ink-faint); font-size: 11px; line-height: 1.65; }
+.fund-confirm-footnote b { color: var(--color-ink-dim); font-weight: 500; }
+
+@media (max-width: 1180px) {
+  .fund-confirm-overview { grid-template-columns: repeat(3, 1fr); }
+  .fund-confirm-overview > p { grid-column: 1 / -1; border-top: 1px solid var(--color-line); }
+  .fund-confirm-check { grid-template-columns: 1fr 1fr; }
+  .fund-confirm-submit,
+  .fund-confirm-readonly { grid-column: 1 / -1; justify-self: end; }
+}
+
+@media (max-width: 760px) {
+  .fund-confirm-overview { grid-template-columns: 1fr; }
+  .fund-confirm-overview > div { min-height: 96px; border-right: 0; border-bottom: 1px solid var(--color-line); }
+  .fund-confirm-card-summary { grid-template-columns: 1fr auto; }
+  .fund-confirm-state,
+  .fund-confirm-date,
+  .fund-confirm-amount { grid-column: 1; text-align: left; }
+  .fund-confirm-chevron { grid-column: 2; grid-row: 1 / span 4; }
+  .fund-confirm-evidence,
+  .fund-confirm-check,
+  .fund-confirm-footnote { grid-template-columns: 1fr; }
+  .fund-confirm-step { border-top: 1px solid var(--color-line); border-left: 0; }
+  .fund-confirm-step:first-child { border-top: 0; }
+  .fund-confirm-start { align-items: flex-start; flex-direction: column; }
+  .fund-confirm-submit,
+  .fund-confirm-readonly { grid-column: auto; justify-self: stretch; }
+}
+
 /* ---------- 账户对账 ---------- */
 
 .reconciliation-page { gap: 2rem; }

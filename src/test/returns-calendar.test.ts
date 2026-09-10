@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   allYearTotals,
+  applyLiveDayReturn,
   benchmarkMonthReturn,
   benchmarkYearReturn,
   buildMonthGrid,
@@ -66,6 +67,22 @@ describe('收益日历', () => {
     expect(daily.get('2026-08-01')?.dailyAmount).toBeNull()
     // 下一个有效估值日相对紧邻的上一快照计算（仅资金流日的余额已含当日入金）
     expect(daily.get('2026-08-02')?.dailyAmount).toBe(5)
+  })
+
+  it('当天可用实时收益覆盖日历展示，但不修改原历史点', () => {
+    const original = monthDailyPoints([
+      { date: '2026-09-09', netWorth: 1000, contributions: 1000 },
+      { date: '2026-09-10', netWorth: 980, contributions: 1000, valuationStatus: 'LIVE' as const },
+    ], '2026-09')
+    const displayed = applyLiveDayReturn(original, {
+      date: '2026-09-10',
+      amount: -12,
+      pct: -0.012,
+    })
+
+    expect(original.get('2026-09-10')?.dailyAmount).toBe(-20)
+    expect(displayed.get('2026-09-10')?.dailyAmount).toBe(-12)
+    expect(displayed.get('2026-09-10')?.dailyPct).toBe(-0.012)
   })
 
   it('基准当月涨跌幅以月初前最近收盘为期初', () => {

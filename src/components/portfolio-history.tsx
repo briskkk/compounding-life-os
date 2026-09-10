@@ -15,6 +15,7 @@ import { cx, fmtCNY } from '@/lib/format'
 import { btnCls, inputCls } from './fields'
 import { PortfolioMoneyChart, PortfolioPctChart } from './charts'
 import { ReturnsCalendar } from './returns-calendar'
+import type { LiveDayReturn } from '@/lib/engine/returns-calendar'
 import { valuationStatusText } from './valuation-status-text'
 
 const PRESETS: { value: PerformancePreset; label: string }[] = [
@@ -42,11 +43,13 @@ function signedPct(value: number): string {
 export function PortfolioHistory({
   series,
   livePoint,
+  liveDayReturn,
   benchmarks = [],
   initialPreset,
 }: {
   series: PerformancePoint[]
   livePoint: PerformancePoint | null
+  liveDayReturn: LiveDayReturn | null
   benchmarks?: LoadedBenchmark[]
   initialPreset?: string
 }) {
@@ -343,10 +346,15 @@ export function PortfolioHistory({
             <p className="history-chart-empty">该区间没有新的有效估值，收益记为“—”。</p>
           )}
 
-          <ReturnsCalendar series={liveSeries} benchmark={activeBenchmark} todayKey={todayKey} />
+          <ReturnsCalendar
+            series={liveSeries}
+            benchmark={activeBenchmark}
+            todayKey={todayKey}
+            liveDayReturn={liveDayReturn}
+          />
 
           <p className="history-method-note">
-            收益日历按相邻有效估值快照计算收益，并扣除期间存入与取出；休市、无新估值和仅资金流日期保留余额记录，但收益显示为“—”，不进入波动率与夏普样本。部分估值为临时结果，待基金或 QDII 官方净值补齐后回填。期初基准为 {performance.basisDate ?? '—'} 估值快照。
+            今天有实时报价时，收益日历与顶部“今日涨跌”共用实时昨收口径；历史日期按相邻有效估值快照计算收益，并扣除期间存入与取出。休市、无新估值和仅资金流日期保留余额记录，但收益显示为“—”，不进入波动率与夏普样本。部分估值为临时结果，待基金或 QDII 官方净值补齐后回填。期初基准为 {performance.basisDate ?? '—'} 估值快照。
             资金加权收益率按修正迪茨法（Modified Dietz）逐日链式计算，当日出入金按日中点（权重 0.5）计入分母，反映资金投入时点的影响；时间加权收益率则剔除出入金影响，衡量组合本身表现。
             最大回撤为区间内净值峰值到谷底的最大跌幅；波动率按日收益样本标准差 × √252 年化；夏普比率的无风险利率按 {`${(RISK_FREE_ANNUAL * 100).toFixed(0)}%`} 假设。
           </p>

@@ -10,14 +10,26 @@ export function TxFilters({
   types,
   account,
   type,
+  showHistory,
+  hiddenHistoryCount,
 }: {
   accounts: { id: string; name: string }[]
   types: [string, string][]
   account: string
   type: string
+  showHistory: boolean
+  hiddenHistoryCount: number
 }) {
+  const historyParams = new URLSearchParams()
+  if (account) historyParams.set('account', account)
+  if (type && type !== 'REVERSAL') historyParams.set('type', type)
+  if (!showHistory) historyParams.set('history', 'all')
+  const historyQuery = historyParams.toString()
+  const historyHref = historyQuery ? `/transactions?${historyQuery}` : '/transactions'
+
   return (
     <form className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3" method="GET">
+      {showHistory && <input type="hidden" name="history" value="all" />}
       <select
         name="account"
         defaultValue={account}
@@ -50,7 +62,15 @@ export function TxFilters({
           清除
         </Link>
       )}
-      <a href="/api/export/transactions" className="ml-auto text-[13px] text-ink-faint transition-colors hover:text-accent" download>
+      <Link
+        href={historyHref}
+        className="ml-auto inline-flex min-h-11 items-center rounded-lg border border-line px-3 text-[13px] text-ink-faint transition-colors hover:border-ink-faint hover:text-ink"
+      >
+        {type === 'REVERSAL'
+          ? '退出冲正筛选'
+          : showHistory ? '隐藏冲正历史' : `显示冲正历史${hiddenHistoryCount > 0 ? `（${hiddenHistoryCount}）` : ''}`}
+      </Link>
+      <a href="/api/export/transactions" className="text-[13px] text-ink-faint transition-colors hover:text-accent" download>
         ↓ 导出 CSV
       </a>
     </form>

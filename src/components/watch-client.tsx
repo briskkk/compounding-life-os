@@ -39,12 +39,13 @@ export interface WatchHolding {
 }
 
 export interface StaticRow {
-  assetId: string
+  assetId: string | null
   symbol: string
   name: string
   valueCny: number
   note: string
   priceSource: PriceSource
+  sourceLabel?: string
 }
 
 interface QuoteLite {
@@ -259,6 +260,9 @@ export function WatchClient({
     latestValuationDate: liveValuation.date,
     valuationGaps: [],
   }), [currentContributions, liveInvestableValue, liveValuation, todayKey])
+  const liveDayReturn = useMemo(() => livePerformancePoint?.date === todayKey
+    ? { date: todayKey, amount: totalPnl, pct: dayPct }
+    : null, [dayPct, livePerformancePoint?.date, todayKey, totalPnl])
 
   const displayRows = useMemo(() => sortHoldings([
     ...rows.map((row) => ({ ...row, kind: 'market' as const, name: row.name, valueCny: row.valueCny })),
@@ -304,6 +308,7 @@ export function WatchClient({
       <PortfolioHistory
         series={historySeries}
         livePoint={livePerformancePoint}
+        liveDayReturn={liveDayReturn}
         benchmarks={benchmarks}
         initialPreset={defaultRange ?? undefined}
       />
@@ -365,9 +370,11 @@ export function WatchClient({
                 </td>
               </tr>
             ) : (
-              <tr key={r.assetId} className="opacity-60 transition-colors hover:bg-panel2/50">
+              <tr key={r.assetId ?? r.symbol} className="opacity-60 transition-colors hover:bg-panel2/50">
                 <td className="px-4 py-2.5">
-                  <Link href={`/positions/${r.assetId}`} className="text-ink-dim transition-colors hover:text-accent">{r.name}</Link>
+                  {r.assetId ? (
+                    <Link href={`/positions/${r.assetId}`} className="text-ink-dim transition-colors hover:text-accent">{r.name}</Link>
+                  ) : <span className="text-ink-dim">{r.name}</span>}
                   <div className="num text-[12px] text-ink-faint">{r.symbol}</div>
                 </td>
                 <td className="px-2 py-2.5" colSpan={3}>
@@ -375,7 +382,11 @@ export function WatchClient({
                 </td>
                 <td className="num px-2 py-2.5 text-right text-ink-dim">{fmtCNY(r.valueCny)}</td>
                 <td className="num px-2 py-2.5 text-right text-ink-faint">—</td>
-                <td className="px-4 py-2.5 text-right"><PositionSourceTag priceSource={r.priceSource} /></td>
+                <td className="px-4 py-2.5 text-right">
+                  {r.sourceLabel
+                    ? <span className="text-[12px] text-ink-faint">{r.sourceLabel}</span>
+                    : <PositionSourceTag priceSource={r.priceSource} />}
+                </td>
               </tr>
             ))}
           </tbody>

@@ -9,7 +9,11 @@ import {
   reverseTransactionRecord,
   routedAccountIdForAsset,
 } from '@/lib/services/transactions'
-import { confirmFundOfficialNavRecord, confirmFundSettlementRecord } from '@/lib/services/fund-confirmations'
+import {
+  confirmFundOfficialNavRecord,
+  confirmFundSettlementRecord,
+  previewFundOfficialNavRecord,
+} from '@/lib/services/fund-confirmations'
 
 const base = new PrismaClient({ datasourceUrl: `file:${path.resolve('prisma/test.db')}` })
 
@@ -287,7 +291,18 @@ describe('基金确认共享服务（Web Action / App REST 同源）', () => {
       data: { symbol: 'SVCF01', date: navDate, close: 1.25, source: 'EASTMONEY-FUND' },
     })
 
-    const result = await confirmFundOfficialNavRecord(base, ctx, original.id)
+    const preview = await previewFundOfficialNavRecord(base, ctx, original.id)
+    expect(preview).toMatchObject({
+      assetSymbol: 'SVCF01',
+      amount: 500,
+      officialNav: 1.25,
+      calculatedQuantity: 400,
+      source: 'EASTMONEY-FUND',
+    })
+    await expect(confirmFundOfficialNavRecord(base, ctx, original.id, 399.99)).rejects.toThrow(/平台份额与账本推算不一致/)
+    expect((await base.transaction.findUnique({ where: { id: original.id } }))?.voidedAt).toBeNull()
+
+    const result = await confirmFundOfficialNavRecord(base, ctx, original.id, 400)
     expect(result).toMatchObject({ oldQuantity: 0, newQuantity: 400, newPrice: 1.25 })
     expect((await base.transaction.findUnique({ where: { id: original.id } }))?.voidedAt).not.toBeNull()
     expect((await base.transaction.findUnique({ where: { id: result.id } }))?.navSource).toBe('OFFICIAL')

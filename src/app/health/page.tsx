@@ -7,7 +7,6 @@ import { marketHealth } from '@/lib/market/cache'
 import { SetupScreen, Tag } from '@/components/ui'
 import { cx, fmtCNY, fmtDate, fmtDateTime, fmtPct } from '@/lib/format'
 import { HealthRepairActions } from '@/components/health-repair-actions'
-import { ConfirmFundNavButton } from '@/components/confirm-fund-nav-button'
 import { ConfirmFundSettlementButton } from '@/components/confirm-fund-settlement-button'
 
 export const dynamic = 'force-dynamic'
@@ -168,8 +167,8 @@ export default async function DataHealthPage() {
       title: `${estimatedNav.length} 笔基金净值或份额待确认`,
       detail: '官方成交净值到达后应确认替换；系统会保留原记录的冲正链。',
       metric: `${estimatedNav.length} 笔`,
-      href: '/transactions',
-      action: '确认净值',
+      href: '/fund-confirmations',
+      action: '核对份额',
     })
   }
 
@@ -357,7 +356,7 @@ export default async function DataHealthPage() {
       </section>
 
       <section id="fund-confirmation" className="health-confirmation-center">
-        <header><div><span className="eyebrow">Fund closure</span><h2>基金确认闭环</h2></div><Link href="/transactions">查看全部流水 →</Link></header>
+        <header><div><span className="eyebrow">Fund closure</span><h2>基金确认闭环</h2></div><Link href="/fund-confirmations">进入份额核对 →</Link></header>
         <div className="health-confirmation-list">
           {actionableFundEvents.length === 0 ? <div className="health-empty"><strong>没有待确认的基金事件</strong><p>估算净值与赎回到账均已闭环。</p></div> : actionableFundEvents.map((tx) => {
             const isEstimate = tx.navSource === 'ESTIMATE' || tx.navSource === 'PENDING'
@@ -365,7 +364,7 @@ export default async function DataHealthPage() {
             const settlementConfirmed = confirmedSettlementIds.has(tx.id)
             const settlementDue = tx.settlementDate != null && tx.settlementDate.getTime() <= Date.now()
             if (!isEstimate && (!isSettlement || settlementConfirmed)) return null
-            return <article key={tx.id}><div><span>{isEstimate ? tx.navSource === 'PENDING' ? '份额待确认' : '待官方净值' : settlementDue ? '待确认到账' : '等待到账日'}</span><strong>{tx.asset.name}</strong><small>{tx.account.name} · 交易 {fmtDate(tx.occurredAt)}{tx.settlementDate ? ` · 预计到账 ${fmtDate(tx.settlementDate)}` : ''}</small></div><b className="num">{fmtCNY(Number(tx.amount))}</b><div>{isEstimate && dashboard.ctx.role !== 'VIEWER' && <ConfirmFundNavButton id={tx.id} />}{!isEstimate && isSettlement && settlementDue && dashboard.ctx.role !== 'VIEWER' && <ConfirmFundSettlementButton id={tx.id} />}</div></article>
+            return <article key={tx.id}><div><span>{isEstimate ? tx.navSource === 'PENDING' ? '份额待确认' : '待官方净值' : settlementDue ? '待确认到账' : '等待到账日'}</span><strong>{tx.asset.name}</strong><small>{tx.account.name} · 交易 {fmtDate(tx.occurredAt)}{tx.settlementDate ? ` · 预计到账 ${fmtDate(tx.settlementDate)}` : ''}</small></div><b className="num">{fmtCNY(Number(tx.amount))}</b><div>{isEstimate && <Link href={`/fund-confirmations?transaction=${tx.id}`} className="text-[13px] text-accent">核对份额</Link>}{!isEstimate && isSettlement && settlementDue && dashboard.ctx.role !== 'VIEWER' && <ConfirmFundSettlementButton id={tx.id} />}</div></article>
           })}
         </div>
       </section>

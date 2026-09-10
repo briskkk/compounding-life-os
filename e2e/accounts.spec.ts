@@ -67,10 +67,12 @@ test('总览、看盘与账户的今日盈亏使用同一交易日口径', async
   await page.goto('/watch')
   await expect(page.getByTestId('watch-today-pnl')).toBeVisible()
   const watchAmount = await page.getByTestId('watch-today-pnl').getAttribute('data-amount')
+  const calendarAmount = await page.getByTestId('returns-calendar-today').getAttribute('data-amount')
 
   await page.goto('/accounts')
   const accountsAmount = await page.getByTestId('accounts-today-pnl').getAttribute('data-amount')
 
   expect(watchAmount).toBe(overviewAmount)
+  expect(calendarAmount).toBe(watchAmount)
   expect(accountsAmount).toBe(overviewAmount)
 })

@@ -55,7 +55,12 @@ import {
   routedAccountIdForAsset,
   validateTransaction,
 } from './services/transactions'
-import { confirmFundOfficialNavRecord, confirmFundSettlementRecord } from './services/fund-confirmations'
+import {
+  confirmFundOfficialNavRecord,
+  confirmFundSettlementRecord,
+  previewFundOfficialNavRecord,
+  type FundNavConfirmationPreview,
+} from './services/fund-confirmations'
 import { savePortfolioReviewRecord } from './services/reviews'
 import { recordAccountReconciliationEvidence } from './services/reconciliation'
 import { createCorporateActionRecord, reverseCorporateActionRecord } from './services/corporate-actions'
@@ -406,7 +411,18 @@ export async function reverseTransaction(id: string): Promise<ActionResult> {
 }
 
 /** 以成交净值日的官方净值替换估算基金流水；原流水通过冲正保留。 */
-export async function confirmFundOfficialNav(id: string): Promise<ActionResult<{
+export async function previewFundOfficialNav(id: string): Promise<ActionResult<FundNavConfirmationPreview>> {
+  try {
+    const ctx = await getSessionOrThrow()
+    const preview = await previewFundOfficialNavRecord(prisma, ctx, id)
+    return { ok: true, data: preview }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/** 用户核对平台份额后，以成交日官方净值替换原流水；原流水通过冲正保留。 */
+export async function confirmFundOfficialNav(id: string, confirmedQuantity?: number): Promise<ActionResult<{
   id: string
   oldPrice: number
   newPrice: number
@@ -415,8 +431,11 @@ export async function confirmFundOfficialNav(id: string): Promise<ActionResult<{
 }>> {
   try {
     const ctx = await requireWrite()
-    const { warning, ...corrected } = await confirmFundOfficialNavRecord(prisma, ctx, id)
+    const { warning, ...corrected } = await confirmFundOfficialNavRecord(prisma, ctx, id, confirmedQuantity)
     revalidatePath('/transactions')
+    revalidatePath('/fund-confirmations')
+    revalidatePath('/health')
+    revalidatePath('/')
     return { ok: true, data: corrected, warning }
   } catch (e) {
     return fail(e)

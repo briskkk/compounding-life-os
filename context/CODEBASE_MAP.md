@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-09-01
+last_verified: 2026-09-10
 ---
 
 # 代码地图
@@ -17,7 +17,8 @@ last_verified: 2026-09-01
 | 资产详情 | `src/app/positions/[assetId]/page.tsx` | 价格/净值历史、基金估值、持仓概览、流水与带账本锁的安全编辑/删除 |
 | 看盘 | `src/app/watch/page.tsx` | `getWatchData`；盘中曲线、区间绩效、基准、风险 |
 | 复盘 | `src/app/review/page.tsx` | `getReviewPageData`；周/月/季及任意历史自然月的结果桥、贡献归因、时点、交易、风险与复盘笔记 |
-| 流水 | `src/app/transactions/page.tsx` | 筛选、分页、录入、CSV、冲正、导出 |
+| 流水 | `src/app/transactions/page.tsx` | 默认有效流水视图、可展开冲正历史、筛选、分页、录入、CSV、冲正、导出 |
+| 基金确认 | `src/app/fund-confirmations/page.tsx` | 待确认基金集中队列、官方净值只读预览、平台份额比对与确认写入 |
 | FIRE | `src/app/goals/page.tsx` | 目标编辑、储蓄、情景实验室、蒙特卡洛结果 |
 | 账户 | `src/app/accounts/page.tsx`、`accounts/[accountId]/page.tsx` | 账户、资产目录、结算关系、负债 |
 | 审计 | `src/app/audit/page.tsx` | 审计哈希链验证与时间线 |
@@ -56,7 +57,7 @@ Route Handlers：
 - `src/lib/transaction-rules.ts`：交易不变量和历史时间线校验。
 - `src/lib/actions.ts`：全部业务写操作、审计、快照刷新、revalidate。
 - `src/lib/services/transactions.ts`：共享事务写服务（流水创建/冲正的校验、结算联动、审计、快照刷新）—— Server Actions 与移动端 API 复用同一写路径。
-- `src/lib/services/fund-confirmations.ts`、`reviews.ts`、`reconciliation.ts`：基金确认、复盘保存与账户对账的 Web / APP 共享写服务。
+- `src/lib/services/fund-confirmations.ts`、`reviews.ts`、`reconciliation.ts`：基金确认、复盘保存与账户对账的 Web / APP 共享写服务；基金确认先生成官方净值与应确认份额预览，写入时重新校验平台份额。
 - `src/lib/services/api-auth.ts`：API 认证分界：读可回落全局 Key，写必须真实用户会话。
 - `src/lib/queries.ts`：页面 View Model 装配、实时估值与目标；总览复用复盘引擎装配周/月/季贡献证据。
 - `src/lib/review-data.ts`：复盘页 View Model；历史价格/汇率、同源组合/资产日曲线、在途资金、基准与已保存记录装配。

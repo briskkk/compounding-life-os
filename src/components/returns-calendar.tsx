@@ -17,6 +17,7 @@ import type { PerformanceCurvePoint, PerformancePoint } from '@/lib/engine/perio
 import type { LoadedBenchmark } from '@/lib/engine/benchmark'
 import {
   allYearTotals,
+  applyLiveDayReturn,
   benchmarkMonthReturn,
   benchmarkYearReturn,
   buildMonthGrid,
@@ -25,6 +26,7 @@ import {
   observedReturnMonths,
   shiftMonthKey,
   yearMonthTotals,
+  type LiveDayReturn,
   type PeriodTotal,
 } from '@/lib/engine/returns-calendar'
 import { C } from '@/lib/colors'
@@ -90,10 +92,12 @@ export function ReturnsCalendar({
   series,
   benchmark,
   todayKey,
+  liveDayReturn,
 }: {
   series: PerformancePoint[]
   benchmark: LoadedBenchmark | null
   todayKey: string
+  liveDayReturn: LiveDayReturn | null
 }) {
   const latestMonth = monthKeyOf(series.at(-1)?.date ?? todayKey)
   const earliestMonth = monthKeyOf(series[0]?.date ?? todayKey)
@@ -115,7 +119,10 @@ export function ReturnsCalendar({
 
   // ---- 日收益：当月逐日曲线 ----
   const weeks = useMemo(() => buildMonthGrid(monthKey), [monthKey])
-  const daily = useMemo(() => monthDailyPoints(series, monthKey), [series, monthKey])
+  const daily = useMemo(
+    () => applyLiveDayReturn(monthDailyPoints(series, monthKey), liveDayReturn),
+    [liveDayReturn, monthKey, series],
+  )
   const benchmarkReturn = useMemo(
     () => (benchmark ? benchmarkMonthReturn(benchmark.points, monthKey) : null),
     [benchmark, monthKey],
@@ -294,6 +301,8 @@ export function ReturnsCalendar({
                   key={day.date}
                   type="button"
                   className={cls}
+                  data-testid={day.date === todayKey ? 'returns-calendar-today' : undefined}
+                  data-amount={day.date === todayKey && point.dailyAmount != null ? point.dailyAmount.toFixed(2) : undefined}
                   title={unsettled ? valuationStatusTitle(point) : undefined}
                   onClick={() => setDetail({ date: day.date, point })}
                 >

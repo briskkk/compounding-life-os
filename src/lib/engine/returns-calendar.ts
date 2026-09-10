@@ -7,6 +7,12 @@ export interface CalendarDayCell {
   inMonth: boolean
 }
 
+export interface LiveDayReturn {
+  date: string
+  amount: number
+  pct: number | null
+}
+
 /** 'YYYY-MM-DD' → 'YYYY-MM' */
 export function monthKeyOf(dateKey: string): string {
   return dateKey.slice(0, 7)
@@ -63,6 +69,26 @@ export function monthDailyPoints(
     if (point.date >= startDate && point.date <= endDate) map.set(point.date, point)
   }
   return map
+}
+
+/**
+ * 看盘当天有实时行情时，日历的“今天”复用顶部实时昨收口径。
+ * 历史点及组合净值序列保持不变，避免把盘中估算写回结算历史。
+ */
+export function applyLiveDayReturn(
+  points: Map<string, PerformanceCurvePoint>,
+  live: LiveDayReturn | null,
+): Map<string, PerformanceCurvePoint> {
+  const next = new Map(points)
+  if (!live) return next
+  const point = next.get(live.date)
+  if (!point) return next
+  next.set(live.date, {
+    ...point,
+    dailyAmount: live.amount,
+    dailyPct: live.pct,
+  })
+  return next
 }
 
 /**

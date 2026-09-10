@@ -1,5 +1,6 @@
 // 流水页：唯一事实源的浏览、筛选、手工录入与 CSV 导入
 import Link from 'next/link'
+import type { Prisma } from '@prisma/client'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
@@ -9,7 +10,6 @@ import { foldTransactions, holdingsIndex } from '@/lib/engine/ledger'
 import { TxFilters } from '@/components/tx-filters'
 import { CsvImport } from '@/components/csv-import'
 import { ReverseButton } from '@/components/reverse-button'
-import { ConfirmFundNavButton } from '@/components/confirm-fund-nav-button'
 import { TX_TYPE_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtDate, fmtMoney, fmtQty } from '@/lib/format'
 import type { TxType } from '@/lib/engine/types'
@@ -29,7 +29,7 @@ const PAGE_SIZE = 100
 export default async function TransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ account?: string; type?: string; q?: string; page?: string; batch?: string }>
+  searchParams: Promise<{ account?: string; type?: string; q?: string; page?: string; batch?: string; history?: string }>
 }) {
   const sp = await searchParams
   const ctx = await getSession()
@@ -64,14 +64,19 @@ export default async function TransactionsPage({
         currency: assetCcyById.get(t.assetId),
       })),
   ))
-  const where = {
+  const showHistory = sp.history === 'all' || sp.type === 'REVERSAL'
+  const baseWhere: Prisma.TransactionWhereInput = {
     asset: { cls: { not: 'HUAWEI_STOCK' as const } },
     ...(sp.account ? { accountId: sp.account } : {}),
-    ...(sp.type ? { type: sp.type as TxType } : {}),
     ...(sp.batch ? { importBatchId: sp.batch } : {}),
   }
+  const where: Prisma.TransactionWhereInput = {
+    ...baseWhere,
+    ...(sp.type ? { type: sp.type as TxType } : showHistory ? {} : { type: { not: 'REVERSAL' } }),
+    ...(showHistory ? {} : { voidedAt: null }),
+  }
   const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1)
-  const [txs, total] = await Promise.all([
+  const [txs, total, hiddenHistoryCount] = await Promise.all([
     db.transaction.findMany({
       where,
       include: { account: true, asset: true },
@@ -80,12 +85,23 @@ export default async function TransactionsPage({
       take: PAGE_SIZE,
     }),
     db.transaction.count({ where }),
+    showHistory
+      ? Promise.resolve(0)
+      : db.transaction.count({
+        where: {
+          ...baseWhere,
+          ...(sp.type
+            ? { type: sp.type as TxType, voidedAt: { not: null } }
+            : { OR: [{ voidedAt: { not: null } }, { type: 'REVERSAL' }] }),
+        },
+      }),
   ])
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const filterParams = new URLSearchParams()
   if (sp.account) filterParams.set('account', sp.account)
   if (sp.type) filterParams.set('type', sp.type)
   if (sp.batch) filterParams.set('batch', sp.batch)
+  if (showHistory) filterParams.set('history', 'all')
   const pageHref = (target: number) => {
     const params = new URLSearchParams(filterParams)
     if (target > 1) params.set('page', String(target))
@@ -98,10 +114,11 @@ export default async function TransactionsPage({
       <PageHeader
         kicker="Ledger"
         title="每一笔变化，都有出处。"
-        description="交易流水是组合的唯一事实源；筛选、导出、录入、批量导入与冲正能力全部保留。"
+        description="默认只展示当前有效流水；已冲正记录与系统冲正标记折叠到变更历史，需要审计时可随时展开。"
         right={(
           <div className="flex flex-wrap items-center gap-5">
-            <div><div className="text-[14px] text-ink-faint">交易笔数</div><div className="num mt-2 text-[28px] text-ink">{total}</div></div>
+            <div><div className="text-[14px] text-ink-faint">{showHistory ? '含历史记录' : '有效流水'}</div><div className="num mt-2 text-[28px] text-ink">{total}</div></div>
+            <Link href="/fund-confirmations" className="inline-flex min-h-11 shrink-0 items-center text-[14px] whitespace-nowrap text-amber">份额确认 →</Link>
             <Link href="/corporate-actions" className="inline-flex min-h-11 shrink-0 items-center text-[14px] whitespace-nowrap text-accent">公司行动 →</Link>
             <Link href="/fund-operations" className="inline-flex min-h-11 shrink-0 items-center text-[14px] whitespace-nowrap text-accent">基金规则 →</Link>
             <Link href="/transactions/imports" className="inline-flex min-h-11 shrink-0 items-center text-[14px] whitespace-nowrap text-accent">导入批次 →</Link>
@@ -123,6 +140,8 @@ export default async function TransactionsPage({
           types={Object.entries(TX_TYPE_LABEL)}
           account={sp.account ?? ''}
           type={sp.type ?? ''}
+          showHistory={showHistory}
+          hiddenHistoryCount={hiddenHistoryCount}
         />
 
         {txs.length === 0 ? (
@@ -134,7 +153,7 @@ export default async function TransactionsPage({
                 ? { href: '/transactions', label: '清除筛选' }
                 : { href: '#new-entry', label: '录入第一笔流水' }}
             >
-              {sp.account || sp.type ? '无匹配流水' : '暂无流水'}
+              {sp.account || sp.type ? '无匹配流水' : showHistory ? '暂无流水' : '暂无有效流水'}
             </Empty>
           )
         ) : (
@@ -194,7 +213,7 @@ export default async function TransactionsPage({
                             && (t.type === 'BUY' || t.type === 'SELL')
                             && (t.navSource === 'ESTIMATE' || t.navSource === 'PENDING')
                             && t.navDate
-                            && <ConfirmFundNavButton id={t.id} />}
+                            && <Link href={`/fund-confirmations?transaction=${t.id}`} className="ml-3 text-[13px] text-accent transition-colors hover:text-ink">核对份额</Link>}
                         </>
                       )
                     )}
