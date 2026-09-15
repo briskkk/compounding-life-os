@@ -11,6 +11,7 @@ import { parseSymbol, type Market } from './symbols'
 import { cachedQuote, cachedQuoteSWR, providerCircuitOpen, quoteCacheKey, recordRequest } from './cache'
 import { recordProviderObservation } from './quality'
 import type { Bar, MarketDataProvider, QuoteData } from './provider'
+import { dateKeyAt } from '@/lib/engine/watch-market'
 
 const DEFAULT_PROVIDER_SPEC = 'tencent,eastmoney-kline,eastmoney-fund,sina'
 
@@ -18,9 +19,13 @@ export const simulatedProvider: MarketDataProvider = {
   label: PROVIDER_LABEL,
   async quote(symbol: string) {
     const receivedAt = new Date().toISOString()
+    const quote = quoteAt(symbol)
+    const market = parseSymbol(symbol).market
+    const timeZone = market === 'US' ? 'America/New_York' : 'Asia/Shanghai'
     return {
-      ...quoteAt(symbol),
+      ...quote,
       receivedAt,
+      tradingDate: dateKeyAt(new Date(quote.asOf), timeZone),
       source: PROVIDER_LABEL,
       kind: 'SIMULATED',
       freshness: 'UNKNOWN',

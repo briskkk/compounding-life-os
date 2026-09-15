@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { dateKeyAt } from '@/lib/engine/watch-market'
+import { simulatedProvider } from '@/lib/market'
 import { exchangeTimeToIso, marketQuoteFreshness } from '@/lib/market/quote-time'
 
 describe('行情时间与新鲜度语义', () => {
@@ -20,5 +22,16 @@ describe('行情时间与新鲜度语义', () => {
     const afterClose = new Date('2026-08-24T08:30:00.000Z')
     expect(marketQuoteFreshness('HK', '2026-08-24T08:00:00.000Z', '2026-08-24', afterClose)).toBe('CLOSED')
     expect(marketQuoteFreshness('US', null, '2026-08-24', afterClose)).toBe('UNKNOWN')
+  })
+
+  it('模拟报价携带对应市场的交易日，供今日收益口径对齐', async () => {
+    const cn = await simulatedProvider.quote('510300')
+    const cnAgain = await simulatedProvider.quote('510300')
+    const us = await simulatedProvider.quote('USAAPL')
+
+    expect(cn.tradingDate).toBe(dateKeyAt(new Date(cn.asOf), 'Asia/Shanghai'))
+    expect(us.tradingDate).toBe(dateKeyAt(new Date(us.asOf), 'America/New_York'))
+    expect(cnAgain.price).toBe(cn.price)
+    expect(cnAgain.prevClose).toBe(cn.prevClose)
   })
 })

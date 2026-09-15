@@ -80,6 +80,8 @@ model FamilySpace {
   importBatches     ImportBatch[]
   allocationTargets AllocationTarget[]
   cashPlans         CashPlan[]
+  investmentPlans   InvestmentPlan[]
+  investmentPlanAssets InvestmentPlanAsset[]
   corporateActions  CorporateAction[]
   fundTradePolicies FundTradePolicy[]
   auditLogs         AuditLog[]
@@ -126,6 +128,7 @@ model Account {
   corporateActions    CorporateAction[] @relation("CorporateActionSourceAccount")
   targetActions       CorporateAction[] @relation("CorporateActionTargetAccount")
   cashPlans           CashPlan[]
+  investmentPlans     InvestmentPlan[]
 
   @@unique([familyId, name])
   @@index([familyId])
@@ -169,6 +172,7 @@ model Asset {
   corporateActions CorporateAction[] @relation("CorporateActionSourceAsset")
   targetActions    CorporateAction[] @relation("CorporateActionTargetAsset")
   fundTradePolicy  FundTradePolicy?
+  investmentPlanLinks InvestmentPlanAsset[]
 
   @@unique([familyId, symbol])
   @@index([familyId])
@@ -471,6 +475,58 @@ model CashPlan {
 
   @@index([familyId, dueDate])
   @@index([accountId])
+}
+
+enum InvestmentPlanCadence {
+  WEEKDAY
+  WEEKLY
+  MONTHLY
+}
+
+enum InvestmentPlanStatus {
+  ACTIVE
+  ENDED
+}
+
+// 定投只描述未来节奏；实际投入仍从 BUY 流水按账户与候选资产派生。
+model InvestmentPlan {
+  id          String               @id @default(cuid())
+  familyId    String
+  family      FamilySpace          @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  accountId   String?
+  account     Account?             @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  name        String
+  amount      Decimal
+  currency    String
+  cadence     InvestmentPlanCadence
+  scheduleDay Int?
+  startDate   DateTime
+  endDate     DateTime?
+  status      InvestmentPlanStatus @default(ACTIVE)
+  endedAt     DateTime?
+  note        String?
+  assets      InvestmentPlanAsset[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([familyId, status])
+  @@index([accountId])
+}
+
+// 一个策略可包含多只同币种候选资产，用于合并核对渠道限额下的替代买入。
+model InvestmentPlanAsset {
+  id        String         @id @default(cuid())
+  familyId  String
+  family    FamilySpace    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  planId    String
+  plan      InvestmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  assetId   String
+  asset     Asset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+
+  @@unique([planId, assetId])
+  @@index([familyId])
+  @@index([assetId])
 }
 
 model Snapshot {

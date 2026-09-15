@@ -125,7 +125,7 @@ export default async function OverviewPage({
 
       <header className="overview-page-header">
         <div>
-          <div className="eyebrow">Household wealth command</div>
+          <div className="eyebrow">家庭账本 · 当前状态</div>
           <h1>家庭财富总览</h1>
         </div>
         <nav className="overview-period-tabs" aria-label="总览周期">
@@ -145,7 +145,7 @@ export default async function OverviewPage({
       <section className="overview-ledger-hero" aria-label="财富核心结果">
         <div className="overview-net-worth">
           <div>
-            <div className="eyebrow">Net worth · 净资产</div>
+            <div className="eyebrow">当前净资产</div>
             <div className="num overview-net-worth-value">{fmtCNY(d.state.netWorth)}</div>
             <div className="overview-net-worth-deltas">
               <span
@@ -174,7 +174,7 @@ export default async function OverviewPage({
         <div className="overview-result-bridge">
           <div className="overview-bridge-header">
             <div>
-              <div className="eyebrow">Reconciled change</div>
+              <div className="eyebrow">{periodLabel} · 复盘口径</div>
               <h2>
                 {periodChange == null
                   ? `${periodLabel}尚无可对账变化`
@@ -190,8 +190,9 @@ export default async function OverviewPage({
             <i>+</i>
             <div><span>投资收益</span><strong className={cx('num', (performance.amount ?? 0) >= 0 ? 'text-up' : 'text-down')}>{money(performance.amount, true)}</strong></div>
             <i>=</i>
-            <div className="overview-equation-result"><span>当前可投资资产</span><strong className="num">{money(performance.endNetWorth)}</strong></div>
+            <div className="overview-equation-result"><span>本期末可投资资产</span><strong className="num">{money(performance.endNetWorth)}</strong></div>
           </div>
+          <p className="overview-bridge-note">此处按所选周期的复盘证据计算；下方“可投资资产”按当前账本与估值展示，时点不同时金额可能不同。</p>
         </div>
       </section>
 
@@ -206,8 +207,8 @@ export default async function OverviewPage({
       <section className="overview-main-grid">
         <div className="overview-chart-surface">
           <div className="overview-section-heading">
-            <div><span className="eyebrow">Wealth trajectory</span><h2>财富轨迹</h2></div>
-            <span>更新至 {fmtDate(new Date())}</span>
+            <div><span className="eyebrow">账本轨迹</span><h2>财富轨迹</h2></div>
+            <span>轨迹至 {wealthChartSeries.length ? fmtDate(wealthChartSeries[wealthChartSeries.length - 1].date) : '—'}</span>
           </div>
           <div className="overview-chart-summary">
             <span>净资产 <b className="num">{fmtCNY(d.state.netWorth)}</b></span>

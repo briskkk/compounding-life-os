@@ -107,6 +107,9 @@ test('基金份额核对：官方份额自动预填，按 Enter 完成确认', a
     where: { note, voidedAt: null },
     include: { asset: true },
   })
+  expect(original.quantity).toBeNull()
+  expect(original.price).toBeNull()
+  expect(original.navSource).toBe('PENDING')
   const officialNavAt = new Date(original.navDate!.getTime() + 12 * 60 * 60 * 1000)
   await e2eDb.priceBar.create({
     data: {

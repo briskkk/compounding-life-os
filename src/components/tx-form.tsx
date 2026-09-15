@@ -176,7 +176,7 @@ export function TxForm({
   const price = parseNum(priceText)
   const quantity = parseNum(qtyText)
 
-  // 按金额申购的预计份额
+  // 按金额申购的预计份额仅供录入预览，不写入账本持仓。
   const estimatedShareQty = isFund && type === 'BUY' && fundMode === 'amount' && amount != null && fundQuote
     ? estimateShares(amount, fundQuote.price)
     : null
@@ -207,24 +207,18 @@ export function TxForm({
     let settleDateValue: Date | null = null
 
     if (isFund && type === 'BUY' && fundMode === 'amount') {
-      // 按金额申购：以确认日净值（官方或盘中估算）折算份额
+      // 按金额申购只记录本金；净值与份额必须在基金核对台确认后才写入持仓。
       if (amt == null || amt <= 0) {
         setMsg({ ok: false, text: '请填写申购金额' })
         return
       }
-      if (fundQuote) {
-        px = fundQuote.price
-        qty = estimateShares(amt, px)
-        navSource = fundQuote.source
-      } else {
-        if (!settle) {
-          setMsg({ ok: false, text: '份额未知时必须联动资金账户；请先配置资金账户并勾选现金联动结算' })
-          return
-        }
-        px = null
-        qty = null
-        navSource = 'PENDING'
+      if (!settle) {
+        setMsg({ ok: false, text: '份额待确认的基金申购必须联动资金账户；请先配置资金账户并勾选现金联动结算' })
+        return
       }
+      px = null
+      qty = null
+      navSource = 'PENDING'
       navDateValue = navDate
     } else if (isFund && (type === 'BUY' || type === 'SELL')) {
       navSource = fundQuote?.source ?? null
@@ -527,8 +521,8 @@ export function TxForm({
           )}
           {type === 'BUY' && fundMode === 'amount' && estimatedShareQty != null && estimatedShareQty > 0 && (
             <p className="mt-1 text-ink-dim">
-              预计确认份额 <span className="num text-accent">{fmtQty(estimatedShareQty)} 份</span>
-              <span className="text-ink-faint"> · 以 {fundNavLabel} 确认净值为准</span>
+              参考份额 <span className="num text-accent">{fmtQty(estimatedShareQty)} 份</span>
+              <span className="text-ink-faint"> · 仅供预览，核对平台份额后才写入持仓</span>
             </p>
           )}
           {type === 'BUY' && fundMode === 'amount' && fundQuoteState === 'error' && amount != null && amount > 0 && (

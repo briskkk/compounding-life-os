@@ -32,6 +32,8 @@ async function main() {
   console.log('· 清空旧数据…')
   await prisma.$transaction([
     prisma.auditLog.deleteMany(),
+    prisma.investmentPlanAsset.deleteMany(),
+    prisma.investmentPlan.deleteMany(),
     prisma.cashPlan.deleteMany(),
     prisma.allocationTarget.deleteMany(),
     prisma.snapshot.deleteMany(),

@@ -10,6 +10,8 @@ let famA: string
 let famB: string
 let accA: string
 let accB: string
+let assetA: string
+let assetB: string
 
 function ctxOf(familyId: string, role: FamilyCtx['role'] = 'OWNER'): FamilyCtx {
   return { familyId, memberId: 'm1', memberName: '测试', role, userId: 'u1' }
@@ -24,6 +26,8 @@ beforeAll(async () => {
   const acc2 = await base.account.create({ data: { familyId: famB, name: '乙账户', type: 'BANK' } })
   accA = acc1.id
   accB = acc2.id
+  assetA = (await base.asset.create({ data: { familyId: famA, symbol: 'PLAN-A', name: '甲计划资产', cls: 'FUND' } })).id
+  assetB = (await base.asset.create({ data: { familyId: famB, symbol: 'PLAN-B', name: '乙计划资产', cls: 'FUND' } })).id
 })
 
 afterAll(async () => {
@@ -124,6 +128,36 @@ describe('行级安全（family 作用域）', () => {
         amountCny: 100,
         dueDate: new Date('2026-09-01T00:00:00Z'),
       },
+    })).rejects.toThrow(/VIEWER/)
+  })
+
+  it('定投计划与候选资产关系按家庭隔离，VIEWER 不能写入', async () => {
+    const dbA = scopedDb(base, ctxOf(famA))
+    const created = await dbA.investmentPlan.create({
+      data: {
+        familyId: famB,
+        accountId: accA,
+        name: '甲家庭定投',
+        amount: 100,
+        currency: 'CNY',
+        cadence: 'WEEKLY',
+        scheduleDay: 1,
+        startDate: new Date('2026-09-01T00:00:00Z'),
+      },
+    })
+    expect(created.familyId).toBe(famA)
+    const link = await dbA.investmentPlanAsset.create({
+      data: { familyId: famB, planId: created.id, assetId: assetA },
+    })
+    expect(link.familyId).toBe(famA)
+
+    const dbB = scopedDb(base, ctxOf(famB))
+    expect(await dbB.investmentPlan.count()).toBe(0)
+    expect(await dbB.investmentPlanAsset.count()).toBe(0)
+
+    const viewer = scopedDb(base, ctxOf(famA, 'VIEWER'))
+    await expect(viewer.investmentPlanAsset.create({
+      data: { familyId: famA, planId: created.id, assetId: assetB },
     })).rejects.toThrow(/VIEWER/)
   })
 })

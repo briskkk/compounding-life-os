@@ -82,7 +82,7 @@ export function Stat({
   )
 }
 
-/** 中式涨跌着色：正=红 负=绿 */
+/** 涨跌着色遵循当前产品语义：正值使用 up，负值使用 down。 */
 export function Delta({
   value,
   pct,

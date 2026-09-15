@@ -32,6 +32,8 @@ async function main() {
   console.log('· 清空 PG 目标表…')
   await pg.$transaction([
     pg.auditLog.deleteMany(),
+    pg.investmentPlanAsset.deleteMany(),
+    pg.investmentPlan.deleteMany(),
     pg.corporateAction.deleteMany(),
     pg.fundTradePolicy.deleteMany(),
     pg.cashPlan.deleteMany(),
@@ -75,6 +77,8 @@ async function main() {
     ['Goal', () => sqlite.goal.findMany() as Promise<unknown[]>, (r) => pg.goal.createMany({ data: r })],
     ['AllocationTarget', () => sqlite.allocationTarget.findMany() as Promise<unknown[]>, (r) => pg.allocationTarget.createMany({ data: r })],
     ['CashPlan', () => sqlite.cashPlan.findMany() as Promise<unknown[]>, (r) => pg.cashPlan.createMany({ data: r })],
+    ['InvestmentPlan', () => sqlite.investmentPlan.findMany() as Promise<unknown[]>, (r) => pg.investmentPlan.createMany({ data: r })],
+    ['InvestmentPlanAsset', () => sqlite.investmentPlanAsset.findMany() as Promise<unknown[]>, (r) => pg.investmentPlanAsset.createMany({ data: r })],
     ['SavingsEntry', () => sqlite.savingsEntry.findMany() as Promise<unknown[]>, (r) => pg.savingsEntry.createMany({ data: r })],
     ['Snapshot', () => sqlite.snapshot.findMany() as Promise<unknown[]>, (r) => pg.snapshot.createMany({ data: r })],
     ['PortfolioReview', () => sqlite.portfolioReview.findMany() as Promise<unknown[]>, (r) => pg.portfolioReview.createMany({ data: r })],
@@ -99,6 +103,7 @@ async function main() {
       ['Asset', pg.asset.count()], ['ImportBatch', pg.importBatch.count()], ['CorporateAction', pg.corporateAction.count()], ['FundTradePolicy', pg.fundTradePolicy.count()], ['Transaction', pg.transaction.count()],
       ['Liability', pg.liability.count()], ['LiabilityEntry', pg.liabilityEntry.count()], ['Goal', pg.goal.count()],
       ['AllocationTarget', pg.allocationTarget.count()], ['CashPlan', pg.cashPlan.count()],
+      ['InvestmentPlan', pg.investmentPlan.count()], ['InvestmentPlanAsset', pg.investmentPlanAsset.count()],
       ['SavingsEntry', pg.savingsEntry.count()], ['Snapshot', pg.snapshot.count()], ['PortfolioReview', pg.portfolioReview.count()],
       ['AuditLog', pg.auditLog.count()], ['PriceBar', pg.priceBar.count()], ['MarketProviderDaily', pg.marketProviderDaily.count()], ['RateBar', pg.rateBar.count()],
       ['FundEstimate', pg.fundEstimate.count()], ['FundCalibration', pg.fundCalibration.count()],

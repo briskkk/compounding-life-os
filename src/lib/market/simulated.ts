@@ -104,26 +104,18 @@ export function dailyCloses(symbol: string, from: Date, to: Date): { date: Date;
   return out
 }
 
-/** 实时报价：最近收盘 × 日内微扰（每 5 秒一个确定性 tick） */
+/** 模拟报价直接复用最近收盘；同一交易日保持确定，确保页面与快照使用同一证据。 */
 export function quoteAt(symbol: string, t: Date = new Date()): Quote {
   const today = dayFloor(t.getTime())
   const lastClose = closeAt(symbol, t) ?? profileOf(symbol).base
   const prevClose = closeAt(symbol, new Date(today - DAY)) ?? lastClose
-  const bucket = Math.floor(t.getTime() / 5000)
-  const rand = mulberry32((hashSeed(`tick:${symbol}`) ^ bucket) >>> 0)
-  const jitter = (rand() - 0.5) * 0.008
-  const price = round2(lastClose * (1 + jitter))
   return {
     symbol,
-    price,
-    prevClose: round2(prevClose),
-    changePct: prevClose > 0 ? price / prevClose - 1 : 0,
+    price: lastClose,
+    prevClose,
+    changePct: prevClose > 0 ? lastClose / prevClose - 1 : 0,
     asOf: t.toISOString(),
   }
-}
-
-function round2(x: number): number {
-  return Math.round(x * 100) / 100
 }
 
 /** 标记为模拟行情的来源标签 */

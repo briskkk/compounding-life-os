@@ -23,7 +23,7 @@ export function Field({ label, children, className }: { label: string; children:
 export function FormMsg({ msg }: { msg: { ok: boolean; text: string } | null }) {
   if (!msg) return null
   return (
-    <div className={cx('rounded border px-2.5 py-1.5 text-xs', msg.ok ? 'border-down/30 bg-down/10 text-down' : 'border-up/30 bg-up/10 text-up')}>
+    <div role={msg.ok ? 'status' : 'alert'} className={cx('rounded border px-2.5 py-1.5 text-xs', msg.ok ? 'border-down/30 bg-down/10 text-down' : 'border-up/30 bg-up/10 text-up')}>
       {msg.text}
     </div>
   )

@@ -12,7 +12,8 @@ BEGIN
     'Member', 'Account', 'Asset', 'Transaction',
     'Liability', 'LiabilityEntry', 'Goal', 'SavingsEntry',
     'Snapshot', 'PortfolioReview', 'ImportBatch',
-    'AllocationTarget', 'CashPlan', 'CorporateAction', 'FundTradePolicy', 'AuditLog'
+    'AllocationTarget', 'CashPlan', 'InvestmentPlan', 'InvestmentPlanAsset',
+    'CorporateAction', 'FundTradePolicy', 'AuditLog'
   ]
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);

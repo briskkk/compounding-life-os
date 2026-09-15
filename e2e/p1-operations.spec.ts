@@ -2,10 +2,12 @@ import { test, expect } from '@playwright/test'
 
 test('P1 二级工作流从流水与健康中心可进入', async ({ page }) => {
   await page.goto('/transactions')
-  await expect(page.getByRole('link', { name: '公司行动 →' })).toHaveAttribute('href', '/corporate-actions')
-  await expect(page.getByRole('link', { name: '基金规则 →' })).toHaveAttribute('href', '/fund-operations')
-  await expect(page.getByRole('link', { name: '导入批次 →' })).toHaveAttribute('href', '/transactions/imports')
   await expect(page.getByRole('link', { name: '份额确认 →' })).toHaveAttribute('href', '/fund-confirmations')
+  await page.getByText('更多流水操作', { exact: true }).click()
+  const operations = page.getByRole('navigation', { name: '流水专项操作' })
+  await expect(operations.getByRole('link', { name: '公司行动' })).toHaveAttribute('href', '/corporate-actions')
+  await expect(operations.getByRole('link', { name: '基金规则' })).toHaveAttribute('href', '/fund-operations')
+  await expect(operations.getByRole('link', { name: '导入与批次核对' })).toHaveAttribute('href', '/transactions/imports')
 
   await page.goto('/health')
   await expect(page.getByRole('link', { name: '行情质量 →' })).toHaveAttribute('href', '/health/market')

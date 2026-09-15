@@ -1,5 +1,49 @@
 import { test, expect } from '@playwright/test'
 
+test('全局导航：定投可直接发现，支持快捷搜索与侧栏收起', async ({ page }) => {
+  await page.goto('/')
+
+  const navigation = page.getByRole('navigation', { name: '主导航' })
+  await expect(navigation.getByRole('link', { name: '定投', exact: true })).toBeVisible()
+
+  await page.keyboard.press('Control+K')
+  const command = page.getByRole('dialog', { name: '页面搜索' })
+  await expect(command).toBeVisible()
+  await expect(page.getByLabel('搜索页面')).toBeFocused()
+  await page.getByLabel('搜索页面').fill('定投')
+  await command.getByRole('link', { name: /^定投/ }).click()
+
+  await expect(page).toHaveURL(/\/investment-plans/)
+  await expect(navigation.getByRole('link', { name: '定投', exact: true })).toHaveAttribute('aria-current', 'page')
+
+  await page.getByRole('button', { name: '收起侧栏' }).click()
+  await expect(page.getByRole('button', { name: '展开侧栏' })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('页面搜索可发现二级任务，键盘焦点停留在弹窗并归还', async ({ page }) => {
+  await page.goto('/')
+  const trigger = page.getByRole('button', { name: '打开页面搜索' })
+  await trigger.click()
+  const command = page.getByRole('dialog', { name: '页面搜索' })
+  const input = page.getByLabel('搜索页面')
+  await input.fill('核对账户')
+  const reconciliation = command.getByRole('link', { name: '账户对账' })
+  await expect(reconciliation).toBeVisible()
+  await page.keyboard.press('Shift+Tab')
+  await expect(reconciliation).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(input).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(command).toBeHidden()
+  await expect(trigger).toBeFocused()
+
+  await page.keyboard.press('Control+K')
+  await input.fill('资金日历')
+  await command.getByRole('link', { name: '资金日历' }).click()
+  await expect(page).toHaveURL(/\/accounts\?view=calendar/)
+})
+
 test('终端首页：财富结果、对账桥、贡献来源与状态同屏', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: '家庭财富总览' })).toBeVisible()
@@ -14,7 +58,8 @@ test('终端首页：财富结果、对账桥、贡献来源与状态同屏', as
   await expect(page.getByText('期初可投资资产', { exact: true })).toBeVisible()
   await expect(page.getByText('净投入').first()).toBeVisible()
   await expect(page.getByText('投资收益', { exact: true }).first()).toBeVisible()
-  await expect(page.getByText('当前可投资资产', { exact: true })).toBeVisible()
+  await expect(page.getByText('本期末可投资资产', { exact: true })).toBeVisible()
+  await expect(page.getByText(/时点不同时金额可能不同/)).toBeVisible()
   await expect(page.getByText('本月 TWR', { exact: true })).toBeVisible()
   await expect(page.getByText('负债率', { exact: true })).toBeVisible()
   // 图表渲染

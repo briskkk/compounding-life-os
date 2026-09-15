@@ -25,6 +25,7 @@ import {
   goalScenarioSchema,
   goalUpdateSchema,
   fundTradePolicyInputSchema,
+  investmentPlanInputSchema,
   liabilityEntryInputSchema,
   liabilityInputSchema,
   portfolioReviewInputSchema,
@@ -125,6 +126,106 @@ export async function deleteCashPlan(id: string): Promise<ActionResult> {
       await audit(ctx, 'DELETE', 'CashPlan', id, plan.title, txDb)
     })
     revalidatePath('/accounts')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function createInvestmentPlan(input: unknown): Promise<ActionResult<{ id: string }>> {
+  try {
+    const ctx = await requireWrite()
+    const data = investmentPlanInputSchema.parse(input)
+    const plan = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      const assets = await txDb.asset.findMany({
+        where: { familyId: ctx.familyId, id: { in: data.assetIds } },
+        orderBy: { symbol: 'asc' },
+      })
+      if (assets.length !== data.assetIds.length) throw new Error('部分执行资产不存在或不属于当前家庭')
+      const invalid = assets.filter((asset) => !['STOCK', 'FUND', 'ETF', 'GOLD'].includes(asset.cls))
+      if (invalid.length > 0) throw new Error('定投计划只支持股票、基金、ETF 或黄金')
+      const currencies = new Set(assets.map((asset) => asset.currency))
+      if (currencies.size !== 1) throw new Error('同一计划的候选资产必须使用相同币种')
+      const currency = assets[0].currency
+
+      let accountName = '全部账户'
+      if (data.accountId) {
+        const account = await txDb.account.findFirst({ where: { id: data.accountId, familyId: ctx.familyId } })
+        if (!account) throw new Error('所选账户不存在或不属于当前家庭')
+        if (account.currency !== currency) throw new Error('计划账户与候选资产的币种必须一致')
+        accountName = account.name
+      }
+
+      const occupied = await txDb.investmentPlanAsset.findMany({
+        where: {
+          familyId: ctx.familyId,
+          assetId: { in: data.assetIds },
+          plan: {
+            status: 'ACTIVE',
+            OR: [{ endDate: null }, { endDate: { gte: new Date() } }],
+          },
+        },
+        include: { asset: true, plan: true },
+      })
+      if (occupied.length > 0) {
+        const conflict = occupied[0]
+        throw new Error(`${conflict.asset.symbol} 已属于有效计划「${conflict.plan.name}」，请先结束原计划`)
+      }
+
+      const created = await txDb.investmentPlan.create({
+        data: {
+          familyId: ctx.familyId,
+          accountId: data.accountId,
+          name: data.name,
+          amount: data.amount,
+          currency,
+          cadence: data.cadence,
+          scheduleDay: data.scheduleDay,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          note: data.note,
+        },
+      })
+      await txDb.investmentPlanAsset.createMany({
+        data: assets.map((asset) => ({
+          familyId: ctx.familyId,
+          planId: created.id,
+          assetId: asset.id,
+        })),
+      })
+      await audit(
+        ctx,
+        'CREATE',
+        'InvestmentPlan',
+        created.id,
+        `${created.name} · ${created.cadence} · ${created.amount} ${currency} · ${accountName} · ${assets.map((asset) => asset.symbol).join(',')}`,
+        txDb,
+      )
+      return created
+    })
+    revalidatePath('/investment-plans')
+    revalidatePath('/accounts')
+    return { ok: true, data: { id: plan.id } }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function endInvestmentPlan(id: string): Promise<ActionResult> {
+  try {
+    const ctx = await requireWrite()
+    await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      const plan = await txDb.investmentPlan.findFirst({ where: { id, familyId: ctx.familyId } })
+      if (!plan) throw new Error('定投计划不存在')
+      if (plan.status === 'ENDED') return
+      const endedAt = new Date()
+      await txDb.investmentPlan.update({
+        where: { id },
+        data: { status: 'ENDED', endedAt },
+      })
+      await audit(ctx, 'UPDATE', 'InvestmentPlan', id, `${plan.name} · 结束计划`, txDb)
+    })
+    revalidatePath('/investment-plans')
     return { ok: true }
   } catch (e) {
     return fail(e)

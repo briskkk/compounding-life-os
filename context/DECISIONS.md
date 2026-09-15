@@ -30,6 +30,7 @@ last_verified: 2026-09-07
 | 运行核对只追加证据 | 实时/结算分轨；账户对账、任务与到账确认写审计凭证，不建立可写余额 | [ADR-017](../docs/adr/017-operational-evidence-not-second-ledger.md) |
 | 运营事件、基金规则与行情质量分层 | 公司行动展开为流水；规则与质量只保存证据，不自动改持仓、费用或行情源 | [ADR-018](../docs/adr/018-operational-ledgers-and-market-quality.md) |
 | 份额未知的基金申购先记录金额 | `PENDING` BUY 不猜净值份额，必须现金联动；金额作为在途资产派生，官方确认走冲正替换 | [ADR-019](../docs/adr/019-pending-fund-purchase-evidence.md) |
+| 定投计划只定义节奏，实际投入由账本派生 | 同币种候选资产可合并核对；计划不生成流水、下单或独立收益 | [ADR-023](../docs/adr/023-investment-plan-ledger-reconciliation.md) |
 
 ## 补充已定规则
 

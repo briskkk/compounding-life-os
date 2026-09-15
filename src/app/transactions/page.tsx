@@ -116,12 +116,17 @@ export default async function TransactionsPage({
         title="每一笔变化，都有出处。"
         description="默认只展示当前有效流水；已冲正记录与系统冲正标记折叠到变更历史，需要审计时可随时展开。"
         right={(
-          <div className="flex flex-wrap items-center gap-5">
+          <div className="flex flex-wrap items-center gap-3">
             <div><div className="text-[14px] text-ink-faint">{showHistory ? '含历史记录' : '有效流水'}</div><div className="num mt-2 text-[28px] text-ink">{total}</div></div>
             <Link href="/fund-confirmations" className="inline-flex min-h-11 shrink-0 items-center text-[14px] whitespace-nowrap text-amber">份额确认 →</Link>
-            <Link href="/corporate-actions" className="inline-flex min-h-11 shrink-0 items-center text-[14px] whitespace-nowrap text-accent">公司行动 →</Link>
-            <Link href="/fund-operations" className="inline-flex min-h-11 shrink-0 items-center text-[14px] whitespace-nowrap text-accent">基金规则 →</Link>
-            <Link href="/transactions/imports" className="inline-flex min-h-11 shrink-0 items-center text-[14px] whitespace-nowrap text-accent">导入批次 →</Link>
+            <details className="ledger-operations">
+              <summary>更多流水操作</summary>
+              <nav aria-label="流水专项操作">
+                <Link href="/transactions/imports">导入与批次核对</Link>
+                <Link href="/corporate-actions">公司行动</Link>
+                <Link href="/fund-operations">基金规则</Link>
+              </nav>
+            </details>
             {canWrite && <a href="#new-entry" className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-accent px-5 text-[14px] font-medium whitespace-nowrap text-bg">新增流水</a>}
           </div>
         )}

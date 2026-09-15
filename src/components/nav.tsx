@@ -3,38 +3,63 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cx } from '@/lib/format'
+import { TerminalIcon, type TerminalIconName } from '@/components/terminal-icon'
 
-const LINKS = [
-  { href: '/', label: '总览' },
-  { href: '/positions', label: '持仓' },
-  { href: '/watch', label: '看盘' },
-  { href: '/review', label: '复盘' },
-  { href: '/transactions', label: '流水' },
-  { href: '/goals', label: 'FIRE' },
-  { href: '/accounts', label: '账户' },
-  { href: '/audit', label: '审计' },
+export const NAV_GROUPS: Array<{
+  label: string
+  links: Array<{ href: string; label: string; icon: TerminalIconName }>
+}> = [
+  {
+    label: '财富视图',
+    links: [
+      { href: '/', label: '总览', icon: 'grid' },
+      { href: '/positions', label: '持仓', icon: 'layers' },
+      { href: '/watch', label: '看盘', icon: 'activity' },
+      { href: '/review', label: '复盘', icon: 'review' },
+    ],
+  },
+  {
+    label: '记录与计划',
+    links: [
+      { href: '/transactions', label: '流水', icon: 'ledger' },
+      { href: '/investment-plans', label: '定投', icon: 'repeat' },
+      { href: '/goals', label: 'FIRE', icon: 'target' },
+      { href: '/accounts', label: '账户', icon: 'wallet' },
+    ],
+  },
+  {
+    label: '系统',
+    links: [
+      { href: '/audit', label: '审计', icon: 'shield' },
+      { href: '/settings', label: '设置', icon: 'settings' },
+    ],
+  },
 ]
 
 export function Nav() {
   const pathname = usePathname()
   return (
-    <nav className="flex flex-nowrap items-center justify-center gap-x-7" aria-label="主导航">
-      {LINKS.map((link) => {
-        const active = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href)
-        return (
-          <Link
-            key={link.href}
-            href={link.href}
-            aria-current={active ? 'page' : undefined}
-            className={cx(
-              'whitespace-nowrap border-b-2 px-0.5 py-3 text-[16px] font-medium transition-colors duration-200',
-              active ? 'border-accent text-accent' : 'border-transparent text-ink-faint hover:text-ink',
-            )}
-          >
-            {link.label}
-          </Link>
-        )
-      })}
+    <nav className="terminal-nav" aria-label="主导航">
+      {NAV_GROUPS.map((group) => (
+        <section key={group.label} className="terminal-nav-group" aria-label={group.label}>
+          <p>{group.label}</p>
+          {group.links.map((link) => {
+            const active = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href)
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                title={link.label}
+                aria-current={active ? 'page' : undefined}
+                className={cx('terminal-nav-item', active && 'is-active')}
+              >
+                <TerminalIcon name={link.icon} />
+                <span>{link.label}</span>
+              </Link>
+            )
+          })}
+        </section>
+      ))}
     </nav>
   )
 }

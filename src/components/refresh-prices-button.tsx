@@ -4,6 +4,7 @@
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { refreshCurrentPrices } from '@/lib/actions'
+import { TerminalIcon } from '@/components/terminal-icon'
 
 export function RefreshPricesButton() {
   const router = useRouter()
@@ -41,7 +42,10 @@ export function RefreshPricesButton() {
       }`}
       title={result?.text ?? '自动刷新之外的人工兜底：更新当前持仓、基准与受影响快照'}
     >
-      {pending ? '刷新中…' : result?.tone === 'warning' ? '⚠ 部分失败' : result?.tone === 'error' ? '× 刷新失败' : result?.tone === 'ok' ? '✓ 已刷新' : '↻ 当前持仓'}
+      <span className="inline-flex items-center gap-2">
+        <TerminalIcon name="refresh" className={pending ? 'animate-spin' : undefined} width="15" height="15" />
+        {pending ? '刷新中…' : result?.tone === 'warning' ? '部分失败' : result?.tone === 'error' ? '刷新失败' : result?.tone === 'ok' ? '已刷新' : '当前持仓'}
+      </span>
     </button>
   )
 }

@@ -286,6 +286,34 @@ export const cashPlanInputSchema = z.object({
   }
 })
 
+export const investmentPlanInputSchema = z.object({
+  name: z.string().trim().min(1, '计划名称必填').max(60),
+  amount: z.number().positive('每期金额必须大于 0'),
+  cadence: z.enum(['WEEKDAY', 'WEEKLY', 'MONTHLY']),
+  scheduleDay: z.number().int().nullable().default(null),
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date().nullable().default(null),
+  accountId: z.string().min(1).nullable().default(null),
+  assetIds: z.array(z.string().min(1)).min(1, '至少选择一只执行资产').max(12),
+  note: z.string().trim().max(300).nullable().default(null),
+}).superRefine((value, ctx) => {
+  if (new Set(value.assetIds).size !== value.assetIds.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '执行资产不能重复', path: ['assetIds'] })
+  }
+  if (value.cadence === 'WEEKDAY' && value.scheduleDay != null) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '工作日计划不需要指定日期', path: ['scheduleDay'] })
+  }
+  if (value.cadence === 'WEEKLY' && (value.scheduleDay == null || value.scheduleDay < 0 || value.scheduleDay > 6)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '请选择每周执行日', path: ['scheduleDay'] })
+  }
+  if (value.cadence === 'MONTHLY' && (value.scheduleDay == null || value.scheduleDay < 1 || value.scheduleDay > 31)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '每月执行日必须在 1–31 日之间', path: ['scheduleDay'] })
+  }
+  if (value.endDate && value.endDate.getTime() < value.startDate.getTime()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '结束日期不能早于开始日期', path: ['endDate'] })
+  }
+})
+
 export const fundTradePolicyInputSchema = z.object({
   assetId: z.string().min(1, '请选择基金'),
   purchaseFeeRate: z.number().min(0).max(0.2, '申购费率不能高于 20%'),

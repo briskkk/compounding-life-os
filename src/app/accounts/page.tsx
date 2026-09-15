@@ -175,6 +175,7 @@ export default async function AccountsPage({
         right={(
           <div className="flex flex-wrap items-end gap-5">
             <div><div className="text-[14px] text-ink-faint">账户总资产</div><div className="num mt-2 whitespace-nowrap text-[34px] text-ink">{fmtCNY(totalAssets)}</div></div>
+            <Link href="/investment-plans" className="inline-flex min-h-11 shrink-0 items-center text-[14px] whitespace-nowrap text-accent">定投管理 →</Link>
             {canWrite && (
               <a href={activeView === 'calendar' ? '#new-cash-plan' : '#new-account'} className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-accent px-5 text-[14px] font-medium whitespace-nowrap text-bg">
                 ＋ {activeView === 'calendar' ? '添加计划' : '新建账户'}
