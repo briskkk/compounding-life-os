@@ -28,6 +28,7 @@ last_verified: 2026-09-15
 
 ## 最近完成
 
+- B4 统一确认对话框：新增 `src/components/confirm-dialog.tsx`（`ConfirmProvider` + `useConfirm()`，原生 `<dialog>`：Esc/遮罩关闭、焦点归还、默认焦点在「取消」、影响面清单、danger 语气、可选确认词 `requireText`），取代 7 处 `window.confirm` 与 4 处内联两段式确认（冲正、公司行动冲正、资产删除、家庭清空）；为「完整补齐行情历史」「重建派生快照」补确认与耗时预期。E2E 断言冲正/删除对话框的影响面清单与「取消不写入」，3 处 `page.once('dialog')` 改为点击确认按钮。验证：`npm test` 503/503、构建通过、Playwright 92/92。
 - B3 浅色主题补全：`src/lib/colors.ts` 14 个取值全部改为 `var(--color-*)`，图表/渐变/内联样式随 `data-theme` 切换；`.chart-surface` 底纹与 3 处「白 1.2–6%」改用 `--surface-1/2` 与 `color-mix(accent)`（原先在浅色主题下不可见）；`globals.css` 53 处硬编码色收敛为 token（30 处品牌色 tint + 23 处中性白 tint 与色值变体），仅保留 4 处黑色遮罩/阴影；图表 tooltip 光标随主题。守卫测试 30 例（新增 colors.ts 无硬编码、界面样式无深色专用残留）。验证：`npm test` 503/503、构建通过、Playwright 92/92，深浅两套主题截图复核总览/持仓/看盘/长期复盘。迭代 B 的 B1–B3 与 P1-26 至此完成。
 - B2 语义色收口：新增 `--color-on-accent`（深 #101820 / 浅 #ffffff），强调色按钮去硬编码；不新增 `--color-ok`（绿色已是「跌」，避免与涨跌语义冲突），状态类统一 info/amber/danger；迁移审计页、对账页、行情质量、持仓、账户、CSV 导入、估值圆点、设置页回执与「当前设备」标记、冲正/删除按钮、行情刷新按钮的误用；新增 `src/test/semantic-colors.test.ts`（28 例）守护两套主题的对比度、危险色与涨跌色可区分、状态文件不得再用涨跌色。验证：`npm test` 501/501、构建通过、Playwright 92/92。
 - P1-26 修复（跨页今日盈亏集合不一致）：在引擎新增唯一判定 `dailyQuoteValuation()`——现价恒取报价（无报价按回退市值计值且不参与当日盈亏）、昨收必须与现价同源且该报价交易日等于当前组合日、**不再回退到分时序列的昨收/首点或服务端旧值**；总览、看盘（行级与曲线）、收益日历、账户页全部改走该判定，报价来源统一为 `state.quotes`，看盘首屏先用服务端注入的同一报价、拿到实时报价后再切换。验证：此前偶发失败的 `e2e/accounts.spec.ts:63` 在同种子下 `--repeat-each=20` **21/21 通过**（修复前 2/6 失败），全量 Playwright 92/92，单测新增 5 例覆盖判定规则。
@@ -115,6 +116,7 @@ last_verified: 2026-09-15
 3. SQLite 与 PostgreSQL 使用独立 schema；CI 已验证 PostgreSQL 建表和 RLS 契约，但真实生产迁移仍需在目标环境做备份、行数核对与回滚演练。
 
 ## 验证状态
+- `npm test`：2026-09-16 B4 后 73 文件、503/503 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 92/92。
 - `npm test`：2026-09-16 B3 后 73 文件、503/503 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 92/92（22.6s）。浅色与深色主题均已截图复核（`outputs/light-theme/`，本地）。
 - `npm test`：2026-09-16 B2 后 73 文件、501/501 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 92/92。
 - `npm test`：2026-09-16 P1-26 修复后 71 文件、473/473 通过（+5 例当日盈亏判定）；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 92/92（22.5s），其中此前偶发的跨页今日盈亏用例 `--repeat-each=20` 全绿。

@@ -10,6 +10,7 @@ import { LogoutButton } from '@/components/user-menu'
 import { RefreshPricesButton } from '@/components/refresh-prices-button'
 import { FlashBanner } from '@/components/flash-banner'
 import { WriteFlashProvider } from '@/lib/write-navigation'
+import { ConfirmProvider } from '@/components/confirm-dialog'
 import { TerminalIcon, type TerminalIconName } from '@/components/terminal-icon'
 
 const PAGE_NAMES: Array<[string, string]> = [
@@ -179,6 +180,7 @@ export function AppShell({
 
   return (
     <WriteFlashProvider>
+      <ConfirmProvider>
       <div className={`terminal-frame${collapsed ? ' is-collapsed' : ''}${mobileOpen ? ' is-mobile-open' : ''}`}>
       <a href="#main-content" className="terminal-skip-link">跳至主要内容</a>
       <button type="button" className="terminal-mobile-scrim" aria-label="关闭导航" onClick={() => setMobileOpen(false)} />
@@ -253,6 +255,7 @@ export function AppShell({
         </div>
       )}
       </div>
+      </ConfirmProvider>
     </WriteFlashProvider>
   )
 }

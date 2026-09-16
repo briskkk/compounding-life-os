@@ -44,8 +44,8 @@ test('资金日历可添加和移除计划事项', async ({ page }) => {
 
   await expect(page.getByTestId('write-flash')).toContainText('计划事项已加入日历')
   await expect(page.getByText('E2E 年度保费').first()).toBeVisible()
-  page.once('dialog', (dialog) => dialog.accept())
   await page.getByRole('button', { name: '移除' }).click()
+  await page.getByTestId('confirm-accept').click()
   await expect(page.getByTestId('write-flash')).toContainText('计划事项已移除')
   await expect(page.getByText('E2E 年度保费')).toHaveCount(0)
 })

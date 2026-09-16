@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { createInvestmentPlan, endInvestmentPlan } from '@/lib/actions'
 import { btnCls, btnGhostCls, Field, FormMsg, inputCls } from './fields'
+import { useConfirm } from '@/components/confirm-dialog'
 
 export interface InvestmentPlanAssetOption {
   id: string
@@ -179,11 +180,17 @@ export function InvestmentPlanForm({
 
 export function EndInvestmentPlanButton({ id, name }: { id: string; name: string }) {
   const navigateAfterWrite = useNavigateAfterWrite()
+  const confirm = useConfirm()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
 
   async function endPlan() {
-    if (!window.confirm(`结束「${name}」？历史计划与真实流水仍会保留。`)) return
+    const ok = await confirm({
+      title: `结束计划「${name}」？`,
+      impacts: ['计划状态改为已结束，之后不再提示核对', '历史计划节点与已生成的真实流水全部保留', '不影响账本任何金额'],
+      confirmLabel: '结束计划',
+    })
+    if (!ok) return
     setPending(true)
     setError('')
     try {

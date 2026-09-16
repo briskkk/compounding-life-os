@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react'
 import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { createCashPlan, deleteCashPlan } from '@/lib/actions'
 import { btnCls, btnGhostCls, Field, FormMsg, inputCls } from './fields'
+import { useConfirm } from '@/components/confirm-dialog'
 
 function localInputDate(date = new Date()): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -96,11 +97,18 @@ export function CashPlanForm({ accounts }: { accounts: { id: string; name: strin
 
 export function DeleteCashPlanButton({ id }: { id: string }) {
   const navigateAfterWrite = useNavigateAfterWrite()
+  const confirm = useConfirm()
   const [pending, setPending] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string; tone?: 'ok' | 'warn' | 'error' } | null>(null)
 
   async function remove() {
-    if (!window.confirm('移除该计划事项？仅影响计划层，不会改动账本流水。')) return
+    const ok = await confirm({
+      title: '移除该计划事项？',
+      impacts: ['仅从计划层删除该条', '不会改动账本流水与任何余额'],
+      confirmLabel: '移除',
+      tone: 'danger',
+    })
+    if (!ok) return
     setPending(true)
     setMsg(null)
     const result = await deleteCashPlan(id)

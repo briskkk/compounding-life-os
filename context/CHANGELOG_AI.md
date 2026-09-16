@@ -598,3 +598,10 @@ last_verified: 2026-09-10
 - `globals.css` 53 处硬编码色收敛为 token（品牌色 tint 30 处 → color-mix token；中性白 tint 23 处 → ink token），仅保留 4 处黑色遮罩/阴影。
 - 守卫测试增至 30 例（colors.ts 无硬编码、界面样式无深色专用残留）。
 - 验证：npm test 503/503、build 通过、Playwright 92/92；深浅主题截图复核四个页面。
+
+# 2026-09-16 迭代 B 之 B4：统一确认对话框
+
+- 新增 `ConfirmProvider` + `useConfirm()`（原生 <dialog>）：默认焦点在取消、影响面清单、danger 语气、requireText 确认词、遮罩/Esc 取消、焦点归还。
+- 取代 7 处 window.confirm 与 4 处内联两段式确认；为健康中心的补齐行情/重建快照补确认与耗时预期。
+- E2E：冲正与资产删除断言影响面清单；新增取消不写入断言；改写 3 处 dialog 处理。
+- 验证：npm test 503/503、build 通过、Playwright 92/92。

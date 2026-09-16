@@ -7,6 +7,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { inputCls, btnCls, btnGhostCls } from '@/components/fields'
 import { cx, fmtDateTime } from '@/lib/format'
+import { useConfirm } from '@/components/confirm-dialog'
 
 interface MemberRow {
   id: string
@@ -268,6 +269,7 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
 }
 
 function SessionsList() {
+  const confirmDialog = useConfirm()
   const [sessions, setSessions] = useState<SessionRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
@@ -288,7 +290,13 @@ function SessionsList() {
   useEffect(() => { void refresh() }, [])
 
   async function revoke(sessionId: string) {
-    if (!window.confirm('吊销后该设备需要重新登录，确定继续？')) return
+    const ok = await confirmDialog({
+      title: '吊销该设备的登录？',
+      impacts: ['该设备需要重新登录', '其它设备与当前会话不受影响'],
+      confirmLabel: '吊销会话',
+      tone: 'danger',
+    })
+    if (!ok) return
     setPendingId(sessionId)
     setNotice(null)
     try {
@@ -458,6 +466,7 @@ function FamilyPanel({
 }
 
 function MemberManageRow({ member, isOwner }: { member: MemberRow; isOwner: boolean }) {
+  const confirmDialog = useConfirm()
   const navigateAfterWrite = useNavigateAfterWrite()
   const [resetOpen, setResetOpen] = useState(false)
   const [newPassword, setNewPassword] = useState('')
@@ -475,7 +484,13 @@ function MemberManageRow({ member, isOwner }: { member: MemberRow; isOwner: bool
   }
 
   async function removeMember() {
-    if (!window.confirm(`确定移除成员「${member.name}」？其账号仍保留，但将无法访问本家庭数据。`)) return
+    const ok = await confirmDialog({
+      title: `移除成员「${member.name}」？`,
+      impacts: ['该账号仍保留，但无法再访问本家庭数据', '其历史流水的创建人记录不变', '家庭数据与账本不受影响'],
+      confirmLabel: '移除成员',
+      tone: 'danger',
+    })
+    if (!ok) return
     const res = await fetch(`/api/family/members/${member.id}`, { method: 'DELETE' })
     if (res.ok) navigateAfterWrite({ message: '成员已移除，其账号仍保留' })
     else setNotice(((await res.json()) as { error?: string }).error ?? '移除失败')
@@ -720,18 +735,26 @@ function BackupCard() {
 }
 
 function ResetCard({ familyName }: { familyName: string }) {
-  const [confirm, setConfirm] = useState('')
+  const confirmDialog = useConfirm()
   const [pending, setPending] = useState(false)
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
   async function reset() {
-    if (!window.confirm(`此操作将清空「${familyName}」的全部账本数据（流水/资产/账户/负债/目标），且不可撤销。备份将自动执行。确定继续？`)) return
+    const ok = await confirmDialog({
+      title: `清空「${familyName}」的全部账本数据？`,
+      description: '这一步不可撤销。备份会自动执行，但你需要在下面输入家庭名称才能继续。',
+      impacts: ['删除全部流水、资产、账户、负债与目标', '保留账号与家庭结构', '系统会先自动备份'],
+      requireText: familyName,
+      confirmLabel: '清空家庭数据',
+      tone: 'danger',
+    })
+    if (!ok) return
     setPending(true)
     setNotice(null)
     try {
       const res = await fetch('/api/family/reset', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ confirm }),
+        body: JSON.stringify({ confirm: familyName }),
       })
       const data = (await res.json()) as { ok: boolean; error?: string }
       if (!res.ok || !data.ok) {
@@ -739,7 +762,6 @@ function ResetCard({ familyName }: { familyName: string }) {
         return
       }
       setNotice({ ok: true, text: '家庭数据已清空' })
-      setConfirm('')
     } finally {
       setPending(false)
     }
@@ -747,10 +769,9 @@ function ResetCard({ familyName }: { familyName: string }) {
   return (
     <Card title="危险区" desc="清空当前家庭的全部账本数据（保留账号与家庭结构）">
       <div className="flex flex-col gap-3">
-        <p className="text-[13px] text-ink-faint">输入家庭名称「<span className="text-ink">{familyName}</span>」以确认。</p>
+        <p className="text-[13px] text-ink-faint">点击后需在弹出的确认框中输入家庭名称「<span className="text-ink">{familyName}</span>」。</p>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={familyName} className={inputCls} aria-label="确认家庭名称" />
-          <button type="button" onClick={reset} disabled={pending || confirm !== familyName} className="inline-flex min-h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-danger px-4 py-2 text-[14px] text-danger disabled:opacity-40">
+          <button type="button" onClick={reset} disabled={pending} className="inline-flex min-h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-danger px-4 py-2 text-[14px] text-danger disabled:opacity-40">
             {pending ? '重置中…' : '清空家庭数据'}
           </button>
         </div>

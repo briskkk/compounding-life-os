@@ -20,6 +20,11 @@ test('流水页：表格、筛选、冲正入口与导出链接', async ({ page 
   const rows = page.locator('tbody tr')
   await expect(rows.first()).toBeVisible()
   await expect(page.locator('tbody').getByRole('button', { name: '冲正' }).first()).toBeVisible()
+  // 取消后不产生任何写入（默认焦点在取消）
+  await page.locator('tbody').getByRole('button', { name: '冲正' }).first().click()
+  await expect(page.locator('dialog.confirm-dialog')).toBeVisible()
+  await page.locator('dialog.confirm-dialog').getByRole('button', { name: '取消' }).click()
+  await expect(page.locator('dialog.confirm-dialog')).not.toBeVisible()
   await expect(page.getByText('↓ 导出 CSV')).toBeVisible()
 
   // 类型筛选 → URL 参数
@@ -88,7 +93,12 @@ test('场外基金：净值份额未知时先按金额记录，并进入当日�
   await page.goto('/transactions')
   const pendingRow = page.locator('tbody tr').filter({ hasText: 'E2E 当日申购待确认' })
   await pendingRow.getByRole('button', { name: '冲正' }).click()
-  await pendingRow.getByRole('button', { name: '确认冲正' }).click()
+  // 统一确认对话框：冲正前必须列出影响面（原流水作废、结算腿一并作废、按账本重算）
+  const reverseDialog = page.locator('dialog.confirm-dialog')
+  await expect(reverseDialog.getByRole('heading', { name: '冲正这笔流水？' })).toBeVisible()
+  await expect(reverseDialog.getByTestId('confirm-impacts')).toContainText('联动结算腿一并作废')
+  await expect(reverseDialog.getByTestId('confirm-impacts')).toContainText('保留 REVERSAL 记录')
+  await page.getByTestId('confirm-accept').click()
   await expect(page.locator('tbody tr').filter({ hasText: 'E2E 当日申购待确认' })).toHaveCount(0)
   const showHistory = page.getByRole('link', { name: /显示冲正历史/ })
   await expect(showHistory).toContainText('3')

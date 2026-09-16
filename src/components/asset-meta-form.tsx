@@ -13,6 +13,7 @@ import {
   UNCLASSIFIED_STYLE_LABEL,
 } from '@/lib/labels'
 import type { AssetClass, AssetStyle } from '@/lib/engine/types'
+import { useConfirm } from '@/components/confirm-dialog'
 
 const styleClasses: AssetClass[] = ['STOCK', 'FUND', 'ETF']
 
@@ -46,7 +47,7 @@ export function AssetMetaForm({
   const [manual, setManual] = useState(initialManual)
   const [pending, setPending] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const confirm = useConfirm()
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [deleteMsg, setDeleteMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const hasHistory = transactionCount > 0
@@ -91,7 +92,6 @@ export function AssetMetaForm({
     if (res.ok) {
       navigateAfterWrite({ message: '资产已删除，账本与审计链保留' }, { path: '/accounts', params: { view: 'assets' } })
     } else {
-      setConfirmingDelete(false)
       setDeleteMsg({ ok: false, text: res.error })
     }
   }
@@ -229,19 +229,22 @@ export function AssetMetaForm({
         </div>
         {!hasHistory && canWrite && (
           <div className="asset-delete-actions">
-            {confirmingDelete ? (
-              <div className="asset-delete-confirm">
-                <strong>确认删除 {initialSymbol}？</strong>
-                <div>
-                  <button type="button" onClick={() => setConfirmingDelete(false)} disabled={deleting} className={btnGhostCls}>取消</button>
-                  <button type="button" onClick={onDelete} disabled={deleting} className="asset-delete-button">
-                    {deleting ? '删除中…' : '确认删除'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button type="button" onClick={() => setConfirmingDelete(true)} className="asset-delete-button">删除资产</button>
-            )}
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={async () => {
+                const ok = await confirm({
+                  title: `删除资产 ${initialSymbol}？`,
+                  impacts: ['从资产目录移除该资产（无流水，删除不会影响账本）', '相关持仓与分组标签一并移除', '此操作不可撤销'],
+                  confirmLabel: '确认删除',
+                  tone: 'danger',
+                })
+                if (ok) onDelete()
+              }}
+              className="asset-delete-button"
+            >
+              {deleting ? '删除中…' : '删除资产'}
+            </button>
           </div>
         )}
         <div className="asset-delete-message"><FormMsg msg={deleteMsg} /></div>

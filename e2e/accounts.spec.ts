@@ -54,8 +54,11 @@ test('资产设置：无流水资产可完整修改并安全删除', async ({ pa
   await expect(page.getByText('资产信息已保存')).toBeVisible()
 
   await page.getByRole('button', { name: '删除资产' }).click()
-  await expect(page.getByText('确认删除 TEMPFIXED？')).toBeVisible()
-  await page.getByRole('button', { name: '确认删除' }).click()
+  // 统一确认对话框：标题带上资产代码，并列出影响面
+  const deleteDialog = page.locator('dialog.confirm-dialog')
+  await expect(deleteDialog.getByRole('heading', { name: '删除资产 TEMPFIXED？' })).toBeVisible()
+  await expect(deleteDialog.getByTestId('confirm-impacts')).toContainText('从资产目录移除该资产')
+  await page.getByTestId('confirm-accept').click()
   await expect(page).toHaveURL(/\/accounts\?view=assets/)
   await expect(page.getByRole('link', { name: '已更正资产', exact: true })).toHaveCount(0)
 })

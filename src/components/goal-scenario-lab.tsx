@@ -6,6 +6,7 @@ import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { useEffect, useRef, useState } from 'react'
 import { applyGoalScenario, previewGoalScenario } from '@/lib/actions'
 import { FormMsg, btnCls, btnGhostCls } from './fields'
+import { useConfirm } from '@/components/confirm-dialog'
 
 interface GoalScenarioLabProps {
   goalId: string
@@ -32,6 +33,7 @@ interface GoalScenarioLabProps {
 const money = (value: number) => `¥${Math.max(0, Math.round(value)).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`
 
 export function GoalScenarioLab(props: GoalScenarioLabProps) {
+  const confirm = useConfirm()
   const navigateAfterWrite = useNavigateAfterWrite()
   const suggested = Math.max(props.monthlyContribution, Math.round(props.sustainableMonthlySavings / 500) * 500)
   const [monthly, setMonthly] = useState(suggested)
@@ -79,9 +81,16 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
 
   async function apply() {
     // 应用会改写主方案的月投入与退休日期，必须先确认
-    const confirmed = window.confirm(
-      `应用此方案？\n每月投入 ${money(props.monthlyContribution)} → ${money(monthly)}\n退休日期延后 ${delayMonths} 个月\n应用后主方案与预测将按新假设重算。`,
-    )
+    const confirmed = await confirm({
+      title: '应用此方案？',
+      description: '这是一次真实写入：主方案的月投入会被改写。',
+      impacts: [
+        `每月投入：${money(props.monthlyContribution)} → ${money(monthly)}`,
+        delayMonths > 0 ? `退休日期延后 ${delayMonths} 个月` : '退休日期不变',
+        '主方案与 FIRE 预测按新假设重算；试算滑块归零',
+      ],
+      confirmLabel: '应用方案',
+    })
     if (!confirmed) return
     setPending(true)
     setMsg(null)

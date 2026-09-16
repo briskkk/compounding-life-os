@@ -5,6 +5,7 @@ import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { deleteFundTradePolicy, saveFundTradePolicy } from '@/lib/actions'
 import { parseRedemptionFeeRules } from '@/lib/engine/fund-policy'
 import { btnCls, Field, FormMsg, inputCls } from './fields'
+import { useConfirm } from '@/components/confirm-dialog'
 
 interface FundOption {
   id: string
@@ -44,6 +45,7 @@ function parseRules(value: string) {
 
 export function FundPolicyForm({ funds, policies }: { funds: FundOption[]; policies: PolicyOption[] }) {
   const navigateAfterWrite = useNavigateAfterWrite()
+  const confirm = useConfirm()
   const [assetId, setAssetId] = useState(funds[0]?.id ?? '')
   const [pending, setPending] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -74,7 +76,14 @@ export function FundPolicyForm({ funds, policies }: { funds: FundOption[]; polic
   }
 
   async function remove() {
-    if (!selected || !window.confirm('删除这条基金交易规则？历史流水不会改变。')) return
+    if (!selected) return
+    const ok = await confirm({
+      title: '删除这条基金交易规则？',
+      impacts: ['规则从「持仓匹配」中移除', '已写入的历史流水不会改变'],
+      confirmLabel: '删除规则',
+      tone: 'danger',
+    })
+    if (!ok) return
     setPending(true)
     const res = await deleteFundTradePolicy(selected.id)
     setPending(false)

@@ -37,13 +37,13 @@ test('定投管理：创建计划、核对既有 BUY 并结束计划', async ({ 
       await route.continue()
     }
   })
-  page.once('dialog', (dialog) => dialog.accept())
   await plan.getByRole('button', { name: '结束计划' }).click()
+  await page.getByTestId('confirm-accept').click()
   await expect(plan.getByRole('alert')).toContainText('结束计划未完成')
   await page.unroute('**/investment-plans**')
 
-  page.once('dialog', (dialog) => dialog.accept())
   await plan.getByRole('button', { name: '结束计划' }).click()
+  await page.getByTestId('confirm-accept').click()
   await expect(plan.getByText('已结束')).toBeVisible()
   await expect(plan.getByRole('button', { name: '结束计划' })).toHaveCount(0)
 })
