@@ -27,6 +27,11 @@ test('流水页：表格、筛选、冲正入口与导出链接', async ({ page 
   await expect(page.locator('dialog.confirm-dialog')).not.toBeVisible()
   await expect(page.getByText('↓ 导出 CSV')).toBeVisible()
 
+  // B5：宽表格容器对键盘可聚焦（可横向滚动），且表头粘性
+  const tableRegion = page.getByRole('region', { name: '交易流水表' })
+  await expect(tableRegion).toHaveAttribute('tabindex', '0')
+  await expect(page.locator('.table-scroll thead th').first()).toHaveCSS('position', 'sticky')
+
   // 类型筛选 → URL 参数
   await page.selectOption('select[name="type"]', 'BUY')
   await page.getByRole('button', { name: '筛选' }).click()

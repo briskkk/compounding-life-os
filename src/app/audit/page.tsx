@@ -5,6 +5,7 @@ import { scopedDb } from '@/lib/scoped'
 import { verifyChain } from '@/lib/audit'
 import { Empty, PageHeader, Panel, SetupScreen, Tag } from '@/components/ui'
 import { fmtDateTime } from '@/lib/format'
+import { TableScroll } from '@/components/table-scroll'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +41,7 @@ export default async function AuditPage() {
       {logs.length === 0 ? (
         <Empty>暂无审计记录</Empty>
       ) : (
-        <div className="table-scroll">
+        <TableScroll label="审计日志表">
         <table className="w-full text-[14px]">
           <thead>
             <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
@@ -74,7 +75,7 @@ export default async function AuditPage() {
             ))}
           </tbody>
         </table>
-        </div>
+        </TableScroll>
       )}
       <p className="border-t border-line px-4 py-3 text-[13px] leading-relaxed text-ink-faint">
         每条记录通过 SHA-256 与前一条串联（prevHash），任何历史篡改都会破坏链条并在上方标记；所有写操作（含 CSV 导入、成员切换）自动留痕。

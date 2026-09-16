@@ -8,6 +8,7 @@ import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-marke
 import { Empty, PageHeader, Panel, SetupScreen, Tag } from '@/components/ui'
 import { ReconciliationForm } from '@/components/reconciliation-form'
 import { cx, fmtCNY, fmtDateTime } from '@/lib/format'
+import { TableScroll } from '@/components/table-scroll'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,7 +90,7 @@ export default async function ReconciliationPage() {
       </section>
 
       <Panel title="当前账户核对状态" en="ACCOUNT CHECKPOINTS" bodyClassName="p-0">
-        <div className="table-scroll">
+        <TableScroll label="核对凭证表">
           <table className="w-full whitespace-nowrap text-[14px]">
             <thead><tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint"><th className="px-4 py-3 font-normal">账户</th><th className="px-2 py-3 text-right font-normal">当前账本</th><th className="px-2 py-3 text-right font-normal">最近账单</th><th className="px-2 py-3 text-right font-normal">差额</th><th className="px-4 py-3 font-normal">状态</th></tr></thead>
             <tbody className="divide-y divide-line/60">{accountRows.map((row) => {
@@ -98,7 +99,7 @@ export default async function ReconciliationPage() {
               return <tr key={row.id}><td className="px-4 py-3"><strong className="font-medium text-ink">{row.name}</strong><small className="mt-1 block text-ink-faint">{row.institution ?? '未登记机构'}</small></td><td className="num px-2 py-3 text-right text-ink">{fmtCNY(row.ledgerValueCny)}</td><td className="num px-2 py-3 text-right text-ink-dim">{evidence ? fmtCNY(evidence.observedValueCny) : '—'}</td><td className={cx('num px-2 py-3 text-right', matched ? 'text-info' : evidence ? 'text-amber' : 'text-ink-faint')}>{evidence ? fmtCNY(evidence.differenceCny, { sign: true }) : '—'}</td><td className="px-4 py-3">{evidence ? <Tag tone={matched ? 'info' : 'amber'}>{matched ? '一致' : '有差额'}</Tag> : <Tag tone="dim">未核对</Tag>}</td></tr>
             })}</tbody>
           </table>
-        </div>
+        </TableScroll>
       </Panel>
 
       {ctx.role !== 'VIEWER' && (

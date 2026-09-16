@@ -6,6 +6,7 @@ import { qualityWindowStart } from '@/lib/market/quality'
 import { fmtDate, fmtDateTime, fmtPct } from '@/lib/format'
 import { Empty, PageHeader, Panel, SetupScreen, Tag } from '@/components/ui'
 import { MarketQualityCheckButton } from '@/components/market-quality-check-button'
+import { TableScroll } from '@/components/table-scroll'
 
 export const dynamic = 'force-dynamic'
 
@@ -103,7 +104,7 @@ export default async function MarketQualityPage() {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]">
         <Panel title="30 日来源表现" en="PERSISTED PROVIDER OBSERVATIONS" bodyClassName="p-0">
           {providerRows.length === 0 ? <Empty>尚无持久化行情调用记录；刷新行情后会自动积累。</Empty> : (
-            <div className="table-scroll">
+            <TableScroll label="行情数据源证据表">
               <table className="w-full text-[13px] whitespace-nowrap">
                 <thead><tr className="border-b border-line text-left text-[11px] tracking-wider text-ink-faint">
                   <th className="px-5 py-3 font-normal">来源 / 能力</th><th className="px-3 py-3 text-right font-normal">请求</th><th className="px-3 py-3 text-right font-normal">成功率</th><th className="px-3 py-3 text-right font-normal">平均延迟</th><th className="px-5 py-3 font-normal">最近错误</th>
@@ -119,7 +120,7 @@ export default async function MarketQualityPage() {
                   </tr>
                 })}</tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
         </Panel>
 
@@ -140,7 +141,7 @@ export default async function MarketQualityPage() {
 
       {evidence && (
         <Panel title="持仓价差明细" en="QUOTE DISPERSION" bodyClassName="p-0">
-          <div className="table-scroll"><table className="w-full text-[13px] whitespace-nowrap">
+          <TableScroll label="行情数据源证据表"><table className="w-full text-[13px] whitespace-nowrap">
             <thead><tr className="border-b border-line text-left text-[11px] tracking-wider text-ink-faint">
               <th className="px-5 py-3 font-normal">资产</th><th className="px-3 py-3 font-normal">来源报价</th><th className="px-3 py-3 text-right font-normal">价差</th><th className="px-5 py-3 font-normal">判断</th>
             </tr></thead>
@@ -154,7 +155,7 @@ export default async function MarketQualityPage() {
                 <td className="px-5 py-4"><Tag tone={attention ? 'amber' : healthy.length ? 'up' : 'down'}>{attention ? '需关注' : healthy.length ? '范围内' : '取价失败'}</Tag></td>
               </tr>
             })}</tbody>
-          </table></div>
+          </table></TableScroll>
         </Panel>
       )}
 

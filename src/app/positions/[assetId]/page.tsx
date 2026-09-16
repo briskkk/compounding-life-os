@@ -32,6 +32,7 @@ import {
 } from '@/lib/engine/asset-performance'
 import { dateKeyAt } from '@/lib/engine/watch-market'
 import type { ValuationStatus } from '@/lib/engine/valuation-status'
+import { TableScroll } from '@/components/table-scroll'
 
 export const dynamic = 'force-dynamic'
 
@@ -635,7 +636,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
           {txs.length === 0 ? (
             <Empty>暂无流水</Empty>
           ) : (
-            <div className="table-scroll">
+            <TableScroll label="资产流水明细表">
               <table className="w-full text-[14px] whitespace-nowrap">
                 <thead>
                   <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
@@ -673,7 +674,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
         </Panel>
       </section>

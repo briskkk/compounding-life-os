@@ -14,6 +14,7 @@ import { ReverseButton } from '@/components/reverse-button'
 import { TX_TYPE_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtDate, fmtMoney, fmtQty } from '@/lib/format'
 import type { TxType } from '@/lib/engine/types'
+import { TableScroll } from '@/components/table-scroll'
 
 export const dynamic = 'force-dynamic'
 
@@ -212,7 +213,7 @@ export default async function TransactionsPage({
             </Empty>
           )
         ) : (
-          <div className="table-scroll">
+          <TableScroll label="交易流水表">
           <table className="w-full text-[14px] whitespace-nowrap">
             <thead>
               <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
@@ -277,7 +278,7 @@ export default async function TransactionsPage({
               ))}
             </tbody>
           </table>
-          </div>
+          </TableScroll>
         )}
         {(total > pageSize || page > 1) && (
           <div className="flex items-center justify-between gap-4 border-t border-line px-4 py-3 text-[13px]">

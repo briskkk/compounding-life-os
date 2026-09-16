@@ -19,6 +19,7 @@ import type { PerformancePoint } from '@/lib/engine/period-performance'
 import type { LoadedBenchmark } from '@/lib/engine/benchmark'
 import type { DataSettlementState } from '@/lib/engine/data-settlement'
 import { DataSettlementRail } from './data-settlement-rail'
+import { TableScroll } from './table-scroll'
 
 export interface WatchHolding {
   assetId: string
@@ -345,7 +346,7 @@ export function WatchClient({
         <div className="border-b border-line px-4 py-2.5">
           <ValuationLegend />
         </div>
-        <div className="table-scroll">
+        <TableScroll label="看盘持仓实时估值表">
         <table className="w-full text-[14px]">
           <thead>
             <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
@@ -414,7 +415,7 @@ export function WatchClient({
             ))}
           </tbody>
         </table>
-        </div>
+        </TableScroll>
       </Panel>
 
       <p className="text-[13px] leading-relaxed text-ink-faint">

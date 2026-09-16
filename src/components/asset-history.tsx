@@ -11,6 +11,7 @@ import {
 import { cx, fmtCNY, fmtMoney, fmtQty } from '@/lib/format'
 import { btnCls, inputCls } from './fields'
 import { PortfolioReturnChart } from './charts'
+import { TableScroll } from './table-scroll'
 
 const PRESETS: { value: PerformancePreset; label: string }[] = [
   { value: 'THIS_WEEK', label: '本周' },
@@ -251,7 +252,7 @@ export function AssetHistory({
           {recentRows.length > 0 && (
             <details className="history-details asset-history-details">
               <summary>查看最近 {recentRows.length} 个资产快照</summary>
-              <div className="table-scroll">
+              <TableScroll label="资产历史估值表">
                 <table>
                   <thead>
                     <tr>
@@ -290,7 +291,7 @@ export function AssetHistory({
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableScroll>
             </details>
           )}
 

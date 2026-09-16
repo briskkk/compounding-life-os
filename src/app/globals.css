@@ -2908,6 +2908,20 @@ button.returns-cal-cell:hover {
   overflow-x: auto;
 }
 
+/* 宽表格容器可聚焦：键盘用户才能横向滚动看到右侧列 */
+.table-scroll:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* 粘性表头：长表滚动时列名不丢（背景取面板色，避免透出下方内容） */
+.table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-panel);
+}
+
 table {
   border-collapse: collapse;
   font-size: 14px;

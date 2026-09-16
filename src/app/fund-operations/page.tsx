@@ -6,6 +6,7 @@ import { parseRedemptionFeeRules } from '@/lib/engine/fund-policy'
 import { fmtDate, fmtMoney } from '@/lib/format'
 import { Empty, PageHeader, Panel, SetupScreen, Tag } from '@/components/ui'
 import { FundPolicyForm } from '@/components/fund-policy-form'
+import { TableScroll } from '@/components/table-scroll'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,7 +68,7 @@ export default async function FundOperationsPage() {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(420px,0.7fr)]">
         <Panel title="已核验规则" en="POLICY REGISTER" bodyClassName="p-0">
           {policies.length === 0 ? <Empty>尚未登记基金交易规则</Empty> : (
-            <div className="table-scroll">
+            <TableScroll label="基金操作记录表">
               <table className="w-full text-[13px] whitespace-nowrap">
                 <thead><tr className="border-b border-line text-left text-[11px] tracking-wider text-ink-faint">
                   <th className="px-5 py-3 font-normal">基金</th><th className="px-3 py-3 font-normal">申购费率</th><th className="px-3 py-3 font-normal">赎回阶梯</th><th className="px-3 py-3 font-normal">申购状态</th><th className="px-5 py-3 font-normal">证据</th>
@@ -84,7 +85,7 @@ export default async function FundOperationsPage() {
                   </tr>
                 })}</tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
         </Panel>
 

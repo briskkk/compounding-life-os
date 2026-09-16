@@ -20,6 +20,7 @@ import { HoldingSortSelect } from '@/components/holding-sort-select'
 import { isInvestableAsset, isPortfolioAssetClass } from '@/lib/asset-classification'
 import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
 import { marketGroupLabel } from '@/lib/engine/market-group'
+import { TableScroll } from '@/components/table-scroll'
 
 export const dynamic = 'force-dynamic'
 
@@ -232,7 +233,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
               <div className="border-b border-line px-4 py-2.5">
                 <ValuationLegend />
               </div>
-              <div className="table-scroll">
+              <TableScroll label="持仓明细表">
               <table className="w-full text-[14px] whitespace-nowrap">
               <thead>
                 <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
@@ -331,7 +332,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                 })}
               </tbody>
               </table>
-              </div>
+              </TableScroll>
             </>
           )}
         </Panel>

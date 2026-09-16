@@ -17,6 +17,7 @@ import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
 import { buildCashCalendar } from '@/lib/engine/cash-calendar'
 import { CashPlanForm, DeleteCashPlanButton } from '@/components/cash-plan-form'
+import { TableScroll } from '@/components/table-scroll'
 
 export const dynamic = 'force-dynamic'
 
@@ -232,7 +233,7 @@ export default async function AccountsPage({
               {accounts.length === 0 ? (
                 <Empty action={{ href: '#new-account', label: '新建账户' }}>暂无账户</Empty>
               ) : (
-                <div className="table-scroll">
+                <TableScroll label="账户持仓汇总表">
                   <table className="w-full text-[14px] whitespace-nowrap">
                     <thead>
                       <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
@@ -289,7 +290,7 @@ export default async function AccountsPage({
                       })}
                     </tbody>
                   </table>
-                </div>
+                </TableScroll>
               )}
             </Panel>
 

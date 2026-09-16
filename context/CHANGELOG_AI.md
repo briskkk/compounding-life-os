@@ -605,3 +605,10 @@ last_verified: 2026-09-10
 - 取代 7 处 window.confirm 与 4 处内联两段式确认；为健康中心的补齐行情/重建快照补确认与耗时预期。
 - E2E：冲正与资产删除断言影响面清单；新增取消不写入断言；改写 3 处 dialog 处理。
 - 验证：npm test 503/503、build 通过、Playwright 92/92。
+
+# 2026-09-16 迭代 B 之 B5（第 1 片）：表格可聚焦滚动与粘性表头
+
+- 新增 `TableScroll`（role=region + tabIndex=0 + aria-label），12 处表格容器改用具名区域。
+- CSS：聚焦环 + `.table-scroll thead th` 粘性表头。
+- E2E：交易流水表容器可聚焦、表头 sticky。
+- 验证：npm test 503/503、build 通过、Playwright 92/92。

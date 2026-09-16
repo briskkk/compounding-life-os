@@ -28,6 +28,7 @@ last_verified: 2026-09-15
 
 ## 最近完成
 
+- B5 表格基础设施（第 1 片）：新增 `src/components/table-scroll.tsx`，把 12 处宽表格容器统一为 `role="region" + tabIndex={0} + aria-label`（键盘可聚焦并横向滚动），并加 `.table-scroll:focus-visible` 聚焦环与 `.table-scroll thead th` 粘性表头；E2E 断言交易流水表容器 `tabindex="0"`、表头 `position: sticky`。验证：`npm test` 503/503、构建通过、Playwright 92/92。第 2 片（交易流水服务端排序与 `aria-sort`、净值日/结算日列、冲正墓碑行）待做。
 - B4 统一确认对话框：新增 `src/components/confirm-dialog.tsx`（`ConfirmProvider` + `useConfirm()`，原生 `<dialog>`：Esc/遮罩关闭、焦点归还、默认焦点在「取消」、影响面清单、danger 语气、可选确认词 `requireText`），取代 7 处 `window.confirm` 与 4 处内联两段式确认（冲正、公司行动冲正、资产删除、家庭清空）；为「完整补齐行情历史」「重建派生快照」补确认与耗时预期。E2E 断言冲正/删除对话框的影响面清单与「取消不写入」，3 处 `page.once('dialog')` 改为点击确认按钮。验证：`npm test` 503/503、构建通过、Playwright 92/92。
 - B3 浅色主题补全：`src/lib/colors.ts` 14 个取值全部改为 `var(--color-*)`，图表/渐变/内联样式随 `data-theme` 切换；`.chart-surface` 底纹与 3 处「白 1.2–6%」改用 `--surface-1/2` 与 `color-mix(accent)`（原先在浅色主题下不可见）；`globals.css` 53 处硬编码色收敛为 token（30 处品牌色 tint + 23 处中性白 tint 与色值变体），仅保留 4 处黑色遮罩/阴影；图表 tooltip 光标随主题。守卫测试 30 例（新增 colors.ts 无硬编码、界面样式无深色专用残留）。验证：`npm test` 503/503、构建通过、Playwright 92/92，深浅两套主题截图复核总览/持仓/看盘/长期复盘。迭代 B 的 B1–B3 与 P1-26 至此完成。
 - B2 语义色收口：新增 `--color-on-accent`（深 #101820 / 浅 #ffffff），强调色按钮去硬编码；不新增 `--color-ok`（绿色已是「跌」，避免与涨跌语义冲突），状态类统一 info/amber/danger；迁移审计页、对账页、行情质量、持仓、账户、CSV 导入、估值圆点、设置页回执与「当前设备」标记、冲正/删除按钮、行情刷新按钮的误用；新增 `src/test/semantic-colors.test.ts`（28 例）守护两套主题的对比度、危险色与涨跌色可区分、状态文件不得再用涨跌色。验证：`npm test` 501/501、构建通过、Playwright 92/92。
