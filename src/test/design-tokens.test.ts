@@ -96,3 +96,34 @@ describe('设计 token：字号下限', () => {
     expect(theme.match(/var\(--font-size-micro\)/g)?.length ?? 0).toBeGreaterThan(20)
   })
 })
+
+describe('展示格式：金额走统一格式化', () => {
+  // 坐标轴刻度、价格小数位、百分比等需要 locale 数字但**不带货币符号**，
+  // 因此 toLocaleString 允许出现在下列文件；新增文件即失败，需要先确认它不是金额展示。
+  const LOCALE_ALLOWED = new Set([
+    'src/app/layout.tsx',
+    'src/components/charts.tsx',
+    'src/components/fund-confirmation-card.tsx',
+    'src/components/goal-scenario-lab.tsx',
+    'src/components/savings-check-in.tsx',
+  ])
+
+  it('界面代码里不出现裸 ¥ 拼接（金额必须走 fmtCNY）', () => {
+    const hits: string[] = []
+    for (const file of [...walk('src/app'), ...walk('src/components')]) {
+      readFileSync(file, 'utf8').split('\n').forEach((line, index) => {
+        if (/¥\{/.test(line)) hits.push(`${file}:${index + 1} 裸 ¥{…}`)
+      })
+    }
+    expect(hits).toEqual([])
+  })
+
+  it('toLocaleString 只出现在登记过的「非货币」格式化文件里', () => {
+    const hits: string[] = []
+    for (const file of [...walk('src/app'), ...walk('src/components')]) {
+      if (LOCALE_ALLOWED.has(file)) continue
+      if (/toLocaleString|toLocaleDateString/.test(readFileSync(file, 'utf8'))) hits.push(file)
+    }
+    expect(hits).toEqual([])
+  })
+})

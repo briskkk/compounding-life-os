@@ -16,6 +16,7 @@ import {
   type CsvRowResult,
 } from '@/lib/csv'
 import { FormMsg, btnCls, btnGhostCls } from './fields'
+import { fmtCNY } from '@/lib/format'
 
 export function CsvImport({
   accounts,
@@ -78,7 +79,7 @@ export function CsvImport({
       const d = res.data
       const flashText = d.duplicateBatch
           ? `该文件已导入，本次未重复写入（批次 ${d.batchId.slice(0, 8)}）`
-          : `导入 ${d.imported} 条成功${d.duplicates > 0 ? `，跳过 ${d.duplicates} 条重复` : ''}${d.failed > 0 ? `，${d.failed} 条失败（行号：${d.errors.map((e) => e.row).join(', ')}）` : ''}；金额 ${d.totalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}，费用 ${d.totalFees.toLocaleString(undefined, { maximumFractionDigits: 2 })}（批次 ${d.batchId.slice(0, 8)}）${res.warning ? `；${res.warning}` : ''}`
+          : `导入 ${d.imported} 条成功${d.duplicates > 0 ? `，跳过 ${d.duplicates} 条重复` : ''}${d.failed > 0 ? `，${d.failed} 条失败（行号：${d.errors.map((e) => e.row).join(', ')}）` : ''}；金额 ${fmtCNY(d.totalAmount)}，费用 ${fmtCNY(d.totalFees)}（批次 ${d.batchId.slice(0, 8)}）${res.warning ? `；${res.warning}` : ''}`
       setMsg({ ok: !d.duplicateBatch && d.failed === 0 && !res.warning, text: flashText })
       setPreview([])
       setRawRows([])
@@ -168,7 +169,7 @@ export function CsvImport({
                     <td className="px-2 py-1.5">{r.ok ? <span className="text-info">✓</span> : <span className="text-amber">✗</span>}</td>
                     <td className="px-2 py-1.5 text-ink-dim">
                       {r.ok
-                        ? `${r.tx!.type} · ${r.tx!.amount.toLocaleString()}`
+                        ? `${r.tx!.type} · ${fmtCNY(Number(r.tx!.amount))}`
                         : r.errors.join('；')}
                     </td>
                     <td className="px-2 py-1.5 text-right"><button type="button" onClick={() => setEditingRow(editingRow === r.row ? null : r.row)} className="text-[12px] text-accent">{editingRow === r.row ? '收起' : '检查 / 修正'}</button></td>

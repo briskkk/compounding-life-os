@@ -404,6 +404,14 @@
 
 ### 迭代 C 执行结果（2026-09-16 起）
 
+**C9 金额与时间戳格式统一：已完成**
+
+- 修掉 3 处绕过统一格式化的**裸格式**：对账表单的账户余额（`toFixed(2)`，没有千分位）、拆分核对的份数（`toLocaleString` 依赖运行环境 locale）、CSV 导入的预览金额（`toLocaleString`）→ 分别改用 `fmtCNY` / `fmtQty`。
+- 导入批次列表的金额与费用由 `toLocaleString(…, { minimumFractionDigits: 2 })` 改为 `fmtCNY`（与流水页、对账页一致）。
+- 拆分核对的「最近检查」时间由 `new Date(...).toLocaleString('zh-CN')` 改为 `fmtDateTime`（与全站时间戳一致）；CSV 导入回执的金额与费用同样改走 `fmtCNY`。
+- 守卫新增 2 例（第 7、8 例）：**禁止裸 `¥{…}` 拼接**（金额必须走 `fmtCNY`）；`toLocaleString` 只允许出现在登记过的「非货币」格式化文件里（`layout.tsx` 的日期、`charts.tsx` 的坐标轴与价格小数位、`fund-confirmation-card` / `goal-scenario-lab` / `savings-check-in` 的数字与百分比），**新增文件即失败**，需要先确认它不是金额展示。
+- **仍待做**：指标解读与时间带降噪（P2-20）。
+
 **C9 P2 项（进行中，本轮完成锚点一项）**
 
 - **P2-19 `#new-goal` 锚点**：页面上有两处指向 `#new-goal` 的入口（空态「建立 FIRE 计划 →」与标题旁「新建方案」），但目标是**默认收起的普通 `<details>`**——点击只会滚过去、不展开，用户会以为链接坏了。改用既有的 `HashOpenDetails`（P0-12 时修过：受控 `open`、hash 变化与锚点点击都会展开），现在两处入口与直接带 `#new-goal` 刷新都会展开表单。

@@ -740,3 +740,10 @@ last_verified: 2026-09-10
 - 新增 E2E：点击入口与直接带 hash 都展开表单。
 - 验证：npm test 528/528、build 通过、Playwright 97/97。
 - C9 其余项留下一轮。
+
+# 2026-09-16 迭代 C 之 C9（金额与时间戳格式统一）
+
+- 3 处裸格式 + 导入批次金额改走 fmtCNY/fmtQty/fmtDateTime。
+- 守卫新增 2 例（禁裸 ¥{；toLocaleString 只允许登记文件）。
+- 验证：npm test 530/530、build 通过、Playwright 97/97。
+- 仅剩指标解读与时间带降噪 + 断点收敛。

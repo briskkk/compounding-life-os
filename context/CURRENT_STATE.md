@@ -28,6 +28,8 @@ last_verified: 2026-09-15
 
 ## 最近完成
 
+- 迭代 C 之 C9（金额与时间戳格式统一）：修掉 3 处裸格式（对账余额 `toFixed(2)`、拆分份数与 CSV 预览金额 `toLocaleString`）与导入批次金额，全部改走 `fmtCNY`/`fmtQty`/`fmtDateTime`；守卫新增 2 例（禁裸 `¥{`，`toLocaleString` 只允许登记文件）。验证：`npm test` 530/530、构建通过、Playwright 97/97。仅剩「指标解读与时间带降噪」与断点收敛。
+
 - 迭代 C 之 C9（P2 锚点）：`#new-goal` 的两处入口此前指向默认收起的普通 `<details>`，点击只滚动不展开；改用 `HashOpenDetails` 后点击与直接带 hash 刷新都会展开表单，并新增 E2E。C9 其余项（金额格式、时间戳文案、指标解读与时间带降噪）留下一轮。验证：`npm test` 528/528、构建通过、Playwright 97/97。
 
 - 迭代 C 之 C4（断点）：实测共 **17 个**宽度值（非 14），其中 1360/1361、1024/1025、900/901 是互补配对不能单独挪动；本轮先加「断点只用登记值」的增长守卫（第 6 例），避免继续增长；批量收敛到 5 个需在 700/1300/1350 等**当前无 E2E 覆盖**的宽度逐档验证，因此推迟。验证：`npm test` 528/528、构建通过、Playwright 96/96。
@@ -144,6 +146,7 @@ last_verified: 2026-09-15
 3. SQLite 与 PostgreSQL 使用独立 schema；CI 已验证 PostgreSQL 建表和 RLS 契约，但真实生产迁移仍需在目标环境做备份、行数核对与回滚演练。
 
 ## 验证状态
+- `npm test`：2026-09-16 迭代 C 之 C9（格式统一）后 77 文件、530/530 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 97/97。
 - `npm test`：2026-09-16 迭代 C 之 C9（锚点）后 77 文件、528/528 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 97/97。
 - `npm test`：2026-09-16 迭代 C 之 C4（断点守卫）后 77 文件、528/528 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 96/96。
 - `npm test`：2026-09-16 迭代 C 之 C4（阴影收敛）后 77 文件、527/527 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 96/96。

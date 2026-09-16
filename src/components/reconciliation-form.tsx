@@ -3,6 +3,7 @@
 import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { useState, useTransition } from 'react'
 import { recordAccountReconciliation } from '@/lib/actions'
+import { fmtCNY } from '@/lib/format'
 
 interface ReconciliationAccount {
   id: string
@@ -41,7 +42,7 @@ export function ReconciliationForm({ accounts }: { accounts: ReconciliationAccou
         }
       })
     }}>
-      <label><span>账户</span><select name="accountId" required defaultValue=""><option value="" disabled>选择待核对账户</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name} · 账本 ¥{account.ledgerValueCny.toFixed(2)}</option>)}</select></label>
+      <label><span>账户</span><select name="accountId" required defaultValue=""><option value="" disabled>选择待核对账户</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name} · 账本 {fmtCNY(account.ledgerValueCny)}</option>)}</select></label>
       <label><span>外部账单余额（人民币）</span><input name="observedValueCny" type="number" min="0" step="0.01" required placeholder="0.00" /></label>
       <label><span>核对日期（当前）</span><input name="asOfDate" type="date" required min={today} max={today} defaultValue={today} /></label>
       <label><span>凭证来源</span><input name="sourceName" required maxLength={80} placeholder="例如：券商月结单" /></label>
