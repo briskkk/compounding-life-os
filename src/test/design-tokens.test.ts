@@ -56,6 +56,26 @@ describe('设计 token：字号下限', () => {
     expect(hits).toEqual([])
   })
 
+  it('抬升阴影只用两档 token；语义描边（环/inset）单独一类', () => {
+    const hits: string[] = []
+    for (const file of CSS_FILES) {
+      readFileSync(file, 'utf8').split('\n').forEach((line, index) => {
+        const match = line.match(/box-shadow:\s*([^;]+);/)
+        if (!match) return
+        const value = match[1].trim()
+        // 允许：none、两档抬升 token、以 inset 开头的语义描边、0 0 0 Npx 的状态/焦点环
+        if (value === 'none') return
+        if (value === 'var(--shadow-card)' || value === 'var(--shadow-pop)') return
+        if (value.startsWith('inset ')) return
+        if (/^0 0 0 \d+px /.test(value)) return
+        // 状态光晕：0 0 Npx color-mix(...)，颜色本身表达状态
+        if (/^0 0 \d+px color-mix\(/.test(value)) return
+        hits.push(`${file}:${index + 1} ${value}`)
+      })
+    }
+    expect(hits).toEqual([])
+  })
+
   it('最小一级字号有 token 且被使用', () => {
     const theme = readFileSync('src/app/globals.css', 'utf8')
     expect(theme).toContain('--font-size-micro: 12px')

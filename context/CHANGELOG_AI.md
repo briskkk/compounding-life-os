@@ -720,3 +720,10 @@ last_verified: 2026-09-10
 - 守卫新增圆角白名单一例（例外：50%/inherit/1px/2px 细线）。
 - 验证：npm test 526/526、build 通过、Playwright 96/96。
 - 阴影（20 种）与断点（14 个）留下一轮。
+
+# 2026-09-16 迭代 C 之 C4（阴影收敛）：抬升 5 种 → 2 档 token
+
+- --shadow-card / --shadow-pop；深色浮层与卡片阴影全部 token 化。
+- 语义描边（inset 线、实心环、状态光晕）单列并写进守卫（颜色必须 token）。
+- 守卫增至 5 例；验证：npm test 527/527、build 通过、Playwright 96/96。
+- 断点（14 个）留下一轮。

@@ -28,6 +28,8 @@ last_verified: 2026-09-15
 
 ## 最近完成
 
+- 迭代 C 之 C4（阴影收敛）：5 种抬升阴影 → 2 档 token（`--shadow-card` 卡片 / `--shadow-pop` 浮层）；`inset` 描边、实心环与状态光晕明确归为「语义描边」并写进守卫（颜色必须走 token）。守卫增至 5 例。断点 14 个仍待收敛。验证：`npm test` 527/527、构建通过、Playwright 96/96。
+
 - 迭代 C 之 C4（圆角收敛）：10 种圆角 → 5 档 token（`--radius-xs/sm/md/lg/pill`），多值简写逐角 token 化；守卫新增「圆角只用登记档位」一例（允许 `50%`/`inherit`/1px/2px 细线例外）。阴影 20 种与断点 14 个仍待收敛。验证：`npm test` 526/526、构建通过、Playwright 96/96。
 
 - 迭代 C 之 C4（字号下限）：全仓把小字号并入 12px 下限——globals.css 84 处 10/11px（含 8px）、decisions.css 3 处、界面代码 13 处 `text-[9/10/11px]`，合计 100 处改走新 token `--font-size-micro: 12px`；新增 `src/test/design-tokens.test.ts`（3 例守卫：CSS/工具类不得出现 <12px、token 必须被引用）。E2E 96/96 无布局回归。**另一半（圆角 10 种 / 阴影 20 种 / 断点 14 个）留待下一轮**。验证：`npm test` 525/525、构建通过、Playwright 96/96。
@@ -138,6 +140,7 @@ last_verified: 2026-09-15
 3. SQLite 与 PostgreSQL 使用独立 schema；CI 已验证 PostgreSQL 建表和 RLS 契约，但真实生产迁移仍需在目标环境做备份、行数核对与回滚演练。
 
 ## 验证状态
+- `npm test`：2026-09-16 迭代 C 之 C4（阴影收敛）后 77 文件、527/527 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 96/96。
 - `npm test`：2026-09-16 迭代 C 之 C4（圆角收敛）后 77 文件、526/526 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 96/96。
 - `npm test`：2026-09-16 迭代 C 之 C4（字号下限）后 77 文件、525/525 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 96/96。
 - `npm test`：2026-09-16 迭代 C 之 C8 后 76 文件、522/522 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 96/96。
