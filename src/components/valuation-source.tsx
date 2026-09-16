@@ -90,7 +90,7 @@ export function ValuationSourceSummary({ items, className }: { items: ValuationS
     <div className={cx('source-summary flex flex-wrap items-center gap-x-7 gap-y-3 px-5 py-4 text-[15px]', className)}>
       <span className="font-medium text-ink-dim">当前估值口径</span>
       <span className="text-ink-faint">
-        <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-down" />
+        <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-info" />
         可观测数据 <span className="num text-ink">{groups.observed.count} 项 · {fmtCNY(groups.observed.value)}</span>
       </span>
       <span className="text-ink-faint">

@@ -165,7 +165,7 @@ export function CsvImport({
                   <tr key={r.row}>
                     <td className="num px-2 py-1.5 text-ink-faint">{r.row}</td>
                     <td className="px-2 py-1.5"><input type="checkbox" checked={r.ok && !excludedRows.has(r.row)} disabled={!r.ok} onChange={(event) => setExcludedRows((current) => { const next = new Set(current); if (event.target.checked) next.delete(r.row); else next.add(r.row); return next })} className="accent-[#79bfff]" /></td>
-                    <td className="px-2 py-1.5">{r.ok ? <span className="text-down">✓</span> : <span className="text-up">✗</span>}</td>
+                    <td className="px-2 py-1.5">{r.ok ? <span className="text-info">✓</span> : <span className="text-amber">✗</span>}</td>
                     <td className="px-2 py-1.5 text-ink-dim">
                       {r.ok
                         ? `${r.tx!.type} · ${r.tx!.amount.toLocaleString()}`
@@ -186,8 +186,8 @@ export function CsvImport({
           </div><div className="mt-3 text-[12px] text-ink-faint">{preview[editingRow - 1]?.ok ? '✓ 该行已通过校验' : preview[editingRow - 1]?.errors.join('；')}</div></div>}
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-ink-faint">
-              共 {preview.length} 行，<span className="text-down">{okCount} 有效</span>，已选择 {selectedCount} 条
-              {preview.length - okCount > 0 && <span className="text-up">，{preview.length - okCount} 将被跳过</span>}
+              共 {preview.length} 行，<span className="text-info">{okCount} 有效</span>，已选择 {selectedCount} 条
+              {preview.length - okCount > 0 && <span className="text-amber">，{preview.length - okCount} 将被跳过</span>}
             </span>
             <button type="button" onClick={commit} disabled={pending || selectedCount === 0} className={btnCls}>
               {pending ? '导入中…' : `确认导入 ${selectedCount} 条`}

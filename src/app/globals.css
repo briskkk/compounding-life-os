@@ -17,6 +17,8 @@
   --color-amber: #e4b45f;
   /* 错误/危险语义色：与涨跌色分离（浅色主题见 themes.css） */
   --color-danger: #ea5c5c;
+  /* 强调色底上的文字色：保证浅色主题下也满足对比度（勿硬编码 #101820） */
+  --color-on-accent: #101820;
   --font-mono: "JetBrains Mono", "PingFang SC", "Hiragino Sans GB", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
@@ -4754,7 +4756,7 @@ nav[aria-label="主导航"] a {
 
 .review-primary-button {
   background: var(--color-accent);
-  color: #101820;
+  color: var(--color-on-accent);
   font-weight: 600;
 }
 

@@ -323,7 +323,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                         {illiquid ? (
                           <Tag tone="violet">低流动性</Tag>
                         ) : (
-                          <Tag tone="down">可投资</Tag>
+                          <Tag tone="info">可投资</Tag>
                         )}
                       </td>
                     </tr>

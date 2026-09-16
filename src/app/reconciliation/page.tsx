@@ -83,8 +83,8 @@ export default async function ReconciliationPage() {
 
       <section className="reconciliation-summary">
         <div><span>已建立凭证</span><strong className="num">{accountRows.filter((row) => row.latest).length}/{accountRows.length}</strong></div>
-        <div><span>最近一致</span><strong className="num text-down">{matchedCount}</strong></div>
-        <div><span>最近差额合计</span><strong className={cx('num', Math.abs(differenceTotal) < 0.01 ? 'text-down' : 'text-amber')}>{fmtCNY(differenceTotal, { sign: true })}</strong></div>
+        <div><span>最近一致</span><strong className="num text-info">{matchedCount}</strong></div>
+        <div><span>最近差额合计</span><strong className={cx('num', Math.abs(differenceTotal) < 0.01 ? 'text-info' : 'text-amber')}>{fmtCNY(differenceTotal, { sign: true })}</strong></div>
         <p>差额不等于收益。发现差异后，请回到流水补录遗漏交易或冲正错误记录。</p>
       </section>
 
@@ -95,7 +95,7 @@ export default async function ReconciliationPage() {
             <tbody className="divide-y divide-line/60">{accountRows.map((row) => {
               const evidence = row.latest?.evidence
               const matched = evidence && Math.abs(evidence.differenceCny) < 0.01
-              return <tr key={row.id}><td className="px-4 py-3"><strong className="font-medium text-ink">{row.name}</strong><small className="mt-1 block text-ink-faint">{row.institution ?? '未登记机构'}</small></td><td className="num px-2 py-3 text-right text-ink">{fmtCNY(row.ledgerValueCny)}</td><td className="num px-2 py-3 text-right text-ink-dim">{evidence ? fmtCNY(evidence.observedValueCny) : '—'}</td><td className={cx('num px-2 py-3 text-right', matched ? 'text-down' : evidence ? 'text-amber' : 'text-ink-faint')}>{evidence ? fmtCNY(evidence.differenceCny, { sign: true }) : '—'}</td><td className="px-4 py-3">{evidence ? <Tag tone={matched ? 'down' : 'amber'}>{matched ? '一致' : '有差额'}</Tag> : <Tag tone="dim">未核对</Tag>}</td></tr>
+              return <tr key={row.id}><td className="px-4 py-3"><strong className="font-medium text-ink">{row.name}</strong><small className="mt-1 block text-ink-faint">{row.institution ?? '未登记机构'}</small></td><td className="num px-2 py-3 text-right text-ink">{fmtCNY(row.ledgerValueCny)}</td><td className="num px-2 py-3 text-right text-ink-dim">{evidence ? fmtCNY(evidence.observedValueCny) : '—'}</td><td className={cx('num px-2 py-3 text-right', matched ? 'text-info' : evidence ? 'text-amber' : 'text-ink-faint')}>{evidence ? fmtCNY(evidence.differenceCny, { sign: true }) : '—'}</td><td className="px-4 py-3">{evidence ? <Tag tone={matched ? 'info' : 'amber'}>{matched ? '一致' : '有差额'}</Tag> : <Tag tone="dim">未核对</Tag>}</td></tr>
             })}</tbody>
           </table>
         </div>
@@ -109,7 +109,7 @@ export default async function ReconciliationPage() {
       )}
 
       <Panel title="核对历史" en="RECONCILIATION TRAIL" bodyClassName="p-0">
-        {evidenceRows.length === 0 ? <Empty>尚无账户核对凭证</Empty> : <div className="reconciliation-history">{evidenceRows.map((row) => <article key={row.id}><time className="num">{fmtDateTime(row.createdAt)}</time><div><strong>{row.accountName}</strong><span>{row.sourceName} · 账单日 {row.asOfDate}</span></div><b className={Math.abs(row.differenceCny) < 0.01 ? 'text-down' : 'text-amber'}>{fmtCNY(row.differenceCny, { sign: true })}</b><small>{row.actorName}{row.note ? ` · ${row.note}` : ''}</small></article>)}</div>}
+        {evidenceRows.length === 0 ? <Empty>尚无账户核对凭证</Empty> : <div className="reconciliation-history">{evidenceRows.map((row) => <article key={row.id}><time className="num">{fmtDateTime(row.createdAt)}</time><div><strong>{row.accountName}</strong><span>{row.sourceName} · 账单日 {row.asOfDate}</span></div><b className={Math.abs(row.differenceCny) < 0.01 ? 'text-info' : 'text-amber'}>{fmtCNY(row.differenceCny, { sign: true })}</b><small>{row.actorName}{row.note ? ` · ${row.note}` : ''}</small></article>)}</div>}
       </Panel>
     </div>
   )

@@ -429,7 +429,7 @@ export default async function AccountsPage({
             <i>+</i>
             <div><span>本月计划流入</span><strong className="num text-up">{fmtCNY(cashCalendar.inflow)}</strong><small>其中在途确认 {fmtCNY(cashCalendar.confirmedInflow)}</small></div>
             <i>−</i>
-            <div><span>本月计划流出</span><strong className="num text-down">{fmtCNY(cashCalendar.outflow)}</strong><small>仅计划，不扣减余额</small></div>
+            <div><span>本月计划流出</span><strong className="num text-ink-dim">{fmtCNY(cashCalendar.outflow)}</strong><small>仅计划，不扣减余额</small></div>
             <i>=</i>
             <div className="is-result"><span>月末计划后现金</span><strong className="num">{fmtCNY(totalCash + cashCalendar.net)}</strong><small>不含期间市场波动</small></div>
           </section>

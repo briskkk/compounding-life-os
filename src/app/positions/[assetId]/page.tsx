@@ -497,7 +497,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
                   </div>
                   <p className="mt-6 text-[13px] leading-relaxed text-ink-faint">
                     官方净值 {fundEst.prevNav.toFixed(4)}（{fmtDate(fundEst.prevNavDate)}）
-                    {fundNavPreferred && <span className="ml-1 text-down">今日已更新</span>}
+                    {fundNavPreferred && <span className="ml-1 text-info">今日已更新</span>}
                   </p>
                   {fundCalib && fundCalib.summary.days > 0 && (
                     <p className="mt-3 text-[13px] leading-relaxed text-ink-faint">

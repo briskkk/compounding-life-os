@@ -20,6 +20,7 @@ html[data-theme='light'] {
   --color-amber: #8c6115;
   /* 错误/危险语义色：与涨跌色分离，避免“错误显示为亏损绿或收益橙” */
   --color-danger: #a32020;
+  --color-on-accent: #ffffff;
   --surface-1: rgba(25, 38, 51, 0.035);
   --surface-2: rgba(25, 38, 51, 0.065);
 }

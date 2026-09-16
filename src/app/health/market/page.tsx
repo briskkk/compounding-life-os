@@ -130,7 +130,7 @@ export default async function MarketQualityPage() {
                 <div><span className="text-[11px] text-ink-faint">检查</span><strong className="num mt-2 block text-[22px] text-ink">{evidence.summary.checked}</strong></div>
                 <div><span className="text-[11px] text-ink-faint">可比</span><strong className="num mt-2 block text-[22px] text-ink">{evidence.summary.comparable}</strong></div>
                 <div><span className="text-[11px] text-ink-faint">价差关注</span><strong className="num mt-2 block text-[22px] text-amber">{evidence.summary.divergent}</strong></div>
-                <div><span className="text-[11px] text-ink-faint">全源失败</span><strong className="num mt-2 block text-[22px] text-down">{evidence.summary.failed}</strong></div>
+                <div><span className="text-[11px] text-ink-faint">全源失败</span><strong className="num mt-2 block text-[22px] text-danger">{evidence.summary.failed}</strong></div>
               </div>
               <p className="mt-4 text-[11px] text-ink-faint">检查时间 {fmtDateTime(new Date(evidence.checkedAt))} · 关注阈值 {evidence.thresholdBps}bp · 只保存证据，不自动切换来源</p>
             </>

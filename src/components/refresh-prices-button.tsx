@@ -32,9 +32,9 @@ export function RefreshPricesButton() {
         result?.tone === 'warning'
           ? 'border-amber/50 text-amber'
           : result?.tone === 'error'
-            ? 'border-up/50 text-up'
+            ? 'border-danger/50 text-danger'
             : result?.tone === 'ok'
-              ? 'border-down/40 text-down'
+              ? 'border-info/40 text-info'
               : 'border-line text-ink-dim hover:border-accent hover:text-accent'
       }`}
       title={result?.text ?? '自动刷新之外的人工兜底：更新当前持仓、基准与受影响快照'}

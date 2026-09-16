@@ -149,7 +149,7 @@ export function GoalForm({ mode, goalId, initial, initiallyOpen = false, onDone 
             <button type="button" onClick={() => setOpen(false)} className={btnGhostCls}>
               收起
             </button>
-            <button type="button" onClick={onDelete} disabled={pending} className="ml-auto text-xs text-ink-faint hover:text-up">
+            <button type="button" onClick={onDelete} disabled={pending} className="ml-auto text-xs text-ink-faint hover:text-danger">
               删除计划
             </button>
           </>

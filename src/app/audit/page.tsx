@@ -24,7 +24,7 @@ export default async function AuditPage() {
       <section className="grid gap-10 border-b border-line pb-10 md:grid-cols-[0.65fr_1fr] md:items-end">
         <div>
           <div className="text-[15px] text-ink-faint">审计结论</div>
-          <div className={chain.ok ? 'mt-4 text-[36px] font-medium text-down' : 'mt-4 text-[36px] font-medium text-up'}>
+          <div className={chain.ok ? 'mt-4 text-[36px] font-medium text-info' : 'mt-4 text-[36px] font-medium text-danger'}>
             {chain.ok ? '✓ 已验证' : '链路异常'}
           </div>
           <div className="mt-3 text-[14px] text-ink-faint">{chain.ok ? '未发现异常或账本匹配项' : `断裂于 ${chain.brokenAt?.slice(0, 8)}…`}</div>
@@ -36,7 +36,7 @@ export default async function AuditPage() {
         </div>
       </section>
 
-      <Panel title="审计日志" en="AUDIT TRAIL · 最新优先" bodyClassName="p-0" right={chain.ok ? <Tag tone="down">哈希链完整</Tag> : <Tag tone="up">需要检查</Tag>}>
+      <Panel title="审计日志" en="AUDIT TRAIL · 最新优先" bodyClassName="p-0" right={chain.ok ? <Tag tone="info">哈希链完整</Tag> : <Tag tone="danger">需要检查</Tag>}>
       {logs.length === 0 ? (
         <Empty>暂无审计记录</Empty>
       ) : (
@@ -58,7 +58,7 @@ export default async function AuditPage() {
                 <td className="num px-4 py-2 text-ink-dim">{fmtDateTime(l.createdAt)}</td>
                 <td className="px-2 py-2 text-ink">{l.actorName}</td>
                 <td className="px-2 py-2">
-                  <Tag tone={l.action === 'DELETE' ? 'up' : l.action === 'CREATE' || l.action === 'IMPORT' ? 'down' : 'info'}>
+                  <Tag tone={l.action === 'DELETE' ? 'danger' : l.action === 'CREATE' || l.action === 'IMPORT' ? 'info' : 'dim'}>
                     {l.action}
                   </Tag>
                 </td>

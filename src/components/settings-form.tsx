@@ -199,7 +199,7 @@ function PreferenceCard({ defaultRange }: { defaultRange: string | null }) {
         <select value={range} onChange={(e) => save(e.target.value)} className="min-h-11 rounded-lg border border-line bg-panel2 px-2 text-[13px] text-ink-dim outline-none" aria-label="默认收益区间">
           {RANGE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        {notice && <span className="text-[13px] text-up">{notice}</span>}
+        {notice && <span className="text-[13px] text-info">{notice}</span>}
       </div>
     </Card>
   )
@@ -315,13 +315,13 @@ function SessionsList() {
     }
   }
 
-  if (error) return <p role="alert" className="text-sm text-down">{error}</p>
+  if (error) return <p role="alert" className="text-sm text-danger">{error}</p>
   if (sessions == null) return <p className="text-sm text-ink-faint">加载中…</p>
   if (sessions.length === 0) return <p className="text-sm text-ink-faint">暂无其他会话</p>
   return (
     <>
       {notice && (
-        <p role={notice.ok ? 'status' : 'alert'} className={cx('mb-2 text-[13px]', notice.ok ? 'text-up' : 'text-down')}>
+        <p role={notice.ok ? 'status' : 'alert'} className={cx('mb-2 text-[13px]', notice.ok ? 'text-info' : 'text-danger')}>
           {notice.text}
         </p>
       )}
@@ -330,7 +330,7 @@ function SessionsList() {
           <li key={s.id} className="flex items-center justify-between gap-4 rounded-lg border border-line px-3 py-2.5 text-[13px]">
             <span className="num text-ink-dim">
               登录于 {fmtDateTime(s.createdAt)} · 到期 {fmtDateTime(s.expiresAt)}
-              {s.current && <span className="ml-2 text-up">当前设备</span>}
+              {s.current && <span className="ml-2 text-info">当前设备</span>}
             </span>
             {!s.current && (
               <button
@@ -508,7 +508,7 @@ function MemberManageRow({ member, isOwner }: { member: MemberRow; isOwner: bool
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-ink">
           {member.name}
-          {member.current && <span className="ml-2 text-[12px] text-up">当前</span>}
+          {member.current && <span className="ml-2 text-[12px] text-info">当前</span>}
         </span>
         <span className="flex items-center gap-3">
           {isOwner && !member.current ? (
@@ -537,7 +537,7 @@ function MemberManageRow({ member, isOwner }: { member: MemberRow; isOwner: bool
           <button type="submit" disabled={pending} className={btnCls}>{pending ? '…' : '保存'}</button>
         </form>
       )}
-      {notice && <p role="alert" className="text-xs text-down">{notice}</p>}
+      {notice && <p role="alert" className="text-xs text-danger">{notice}</p>}
     </li>
   )
 }
@@ -608,7 +608,7 @@ function InviteSection() {
           ))}
         </ul>
       )}
-      {notice && <p role="alert" className="mt-3 text-sm text-down">{notice}</p>}
+      {notice && <p role="alert" className="mt-3 text-sm text-danger">{notice}</p>}
       <span className="hidden" data-invite-refresh />
       <button
         type="button"
@@ -750,7 +750,7 @@ function ResetCard({ familyName }: { familyName: string }) {
         <p className="text-[13px] text-ink-faint">输入家庭名称「<span className="text-ink">{familyName}</span>」以确认。</p>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={familyName} className={inputCls} aria-label="确认家庭名称" />
-          <button type="button" onClick={reset} disabled={pending || confirm !== familyName} className="inline-flex min-h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-down px-4 py-2 text-[14px] text-down disabled:opacity-40">
+          <button type="button" onClick={reset} disabled={pending || confirm !== familyName} className="inline-flex min-h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-danger px-4 py-2 text-[14px] text-danger disabled:opacity-40">
             {pending ? '重置中…' : '清空家庭数据'}
           </button>
         </div>
@@ -780,5 +780,5 @@ function Row({ children }: { children: React.ReactNode }) {
 
 function Notice({ notice }: { notice: { ok: boolean; text: string } | null }) {
   if (!notice) return null
-  return <p role="status" className={cx('text-sm', notice.ok ? 'text-up' : 'text-down')}>{notice.text}</p>
+  return <p role="status" className={cx('text-sm', notice.ok ? 'text-info' : 'text-danger')}>{notice.text}</p>
 }
