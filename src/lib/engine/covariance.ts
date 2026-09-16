@@ -1,5 +1,5 @@
 // 协方差组合模拟：按资产类别的期望/波动 + 相关矩阵，Cholesky 生成相关冲击
-import { gaussian, mulberry32 } from './rng'
+import { mulberry32 } from './rng'
 import type { AssetClass } from './types'
 
 export interface ClassParam {
@@ -108,8 +108,16 @@ function buildPortfolioSamplerFactory(weights: ClassWeights): (seed: number) => 
   return (seed: number) => {
     const rand = mulberry32(seed >>> 0)
     return () => {
-      // 冲击顺序必须与 CLASSES 一致；数组复用只是省掉每次 6 个元素分配
-      for (let i = 0; i < n; i++) z[i] = gaussian(rand)
+      // 冲击顺序必须与 CLASSES 一致；数组复用只是省掉每次 6 个元素分配。
+      // 这里内联 gaussian()（Box-Muller）的算式：对同一 seed 与同一调用顺序，
+      // 结果与逐次调用 gaussian(rand) 逐位一致，但省掉每次渲染数百万次函数调用。
+      for (let i = 0; i < n; i++) {
+        let u = 0
+        let v = 0
+        while (u === 0) u = rand()
+        while (v === 0) v = rand()
+        z[i] = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)
+      }
       let r = 0
       for (let t = 0; t < termCount; t++) {
         let e = 0
