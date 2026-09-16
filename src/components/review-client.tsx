@@ -9,7 +9,7 @@ import type { ReviewPageData } from '@/lib/review-data'
 import type { ReviewContribution } from '@/lib/engine/review'
 import { cx, fmtCNY, fmtDateTime, fmtPct, toneOf } from '@/lib/format'
 import type { ReactNode } from 'react'
-import { ScopeLabel } from '@/components/ui'
+import { ScopeLabel, ReadOnlyNotice } from '@/components/ui'
 import { useConfirm } from '@/components/confirm-dialog'
 
 type Dimension = 'asset' | 'source' | 'class'
@@ -518,7 +518,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
             <button type="button" className="review-primary-button" onClick={() => save('COMPLETED')} disabled={readOnly || pending}>{pending ? '处理中…' : '完成本期复盘'}</button>
           </div>
         </div>
-        {readOnly && <p className="review-readonly">你当前是只读成员，可以查看复盘证据，但不能保存笔记。</p>}
+        {readOnly && <ReadOnlyNotice what="可以查看复盘证据，但不能保存笔记" />}
       </section>
     </div>
   )

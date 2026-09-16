@@ -63,8 +63,12 @@ async function main() {
     data: { email: 'e2e@test.local', passwordHash: await hashPassword('e2e-password') },
   })
   const shen = await prisma.member.create({ data: { familyId: fid, userId: e2eUser.id, name: '沈砚', role: 'OWNER' } })
+  // 只读账号（VIEWER）也带登录，供 e2e 验证「写入区块消失时必须给出只读提示」
+  const viewerUser = await prisma.user.create({
+    data: { email: 'viewer@test.local', passwordHash: await hashPassword('e2e-password') },
+  })
+  await prisma.member.create({ data: { familyId: fid, userId: viewerUser.id, name: '沈父', role: 'VIEWER' } })
   await prisma.member.create({ data: { familyId: fid, name: '林知夏', role: 'ADMIN' } })
-  await prisma.member.create({ data: { familyId: fid, name: '沈父', role: 'VIEWER' } })
 
   console.log('· 创建账户与资产…')
   const mk = {

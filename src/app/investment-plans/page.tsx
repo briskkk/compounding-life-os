@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
-import { Empty, PageHeader, SetupScreen, Tag } from '@/components/ui'
+import { Empty, PageHeader, SetupScreen, Tag, ReadOnlyNotice } from '@/components/ui'
 import { InvestmentPlanForm, EndInvestmentPlanButton } from '@/components/investment-plan-form'
 import { InvestmentPlanQuickEntry, type QuickEntryDay } from '@/components/investment-plan-quick-entry'
 import { RevokeInvestmentPlanNoBuyButton } from '@/components/investment-plan-no-buy-button'
@@ -197,7 +197,7 @@ export default async function InvestmentPlansPage({
           <div><span className="eyebrow">Confirm actual buys</span><h2>核对并快速录入</h2></div>
           <p>按日核对：勾选实际买入的基金；若未勾选的当天确实没买，可一次确认未执行。两种结果均由你明确确认，未买入不会生成流水。</p>
         </header>
-        {canWrite ? <InvestmentPlanQuickEntry days={quickEntryDays} foldBefore={selectedMonth === monthKey() ? dateKeyAt(new Date(Date.now() - 7 * 86400000)) : undefined} /> : <p className="investment-plan-entry-empty">你当前是只读成员，不能录入实际申购。</p>}
+        {canWrite ? <InvestmentPlanQuickEntry days={quickEntryDays} foldBefore={selectedMonth === monthKey() ? dateKeyAt(new Date(Date.now() - 7 * 86400000)) : undefined} /> : <ReadOnlyNotice what="可以查看计划与执行记录，但不能录入实际申购" className="investment-plan-entry-empty" />}
       </section>
 
       <section className="investment-plan-workbench">
@@ -305,7 +305,7 @@ export default async function InvestmentPlansPage({
               accounts={accounts.map((account) => ({ id: account.id, name: account.name, currency: account.currency }))}
             />
           ) : <Empty action={{ href: '/accounts?view=assets', label: '先登记投资资产' }}>暂无可用于定投的资产</Empty>}
-        </HashOpenDetails> : <p className="investment-plan-readonly">你当前是只读成员，可以查看计划与实际执行，但不能创建或结束计划。</p>}
+        </HashOpenDetails> : <ReadOnlyNotice what="可以查看计划与实际执行，但不能创建或结束计划" className="investment-plan-readonly" />}
       </section>
     </div>
   )

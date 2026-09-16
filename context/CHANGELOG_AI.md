@@ -679,3 +679,10 @@ last_verified: 2026-09-10
 - ⌘K 补齐 ↑↓/Home/End/Enter/Esc，候选变 role=option + listbox/group + aria-activedescendant，激活项滚入可视区、键鼠同款高亮。
 - 候选由隐式 link 变 option：三处旧 E2E 查询同步调整。
 - 验证：npm test 518/518、build 通过、Playwright 94/94。
+
+# 2026-09-16 迭代 C 之 C6：只读态统一 ReadOnlyNotice
+
+- 新增 ReadOnlyNotice（role=status + data-testid）替换 5 处零散文案。
+- 给流水/账户/对账三页补上「写入区块消失」的说明；复盘页保持「显示但禁用」。
+- E2E 种子新增可登录只读账号 viewer@test.local，新增 e2e/viewer.spec.ts 逐页巡检。
+- 验证：npm test 518/518、build 通过、Playwright 95/95。

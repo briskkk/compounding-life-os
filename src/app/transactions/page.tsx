@@ -4,7 +4,7 @@ import type { Prisma } from '@prisma/client'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
-import { Empty, PageHeader, Panel, SetupScreen, Tag } from '@/components/ui'
+import { Empty, PageHeader, Panel, SetupScreen, Tag, ReadOnlyNotice } from '@/components/ui'
 import { TxForm } from '@/components/tx-form'
 import { HashOpenDetails } from '@/components/hash-open-details'
 import { foldTransactions, holdingsIndex } from '@/lib/engine/ledger'
@@ -149,6 +149,7 @@ export default async function TransactionsPage({
         )}
       />
 
+      {!canWrite && <ReadOnlyNotice what="可以查看、筛选与导出流水，但不能录入、导入或冲正" />}
       {canWrite && (
         <HashOpenDetails
           id="new-entry"

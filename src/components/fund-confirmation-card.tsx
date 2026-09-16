@@ -5,6 +5,7 @@ import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { confirmFundOfficialNav, previewFundOfficialNav } from '@/lib/actions'
 import { cx, fmtMoney, fmtPrice } from '@/lib/format'
 import type { FundNavConfirmationPreview } from '@/lib/services/fund-confirmations'
+import { ReadOnlyNotice } from '@/components/ui'
 
 interface FundConfirmationCardProps {
   transaction: {
@@ -163,7 +164,7 @@ export function FundConfirmationCard({ transaction, canWrite, initialOpen = fals
                 <button type="submit" className="fund-confirm-submit" disabled={pending || !sharesMatch}>
                   {pending ? '正在写入…' : '确认并替换流水'}
                 </button>
-              ) : <p className="fund-confirm-readonly">只读成员可以核对，但不能替换流水。</p>}
+              ) : <ReadOnlyNotice what="可以核对该笔流水，但不能替换流水号或份额" className="fund-confirm-readonly" />}
             </form>
           )}
 

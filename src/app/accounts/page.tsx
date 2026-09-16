@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session'
 import { loadEngineState, type EngineState } from '@/lib/queries'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
-import { Empty, PageHeader, Panel, SetupScreen, Stat, Tag, ScopeLabel } from '@/components/ui'
+import { Empty, PageHeader, Panel, SetupScreen, Stat, Tag, ScopeLabel, ReadOnlyNotice } from '@/components/ui'
 import { AccountForm, AssetForm } from '@/components/account-forms'
 import { LiabilityEntryForm, LiabilityForm } from '@/components/liability-forms'
 import { ACCOUNT_TYPE_LABEL, ASSET_CLASS_LABEL, LIABILITY_TYPE_LABEL } from '@/lib/labels'
@@ -185,6 +185,8 @@ export default async function AccountsPage({
           </div>
         )}
       />
+
+      {!canWrite && <ReadOnlyNotice what="可以查看账户、资产与负债，但不能新建或修改" />}
 
       <nav className="flex flex-wrap gap-8 border-b border-line" aria-label="账户中心视图">
         {tabs.map((tab) => (

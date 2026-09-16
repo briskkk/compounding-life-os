@@ -8539,3 +8539,15 @@ kbd {
   background: color-mix(in srgb, var(--color-accent) 14%, transparent);
   color: var(--color-ink);
 }
+
+/* 只读成员提示：统一说明「为什么没有写入入口」，而不是让区块消失 */
+.read-only-notice {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--color-info) 30%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-info) 8%, transparent);
+  color: var(--color-ink-dim);
+  font-size: 13px;
+  line-height: 1.6;
+}

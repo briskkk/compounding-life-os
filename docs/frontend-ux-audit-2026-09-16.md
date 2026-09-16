@@ -404,6 +404,14 @@
 
 ### 迭代 C 执行结果（2026-09-16 起）
 
+**C6 只读态统一 ReadOnlyNotice：已完成**
+
+- 新增 `ReadOnlyNotice`（`src/components/ui.tsx`，`role="status"` + `data-testid="readonly-notice"`）与 `.read-only-notice` 样式：凡因权限而隐藏的写入区块，都用同一句话说明「为什么没有」——`只读成员：{限制}。需要写入请联系家庭 OWNER。`
+- 替换 5 处零散文案（各自 class 与措辞都不同）：复盘笔记（`review-readonly`）、基金份额替换（`fund-confirm-readonly`）、配置目标（`allocation-readonly`）、定投快速录入（`investment-plan-entry-empty`）、定投创建/结束（`investment-plan-readonly`）。
+- **补上此前「静默消失」的页面**：流水页（录入/导入/冲正入口整块隐藏却无说明）、账户页（新建账户/资产表单一同隐藏）、账户对账（外部凭证表单隐藏）——现在三页各有且仅有一条只读提示。
+- 两种模式都保留但都有说明：**隐藏**（流水、账户、对账、定投）与**显示但禁用**（复盘按钮 `disabled`），E2E 分别断言。
+- E2E：种子新增**可登录的只读账号**（`viewer@test.local`，role VIEWER，替换原来无登录的 VIEWER 成员，成员数不变），新增 `e2e/viewer.spec.ts` 逐页巡检：7 个页面各断言「提示内容 + 无写入入口或按钮禁用 + 可读数据仍在」（如流水页仍可导出 CSV）。
+
 **C1 导航归属、面包屑与 ⌘K 键盘模型：已完成**
 
 - **导航归属**：新增侧栏分组「核对与治理」，收纳数据健康、账户对账、基金确认、公司行动、导入批次五个二级工作流（此前只能靠 ⌘K 或页面内链接发现）；父级高亮从 `startsWith` 改为**最长前缀匹配**，因此 `/positions` 与 `/positions/[id]`、`/transactions` 与 `/transactions/imports` 不会同时点亮，E2E 断言全站 `aria-current="page"` 唯一。

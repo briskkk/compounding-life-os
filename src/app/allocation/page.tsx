@@ -3,7 +3,7 @@ import { getSession } from '@/lib/session'
 import { loadEngineState } from '@/lib/queries'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
-import { PageHeader, SetupScreen, Tag } from '@/components/ui'
+import { PageHeader, SetupScreen, Tag, ReadOnlyNotice } from '@/components/ui'
 import { AllocationTargetEditor } from '@/components/allocation-target-editor'
 import { ALLOCATION_TARGET_CLASSES, buildAllocationDrift } from '@/lib/engine/allocation-drift'
 import { ASSET_CLASS_LABEL } from '@/lib/labels'
@@ -120,7 +120,7 @@ export default async function AllocationPage() {
           {canWrite ? (
             <AllocationTargetEditor initial={initialWeights} tolerancePct={tolerancePct} />
           ) : (
-            <p className="allocation-readonly">你当前是只读成员，可以查看偏离，但不能修改目标配置。</p>
+            <ReadOnlyNotice what="可以查看偏离，但不能修改目标配置" className="allocation-readonly" />
           )}
         </aside>
       </section>

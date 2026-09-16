@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { summarizeAccountPositions } from '@/lib/engine/account-summary'
 import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
-import { Empty, PageHeader, Panel, SetupScreen, Tag } from '@/components/ui'
+import { Empty, PageHeader, Panel, SetupScreen, Tag, ReadOnlyNotice } from '@/components/ui'
 import { ReconciliationForm } from '@/components/reconciliation-form'
 import { cx, fmtCNY, fmtDateTime } from '@/lib/format'
 import { TableScroll } from '@/components/table-scroll'
@@ -102,6 +102,7 @@ export default async function ReconciliationPage() {
         </TableScroll>
       </Panel>
 
+      {ctx.role === 'VIEWER' && <ReadOnlyNotice what="可以查看核对凭证与差额，但不能追加外部凭证" />}
       {ctx.role !== 'VIEWER' && (
         <Panel title="新增核对凭证" en="APPEND EVIDENCE">
           <ReconciliationForm accounts={accountRows.map(({ id, name, ledgerValueCny }) => ({ id, name, ledgerValueCny }))} />

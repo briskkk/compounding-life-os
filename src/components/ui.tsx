@@ -167,6 +167,18 @@ export function ScopeLabel({ scope, className, badgeClassName }: { scope: Wealth
   )
 }
 
+/**
+ * 只读成员提示：凡是因权限而隐藏的写入区块，都必须用同一句提示说明「为什么没有」，
+ * 而不是让区块直接消失（审计 P1-6）。
+ */
+export function ReadOnlyNotice({ what, className }: { what: string; className?: string }) {
+  return (
+    <p role="status" data-testid="readonly-notice" className={cx('read-only-notice', className)}>
+      只读成员：{what}。需要写入请联系家庭 OWNER。
+    </p>
+  )
+}
+
 export function SetupScreen() {
   return (
     <div className="mx-auto mt-24 max-w-md border-y border-line py-12 text-center">
