@@ -25,6 +25,7 @@ import { eastmoneyFundProvider } from './market/eastmoney-fund'
 import type { AssetInfo, TxInput } from './engine/types'
 import { mergePositionsByAsset } from './engine/merge'
 import { dailyQuoteValuation, summarizeDailyPortfolio } from './engine/daily-pnl'
+import { portfolioDayKey } from './engine/portfolio-day'
 import { buildSavingsOverview, type SavingsOverview } from './engine/savings'
 import type { QuoteData } from './market/provider'
 import { isInvestableAsset, isPortfolioAssetClass } from './asset-classification'
@@ -735,7 +736,8 @@ export async function getDashboard(period: ReviewPeriod = 'THIS_MONTH'): Promise
     ...q,
     tradingDate: state.quotes.get(q.symbol)?.tradingDate ?? null,
   }]))
-  const todayKey = dateKeyAt(new Date())
+  const now = new Date()
+  const todayKey = dateKeyAt(now)
   const staticValueCny = mergedPositions
     .filter((v) => v.asset.manual || v.asset.cls === 'CASH' || v.asset.cls === 'REAL_ESTATE')
     .reduce((sum, v) => sum + v.value, 0)
@@ -748,7 +750,8 @@ export async function getDashboard(period: ReviewPeriod = 'THIS_MONTH'): Promise
         quantity: v.quantity,
         quote: quote ? { price: quote.price, prevClose: quote.prevClose, tradingDate: quote.tradingDate } : null,
         fallbackValueCny: v.value,
-        todayKey,
+        // 海外持仓按各自市场的「今天」判定，否则美股在北京白天永远是「非当日」
+        todayKey: portfolioDayKey({ symbol: v.asset.symbol, currency: v.asset.currency, cls: v.asset.cls }, now),
       })
     })
   const marketDay = summarizeDailyPortfolio(marketItems, staticValueCny)

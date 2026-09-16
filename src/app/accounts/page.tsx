@@ -18,6 +18,7 @@ import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-marke
 import { buildCashCalendar } from '@/lib/engine/cash-calendar'
 import { CashPlanForm, DeleteCashPlanButton } from '@/components/cash-plan-form'
 import { TableScroll } from '@/components/table-scroll'
+import { portfolioDayKey } from '@/lib/engine/portfolio-day'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,8 +84,9 @@ export default async function AccountsPage({
     db.cashPlan.findMany({ include: { account: true }, orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }] }),
   ])
 
+  const now = new Date()
   const positionsByAccount = new Map<string, ValuedPosition[]>()
-  const todayKey = dateKeyAt(new Date())
+  const todayKey = dateKeyAt(now)
   const valueByAsset = new Map<string, number>()
   const positionByAsset = new Map<string, ValuedPosition>()
   for (const position of state.valued) {
@@ -101,7 +103,9 @@ export default async function AccountsPage({
     const positions = positionsByAccount.get(account.id) ?? []
     return [account.id, summarizeAccountPositions(positions, (symbol) => {
       const quote = state.quotes.get(symbol)
-      return previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, todayKey)
+      // 海外持仓按各自市场的「今天」判定（与总览/看盘同源）
+      const asset = state.assets.find((item) => item.symbol === symbol)
+      return previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, portfolioDayKey({ symbol, currency: asset?.currency, cls: asset?.cls }, now))
     })]
   }))
   const cashAccountIds = new Set(

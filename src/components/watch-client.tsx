@@ -20,6 +20,7 @@ import type { LoadedBenchmark } from '@/lib/engine/benchmark'
 import type { DataSettlementState } from '@/lib/engine/data-settlement'
 import { DataSettlementRail } from './data-settlement-rail'
 import { TableScroll } from './table-scroll'
+import { portfolioDayKey } from '@/lib/engine/portfolio-day'
 
 export interface WatchHolding {
   assetId: string
@@ -94,7 +95,8 @@ export function WatchClient({
   const [quotes, setQuotes] = useState<Map<string, QuoteLite>>(new Map())
   const [asOf, setAsOf] = useState<string | null>(null)
   const [sort, setSort] = useState<HoldingSort>(initialSort)
-  const todayKey = dateKeyAt(new Date())
+  const now = new Date()
+  const todayKey = dateKeyAt(now)
 
   const symbols = useMemo(() => holdings.map((h) => h.symbol), [holdings])
   const localMarketSymbols = useMemo(() => holdings
@@ -184,7 +186,8 @@ export function WatchClient({
       quantity: holding.qty,
       quote: price == null ? null : { price, prevClose, tradingDate },
       fallbackValueCny: holding.fallbackValueCny,
-      todayKey,
+      // 海外持仓按各自市场的「今天」判定（与总览/账户同源）
+      todayKey: portfolioDayKey({ symbol: holding.symbol, currency: holding.currency, cls: holding.cls }, now),
       rateToCny: holding.rateToCny,
     })
     return {
