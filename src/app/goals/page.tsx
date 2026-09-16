@@ -88,11 +88,11 @@ export default async function GoalsPage() {
               <span>FIRE Number <strong>{fmtCNY(primary.goal.targetAmount)}</strong></span>
               <span>当前资产 <strong>{fmtCNY(primary.goal.current)}</strong></span>
               <span title={monteCarloNote}>
-                退休全周期不断供概率{' '}
+                计划成功率{' '}
                 <strong className={primary.goal.projection.retirementSuccessProb < 0.7 ? 'text-amber' : undefined}>
                   {fmtPct(primary.goal.projection.retirementSuccessProb)}
                 </strong>
-                <small className="ml-1 text-ink-faint">（{PROBABILITY_SAMPLING_NOTE}）</small>
+                <small className="ml-1 text-ink-faint">口径：退休全周期不断供 · {PROBABILITY_SAMPLING_NOTE}</small>
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -122,6 +122,9 @@ export default async function GoalsPage() {
           >
             <ProjectionChart data={primary.data} target={primary.goal.projection.fireNumberAtRetirement} targetLabel="通胀调整 FIRE Number" dynamicTarget />
             <div className="goal-chart-legend"><span>资产中位路径 P50</span><span>保守—乐观区间 P10–P90</span><span>通胀调整后的 FIRE Number</span></div>
+            <p className="goal-chart-caption">
+              纵轴以「万」显示；期末中位路径 <b className="num">{fmtCNY(primary.goal.projection.projectedMedian)}</b>，通胀调整后的 FIRE Number <b className="num">{fmtCNY(primary.goal.projection.fireNumberAtRetirement)}</b>（原文完整金额，便于与正文核对）。
+            </p>
           </div>
         </section>
       ) : (
@@ -138,7 +141,6 @@ export default async function GoalsPage() {
             <span>路径与目标均为名义口径；目标线已按通胀逐年上调</span>
           </div>
           <div className="fire-metric-grid">
-            <div><span>退休日积累达标概率</span><strong>{fmtPct(primary.goal.projection.accumulationSuccessProb)}</strong><small>到 {fmtDate(primary.goal.targetDate)} 达到 {fmtCNY(primary.goal.projection.fireNumberAtRetirement)}</small></div>
             <div><span>预计 FIRE 日期</span><strong>{primary.goal.projection.estimatedFireMonths != null ? monthFrom(now, primary.goal.projection.estimatedFireMonths) : '—'}</strong><small>{firePaceNote(primary.goal.projection.estimatedFireMonths, primary.goal.monthsLeft)}</small></div>
             <div><span>每月所需投入</span><strong>{fmtCNY(primary.goal.projection.requiredMonthly)}</strong><small>{primary.goal.projection.requiredMonthly <= sustainable ? '当前可持续储蓄可以覆盖' : `比近月可持续储蓄高 ${fmtCNY(primary.goal.projection.requiredMonthly - sustainable)}`}</small></div>
             <div><span>Coast FIRE 门槛</span><strong>{fmtCNY(primary.goal.projection.coastFireNumber)}</strong><small>{primary.goal.current >= primary.goal.projection.coastFireNumber ? '已经达到：不再投入也有望按时达标' : `距离门槛 ${fmtCNY(primary.goal.projection.coastFireNumber - primary.goal.current)}`}</small></div>

@@ -686,3 +686,10 @@ last_verified: 2026-09-10
 - 给流水/账户/对账三页补上「写入区块消失」的说明；复盘页保持「显示但禁用」。
 - E2E 种子新增可登录只读账号 viewer@test.local，新增 e2e/viewer.spec.ts 逐页巡检。
 - 验证：npm test 518/518、build 通过、Playwright 95/95。
+
+# 2026-09-16 迭代 C 之 C7：在途语义与 FIRE 首屏命名/单位
+
+- 新增 settlementStatus()（引擎唯一判定）并在流水表结算日列渲染「在途 N 天/已到账/—」；单测 4 例。
+- FIRE 首屏只留「计划成功率」+ 口径副标签；退休日积累达标概率移入情景实验室；图表下方补完整金额。
+- 在途 E2E 因前提错误改为单测（申购主腿没有 settlementDate）。
+- 验证：npm test 522/522、build 通过、Playwright 95/95。

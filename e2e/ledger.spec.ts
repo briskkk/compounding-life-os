@@ -213,3 +213,4 @@ test('基金份额核对：官方份额自动预填，按 Enter 完成确认', a
   expect(official.navSource).toBe('OFFICIAL')
   expect(Number(official.quantity)).toBe(1000)
 })
+

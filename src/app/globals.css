@@ -8551,3 +8551,11 @@ kbd {
   font-size: 13px;
   line-height: 1.6;
 }
+
+/* 目标图表脚注：轴用「万」，这里给完整金额，避免正文与轴的单位来回切换 */
+.goal-chart-caption {
+  margin-top: 0.5rem;
+  color: var(--color-ink-faint);
+  font-size: 12px;
+  line-height: 1.6;
+}

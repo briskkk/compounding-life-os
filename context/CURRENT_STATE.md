@@ -28,6 +28,8 @@ last_verified: 2026-09-15
 
 ## 最近完成
 
+- 迭代 C 之 C7（在途语义 + FIRE 首屏命名/单位）：新增引擎判定 `settlementStatus()`（在途 N 天/已到账/无到账日）并在流水表结算日列渲染，单测 4 例；FIRE 首屏只保留「计划成功率」+ 口径副标签，另一个口径移入情景实验室，图表下方补完整金额（轴仍用万）。原计划的在途 E2E 因前提错误（申购主腿无 settlementDate）改为单测覆盖。验证：`npm test` 522/522、构建通过、Playwright 95/95。
+
 - 迭代 C 之 C6（只读态统一）：新增 `ReadOnlyNotice`（`role="status"` + `data-testid="readonly-notice"`）替换 5 处零散文案；给此前「静默消失」的三页补提示（流水/账户/对账）；隐藏与「显示但禁用」两种模式都保留但都有说明。E2E 种子新增可登录只读账号 `viewer@test.local` 并新增 `e2e/viewer.spec.ts` 逐页巡检 7 个页面。验证：`npm test` 518/518、构建通过、Playwright 95/95。
 
 - 迭代 C 之 C1（导航归属 + 面包屑 + ⌘K 键盘模型）：新增侧栏分组「核对与治理」（数据健康/账户对账/基金确认/公司行动/导入批次），父级高亮改最长前缀匹配（`aria-current` 全站唯一）；面包屑改为可点击层级并支持详情页注入实体名（`BreadcrumbEntity`，已接入持仓/账户详情）；⌘K 补齐 ↑↓/Home/End/Enter/Esc 与 `combobox/listbox/option` + `aria-activedescendant` 语义（激活项自动滚入并键鼠同款高亮）。语义变更：候选由隐式 link 变 `role="option"`，三处旧 E2E 查询同步调整。验证：`npm test` 518/518、构建通过、Playwright 94/94。
@@ -128,6 +130,7 @@ last_verified: 2026-09-15
 3. SQLite 与 PostgreSQL 使用独立 schema；CI 已验证 PostgreSQL 建表和 RLS 契约，但真实生产迁移仍需在目标环境做备份、行数核对与回滚演练。
 
 ## 验证状态
+- `npm test`：2026-09-16 迭代 C 之 C7 后 76 文件、522/522 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 95/95。
 - `npm test`：2026-09-16 迭代 C 之 C6 后 75 文件、518/518 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 95/95。
 - `npm test`：2026-09-16 迭代 C 之 C1 后 75 文件、518/518 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 94/94。
 - `npm test`：2026-09-16 迭代 C 之 C2 后 75 文件、518/518 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 93/93（新增纯键盘录入用例）。

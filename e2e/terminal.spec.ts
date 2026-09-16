@@ -227,12 +227,19 @@ test('资产登记：华为股票使用独立长期资产分类', async ({ page 
   await expect(page.getByLabel('手动估值（不接入行情源）')).toHaveCount(0)
 })
 
-test('FIRE 页：积累达标与退休不断供概率', async ({ page }) => {
+test('FIRE 页：首屏只保留一个计划成功率（含口径副标签）', async ({ page }) => {
   await page.goto('/goals')
   await expect(page.getByRole('heading', { name: 'FIRE · 财务自由计划' })).toBeVisible()
-  // 主数字是完成度（当前资产 / FIRE Number），不断供概率作为次级指标仍可见
+  // 主数字是完成度（当前资产 / FIRE Number）
   await expect(page.getByText('完成度 · 当前资产 / FIRE Number')).toBeVisible()
-  await expect(page.getByText('退休全周期不断供概率')).toBeVisible()
+  // C7：首屏只有一个概率，且带口径副标签；另一个口径（退休日积累达标）只在情景实验室出现
+  await expect(page.getByText('计划成功率')).toBeVisible()
+  await expect(page.getByText(/口径：退休全周期不断供 · 蒙特卡洛估计/)).toBeVisible()
+  await expect(page.getByText('退休日积累达标概率')).toHaveCount(0)
+  await expect(page.getByText('当前积累达标概率')).toBeVisible()
+  // 图表轴用「万」，下方补完整金额
+  await expect(page.getByText(/期末中位路径 ¥/)).toBeVisible()
+  await expect(page.getByText(/通胀调整后的 FIRE Number ¥/)).toBeVisible()
   await expect(page.getByText(/FIRE Number ¥/).first()).toBeVisible()
   await expect(page.getByRole('heading', { name: '储蓄率决定 FIRE 速度' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '全部 FIRE 方案' })).toBeVisible()

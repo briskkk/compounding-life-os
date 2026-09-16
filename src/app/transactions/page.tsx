@@ -17,6 +17,8 @@ import { TX_TYPE_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtDate, fmtDateTime, fmtMoney, fmtQty } from '@/lib/format'
 import type { TxType } from '@/lib/engine/types'
 import { TableScroll } from '@/components/table-scroll'
+import { dateKeyAt } from '@/lib/engine/watch-market'
+import { settlementStatus } from '@/lib/engine/settlement-status'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,6 +71,7 @@ export default async function TransactionsPage({
       })),
   ))
   const showHistory = sp.history === 'all' || sp.type === 'REVERSAL'
+  const todayKey = dateKeyAt(new Date())
   const baseWhere: Prisma.TransactionWhereInput = {
     asset: { cls: { not: 'HUAWEI_STOCK' as const } },
     ...(sp.account ? { accountId: sp.account } : {}),
@@ -250,7 +253,9 @@ export default async function TransactionsPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60">
-              {txs.map((t) => (
+              {txs.map((t) => {
+                const settlement = settlementStatus(t.settlementDate, todayKey)
+                return (
                 <tr
                   key={t.id}
                   title={t.voidedAt ? `该流水已于 ${fmtDateTime(t.voidedAt)} 冲正作废` : undefined}
@@ -285,8 +290,23 @@ export default async function TransactionsPage({
                   <td className="num px-2 py-2 text-right text-[13px] text-ink-dim" title="份额对应的净值日期（场外基金按 15:00 前后取当日或下一交易日）">
                     {t.navDate ? fmtDate(t.navDate) : '—'}
                   </td>
-                  <td className="num px-2 py-2 text-right text-[13px] text-ink-dim" title="资金到账日（申购/赎回的 T+N）">
-                    {t.settlementDate ? fmtDate(t.settlementDate) : '—'}
+                  <td className="num px-2 py-2 text-right text-[13px] text-ink-dim" title="资金到账日（申购/赎回的 T+N）；未到账即为在途">
+                    {t.settlementDate ? (
+                      // 在途语义：到账日未到且未作废时明确标出「在途 N 天」，而不是只给一个日期
+                      t.voidedAt ? (
+                        fmtDate(t.settlementDate)
+                      ) : settlement.state === 'IN_TRANSIT' ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          {fmtDate(t.settlementDate)}
+                          <Tag tone="info">在途 {settlement.days} 天</Tag>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5">
+                          {fmtDate(t.settlementDate)}
+                          <span className="text-ink-faint">已到账</span>
+                        </span>
+                      )
+                    ) : '—'}
                   </td>
                   <td className="max-w-[120px] truncate px-2 py-2 text-right text-[13px] text-ink-faint">{t.note ?? ''}</td>
                   <td className="px-4 py-2 text-right">
@@ -307,7 +327,8 @@ export default async function TransactionsPage({
                     )}
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
           </TableScroll>
