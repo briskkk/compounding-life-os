@@ -664,3 +664,10 @@ last_verified: 2026-09-10
 - FIRE_SIMS_DEFAULT 具名常量（默认 1500，注释附 1500/750/500/300 的成本与误差对照），数值不变。
 - FIRE 页不断供概率旁标注「蒙特卡洛估计」并悬停显示 ±1.3pp 抽样误差。
 - 单测 +1（默认值为 1500 且缺省与显式一致）；npm test 518/518、Playwright 92/92。
+
+# 2026-09-16 迭代 C 之 C2：AssetPicker combobox 化
+
+- asset-picker 改为 ARIA combobox（键盘可聚焦、↑↓/Home/End/Enter/Esc、listbox/group/option 语义、activedescendant、无匹配 role=status）。
+- 新增 E2E：纯键盘完成一次流水录入（键盘开面板 → 选资产 → 填金额备注 → 键盘提交）。
+- 修跨页今日盈亏冷启动残留差异：总览首渲染 SWR stale 值 vs 看盘实时值；测试先预热缓存，保持严格相等断言（9/9）。
+- 验证：npm test 518/518、build 通过、Playwright 93/93。

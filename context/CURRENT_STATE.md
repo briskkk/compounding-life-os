@@ -28,6 +28,8 @@ last_verified: 2026-09-15
 
 ## 最近完成
 
+- 迭代 C 之 C2（AssetPicker 键盘可达）：资产选择器从「不可聚焦的 div + 浮层」改为真正的 ARIA combobox（`role="combobox"` + `aria-expanded/controls/activedescendant`、listbox/group/option + `aria-selected`、↑↓/Home/End/Enter/Esc、失焦收起、无匹配用 `role="status"`），键盘用户现在可以完成录入；新增 E2E「纯键盘完成一次流水录入」。同时定位并修掉跨页今日盈亏的冷启动残留差异：总览首次渲染用 SWR stale 值（−2590.70）、看盘/日历取实时值（−3115.54），修法是比较前预热行情缓存，**保持严格相等断言**（repeat 8 次 9/9）。验证：`npm test` 518/518、构建通过、Playwright 93/93。
+
 - FIRE 页渲染成本优化：服务端插桩定位到 `loadGoals` 独占冷渲染 432ms（引擎状态 7ms、储蓄 <1ms），引擎级 `projectFireGoal` 冷算 230ms×2 情景=458ms。优化（数值不变）：采样计划（Cholesky/权重）从每 sim 重算改为按权重缓存一次、内层扁平化到定长数组并复用冲击数组、逐月分位改 quickselect、退休期支取额预计算、逐月数组预分配、**新增 `projectFireScenarios` 让两个投入情景共用同一条冲击序列**（458→181ms，−60%）、结果按输入 JSON 记忆化（输入未变时 6ms）。全量 E2E 由 23.0s 降到 16.7s。顺带修掉月数 NaN 会让 `projectStreamGoal` 抛错（页面 500）的隐患。新增 `src/test/projection-equivalence.test.ts`（10 例，含冻结基线逐字段 ≤1e-12 比对）。随后内联 Box-Muller 算式（逐位一致，页面规模冷算 221→213ms）。**冷路径结论**：首次渲染 loadGoals 409.7ms 中约 200ms 属进程内 JIT 预热（引擎预热后同为 213ms），故「数值不变」下冷渲染下限约 270ms；压到 150ms 需降低 sims。已把路径数收成具名常量 `FIRE_SIMS_DEFAULT`（默认仍 1500、注释附成本/误差对照），并在 FIRE 页概率旁如实标注「蒙特卡洛估计 · 抽样标准误约 ±1.3pp」；降低 sims 现在是一行改动的产品决策。验证：`npm test` 517/517、构建通过、Playwright 92/92。
 - B7 复盘与情景收口：储蓄率图 `domain` 改为 `['auto', 'auto']` 并去掉 `connectNulls`（负储蓄率不再被裁掉、缺数据月份断开），新增负储蓄率单测；已保存复盘解析 `metricsSnapshot` 并展示「保存以来」差异（TWR/MWR/最大回撤/估值覆盖率，阈值 0.05pp）；「已完成 → 草稿」降级与「重新完成」改走统一确认对话框（情景应用确认与 delayMonths 归零已在 B4 完成）。验证：`npm test` 507/507、构建通过、Playwright 92/92。
 - B6 同名指标拆名：MWR 与 XIRR 分开命名（「资金体验 MWR（区间）」/「XIRR · 年化资金体验」）；两个公式不同的换手率拆为「区间换手率」与「年化换手率」；**年化换手率真正算出**——`decision-library-data.ts` 的 `averageCapital` 从硬编码 `null` 改为区间内每日快照可投资口径均值，并返回 `averageCapitalDays`，界面标注分母与快照天数，无快照时明确显示「不可计算」原因。风险区 null 覆盖率经复核本就正确（null → `—`），未做无谓改动。验证：`npm test` 506/506、构建通过、Playwright 92/92。
@@ -122,6 +124,7 @@ last_verified: 2026-09-15
 3. SQLite 与 PostgreSQL 使用独立 schema；CI 已验证 PostgreSQL 建表和 RLS 契约，但真实生产迁移仍需在目标环境做备份、行数核对与回滚演练。
 
 ## 验证状态
+- `npm test`：2026-09-16 迭代 C 之 C2 后 75 文件、518/518 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 93/93（新增纯键盘录入用例）。
 - `npm test`：2026-09-16 FIRE 投影优化后 75 文件、517/517 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 92/92（16.7s）。
 - `npm test`：2026-09-16 B7 后 74 文件、507/507 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 92/92。
 - `npm test`：2026-09-16 B5-2 后 74 文件、506/506 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 92/92。
