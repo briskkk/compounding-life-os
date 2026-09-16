@@ -76,6 +76,20 @@ describe('设计 token：字号下限', () => {
     expect(hits).toEqual([])
   })
 
+  it('断点只用登记值（防止继续增长；收敛到 5 个是后续任务）', () => {
+    // 当前 14 个宽度值是历史积累的结果：1360/1361、1024/1025、900/901 是互补配对（不能单独挪动），
+    // 其余多为一次性微调。收敛到 640/1024/1280/1440/1600 需要逐个媒体查询核对意图，
+    // 并在受影响宽度（如 700/1300/1350）逐档验证，因此先加增长守卫，避免又冒出第 15 个值。
+    const allowed = new Set(['420', '520', '640', '720', '760', '900', '901', '1024', '1025', '1080', '1100', '1180', '1300', '1340', '1360', '1361', '1599'])
+    const hits: string[] = []
+    for (const file of CSS_FILES) {
+      for (const match of readFileSync(file, 'utf8').matchAll(/@media[^{]*\((?:min|max)-width:\s*(\d+)px\)/g)) {
+        if (!allowed.has(match[1])) hits.push(`${file}: ${match[0].trim()}`)
+      }
+    }
+    expect(hits).toEqual([])
+  })
+
   it('最小一级字号有 token 且被使用', () => {
     const theme = readFileSync('src/app/globals.css', 'utf8')
     expect(theme).toContain('--font-size-micro: 12px')

@@ -28,6 +28,8 @@ last_verified: 2026-09-15
 
 ## 最近完成
 
+- 迭代 C 之 C4（断点）：实测共 **17 个**宽度值（非 14），其中 1360/1361、1024/1025、900/901 是互补配对不能单独挪动；本轮先加「断点只用登记值」的增长守卫（第 6 例），避免继续增长；批量收敛到 5 个需在 700/1300/1350 等**当前无 E2E 覆盖**的宽度逐档验证，因此推迟。验证：`npm test` 528/528、构建通过、Playwright 96/96。
+
 - 迭代 C 之 C4（阴影收敛）：5 种抬升阴影 → 2 档 token（`--shadow-card` 卡片 / `--shadow-pop` 浮层）；`inset` 描边、实心环与状态光晕明确归为「语义描边」并写进守卫（颜色必须走 token）。守卫增至 5 例。断点 14 个仍待收敛。验证：`npm test` 527/527、构建通过、Playwright 96/96。
 
 - 迭代 C 之 C4（圆角收敛）：10 种圆角 → 5 档 token（`--radius-xs/sm/md/lg/pill`），多值简写逐角 token 化；守卫新增「圆角只用登记档位」一例（允许 `50%`/`inherit`/1px/2px 细线例外）。阴影 20 种与断点 14 个仍待收敛。验证：`npm test` 526/526、构建通过、Playwright 96/96。
@@ -140,6 +142,7 @@ last_verified: 2026-09-15
 3. SQLite 与 PostgreSQL 使用独立 schema；CI 已验证 PostgreSQL 建表和 RLS 契约，但真实生产迁移仍需在目标环境做备份、行数核对与回滚演练。
 
 ## 验证状态
+- `npm test`：2026-09-16 迭代 C 之 C4（断点守卫）后 77 文件、528/528 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 96/96。
 - `npm test`：2026-09-16 迭代 C 之 C4（阴影收敛）后 77 文件、527/527 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 96/96。
 - `npm test`：2026-09-16 迭代 C 之 C4（圆角收敛）后 77 文件、526/526 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 96/96。
 - `npm test`：2026-09-16 迭代 C 之 C4（字号下限）后 77 文件、525/525 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 96/96。
