@@ -5,6 +5,7 @@ import { fmtCNY, fmtPct, toneOf } from '@/lib/format'
 import { InvestmentHistoryBand } from './investment-history-band'
 import { InvestmentHistoryContribution, type ContributionViewKey } from './investment-history-contribution'
 import { ScopeLabel } from '@/components/ui'
+import { SectionNav } from '@/components/section-nav'
 
 function toneClass(value: number | null): string {
   if (value == null) return 'text-ink-faint'
@@ -106,8 +107,20 @@ export function HistoryClient({
         </div>
       </header>
 
+      {/* 章节条放在空态判断之外：无论有无数据，位置一致 */}
+      <SectionNav
+        ariaLabel="长期复盘章节"
+        items={[
+          { id: 'ih-outcome', label: '01 结果桥' },
+          { id: 'ih-path', label: '02 年度路径' },
+          { id: 'ih-band', label: '03 决策时间带' },
+          { id: 'ih-contribution', label: '04 贡献归因' },
+          { id: 'ih-data', label: '05 数据资格' },
+        ]}
+      />
+
       {data.empty ? (
-        <section className="section-panel review-section">
+        <section id="ih-outcome" className="section-panel review-section">
           <p className="review-empty">当前没有可投资资产流水，暂时无法生成长期复盘。</p>
         </section>
       ) : (
@@ -214,7 +227,7 @@ export function HistoryClient({
           </section>
 
           {/* 02 年度路径 */}
-          <section className="section-panel review-section" aria-label="年度路径">
+          <section id="ih-path" className="section-panel review-section" aria-label="年度路径">
             <div className="review-section-heading">
               <div>
                 <span>02</span>
@@ -279,7 +292,7 @@ export function HistoryClient({
           </section>
 
           {/* 03 决策时间带 */}
-          <section className="section-panel review-section" aria-label="决策时间带">
+          <section id="ih-band" className="section-panel review-section" aria-label="决策时间带">
             <div className="review-section-heading">
               <div>
                 <span>03</span>
@@ -304,7 +317,7 @@ export function HistoryClient({
           <InvestmentHistoryContribution contributions={data.contributions} view={view} query={query} />
 
           {/* 05 数据资格与证据水位 */}
-          <section className="section-panel review-section" aria-label="数据资格与证据水位">
+          <section id="ih-data" className="section-panel review-section" aria-label="数据资格与证据水位">
             <div className="review-section-heading">
               <div>
                 <span>05</span>

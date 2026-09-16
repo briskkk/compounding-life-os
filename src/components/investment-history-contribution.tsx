@@ -52,7 +52,7 @@ export function InvestmentHistoryContribution({
   }
 
   return (
-    <section className="section-panel review-section" aria-label="贡献归因">
+    <section id="ih-contribution" className="section-panel review-section" aria-label="贡献归因">
       <div className="review-section-heading">
         <div>
           <span>04</span>

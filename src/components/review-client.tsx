@@ -11,6 +11,7 @@ import { cx, fmtCNY, fmtDateTime, fmtPct, toneOf } from '@/lib/format'
 import type { ReactNode } from 'react'
 import { ScopeLabel, ReadOnlyNotice } from '@/components/ui'
 import { useConfirm } from '@/components/confirm-dialog'
+import { SectionNav } from '@/components/section-nav'
 
 type Dimension = 'asset' | 'source' | 'class'
 
@@ -300,14 +301,17 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
         </div>
       </header>
 
-      <nav className="review-section-nav" aria-label="复盘章节">
-        <a href="#outcome">01 结果</a>
-        <a href="#contribution">02 贡献</a>
-        <a href="#timing">03 时点</a>
-        <a href="#decisions">04 决策</a>
-        <a href="#risk">05 风险</a>
-        <a href="#notes">06 笔记</a>
-      </nav>
+      <SectionNav
+        ariaLabel="复盘章节"
+        items={[
+          { id: 'outcome', label: '01 结果' },
+          { id: 'contribution', label: '02 贡献' },
+          { id: 'timing', label: '03 时点' },
+          { id: 'decisions', label: '04 决策' },
+          { id: 'risk', label: '05 风险' },
+          { id: 'notes', label: '06 笔记' },
+        ]}
+      />
 
       <section id="outcome" className="review-outcome chart-surface">
         <div className="review-outcome-main">

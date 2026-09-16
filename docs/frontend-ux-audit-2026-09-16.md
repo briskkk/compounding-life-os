@@ -404,6 +404,13 @@
 
 ### 迭代 C 执行结果（2026-09-16 起）
 
+**C5 复盘/长期复盘章节 scroll-spy：已完成**
+
+- 新增 `SectionNav`（`src/components/section-nav.tsx`）：`IntersectionObserver` 观察各章节，取**最靠上的可见章节**为当前项（停在两节之间时保留上一次结果，避免跳动），用 `aria-current="location"` 暴露给读屏，并给样式一个 `is-active` 钩子（当前项加下划线）。
+- 周期复盘 `/review`：原先 6 个纯锚点（滚到哪一节都没有反馈，审计 P1-11）→ 改用 `SectionNav`，保留原有 01–06 文案。
+- 长期复盘 `/review/history`：此前**根本没有章节条**，且五个主要区块没有 id；现补 `ih-outcome / ih-path / ih-band / ih-contribution / ih-data` 五个锚点与章节条（放在空态判断之外，保证有无数据位置一致），贡献归因组件的 section 也补了 id。
+- E2E：新增「复盘章节导航：随滚动更新当前态」——断言首屏停在 01、点击锚点后当前态立即跟上、滚动到 `#risk` 后 05 成为当前项且**全导航只有一个当前项**；长期复盘滚动到 `#ih-data` 后 05 数据资格成为当前项。
+
 **C7 流水在途语义与 FIRE 首屏命名/单位：已完成**
 
 - **在途语义**：把「结算状态」抽成引擎唯一判定 `settlementStatus()`（`src/lib/engine/settlement-status.ts`）：到账日在未来 → `IN_TRANSIT` 并给出自然日差、今天或过去 → `SETTLED`、无到账日（如待确认申购主腿，其在途结算腿是独立行）→ `NONE`。流水表结算日列据此渲染——`在途 N 天`（info 标签）/「已到账」/「—」，不再只给一个看不出状态的裸日期。单测 4 例覆盖跨月跨年与无效输入。

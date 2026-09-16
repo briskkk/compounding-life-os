@@ -693,3 +693,9 @@ last_verified: 2026-09-10
 - FIRE 首屏只留「计划成功率」+ 口径副标签；退休日积累达标概率移入情景实验室；图表下方补完整金额。
 - 在途 E2E 因前提错误改为单测（申购主腿没有 settlementDate）。
 - 验证：npm test 522/522、build 通过、Playwright 95/95。
+
+# 2026-09-16 迭代 C 之 C5：章节 scroll-spy
+
+- 新增 SectionNav（IntersectionObserver + aria-current=location），周期复盘 6 项章节条改用；长期复盘补 5 个区块 id 与章节条。
+- E2E：当前态随滚动更新、点击锚点立即生效、全导航仅一个当前项。
+- 验证：npm test 522/522、build 通过、Playwright 96/96。

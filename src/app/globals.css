@@ -8559,3 +8559,10 @@ kbd {
   font-size: 12px;
   line-height: 1.6;
 }
+
+/* 章节导航当前态（scroll-spy）：滚动到哪一节就在哪一项上标记 */
+.review-section-nav a.is-active,
+.review-section-nav a[aria-current='location'] {
+  color: var(--color-ink);
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+}

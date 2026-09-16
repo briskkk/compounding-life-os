@@ -186,3 +186,28 @@ test('决策库：事件表、资格与 1280/1440 无溢出', async ({ page }) =
     expect(overflow).toBeLessThanOrEqual(1)
   }
 })
+
+test('复盘章节导航：随滚动更新当前态', async ({ page }) => {
+  await page.goto('/review')
+  const nav = page.getByRole('navigation', { name: '复盘章节' })
+  await expect(nav).toBeVisible()
+  // 首屏应停在 01 结果
+  await expect(nav.locator('a[aria-current="location"]')).toHaveCount(1)
+  await nav.getByRole('link', { name: '01 结果' }).click()
+  await expect(nav.getByRole('link', { name: '01 结果' })).toHaveAttribute('aria-current', 'location')
+
+  // 滚到「05 风险」章节，当前态必须跟着走（且始终只有一个当前项）
+  await page.locator('#risk').scrollIntoViewIfNeeded()
+  await page.waitForTimeout(500)
+  await expect(nav).toBeVisible()
+  await expect(nav.getByRole('link', { name: '05 风险' })).toHaveAttribute('aria-current', 'location')
+  await expect(nav.locator('a[aria-current="location"]')).toHaveCount(1)
+
+  // 长期复盘同样有章节条并跟随滚动
+  await page.goto('/review/history')
+  const historyNav = page.getByRole('navigation', { name: '长期复盘章节' })
+  await expect(historyNav).toBeVisible()
+  await page.locator('#ih-data').scrollIntoViewIfNeeded()
+  await page.waitForTimeout(500)
+  await expect(historyNav.getByRole('link', { name: '05 数据资格' })).toHaveAttribute('aria-current', 'location')
+})
