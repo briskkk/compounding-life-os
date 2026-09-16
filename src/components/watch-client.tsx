@@ -379,9 +379,11 @@ export function WatchClient({
                 <td className="num px-2 py-2.5 text-right text-ink">{fmtCNY(r.valueCny)}</td>
                 <td className={cx('num px-2 py-2.5 text-right', r.dayPnlCny == null ? 'text-ink-faint' : r.dayPnlCny >= 0 ? 'text-up' : 'text-down')}>
                   {r.dayPnlCny != null ? fmtCNY(r.dayPnlCny, { sign: true }) : '—'}
-                  {r.dayPnlCny != null && !r.currentPortfolioDay && (
+                  {/* 数据日不是今天时必须说清楚：此时该行不计入今日盈亏（旧条件是
+                      dayPnlCny != null && !currentPortfolioDay，互斥因而永远不显示） */}
+                  {!r.currentPortfolioDay && r.tradingDate && (
                     <div className="mt-0.5 text-[12px] font-normal text-ink-faint">
-                      交易日 {r.tradingDate ?? '未知'}
+                      数据日 {r.tradingDate}
                     </div>
                   )}
                 </td>

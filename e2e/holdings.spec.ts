@@ -45,3 +45,21 @@ test('看盘页：资产排序、详情跳转与当前资产流水录入', async
   await expect(page.getByText(/已绑定 \d+ 条流水/)).toBeVisible()
   await expect(page.getByRole('button', { name: '删除资产' })).toHaveCount(0)
 })
+
+test('看盘页：数据日不是今天时，当日盈亏显示「—」并说明数据日', async ({ page }) => {
+  // 模拟场外基金净值滞后（真实场景：官方净值 T+1，或行情通道失败回落持久化净值）
+  await page.route('**/api/prices**', async (route) => {
+    const response = await route.fetch()
+    const body = await response.json()
+    const quotes = (body.quotes ?? []).map((quote: { symbol: string; tradingDate?: string }) => (
+      quote.symbol === '110022' ? { ...quote, tradingDate: '2026-09-14' } : quote
+    ))
+    await route.fulfill({ response, body: JSON.stringify({ ...body, quotes }) })
+  })
+  await page.goto('/watch')
+  const row = page.locator('tbody tr').filter({ hasText: '110022' }).first()
+  await expect(row).toBeVisible()
+  await expect(row.getByText('数据日 2026-09-14')).toBeVisible()
+  // 该行不应有今日盈亏数字（只有「—」与数据日说明）
+  await expect(row.locator('td').nth(5)).toContainText('—')
+})
