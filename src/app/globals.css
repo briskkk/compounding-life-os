@@ -8614,3 +8614,17 @@ kbd {
     padding-inline: 6px;
   }
 }
+
+/* 复盘结果桥在平板竖屏（≤900px）改为单列 + 指标可换行：
+   原先 7 列 auto 网格在 800px 下撑出 74px 页面级横向溢出（由宽度测试网发现）。 */
+@media (max-width: 900px) {
+  .review-outcome {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+
+  .review-bridge {
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    justify-content: start;
+  }
+}

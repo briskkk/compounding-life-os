@@ -28,6 +28,8 @@ last_verified: 2026-09-15
 
 ## 最近完成
 
+- C4 断点收敛第 1 步：新增 `e2e/widths.spec.ts`（8 页 × 7 宽度断言无页面级横向溢出），**首次运行即抓到既有缺陷**——长期复盘在 800px 溢出 74px（`.review-bridge` 7 列 auto 网格无法收缩），用已有 900px 断点改为单列 + 可换行修复。下一步再做真正合并（17 → ≤8，保留互补配对）。验证：`npm test` 530/530、构建通过、Playwright 106/106。
+
 - 迭代 C 之 C9（金额与时间戳格式统一）：修掉 3 处裸格式（对账余额 `toFixed(2)`、拆分份数与 CSV 预览金额 `toLocaleString`）与导入批次金额，全部改走 `fmtCNY`/`fmtQty`/`fmtDateTime`；守卫新增 2 例（禁裸 `¥{`，`toLocaleString` 只允许登记文件）。验证：`npm test` 530/530、构建通过、Playwright 97/97。仅剩「指标解读与时间带降噪」与断点收敛。
 
 - 迭代 C 之 C9（P2 锚点）：`#new-goal` 的两处入口此前指向默认收起的普通 `<details>`，点击只滚动不展开；改用 `HashOpenDetails` 后点击与直接带 hash 刷新都会展开表单，并新增 E2E。C9 其余项（金额格式、时间戳文案、指标解读与时间带降噪）留下一轮。验证：`npm test` 528/528、构建通过、Playwright 97/97。
@@ -146,6 +148,7 @@ last_verified: 2026-09-15
 3. SQLite 与 PostgreSQL 使用独立 schema；CI 已验证 PostgreSQL 建表和 RLS 契约，但真实生产迁移仍需在目标环境做备份、行数核对与回滚演练。
 
 ## 验证状态
+- `npm test`：2026-09-16 C4 断点第 1 步后 77 文件、530/530 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 106/106（新增宽度测试网 8 例）。
 - `npm test`：2026-09-16 迭代 C 之 C9（格式统一）后 77 文件、530/530 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 97/97。
 - `npm test`：2026-09-16 迭代 C 之 C9（锚点）后 77 文件、528/528 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 97/97。
 - `npm test`：2026-09-16 迭代 C 之 C4（断点守卫）后 77 文件、528/528 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 96/96。
