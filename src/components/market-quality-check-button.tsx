@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { runMarketQualityCheck } from '@/lib/actions'
 import { cx } from '@/lib/format'
 
 export function MarketQualityCheckButton() {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -18,7 +18,7 @@ export function MarketQualityCheckButton() {
     if (result.ok) {
       const data = result.data!
       setMessage(`已检查 ${data.checked} 项 · ${data.divergent} 项价差需关注 · ${data.failed} 项全源失败`)
-      router.refresh()
+      navigateAfterWrite({ message: '已检查当前持仓跨源价差并留审计证据' })
     } else {
       setMessage(result.error)
     }

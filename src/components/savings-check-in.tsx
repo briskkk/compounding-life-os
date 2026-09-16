@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { useMemo, useState, type FormEvent } from 'react'
 import { upsertSavingsEntry } from '@/lib/actions'
 import { Field, FormMsg, btnCls, inputCls } from './fields'
@@ -15,7 +15,7 @@ interface SavingsCheckInProps {
 const amount = (value: number) => `¥${Math.abs(value).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`
 
 export function SavingsCheckIn({ month, income: initialIncome, spending: initialSpending, savedAmount: initialSaved }: SavingsCheckInProps) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [periodType, setPeriodType] = useState<'MONTH' | 'WEEK'>('MONTH')
   const [period, setPeriod] = useState(month)
   const [income, setIncome] = useState(initialIncome)
@@ -61,8 +61,7 @@ export function SavingsCheckIn({ month, income: initialIncome, spending: initial
     })
     setPending(false)
     if (result.ok) {
-      setMsg({ ok: true, text: periodType === 'MONTH' ? '月度收支已保存' : '本周记录已保存并自动汇总' })
-      router.refresh()
+      navigateAfterWrite({ message: periodType === 'MONTH' ? '月度收支已保存' : '本周记录已保存并自动汇总' })
     } else {
       setMsg({ ok: false, text: result.error })
     }

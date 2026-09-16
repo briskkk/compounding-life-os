@@ -2,7 +2,7 @@
 
 // 手工录入流水；基金资产启用智能录入（按金额申购 / 卖出自动关联当前份额，ADR-012）
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { createTransaction } from '@/lib/actions'
 import { Field, FormMsg, btnCls, inputCls } from './fields'
 import { AssetPicker } from './asset-picker'
@@ -78,7 +78,7 @@ export function TxForm({
   lockAccount?: boolean
   layout?: 'compact' | 'wide'
 }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const requestedAsset = assets.find((asset) => asset.id === initialAssetId)
   const firstAccount = accounts.find((account) => account.id === initialAccountId)
     ?? accounts.find((account) => account.currency === requestedAsset?.currency)
@@ -287,10 +287,6 @@ export function TxForm({
         : navSource === 'PENDING'
           ? '申购已写入账本，净值与份额待官方确认'
           : isLongTermAsset ? '长期资产记录已保存' : '已写入账本，快照已重建'
-      // 快照重建失败等未完成部分必须显示为警告，不能当作成功
-      setMsg(res.warning
-        ? { ok: false, tone: 'warn', text: base + '；' + res.warning }
-        : { ok: true, tone: 'ok', text: base })
       requestKeyRef.current = newRequestKey()
       form.reset()
       setType(defaultType)
@@ -301,7 +297,11 @@ export function TxForm({
       setFeeText('0')
       setPriceTouched(false)
       setSettleTouched(false)
-      router.refresh()
+      // 写入成功后走真实导航并带一次性提示（P0-11：不再依赖 router.refresh 的应用顺序）；
+      // 快照重建失败等未完成部分必须以警告语气展示，不能当作成功。
+      navigateAfterWrite(res.warning
+        ? { message: base + '；' + res.warning, tone: 'warn' }
+        : { message: base, tone: 'ok' })
     } else {
       setFieldErrors(res.fieldErrors ?? null)
       setMsg({ ok: false, text: res.error })

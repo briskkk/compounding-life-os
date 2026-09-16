@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { deleteFundTradePolicy, saveFundTradePolicy } from '@/lib/actions'
 import { parseRedemptionFeeRules } from '@/lib/engine/fund-policy'
 import { btnCls, Field, FormMsg, inputCls } from './fields'
@@ -43,7 +43,7 @@ function parseRules(value: string) {
 }
 
 export function FundPolicyForm({ funds, policies }: { funds: FundOption[]; policies: PolicyOption[] }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [assetId, setAssetId] = useState(funds[0]?.id ?? '')
   const [pending, setPending] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -66,8 +66,11 @@ export function FundPolicyForm({ funds, policies }: { funds: FundOption[]; polic
       note: String(fd.get('note') ?? '') || null,
     })
     setPending(false)
-    setMsg(res.ok ? { ok: true, text: '基金交易规则已保存并接入流水校验' } : { ok: false, text: res.error })
-    if (res.ok) router.refresh()
+    if (res.ok) {
+      navigateAfterWrite({ message: '基金交易规则已保存并接入流水校验' })
+      return
+    }
+    setMsg({ ok: false, text: res.error })
   }
 
   async function remove() {
@@ -75,8 +78,11 @@ export function FundPolicyForm({ funds, policies }: { funds: FundOption[]; polic
     setPending(true)
     const res = await deleteFundTradePolicy(selected.id)
     setPending(false)
-    setMsg(res.ok ? { ok: true, text: '规则已删除' } : { ok: false, text: res.error })
-    if (res.ok) router.refresh()
+    if (res.ok) {
+      navigateAfterWrite({ message: '规则已删除' })
+      return
+    }
+    setMsg({ ok: false, text: res.error })
   }
 
   return (

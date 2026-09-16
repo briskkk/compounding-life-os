@@ -1,13 +1,13 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { useState, useTransition } from 'react'
 import { rebuildDerivedSnapshots, refreshPrices } from '@/lib/actions'
 
 type Operation = 'quotes' | 'snapshots'
 
 export function HealthRepairActions() {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [pending, startTransition] = useTransition()
   const [active, setActive] = useState<Operation | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -25,7 +25,7 @@ export function HealthRepairActions() {
       else setMessage(`已重建 ${result.data?.days ?? 0} 天派生快照`)
     }
     setActive(null)
-    router.refresh()
+    navigateAfterWrite({ message: '行情与派生快照维护已完成' })
   })
 
   return (

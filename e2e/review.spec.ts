@@ -121,7 +121,8 @@ test('长期复盘：成立以来/近五年/自然年范围切换、桥与数据
   await expect(page.locator('.ii-band-chart svg polyline')).toBeVisible()
   await expect(page.getByRole('heading', { name: '收益贡献与对账' })).toBeVisible()
   await expect(page.getByText(/待对账差额 = 组合总收益/)).toBeVisible()
-  await page.getByRole('tab', { name: '按市场' }).click()
+  await page.getByRole('link', { name: '按市场' }).click()
+  await expect(page).toHaveURL(/view=market/)
   await expect(page.getByText('境内市场').first()).toBeVisible()
 })
 

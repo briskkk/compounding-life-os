@@ -4,7 +4,7 @@
 // 设计遵循 MASTER.md：无侧边栏、标签结构、编辑型金融界面的键值行、surface 卡片
 import Link from 'next/link'
 import { useEffect, useState, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { inputCls, btnCls, btnGhostCls } from '@/components/fields'
 import { cx, fmtDateTime } from '@/lib/format'
 
@@ -40,7 +40,7 @@ const TABS: { key: Tab; label: string }[] = [
 ]
 
 function useSubmit() {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [pending, setPending] = useState(false)
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
   return {
@@ -58,7 +58,7 @@ function useSubmit() {
           return false
         }
         setNotice({ ok: true, text: '已保存' })
-        router.refresh()
+        navigateAfterWrite({ message: '已保存' })
         return true
       } catch {
         setNotice({ ok: false, text: '网络错误，请重试' })
@@ -458,7 +458,7 @@ function FamilyPanel({
 }
 
 function MemberManageRow({ member, isOwner }: { member: MemberRow; isOwner: boolean }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [resetOpen, setResetOpen] = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
@@ -470,14 +470,14 @@ function MemberManageRow({ member, isOwner }: { member: MemberRow; isOwner: bool
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ role: nextRole }),
     })
-    if (res.ok) router.refresh()
+    if (res.ok) navigateAfterWrite({ message: '成员角色已更新' })
     else setNotice(((await res.json()) as { error?: string }).error ?? '操作失败')
   }
 
   async function removeMember() {
     if (!window.confirm(`确定移除成员「${member.name}」？其账号仍保留，但将无法访问本家庭数据。`)) return
     const res = await fetch(`/api/family/members/${member.id}`, { method: 'DELETE' })
-    if (res.ok) router.refresh()
+    if (res.ok) navigateAfterWrite({ message: '成员已移除，其账号仍保留' })
     else setNotice(((await res.json()) as { error?: string }).error ?? '移除失败')
   }
 
@@ -543,7 +543,7 @@ function MemberManageRow({ member, isOwner }: { member: MemberRow; isOwner: bool
 }
 
 function InviteSection() {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [role, setRole] = useState('MEMBER')
   const [invites, setInvites] = useState<{ id: string; code: string; role: string; expiresAt: string }[] | null>(null)
   const [generated, setGenerated] = useState<{ code: string } | null>(null)
@@ -610,13 +610,18 @@ function InviteSection() {
       )}
       {notice && <p role="alert" className="mt-3 text-sm text-down">{notice}</p>}
       <span className="hidden" data-invite-refresh />
-      <button type="button" className="hidden" onClick={() => router.refresh()} data-invite-refresh-btn />
+      <button
+        type="button"
+        className="hidden"
+        onClick={() => window.location.reload()}
+        data-invite-refresh-btn
+      />
     </Card>
   )
 }
 
 function JoinFamilyCard() {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [code, setCode] = useState('')
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
   const [pending, setPending] = useState(false)
@@ -637,8 +642,7 @@ function JoinFamilyCard() {
         return
       }
       setCode('')
-      setNotice({ ok: true, text: '已加入家庭' })
-      router.refresh()
+      navigateAfterWrite({ message: '已加入家庭' })
     } finally {
       setPending(false)
     }

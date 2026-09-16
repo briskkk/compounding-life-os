@@ -8,6 +8,8 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { FamilySwitcher, type FamilyOption } from '@/components/family-switcher'
 import { LogoutButton } from '@/components/user-menu'
 import { RefreshPricesButton } from '@/components/refresh-prices-button'
+import { FlashBanner } from '@/components/flash-banner'
+import { WriteFlashProvider } from '@/lib/write-navigation'
 import { TerminalIcon, type TerminalIconName } from '@/components/terminal-icon'
 
 const PAGE_NAMES: Array<[string, string]> = [
@@ -176,7 +178,8 @@ export function AppShell({
   }
 
   return (
-    <div className={`terminal-frame${collapsed ? ' is-collapsed' : ''}${mobileOpen ? ' is-mobile-open' : ''}`}>
+    <WriteFlashProvider>
+      <div className={`terminal-frame${collapsed ? ' is-collapsed' : ''}${mobileOpen ? ' is-mobile-open' : ''}`}>
       <a href="#main-content" className="terminal-skip-link">跳至主要内容</a>
       <button type="button" className="terminal-mobile-scrim" aria-label="关闭导航" onClick={() => setMobileOpen(false)} />
       <aside className="terminal-sidebar">
@@ -219,7 +222,10 @@ export function AppShell({
             </Link>
           </div>
         </header>
-        <main id="main-content" className="terminal-main">{children}</main>
+        <main id="main-content" className="terminal-main">
+          <FlashBanner />
+          {children}
+        </main>
       </div>
 
       {searchOpen && (
@@ -235,7 +241,7 @@ export function AppShell({
                 <section key={group.label} className="terminal-command-group" aria-label={group.label}>
                   <p>{group.label}</p>
                   {group.links.map((link) => (
-                    <Link key={link.href} href={link.href} onClick={() => setSearchOpen(false)}>
+                    <Link key={link.href} href={link.href} prefetch={false} onClick={() => setSearchOpen(false)}>
                       <TerminalIcon name={link.icon} /><span>{link.label}</span><kbd>↵</kbd>
                     </Link>
                   ))}
@@ -246,6 +252,7 @@ export function AppShell({
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </WriteFlashProvider>
   )
 }

@@ -14,7 +14,7 @@ test('定投管理：创建计划、核对既有 BUY 并结束计划', async ({ 
   await page.getByLabel('开始日期').fill('2026-07-01')
   await page.getByLabel(/510300/).check()
   await page.getByRole('button', { name: '开始跟踪计划' }).click()
-  await expect(page.getByText('定投计划已开始跟踪')).toBeVisible()
+  await expect(page.getByTestId('write-flash')).toContainText('定投计划已开始跟踪')
 
   await page.goto('/investment-plans?month=2026-07')
   const plan = page.getByRole('article').filter({ hasText: '沪深 300 月定投' })
@@ -68,7 +68,7 @@ test('定投管理：核对平台实际申购后快速录入，计划节点不�
   await day.getByLabel('易方达消费行业实际申购金额').fill('123')
   await day.getByLabel(/我已核对平台记录/).check()
   await day.getByRole('button', { name: /录入 1 笔/ }).click()
-  await expect(page.getByRole('status')).toContainText('1 笔实际申购已录入')
+  await expect(page.getByTestId('write-flash')).toContainText('1 笔实际申购已录入')
   await expect(page.getByText('1 笔 / ¥123.00 待官方净值确认')).toBeVisible()
   await expect(page.getByRole('article').filter({ hasText: '易方达消费定投' }).locator('.investment-plan-day').first()).toContainText('份额待确认')
 
@@ -117,7 +117,7 @@ test('定投管理：核对平台实际申购后快速录入，计划节点不�
   await sep14Entry.getByLabel('易方达消费行业实际申购金额').fill('125')
   await sep14Entry.getByLabel(/我已核对平台记录/).check()
   await sep14Entry.getByRole('button', { name: /录入 1 笔/ }).click()
-  await expect(page.getByRole('status')).toContainText('1 笔实际申购已录入')
+  await expect(page.getByTestId('write-flash')).toContainText('1 笔实际申购已录入')
   await expect(septemberPlan.locator('.investment-plan-day').filter({ hasText: '09/14' })).toContainText('已录入')
 })
 
@@ -131,7 +131,7 @@ test('定投管理：整日未买一次核对、计划状态可撤销，历史�
   await expect(entry).toHaveAttribute('open', '')
   await entry.getByLabel(/未勾选的 1 只基金.*确实没有买入/).check()
   await entry.getByRole('button', { name: /确认 1 只未买/ }).click()
-  await expect(page.getByRole('status')).toContainText('1 只已核对未买入')
+  await expect(page.getByTestId('write-flash')).toContainText('1 只已核对未买入')
   await expect(plan.locator('.investment-plan-day').filter({ hasText: '09/11' })).toContainText('未买入')
   await expect(page.locator('#quick-entry-2026-09-11-CNY')).toHaveCount(0)
   expect(await plan.locator('.investment-plan-amounts > div').nth(2).locator('b').textContent()).toBe(beforeActual)

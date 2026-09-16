@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { saveAllocationTargets } from '@/lib/actions'
 import type { AssetClass } from '@/lib/engine/types'
 import { ASSET_CLASS_LABEL } from '@/lib/labels'
@@ -19,7 +19,7 @@ export function AllocationTargetEditor({
   initial: TargetValue[]
   tolerancePct: number
 }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [values, setValues] = useState(initial)
   const [tolerance, setTolerance] = useState(tolerancePct)
   const [pending, setPending] = useState(false)
@@ -49,8 +49,7 @@ export function AllocationTargetEditor({
     })
     setPending(false)
     if (result.ok) {
-      setMsg({ ok: true, text: '目标配置已保存' })
-      router.refresh()
+      navigateAfterWrite({ message: '目标配置已保存' })
     } else {
       setMsg({ ok: false, text: result.error })
     }

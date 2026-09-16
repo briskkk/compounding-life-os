@@ -3,7 +3,7 @@
 // CSV 导入：浏览器端解析预览 → 服务端校验入库
 import { useRef, useState } from 'react'
 import Papa from 'papaparse'
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { importTransactions } from '@/lib/actions'
 import {
   applyCsvMapping,
@@ -24,7 +24,7 @@ export function CsvImport({
   accounts: { id: string; name: string }[]
   assets: { id: string; symbol: string; name: string }[]
 }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const fileRef = useRef<HTMLInputElement>(null)
   const [sourceRows, setSourceRows] = useState<Record<string, string>[]>([])
   const [rawRows, setRawRows] = useState<Record<string, string>[]>([])
@@ -76,12 +76,10 @@ export function CsvImport({
     setPending(false)
     if (res.ok && res.data) {
       const d = res.data
-      setMsg({
-        ok: d.duplicateBatch || (d.failed === 0 && !res.warning),
-        text: d.duplicateBatch
+      const flashText = d.duplicateBatch
           ? `该文件已导入，本次未重复写入（批次 ${d.batchId.slice(0, 8)}）`
-          : `导入 ${d.imported} 条成功${d.duplicates > 0 ? `，跳过 ${d.duplicates} 条重复` : ''}${d.failed > 0 ? `，${d.failed} 条失败（行号：${d.errors.map((e) => e.row).join(', ')}）` : ''}；金额 ${d.totalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}，费用 ${d.totalFees.toLocaleString(undefined, { maximumFractionDigits: 2 })}（批次 ${d.batchId.slice(0, 8)}）${res.warning ? `；${res.warning}` : ''}`,
-      })
+          : `导入 ${d.imported} 条成功${d.duplicates > 0 ? `，跳过 ${d.duplicates} 条重复` : ''}${d.failed > 0 ? `，${d.failed} 条失败（行号：${d.errors.map((e) => e.row).join(', ')}）` : ''}；金额 ${d.totalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}，费用 ${d.totalFees.toLocaleString(undefined, { maximumFractionDigits: 2 })}（批次 ${d.batchId.slice(0, 8)}）${res.warning ? `；${res.warning}` : ''}`
+      setMsg({ ok: !d.duplicateBatch && d.failed === 0 && !res.warning, text: flashText })
       setPreview([])
       setRawRows([])
       setSourceRows([])
@@ -89,7 +87,7 @@ export function CsvImport({
       setMapping({})
       setSourceName('')
       if (fileRef.current) fileRef.current.value = ''
-      router.refresh()
+      navigateAfterWrite({ message: flashText, tone: d.duplicateBatch || d.failed > 0 || res.warning ? 'warn' : 'ok' })
     } else if (!res.ok) {
       setMsg({ ok: false, text: res.error })
     }

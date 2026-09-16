@@ -12,16 +12,16 @@ export function ReviewModeNav({
   const cyclicalHref = monthParam ? `/review?period=THIS_MONTH&month=${month}` : '/review'
   return (
     <nav className="ii-mode-strip" aria-label="复盘模式" style={{ marginBottom: '0.5rem' }}>
-      <Link href={`/month-close${monthParam}`} className={current === 'month-close' ? 'ii-mode-item is-active' : 'ii-mode-item'} aria-current={current === 'month-close' ? 'page' : undefined}>
+      <Link href={`/month-close${monthParam}`} prefetch={false} className={current === 'month-close' ? 'ii-mode-item is-active' : 'ii-mode-item'} aria-current={current === 'month-close' ? 'page' : undefined}>
         月结中心
       </Link>
-      <Link href={cyclicalHref} className={current === 'cyclical' ? 'ii-mode-item is-active' : 'ii-mode-item'} aria-current={current === 'cyclical' ? 'page' : undefined}>
+      <Link href={cyclicalHref} prefetch={false} className={current === 'cyclical' ? 'ii-mode-item is-active' : 'ii-mode-item'} aria-current={current === 'cyclical' ? 'page' : undefined}>
         周期复盘
       </Link>
-      <Link href={`/review/history${monthParam}`} className={current === 'history' ? 'ii-mode-item is-active' : 'ii-mode-item'} aria-current={current === 'history' ? 'page' : undefined}>
+      <Link href={`/review/history${monthParam}`} prefetch={false} className={current === 'history' ? 'ii-mode-item is-active' : 'ii-mode-item'} aria-current={current === 'history' ? 'page' : undefined}>
         长期复盘
       </Link>
-      <Link href={`/review/decisions${monthParam}`} className={current === 'decisions' ? 'ii-mode-item is-active' : 'ii-mode-item'} aria-current={current === 'decisions' ? 'page' : undefined}>
+      <Link href={`/review/decisions${monthParam}`} prefetch={false} className={current === 'decisions' ? 'ii-mode-item is-active' : 'ii-mode-item'} aria-current={current === 'decisions' ? 'page' : undefined}>
         决策库
       </Link>
     </nav>

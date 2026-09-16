@@ -544,3 +544,27 @@ last_verified: 2026-09-10
 - 交易决策库缺失样式落地为 `src/app/decisions.css`（`ii-dec-*` 命名空间 + `--up-soft/--down-soft`），修复盈亏配色与不渲染的处置效应条。
 - 发现并记录 P0-11（写入后 `router.refresh()` 在客户端不落地）：用改造前的 HEAD 组件复现 3/3，确认先于本次改造存在；建议后续以 PRG 或乐观更新替代。
 - 验证：`npm test` 71 文件 461/461；`npm run build` 与 `npm run build:e2e` 通过；Playwright 全量 81/92，失败 10 项均为改造前基线同样失败的既有用例（逐条归因见审计报告）。
+
+# 2026-09-16 修复 P0-11：写入后的视图更新与反馈
+
+- 根因定位：写入后 `router.refresh()` 在客户端不落地（服务端 RSC 载荷与路由 chunk 均 200，客户端不提交）；`router.push`/`replace` 到同路径不同查询串被静默忽略（已确认调用发生且无异常）。此前用改造前 HEAD 组件复现 3/3，属既有缺陷。
+- 机制：新增 `src/lib/write-navigation.ts`（写入后真实导航 + URL 一次性提示）与 `FlashBanner`（页面级 `status`/`alert` 提示，可关闭，不改写 history 以免与 App Router 状态失配）。写入成功文案、警告与失败原因不再依赖 RSC 应用顺序。
+- 覆盖写路径：流水录入/冲正/CSV 导入、基金份额确认与赎回到账确认、资金日历增删、定投创建/结束/快速录入/未买核对与撤销、账户对账、目标配置、储蓄打卡、FIRE 计划与情景应用、账户/资产/负债/估值表单、基金规则、公司行动与整体冲正、拆分核对、行情刷新与质量检查、健康维护、成员与家庭设置；并按需在设置/资产目录等路径显式指定目标路径。
+- 另修复：`HashOpenDetails` 改为受控 `open`（hydration 会重置 DOM 上的 open，`#new-entry` 深链落地时面板曾保持收起）；`/review/history` 的客户端导航会被静默 abort，复盘模式导航与长期复盘范围切换改用文档级导航，命令面板同入口一并对齐。
+- 验证：`npm test` 71 文件 461/461；`npm run build`、`npm run build:e2e` 通过；Playwright 全量由 81/92 提升至 92/92（逐条见 CURRENT_STATE）。
+
+# 2026-09-16 P0-12 排查：/review/history 客户端导航在生产构建下不提交
+
+- 实测边界：生产构建下进入该路由 0/5、同页范围切换 0/3；`/review/decisions`、`/month-close`、`/review` 均 3/3；开发模式正常；给导航加一层转发（引入延迟）也能成功。
+- 已排除：React 版本错配（试降 19.1.1 无效，已恢复）、middleware、预取竞争、HTTP 缓存、页面客户端组件、构建残留；载荷结构与正常邻居路由一致。
+- 结论：属生产构建下客户端路由的时序竞态，未能在应用层定位；三处入口改用文档级导航（含原因注释），全量 E2E 恢复 92/92。
+- 顺带落地：长期复盘贡献维度改为 `?view=` 链接（去掉该页的客户端状态，可深链、带 aria-current）；`HashOpenDetails` 改为受控 `open`（修复 `#new-entry` 深链不展开，进而修复导入映射面板用例）。
+
+# 2026-09-16 P0-11/P0-12 根因定位与修复：根级 loading.tsx
+
+- 真实根因：迭代 A 的 A5 新增的根级 `src/app/loading.tsx` 在根布局外加了一层 Suspense 边界，生产构建下导致客户端路由异常——写入后 `router.refresh()` 不落地、进入/停留在 `/review/history` 的客户端导航不提交（RSC 与 chunk 均 200、无任何异常）。此前把它判为「既有缺陷」的结论已更正：那次验证是在 loading.tsx 已存在的前提下做的。
+- 定位方法：开发模式正常 / 生产必失败；逐项排除版本、中间件、预取、HTTP 缓存、页面客户端组件、构建残留与载荷差异；最后在一次性副本做 A/B（Next 15.5.25 与 15.5.20 均验证）确认由移除根 loading.tsx 修复。
+- 修复：删除根级 loading.tsx；三处文档级导航（复盘模式导航、长期复盘范围切换、命令面板同项）与 accounts 用例重试全部撤回，客户端导航恢复。
+- 写入反馈定稿：同页 `router.refresh()`、跨页/改参数 `router.push()`，提示走 `WriteFlashProvider` 客户端 toast（不写 URL、不整页跳转）。`write-navigation` 也由 `.ts` 改为 `.tsx`。
+- 保留 `error/not-found/global-error`；导航加载骨架暂不恢复（根级有证实危害，恢复需按路由 + 通过率探针验证）。
+- 验证：`npm test` 461/461、`npm run build`/`build:e2e` 通过、Playwright 92/92（21.4s）。

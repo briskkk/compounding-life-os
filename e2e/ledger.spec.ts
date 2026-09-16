@@ -68,7 +68,7 @@ test('场外基金：净值份额未知时先按金额记录，并进入当日�
   const occurredAt = await form.locator('input[name="occurredAt"]').inputValue()
   await expect(form.getByText('申购待确认')).toContainText('1234.00')
   await form.getByRole('button', { name: '写入账本' }).click()
-  await expect(form.getByText('申购已写入账本')).toBeVisible()
+  await expect(page.getByTestId('write-flash')).toContainText('申购已写入账本')
 
   const row = page.locator('tbody tr').filter({ hasText: 'E2E 当日申购待确认' })
   await expect(row).toContainText('份额待确认')
@@ -109,7 +109,7 @@ test('基金份额核对：官方份额自动预填，按 Enter 完成确认', a
   await form.locator('input[name="amount"]').fill('1250')
   await form.locator('input[name="note"]').fill(note)
   await form.getByRole('button', { name: '写入账本' }).click()
-  await expect(form.getByText(/已写入账本/)).toBeVisible()
+  await expect(page.getByTestId('write-flash')).toContainText('已写入账本')
 
   const original = await e2eDb.transaction.findFirstOrThrow({
     where: { note, voidedAt: null },

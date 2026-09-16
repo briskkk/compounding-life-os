@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { recordInvestmentPlanBuys } from '@/lib/actions'
 import { fmtMoney } from '@/lib/format'
 import { btnCls, btnGhostCls, inputCls } from './fields'
@@ -23,7 +23,7 @@ export interface QuickEntryDay {
 }
 
 function EntryDay({ day, initiallyOpen, onSuccess }: { day: QuickEntryDay; initiallyOpen: boolean; onSuccess: (message: string) => void }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [selected, setSelected] = useState<string[]>([])
   const [confirmedActual, setConfirmedActual] = useState(false)
   const [confirmedNoBuy, setConfirmedNoBuy] = useState(false)
@@ -71,11 +71,15 @@ function EntryDay({ day, initiallyOpen, onSuccess }: { day: QuickEntryDay; initi
     if (result.ok) {
       const bought = result.data?.count ?? selectedRows.length
       const notBought = result.data?.noBuyCount ?? noBuyRows.length
-      onSuccess(`${bought > 0 ? `${bought} 笔实际申购已录入，份额待确认` : ''}${bought > 0 && notBought > 0 ? '；' : ''}${notBought > 0 ? `${notBought} 只已核对未买入` : ''}${result.warning ? `；${result.warning}` : ''}`)
+      const summary = `${bought > 0 ? `${bought} 笔实际申购已录入，份额待确认` : ''}${bought > 0 && notBought > 0 ? '；' : ''}${notBought > 0 ? `${notBought} 只已核对未买入` : ''}`
+      onSuccess(summary)
       setSelected([])
       setConfirmedActual(false)
       setConfirmedNoBuy(false)
-      router.refresh()
+      // 写入后走真实导航，列表与会话状态一定来自服务端最新结果（P0-11）
+      navigateAfterWrite(result.warning
+        ? { message: `${summary}；${result.warning}`, tone: 'warn' }
+        : { message: summary, tone: 'ok' })
     } else {
       setMessage({ ok: false, text: result.error })
     }

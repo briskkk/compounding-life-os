@@ -2,7 +2,7 @@
 
 // FIRE 情景实验室：候选方案一律交回服务端用同一投影引擎重算，
 // 客户端不再自造近似概率模型（预览值必须等于应用后的引擎值）。
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { useEffect, useRef, useState } from 'react'
 import { applyGoalScenario, previewGoalScenario } from '@/lib/actions'
 import { FormMsg, btnCls, btnGhostCls } from './fields'
@@ -32,7 +32,7 @@ interface GoalScenarioLabProps {
 const money = (value: number) => `¥${Math.max(0, Math.round(value)).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`
 
 export function GoalScenarioLab(props: GoalScenarioLabProps) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const suggested = Math.max(props.monthlyContribution, Math.round(props.sustainableMonthlySavings / 500) * 500)
   const [monthly, setMonthly] = useState(suggested)
   const [delayMonths, setDelayMonths] = useState(0)
@@ -93,8 +93,9 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
     setPending(false)
     if (response.ok) {
       setDelayMonths(0)
-      setMsg({ ok: true, tone: 'ok', text: response.warning ? `方案已应用；${response.warning}` : '方案已应用，FIRE 路径已重新计算' })
-      router.refresh()
+      navigateAfterWrite(response.warning
+        ? { message: `方案已应用；${response.warning}`, tone: 'warn' }
+        : { message: '方案已应用，FIRE 路径已重新计算' })
     } else {
       setMsg({ ok: false, tone: 'error', text: response.error })
     }

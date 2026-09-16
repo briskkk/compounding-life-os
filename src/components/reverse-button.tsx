@@ -2,12 +2,12 @@
 
 // 冲正按钮：二次确认后作废流水及其结算腿
 // 冲正失败必须可见（原实现丢弃返回值，用户会重复点击）
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { useState } from 'react'
 import { reverseTransaction } from '@/lib/actions'
 
 export function ReverseButton({ id, label }: { id: string; label: string }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [confirming, setConfirming] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -24,11 +24,11 @@ export function ReverseButton({ id, label }: { id: string; label: string }) {
         return
       }
       setConfirming(false)
-      // 冲正后原记录会从日常视图消失，快照未更新的警告必须弹窗告知，否则会被随行一起丢掉
-      if (res.warning) window.alert(`已冲正，但${res.warning}`)
-      // 已知问题：router.refresh() 在客户端偶发不落地（详见审计报告 P0-11），
-      // 这里保留框架推荐做法，不以整页跳转掩盖问题。
-      router.refresh()
+      // 冲正后原记录从日常视图消失，必须由写入后的真实导航保证（P0-11）；
+      // 快照未重建等未完成部分以警告语气展示，不再用阻塞式弹窗。
+      navigateAfterWrite(res.warning
+        ? { message: `已冲正；${res.warning}`, tone: 'warn' }
+        : { message: '已冲正，并生成 REVERSAL 记录', tone: 'ok' })
     } finally {
       setPending(false)
     }

@@ -18,7 +18,7 @@ test('账户对账只追加外部凭证，不改写账本余额', async ({ page 
   await page.locator('input[name="observedValueCny"]').fill('1')
   await page.locator('input[name="sourceName"]').fill('E2E 券商月结单')
   await page.getByRole('button', { name: '写入核对凭证' }).click()
-  await expect(page.getByText(/已记录差额|核对一致/)).toBeVisible()
+  await expect(page.getByTestId('write-flash')).toContainText(/已记录差额|核对一致/)
   await expect(page.getByText('E2E 券商月结单').first()).toBeVisible()
   await expect(page.locator('tbody tr').first().locator('td').nth(1)).toHaveText(ledgerBefore ?? '')
 })
@@ -42,10 +42,10 @@ test('资金日历可添加和移除计划事项', async ({ page }) => {
   await page.getByLabel('重复').selectOption('YEARLY')
   await page.getByRole('button', { name: '加入资金日历' }).click()
 
-  await expect(page.getByText('计划事项已加入日历')).toBeVisible()
+  await expect(page.getByTestId('write-flash')).toContainText('计划事项已加入日历')
   await expect(page.getByText('E2E 年度保费').first()).toBeVisible()
-  // 移除计划事项现在需要确认（仅影响计划层，不改动账本）
   page.once('dialog', (dialog) => dialog.accept())
   await page.getByRole('button', { name: '移除' }).click()
+  await expect(page.getByTestId('write-flash')).toContainText('计划事项已移除')
   await expect(page.getByText('E2E 年度保费')).toHaveCount(0)
 })

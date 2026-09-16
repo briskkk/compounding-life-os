@@ -1,7 +1,7 @@
 'use client'
 
 // FIRE 计划创建 / 编辑表单（直接设 FIRE Number + 按退休支出反推）
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { useState, type FormEvent } from 'react'
 import { createGoal, deleteGoal, updateGoal } from '@/lib/actions'
 import { Field, FormMsg, btnCls, btnGhostCls, inputCls } from './fields'
@@ -24,7 +24,7 @@ export interface GoalInitial {
 }
 
 export function GoalForm({ mode, goalId, initial, initiallyOpen = false, onDone }: { mode: 'create' | 'edit'; goalId?: string; initial?: GoalInitial; initiallyOpen?: boolean; onDone?: () => void }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [open, setOpen] = useState(mode === 'create' || initiallyOpen)
   const [goalMode, setGoalMode] = useState<'LUMP_SUM' | 'STREAM'>(initial?.mode ?? 'LUMP_SUM')
   const [pending, setPending] = useState(false)
@@ -54,10 +54,9 @@ export function GoalForm({ mode, goalId, initial, initiallyOpen = false, onDone 
     const res = mode === 'create' ? await createGoal(payload) : await updateGoal(goalId!, payload)
     setPending(false)
     if (res.ok) {
-      setMsg({ ok: true, text: mode === 'create' ? 'FIRE 计划已创建' : '已保存，FIRE 路径已重算' })
       if (mode === 'edit') setOpen(false)
       onDone?.()
-      router.refresh()
+      navigateAfterWrite({ message: mode === 'create' ? 'FIRE 计划已创建' : '已保存，FIRE 路径已重算' })
     } else {
       setMsg({ ok: false, text: res.error })
     }
@@ -67,7 +66,7 @@ export function GoalForm({ mode, goalId, initial, initiallyOpen = false, onDone 
     if (!goalId) return
     setPending(true)
     await deleteGoal(goalId)
-    router.refresh()
+    navigateAfterWrite({ message: 'FIRE 计划已删除' })
   }
 
   if (!open) {

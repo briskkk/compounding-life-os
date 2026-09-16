@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { createCorporateAction } from '@/lib/actions'
 import { CORPORATE_ACTION_HELP, CORPORATE_ACTION_LABEL, type CorporateActionKind } from '@/lib/corporate-actions'
 import { FormMsg, inputCls } from './fields'
@@ -27,7 +27,7 @@ function num(value: FormDataEntryValue | null): number | null {
 }
 
 export function CorporateActionForm({ accounts, assets }: { accounts: AccountOption[]; assets: AssetOption[] }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [type, setType] = useState<CorporateActionKind>('CASH_DISTRIBUTION')
   const [assetId, setAssetId] = useState(assets[0]?.id ?? '')
   const [pending, startTransition] = useTransition()
@@ -73,7 +73,7 @@ export function CorporateActionForm({ accounts, assets }: { accounts: AccountOpt
           })
           if (result.ok) {
             setMsg({ ok: true, text: `已记录${CORPORATE_ACTION_LABEL[type]}并重建历史持仓${result.warning ? `；${result.warning}` : ''}` })
-            router.refresh()
+            navigateAfterWrite({ message: '公司行动已登记并展开为可冲正流水' })
           } else {
             setMsg({ ok: false, text: result.error })
           }

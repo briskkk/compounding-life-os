@@ -1,7 +1,7 @@
 'use client'
 
 // 手动估值表单：为指定资产写入 VALUATION 流水
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { useState, type FormEvent } from 'react'
 import { createTransaction } from '@/lib/actions'
 import { Field, FormMsg, btnCls, inputCls } from './fields'
@@ -12,7 +12,7 @@ export function ValuationForm({
 }: {
   assets: { id: string; name: string; accountId: string; current: number | null }[]
 }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [pending, setPending] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [assetId, setAssetId] = useState(assets[0]?.id ?? '')
@@ -38,9 +38,8 @@ export function ValuationForm({
     })
     setPending(false)
     if (res.ok) {
-      setMsg({ ok: true, text: '估值已写入流水' })
       form.reset()
-      router.refresh()
+      navigateAfterWrite({ message: '估值已写入流水' })
     } else {
       setMsg({ ok: false, text: res.error })
     }

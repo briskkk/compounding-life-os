@@ -1,7 +1,7 @@
 'use client'
 
 // 资产身份与档案维护：账本绑定后锁定会改变历史语义的字段
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { useState, type FormEvent } from 'react'
 import { deleteAsset, updateAsset } from '@/lib/actions'
 import { Field, FormMsg, btnCls, btnGhostCls, inputCls } from './fields'
@@ -41,7 +41,7 @@ export function AssetMetaForm({
   transactionCount: number
   canWrite: boolean
 }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [assetClass, setAssetClass] = useState<AssetClass>(initialClass)
   const [manual, setManual] = useState(initialManual)
   const [pending, setPending] = useState(false)
@@ -77,8 +77,7 @@ export function AssetMetaForm({
     })
     setPending(false)
     if (res.ok) {
-      setMsg({ ok: true, text: '资产信息已保存' })
-      router.refresh()
+      navigateAfterWrite({ message: '资产信息已保存' })
     } else {
       setMsg({ ok: false, text: res.error })
     }
@@ -90,8 +89,7 @@ export function AssetMetaForm({
     const res = await deleteAsset(assetId)
     setDeleting(false)
     if (res.ok) {
-      router.push('/accounts?view=assets')
-      router.refresh()
+      navigateAfterWrite({ message: '资产已删除，账本与审计链保留' }, { path: '/accounts', params: { view: 'assets' } })
     } else {
       setConfirmingDelete(false)
       setDeleteMsg({ ok: false, text: res.error })

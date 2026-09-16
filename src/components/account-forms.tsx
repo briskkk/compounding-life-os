@@ -1,14 +1,14 @@
 'use client'
 
 // 账户 / 资产登记表单
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { createAccount, createAsset, updateAccountSettlement } from '@/lib/actions'
 import { Field, FormMsg, btnCls, inputCls } from './fields'
 import { ACCOUNT_TYPE_LABEL, ASSET_CLASS_LABEL, CURRENCY_LABEL } from '@/lib/labels'
 
 export function AccountForm() {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [pending, setPending] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
@@ -27,9 +27,8 @@ export function AccountForm() {
     })
     setPending(false)
     if (res.ok) {
-      setMsg({ ok: true, text: '账户已创建' })
       form.reset()
-      router.refresh()
+      navigateAfterWrite({ message: '账户已创建' })
     } else setMsg({ ok: false, text: res.error })
   }
 
@@ -78,7 +77,7 @@ export function SettlementAccountForm({
   currentId: string | null
   accounts: { id: string; name: string }[]
 }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [selectedId, setSelectedId] = useState(currentId ?? '')
   const [pending, setPending] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -95,8 +94,7 @@ export function SettlementAccountForm({
     setPending(false)
     if (res.ok) {
       const moved = res.data?.moved ?? 0
-      setMsg({ ok: true, text: moved > 0 ? `已保存，并归集 ${moved} 条历史现金流水` : '资金账户已保存' })
-      router.refresh()
+      navigateAfterWrite({ message: moved > 0 ? `已保存，并归集 ${moved} 条历史现金流水` : '资金账户已保存' })
     } else {
       setMsg({ ok: false, text: res.error })
     }
@@ -132,7 +130,7 @@ export function SettlementAccountForm({
 }
 
 export function AssetForm() {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [cls, setCls] = useState('STOCK')
   const [name, setName] = useState('')
   const [currency, setCurrency] = useState('CNY')
@@ -194,7 +192,7 @@ export function AssetForm() {
       setName('')
       setSymbol('')
       setLookupState('idle')
-      router.refresh()
+      navigateAfterWrite({ message: '资产已登记' })
     } else setMsg({ ok: false, text: res.error })
   }
 

@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { revokeInvestmentPlanNoBuyReview } from '@/lib/actions'
 
 export function RevokeInvestmentPlanNoBuyButton({ id }: { id: string }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -14,7 +14,7 @@ export function RevokeInvestmentPlanNoBuyButton({ id }: { id: string }) {
     setError(null)
     const result = await revokeInvestmentPlanNoBuyReview(id)
     setPending(false)
-    if (result.ok) router.refresh()
+    if (result.ok) navigateAfterWrite({ message: '已撤销该日未买入确认，重新计入待核对' })
     else setError(result.error)
   }
 

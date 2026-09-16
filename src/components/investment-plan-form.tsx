@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { createInvestmentPlan, endInvestmentPlan } from '@/lib/actions'
 import { btnCls, btnGhostCls, Field, FormMsg, inputCls } from './fields'
 
@@ -30,7 +30,7 @@ export function InvestmentPlanForm({
   assets: InvestmentPlanAssetOption[]
   accounts: InvestmentPlanAccountOption[]
 }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [cadence, setCadence] = useState<'WEEKDAY' | 'WEEKLY' | 'MONTHLY'>('WEEKDAY')
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([])
   const [accountId, setAccountId] = useState('')
@@ -81,12 +81,11 @@ export function InvestmentPlanForm({
     })
     setPending(false)
     if (result.ok) {
-      setMsg({ ok: true, text: '定投计划已开始跟踪' })
       form.reset()
       setCadence('WEEKDAY')
       setSelectedAssetIds([])
       setAccountId('')
-      router.refresh()
+      navigateAfterWrite({ message: '定投计划已开始跟踪' })
     } else {
       setMsg({ ok: false, text: result.error })
     }
@@ -179,7 +178,7 @@ export function InvestmentPlanForm({
 }
 
 export function EndInvestmentPlanButton({ id, name }: { id: string; name: string }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
 
@@ -189,7 +188,7 @@ export function EndInvestmentPlanButton({ id, name }: { id: string; name: string
     setError('')
     try {
       const result = await endInvestmentPlan(id)
-      if (result.ok) router.refresh()
+      if (result.ok) navigateAfterWrite({ message: '定投计划已结束，历史计划仍保留' })
       else setError(result.error)
     } catch {
       setError('结束计划未完成，请检查网络后重试。')

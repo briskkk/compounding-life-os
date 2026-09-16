@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { confirmFundOfficialNav, previewFundOfficialNav } from '@/lib/actions'
 import { cx, fmtMoney, fmtPrice } from '@/lib/format'
 import type { FundNavConfirmationPreview } from '@/lib/services/fund-confirmations'
@@ -34,7 +34,7 @@ function fmtShares(value: number): string {
 }
 
 export function FundConfirmationCard({ transaction, canWrite, initialOpen = false }: FundConfirmationCardProps) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const sharesInputRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<FundNavConfirmationPreview | null>(null)
   const [confirmedShares, setConfirmedShares] = useState('')
@@ -87,8 +87,10 @@ export function FundConfirmationCard({ transaction, canWrite, initialOpen = fals
       setError(result.error)
       return
     }
-    setNotice(result.warning ?? '份额已核对，正式流水已写入')
-    router.refresh()
+    // 确认成功后队列项应消失、持仓与流水应更新：走真实导航（P0-11）
+    navigateAfterWrite(result.warning
+      ? { message: `份额已核对，正式流水已写入；${result.warning}`, tone: 'warn' }
+      : { message: '份额已核对，正式流水已写入', tone: 'ok' })
   })
 
   return (

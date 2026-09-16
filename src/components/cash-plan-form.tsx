@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { createCashPlan, deleteCashPlan } from '@/lib/actions'
 import { btnCls, btnGhostCls, Field, FormMsg, inputCls } from './fields'
 
@@ -10,7 +10,7 @@ function localInputDate(date = new Date()): string {
 }
 
 export function CashPlanForm({ accounts }: { accounts: { id: string; name: string }[] }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [direction, setDirection] = useState('OUTFLOW')
   const [recurrence, setRecurrence] = useState('NONE')
   const [pending, setPending] = useState(false)
@@ -36,11 +36,10 @@ export function CashPlanForm({ accounts }: { accounts: { id: string; name: strin
     })
     setPending(false)
     if (result.ok) {
-      setMsg({ ok: true, text: '计划事项已加入日历' })
       form.reset()
       setDirection('OUTFLOW')
       setRecurrence('NONE')
-      router.refresh()
+      navigateAfterWrite({ message: '计划事项已加入日历' })
     } else {
       setMsg({ ok: false, text: result.error })
     }
@@ -96,7 +95,7 @@ export function CashPlanForm({ accounts }: { accounts: { id: string; name: strin
 }
 
 export function DeleteCashPlanButton({ id }: { id: string }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [pending, setPending] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string; tone?: 'ok' | 'warn' | 'error' } | null>(null)
 
@@ -107,7 +106,7 @@ export function DeleteCashPlanButton({ id }: { id: string }) {
     const result = await deleteCashPlan(id)
     setPending(false)
     if (result.ok) {
-      router.refresh()
+      navigateAfterWrite({ message: '计划事项已移除' })
       return
     }
     // 失败必须可见，此前只有成功分支，用户会以为已经移除

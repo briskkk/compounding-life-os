@@ -1,14 +1,14 @@
 'use client'
 
 // 负债登记表单 + 放款/还款/余额调整表单
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { useState, type FormEvent } from 'react'
 import { addLiabilityEntry, createLiability } from '@/lib/actions'
 import { Field, FormMsg, btnCls, inputCls } from './fields'
 import { LIABILITY_ENTRY_TYPE_LABEL, LIABILITY_TYPE_LABEL } from '@/lib/labels'
 
 export function LiabilityForm() {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [pending, setPending] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
@@ -27,9 +27,10 @@ export function LiabilityForm() {
     })
     setPending(false)
     if (res.ok) {
-      setMsg({ ok: !res.warning, text: res.warning ?? '负债已登记，记得补一条「放款」条目' })
       form.reset()
-      router.refresh()
+      navigateAfterWrite(res.warning
+        ? { message: res.warning, tone: 'warn' }
+        : { message: '负债已登记，记得补一条「放款」条目' })
     } else setMsg({ ok: false, text: res.error })
   }
 
@@ -61,7 +62,7 @@ export function LiabilityForm() {
 }
 
 export function LiabilityEntryForm({ liabilities }: { liabilities: { id: string; name: string }[] }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [pending, setPending] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const today = new Date().toISOString().slice(0, 10)
@@ -81,9 +82,10 @@ export function LiabilityEntryForm({ liabilities }: { liabilities: { id: string;
     })
     setPending(false)
     if (res.ok) {
-      setMsg({ ok: !res.warning, text: res.warning ?? '已入账，净资产已重算' })
       form.reset()
-      router.refresh()
+      navigateAfterWrite(res.warning
+        ? { message: res.warning, tone: 'warn' }
+        : { message: '已入账，净资产已重算' })
     } else setMsg({ ok: false, text: res.error })
   }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { useState, useTransition } from 'react'
 import { recordAccountReconciliation } from '@/lib/actions'
 
@@ -11,7 +11,7 @@ interface ReconciliationAccount {
 }
 
 export function ReconciliationForm({ accounts }: { accounts: ReconciliationAccount[] }) {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<string | null>(null)
@@ -34,8 +34,10 @@ export function ReconciliationForm({ accounts }: { accounts: ReconciliationAccou
         if (!response.ok) setError(response.error)
         else {
           const difference = response.data?.differenceCny ?? 0
-          setResult(Math.abs(difference) < 0.01 ? '核对一致，凭证已写入审计链' : `已记录差额 ¥${difference.toFixed(2)}，请核对缺失流水`)
-          router.refresh()
+          const text = Math.abs(difference) < 0.01 ? '核对一致，凭证已写入审计链' : `已记录差额 ¥${difference.toFixed(2)}，请核对缺失流水`
+          setResult(text)
+          // 一次性提示带实质结论，导航后仍可见（P0-11）
+          navigateAfterWrite({ message: `${text}；账本余额未被改写` })
         }
       })
     }}>

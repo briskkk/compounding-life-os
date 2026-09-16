@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { useMemo, useState, useTransition } from 'react'
 import { savePortfolioReview } from '@/lib/actions'
 import type { ReviewPageData } from '@/lib/review-data'
@@ -118,6 +119,7 @@ function ContributionRows({ rows, selected, onSelect }: {
 
 export function ReviewClient({ data }: { data: ReviewPageData }) {
   const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [dimension, setDimension] = useState<Dimension>('asset')
   const [selectedAsset, setSelectedAsset] = useState(data.result.assets[0]?.key ?? null)
   const [note, setNote] = useState(data.savedReview?.note ?? '')
@@ -195,8 +197,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
         setMessage(response.error)
         return
       }
-      setMessage(status === 'COMPLETED' ? '本期复盘已完成并写入审计记录' : '草稿已保存')
-      router.refresh()
+      navigateAfterWrite({ message: status === 'COMPLETED' ? '本期复盘已完成并写入审计记录' : '草稿已保存' })
     })
   }
 

@@ -31,6 +31,8 @@ test('导入中心展示批次来源，CSV 可进入字段映射检查', async (
   await expect(page.getByRole('heading', { name: '导入批次' })).toBeVisible()
 
   await page.goto('/transactions#new-entry')
+  // 深链应先展开「录入与导入」面板：文件投递依赖面板内的可见输入
+  await expect(page.locator('#new-entry')).toHaveAttribute('open', '')
   await page.locator('input[type="file"]').setInputFiles({
     name: 'p1-mapping.csv',
     mimeType: 'text/csv',

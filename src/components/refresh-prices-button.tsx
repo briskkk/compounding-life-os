@@ -1,13 +1,13 @@
 'use client'
 
 // 日常人工兜底：仅刷新当前持仓与基准，完整修复在数据健康中心执行。
-import { useRouter } from 'next/navigation'
+import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { useState, useTransition } from 'react'
 import { refreshCurrentPrices } from '@/lib/actions'
 import { TerminalIcon } from '@/components/terminal-icon'
 
 export function RefreshPricesButton() {
-  const router = useRouter()
+  const navigateAfterWrite = useNavigateAfterWrite()
   const [pending, startTransition] = useTransition()
   const [result, setResult] = useState<{ tone: 'ok' | 'warning' | 'error'; text: string } | null>(null)
   return (
@@ -18,16 +18,13 @@ export function RefreshPricesButton() {
         startTransition(async () => {
           const res = await refreshCurrentPrices()
           if (res.ok) {
-            setResult(res.warning
-              ? { tone: 'warning', text: res.warning }
-              : {
-                  tone: 'ok',
-                  text: `已更新 ${res.data?.symbols ?? 0} 个标的 · ${((res.data?.timings.totalMs ?? 0) / 1000).toFixed(1)} 秒`,
-                })
-          } else {
-            setResult({ tone: 'error', text: res.error })
+            // 刷新后必须让报价、快照与当日盈亏真正落到界面上（P0-11）：走真实导航并带提示
+            navigateAfterWrite(res.warning
+              ? { message: `行情已刷新；${res.warning}`, tone: 'warn' }
+              : { message: `已更新 ${res.data?.symbols ?? 0} 个标的 · ${((res.data?.timings.totalMs ?? 0) / 1000).toFixed(1)} 秒`, tone: 'ok' })
+            return
           }
-          router.refresh()
+          setResult({ tone: 'error', text: res.error })
           setTimeout(() => setResult(null), 6000)
         })
       }

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import type { InvestmentHistoryPageData, HistoryScopeOption } from '@/lib/investment-history-data'
 import { fmtCNY, fmtPct, toneOf } from '@/lib/format'
 import { InvestmentHistoryBand } from './investment-history-band'
-import { InvestmentHistoryContribution } from './investment-history-contribution'
+import { InvestmentHistoryContribution, type ContributionViewKey } from './investment-history-contribution'
 
 function toneClass(value: number | null): string {
   if (value == null) return 'text-ink-faint'
@@ -33,9 +33,15 @@ function reasonWord(metric: {
 export function HistoryClient({
   data,
   scopes,
+  view,
+  query,
 }: {
   data: InvestmentHistoryPageData
   scopes: Array<HistoryScopeOption & { query: string }>
+  /** 贡献归因当前维度（URL 参数驱动） */
+  view: ContributionViewKey
+  /** 当前页查询串（不含 view），用于拼接维度链接 */
+  query: string
 }) {
   const { result, range, flows } = data
   const twr = result.twr
@@ -88,6 +94,7 @@ export function HistoryClient({
               <Link
                 key={scope.query}
                 href={scope.active ? '/review/history' : `/review/history?scope=${encodeURIComponent(scope.query)}`}
+                prefetch={false}
                 className={scope.active ? 'is-active' : ''}
                 aria-current={scope.active ? 'page' : undefined}
               >
@@ -293,7 +300,7 @@ export function HistoryClient({
           </section>
 
           {/* 04 收益贡献与对账 */}
-          <InvestmentHistoryContribution contributions={data.contributions} />
+          <InvestmentHistoryContribution contributions={data.contributions} view={view} query={query} />
 
           {/* 05 数据资格与证据水位 */}
           <section className="section-panel review-section" aria-label="数据资格与证据水位">
