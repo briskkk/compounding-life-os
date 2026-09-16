@@ -404,6 +404,14 @@
 
 ### 迭代 C 执行结果（2026-09-16 起）
 
+**C1 导航归属、面包屑与 ⌘K 键盘模型：已完成**
+
+- **导航归属**：新增侧栏分组「核对与治理」，收纳数据健康、账户对账、基金确认、公司行动、导入批次五个二级工作流（此前只能靠 ⌘K 或页面内链接发现）；父级高亮从 `startsWith` 改为**最长前缀匹配**，因此 `/positions` 与 `/positions/[id]`、`/transactions` 与 `/transactions/imports` 不会同时点亮，E2E 断言全站 `aria-current="page"` 唯一。
+- **面包屑**：由静态文字改为可点击层级——`家庭财富终端`（→ `/`）› 父级页面（如 `持仓`，→ 父列表）› 当前页（`aria-current="page"`）› **实体名**。详情页通过只写不渲染的客户端组件 `<BreadcrumbEntity name={...} />` 注入（持仓详情→资产名、账户详情→账户名），长名省略号截断。
+- **⌘K 真实键盘模型**：此前 `kbd ↵` 是画上去的（代码里 `ArrowDown/ArrowUp` 出现 0 次）。现补齐 ↑/↓（循环）、Home/End、Enter 激活、Esc 关闭；候选区 `role="listbox"`、候选 `role="option"` + `aria-selected`、分组 `role="group"`，输入框 `role="combobox"` + `aria-controls` / `aria-activedescendant`，激活项自动滚入可视区，键鼠共用同一高亮样式。
+- **注意（语义变更）**：候选元素从隐式 link 变为 `role="option"`（ARIA combobox 的标准做法），因此三处既有 E2E 的 `getByRole('link')` 查询改为 `getByRole('option')`；点击行为不变（仍是 `<a>`）。
+- E2E：新增「导航：⌘K 支持 ↑↓/Enter，面包屑可点击并显示实体名」——断言过滤后 ↑↓ 改变 `aria-activedescendant`、激活项唯一、Enter 落到 `/review`、面包屑父级链接与实体名、以及导入批次页的父级高亮。
+
 **C2 AssetPicker 键盘可达：已完成**
 
 - 问题：关闭态是一个**不可聚焦的 `<div>`**（`src/components/asset-picker.tsx`），键盘用户根本无法发起录入——审计 P1-5 判断成立。

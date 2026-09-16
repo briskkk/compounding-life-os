@@ -11,7 +11,7 @@ test('全局导航：定投可直接发现，支持快捷搜索与侧栏收起',
   await expect(command).toBeVisible()
   await expect(page.getByLabel('搜索页面')).toBeFocused()
   await page.getByLabel('搜索页面').fill('定投')
-  await command.getByRole('link', { name: /^定投/ }).click()
+  await command.getByRole('option', { name: /^定投/ }).click()
 
   await expect(page).toHaveURL(/\/investment-plans/)
   await expect(navigation.getByRole('link', { name: '定投', exact: true })).toHaveAttribute('aria-current', 'page')
@@ -28,7 +28,7 @@ test('页面搜索可发现二级任务，键盘焦点停留在弹窗并归还',
   const command = page.getByRole('dialog', { name: '页面搜索' })
   const input = page.getByLabel('搜索页面')
   await input.fill('核对账户')
-  const reconciliation = command.getByRole('link', { name: '账户对账' })
+  const reconciliation = command.getByRole('option', { name: '账户对账' })
   await expect(reconciliation).toBeVisible()
   await page.keyboard.press('Shift+Tab')
   await expect(reconciliation).toBeFocused()
@@ -40,7 +40,7 @@ test('页面搜索可发现二级任务，键盘焦点停留在弹窗并归还',
 
   await page.keyboard.press('Control+K')
   await input.fill('资金日历')
-  await command.getByRole('link', { name: '资金日历' }).click()
+  await command.getByRole('option', { name: '资金日历' }).click()
   await expect(page).toHaveURL(/\/accounts\?view=calendar/)
 })
 
@@ -266,4 +266,41 @@ test('审计页：哈希链完整', async ({ page }) => {
   await page.goto('/audit')
   await expect(page.getByText('审计日志')).toBeVisible()
   await expect(page.getByText(/哈希链完整/)).toBeVisible()
+})
+
+test('导航：⌘K 支持 ↑↓/Enter，面包屑可点击并显示实体名', async ({ page }) => {
+  // ⌘K 键盘模型：过滤后 ↑↓ 移动激活项，Enter 跳转
+  await page.goto('/positions')
+  await page.keyboard.press('Control+k')
+  const search = page.getByLabel('搜索页面')
+  await expect(search).toBeVisible()
+  await expect(search).toHaveAttribute('role', 'combobox')
+  await search.fill('复盘')
+  const first = await search.getAttribute('aria-activedescendant')
+  expect(first).toBeTruthy()
+  await page.keyboard.press('ArrowDown')
+  const second = await search.getAttribute('aria-activedescendant')
+  expect(second).not.toBe(first)
+  await expect(page.locator('#command-listbox a.is-active')).toHaveCount(1)
+  await page.keyboard.press('ArrowUp')
+  await expect(search).toHaveAttribute('aria-activedescendant', first!)
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(/\/review/)
+
+  // 面包屑：父级可点击 + 详情页显示实体名
+  await page.goto('/positions')
+  await page.locator('tbody a').first().click()
+  await expect(page).toHaveURL(/\/positions\/.+/)
+  const crumbs = page.getByRole('navigation', { name: '面包屑' })
+  await expect(crumbs.getByRole('link', { name: '家庭财富终端' })).toHaveAttribute('href', '/')
+  await expect(crumbs.getByRole('link', { name: '持仓' })).toBeVisible()
+  await expect(crumbs.locator('.terminal-breadcrumb-entity')).not.toBeEmpty()
+  await crumbs.getByRole('link', { name: '持仓' }).click()
+  await expect(page).toHaveURL(/\/positions$/)
+
+  // 侧栏：核对与治理分组可见且父级高亮唯一
+  await expect(page.getByRole('region', { name: '核对与治理' })).toBeVisible()
+  await page.goto('/transactions/imports')
+  await expect(page.getByRole('navigation', { name: '主导航' }).locator('a[aria-current="page"]')).toHaveCount(1)
+  await expect(page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '导入批次' })).toHaveAttribute('aria-current', 'page')
 })

@@ -8515,3 +8515,27 @@ kbd {
 .confirm-dialog-accept:disabled {
   opacity: 0.4;
 }
+
+/* 面包屑：可点击层级 + 实体名（详情页注入） */
+.terminal-breadcrumb a {
+  color: var(--color-ink-faint);
+  transition: color 0.15s ease;
+}
+
+.terminal-breadcrumb a:hover {
+  color: var(--color-ink);
+}
+
+.terminal-breadcrumb-entity {
+  max-width: 22ch;
+  overflow: hidden;
+  color: var(--color-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 命令面板：键盘激活项与鼠标悬停同一视觉，避免「键鼠两套高亮」 */
+.terminal-command-results a.is-active {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-ink);
+}

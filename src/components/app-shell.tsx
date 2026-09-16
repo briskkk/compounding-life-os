@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
 import { Nav, NAV_GROUPS } from '@/components/nav'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -36,6 +36,22 @@ const PAGE_NAMES: Array<[string, string]> = [
   ['/settings', '设置'],
   ['/', '总览'],
 ]
+
+const BreadcrumbEntityContext = createContext<{ setEntity: (name: string | null) => void } | null>(null)
+
+/**
+ * 详情页用它把实体名注入面包屑（例如「持仓 / 贵州茅台」）。
+ * 页面是服务端组件，因此这里是一个只写不渲染的客户端组件。
+ */
+export function BreadcrumbEntity({ name }: { name: string }) {
+  const ctx = useContext(BreadcrumbEntityContext)
+  useEffect(() => {
+    if (!ctx) return
+    ctx.setEntity(name)
+    return () => ctx.setEntity(null)
+  }, [ctx, name])
+  return null
+}
 
 const WORKFLOW_LINKS: Array<{ href: string; label: string; icon: TerminalIconName; aliases: string }> = [
   { href: '/month-close', label: '月结中心', icon: 'review', aliases: '月结 结账 月度复盘' },
@@ -91,10 +107,18 @@ export function AppShell({
   const [mobileOpen, setMobileOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [activeIdx, setActiveIdx] = useState(0)
+  const [entity, setEntity] = useState<string | null>(null)
+  const resultRef = useRef<HTMLDivElement>(null)
   const searchInput = useRef<HTMLInputElement>(null)
   const commandBox = useRef<HTMLDivElement>(null)
   const returnFocus = useRef<HTMLElement | null>(null)
   const pageName = PAGE_NAMES.find(([prefix]) => prefix === '/' ? pathname === '/' : pathname.startsWith(prefix))?.[1] ?? '家庭财富终端'
+  // 父级面包屑：取导航里匹配当前路径的最长前缀（不含当前页自身）
+  const parentCrumb = NAV_GROUPS
+    .flatMap((group) => group.links)
+    .filter((link) => link.href !== '/' && (pathname === link.href || pathname.startsWith(link.href + '/')))
+    .sort((a, b) => b.href.length - a.href.length)[0] ?? null
   const quickLinks = useMemo(() => [
     ...NAV_GROUPS.flatMap((group) => group.links.map((link) => ({ ...link, group: group.label, aliases: '' }))),
     ...WORKFLOW_LINKS.map((link) => ({ ...link, group: '工作流程' })),
@@ -105,6 +129,45 @@ export function AppShell({
   const visibleGroups = ['财富视图', '记录与计划', '工作流程', '系统']
     .map((label) => ({ label, links: visibleLinks.filter((link) => link.group === label) }))
     .filter((group) => group.links.length > 0)
+
+  useEffect(() => {
+    setActiveIdx(0)
+  }, [query, searchOpen])
+
+  useEffect(() => {
+    // 激活项滚入可视区域（长列表里键盘移动不能跟丢）
+    const el = resultRef.current?.querySelector('[data-idx="' + activeIdx + '"]')
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [activeIdx])
+
+  function runActive() {
+    const el = resultRef.current?.querySelector<HTMLElement>('[data-idx="' + activeIdx + '"]')
+    if (el) {
+      el.click()
+      return
+    }
+    const link = visibleLinks[activeIdx]
+    if (link) window.location.assign(link.href)
+  }
+
+  function onCommandKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActiveIdx((i) => (visibleLinks.length === 0 ? 0 : (i + 1) % visibleLinks.length))
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActiveIdx((i) => (visibleLinks.length === 0 ? 0 : (i - 1 + visibleLinks.length) % visibleLinks.length))
+    } else if (event.key === 'Home') {
+      event.preventDefault()
+      setActiveIdx(0)
+    } else if (event.key === 'End') {
+      event.preventDefault()
+      setActiveIdx(Math.max(0, visibleLinks.length - 1))
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      runActive()
+    }
+  }
 
   function openSearch() {
     if (!searchOpen) returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -181,6 +244,8 @@ export function AppShell({
   return (
     <WriteFlashProvider>
       <ConfirmProvider>
+      <BreadcrumbEntityContext.Provider value={{ setEntity }}>
+
       <div className={`terminal-frame${collapsed ? ' is-collapsed' : ''}${mobileOpen ? ' is-mobile-open' : ''}`}>
       <a href="#main-content" className="terminal-skip-link">跳至主要内容</a>
       <button type="button" className="terminal-mobile-scrim" aria-label="关闭导航" onClick={() => setMobileOpen(false)} />
@@ -210,7 +275,23 @@ export function AppShell({
           <button type="button" className="terminal-icon-button terminal-mobile-menu" onClick={() => setMobileOpen(true)} aria-label="打开导航">
             <TerminalIcon name="panel" />
           </button>
-          <div className="terminal-breadcrumb"><span>家庭财富终端</span><b>/</b><strong>{pageName}</strong></div>
+          <nav className="terminal-breadcrumb" aria-label="面包屑">
+            <Link href="/">家庭财富终端</Link>
+            <b aria-hidden>/</b>
+            {parentCrumb && (
+              <>
+                <Link href={parentCrumb.href}>{parentCrumb.label}</Link>
+                <b aria-hidden>/</b>
+              </>
+            )}
+            <strong aria-current="page">{pageName}</strong>
+            {entity && (
+              <>
+                <b aria-hidden>/</b>
+                <span className="terminal-breadcrumb-entity">{entity}</span>
+              </>
+            )}
+          </nav>
           <button type="button" className="terminal-search-trigger" onClick={openSearch} aria-label="打开页面搜索">
             <TerminalIcon name="search" /><span>搜索并前往页面</span><kbd>⌘ K</kbd>
           </button>
@@ -235,18 +316,44 @@ export function AppShell({
           <div ref={commandBox} className="terminal-command-box">
             <label>
               <TerminalIcon name="search" />
-              <input ref={searchInput} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="输入页面或操作，例如对账、确认基金" aria-label="搜索页面" />
+              <input
+                ref={searchInput}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={onCommandKeyDown}
+                placeholder="输入页面或操作，例如对账、确认基金"
+                aria-label="搜索页面"
+                role="combobox"
+                aria-expanded="true"
+                aria-controls="command-listbox"
+                aria-autocomplete="list"
+                aria-activedescendant={visibleLinks.length > 0 ? 'command-option-' + activeIdx : undefined}
+              />
               <kbd>ESC</kbd>
             </label>
-            <div className="terminal-command-results">
+            <div className="terminal-command-results" ref={resultRef} id="command-listbox" role="listbox" aria-label="页面与操作">
               {visibleGroups.map((group) => (
-                <section key={group.label} className="terminal-command-group" aria-label={group.label}>
-                  <p>{group.label}</p>
-                  {group.links.map((link) => (
-                    <Link key={link.href} href={link.href} prefetch={false} onClick={() => setSearchOpen(false)}>
-                      <TerminalIcon name={link.icon} /><span>{link.label}</span><kbd>↵</kbd>
-                    </Link>
-                  ))}
+                <section key={group.label} className="terminal-command-group" role="group" aria-label={group.label}>
+                  <p role="presentation">{group.label}</p>
+                  {group.links.map((link) => {
+                    const index = visibleLinks.findIndex((item) => item.href === link.href && item.label === link.label)
+                    return (
+                      <Link
+                        key={link.href}
+                        id={'command-option-' + index}
+                        role="option"
+                        aria-selected={index === activeIdx}
+                        data-idx={index}
+                        href={link.href}
+                        prefetch={false}
+                        onMouseEnter={() => setActiveIdx(index)}
+                        onClick={() => setSearchOpen(false)}
+                        className={index === activeIdx ? 'is-active' : undefined}
+                      >
+                        <TerminalIcon name={link.icon} /><span>{link.label}</span><kbd>↵</kbd>
+                      </Link>
+                    )
+                  })}
                 </section>
               ))}
               {visibleLinks.length === 0 && <div className="terminal-command-empty">没有匹配页面或操作，试试“对账”“确认基金”</div>}
@@ -255,6 +362,7 @@ export function AppShell({
         </div>
       )}
       </div>
+      </BreadcrumbEntityContext.Provider>
       </ConfirmProvider>
     </WriteFlashProvider>
   )

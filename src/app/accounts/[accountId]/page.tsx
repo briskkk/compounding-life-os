@@ -17,6 +17,7 @@ import { positionDayPnlCny, summarizeAccountPositions } from '@/lib/engine/accou
 import { holdingsIndex } from '@/lib/engine/ledger'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
+import { BreadcrumbEntity } from '@/components/app-shell'
 
 export const dynamic = 'force-dynamic'
 
@@ -106,7 +107,8 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
       <div className={styles.header}>
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className={styles.title}>{account.name}</h1>
+            <BreadcrumbEntity name={account.name} />
+      <h1 className={styles.title}>{account.name}</h1>
             <Tag tone="dim">{ACCOUNT_TYPE_LABEL[account.type]}</Tag>
             <Tag tone={account.currency === 'CNY' ? 'dim' : 'accent'}>{account.currency}</Tag>
           </div>

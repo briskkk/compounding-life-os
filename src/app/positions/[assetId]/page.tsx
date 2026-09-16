@@ -33,6 +33,7 @@ import {
 import { dateKeyAt } from '@/lib/engine/watch-market'
 import type { ValuationStatus } from '@/lib/engine/valuation-status'
 import { TableScroll } from '@/components/table-scroll'
+import { BreadcrumbEntity } from '@/components/app-shell'
 
 export const dynamic = 'force-dynamic'
 
@@ -249,6 +250,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
 
   return (
     <div className="page-shell">
+      <BreadcrumbEntity name={asset.name} />
       <Link href={isLongTermAsset ? '/accounts?view=assets' : '/positions'} className="text-xs tracking-wide text-ink-faint transition-colors hover:text-info">
         ← {isLongTermAsset ? '返回长期资产目录' : '返回持仓'}
       </Link>

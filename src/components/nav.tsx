@@ -28,6 +28,16 @@ export const NAV_GROUPS: Array<{
     ],
   },
   {
+    label: '核对与治理',
+    links: [
+      { href: '/health', label: '数据健康', icon: 'shield' },
+      { href: '/reconciliation', label: '账户对账', icon: 'wallet' },
+      { href: '/fund-confirmations', label: '基金确认', icon: 'ledger' },
+      { href: '/corporate-actions', label: '公司行动', icon: 'repeat' },
+      { href: '/transactions/imports', label: '导入批次', icon: 'ledger' },
+    ],
+  },
+  {
     label: '系统',
     links: [
       { href: '/audit', label: '审计', icon: 'shield' },
@@ -38,13 +48,19 @@ export const NAV_GROUPS: Array<{
 
 export function Nav() {
   const pathname = usePathname()
+  // 父级高亮用「最长前缀匹配」：/positions 与 /positions/[id] 只有一个命中，
+  // /transactions 与 /transactions/imports 也不会同时点亮。
+  const hrefs = NAV_GROUPS.flatMap((group) => group.links.map((link) => link.href))
+  const activeHref = hrefs
+    .filter((href) => (href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/')))
+    .sort((a, b) => b.length - a.length)[0]
   return (
     <nav className="terminal-nav" aria-label="主导航">
       {NAV_GROUPS.map((group) => (
         <section key={group.label} className="terminal-nav-group" aria-label={group.label}>
           <p>{group.label}</p>
           {group.links.map((link) => {
-            const active = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href)
+            const active = link.href === activeHref
             return (
               <Link
                 key={link.href}

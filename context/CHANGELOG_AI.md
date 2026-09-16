@@ -671,3 +671,11 @@ last_verified: 2026-09-10
 - 新增 E2E：纯键盘完成一次流水录入（键盘开面板 → 选资产 → 填金额备注 → 键盘提交）。
 - 修跨页今日盈亏冷启动残留差异：总览首渲染 SWR stale 值 vs 看盘实时值；测试先预热缓存，保持严格相等断言（9/9）。
 - 验证：npm test 518/518、build 通过、Playwright 93/93。
+
+# 2026-09-16 迭代 C 之 C1：导航归属、面包屑与 ⌘K 键盘模型
+
+- 侧栏新增「核对与治理」分组（数据健康/账户对账/基金确认/公司行动/导入批次）；父级高亮改最长前缀匹配，aria-current 唯一。
+- 面包屑改为可点击层级（家庭财富终端 → 父级 → 当前页 → 实体名），详情页用只写组件 BreadcrumbEntity 注入实体名（已接入持仓/账户详情）。
+- ⌘K 补齐 ↑↓/Home/End/Enter/Esc，候选变 role=option + listbox/group + aria-activedescendant，激活项滚入可视区、键鼠同款高亮。
+- 候选由隐式 link 变 option：三处旧 E2E 查询同步调整。
+- 验证：npm test 518/518、build 通过、Playwright 94/94。
