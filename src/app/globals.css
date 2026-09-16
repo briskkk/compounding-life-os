@@ -3973,6 +3973,13 @@ nav[aria-label="主导航"] a {
   min-width: 0;
 }
 
+.review-saved-delta {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--color-amber);
+  font-size: 12px;
+}
+
 .review-shell {
   gap: 2.75rem;
 }

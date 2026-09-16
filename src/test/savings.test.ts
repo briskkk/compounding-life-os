@@ -54,3 +54,16 @@ describe('buildSavingsOverview', () => {
     expect(overview.averageRate).toBeCloseTo((5000 + 8000 + 9000 + 10000) / (30000 * 4))
   })
 })
+
+describe('负储蓄率（当月净流出）', () => {
+  it('支出大于收入时储蓄率为负，且不被截断为 0', () => {
+    const overview = buildSavingsOverview(
+      [{ periodType: 'MONTH', periodStart: new Date('2026-08-01'), income: 20000, spending: 26000, savedAmount: 0 }],
+      new Date('2026-08-31'),
+      1,
+    )
+    // 图表此前把 Y 轴下限钉在 0，负值会被裁掉看不出「这个月在净流出」
+    expect(overview.current.netSavings).toBe(-6000)
+    expect(overview.current.savingsRate).toBeCloseTo(-0.3)
+  })
+})

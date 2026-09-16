@@ -488,6 +488,15 @@
 - E2E：断言「资金体验 MWR（区间）」「区间换手率」存在；决策库断言年化换手率已算出且带「取自 N 天快照」。
 - 验证：`npm test` 506/506、构建通过、Playwright 92/92。
 
+**B7 复盘与情景收口：已完成**
+
+- 储蓄率图：`domain` 由 `[0, 'auto']` 改为 `['auto', 'auto']`（负储蓄率此前会被裁掉，看不出「这个月在净流出」），并去掉 `connectNulls`（缺流水的月份断开，不再把「没有数据」画成连续趋势）。新增单测断言负储蓄率为 −0.3 而不是 0。
+- 已保存复盘展示「保存以来」的数据差异：保存动作本就把指标冻结在 `metricsSnapshot`，现在把它解析进 `SavedReviewView.metrics`，界面按 TWR / MWR / 最大回撤 / 估值覆盖率对比当前结果，输出如「保存以来：TWR +0.42pp · 估值覆盖率 −3.1pp」，未变化时明确写「保存以来指标未变化」（阈值 0.05pp 过滤浮点噪声）。
+- 完成态降级需确认：「已完成 → 保存草稿」与「重新完成本期复盘」都会改写审计链上的结论，改走 B4 的统一确认对话框（列出「状态退回草稿 / 审计记录保留 / 覆盖已保存结论」等影响面）。
+- 情景应用确认与 `delayMonths` 归零已在 B4 完成（对话框列出每月投入变化、退休日期延后与滑块归零）。
+- E2E：保存后断言「保存以来：」可见；完成后再保存草稿时断言降级对话框标题与影响面，确认后 toast 显示「草稿已保存」。
+- 验证：`npm test` 507/507（74 文件）、构建通过、Playwright 92/92。
+
 **B8 结构性 HTML 与遮挡：已完成**
 
 - 消除嵌套 `<main>`：`/review`、`/review/decisions`、`/review/history`、`/month-close` 的页面根改为 `<div className="page-shell …">`；并修掉 `review-client.tsx` 里额外的 `<main className="page-shell review-shell">`——它是「双层 page-shell + 三重 main」的真正来源。现在每页 `document.querySelectorAll('main').length === 1`（E2E 断言）。

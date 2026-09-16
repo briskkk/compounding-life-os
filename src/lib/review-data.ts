@@ -13,6 +13,19 @@ import { isInvestableAsset } from './asset-classification'
 import type { ValuationGap } from './engine/valuation-status'
 import { pendingFundPurchasesAt, pendingSettlementsAt, roundMoney } from './engine/ledger'
 
+/** 保存复盘时冻结的指标（metricsSnapshot）——用于展示「保存以来数据差异」 */
+export interface SavedReviewMetrics {
+  amount?: number | null
+  pct?: number | null
+  mwrPct?: number | null
+  benchmarkSymbol?: string
+  benchmarkPct?: number | null
+  alphaPct?: number | null
+  maxDrawdown?: number | null
+  valuationCoverage?: number | null
+  reconciliationAmount?: number | null
+}
+
 export interface SavedReviewView {
   id: string
   status: 'DRAFT' | 'COMPLETED'
@@ -20,6 +33,17 @@ export interface SavedReviewView {
   authorName: string
   completedAt: string | null
   updatedAt: string
+  /** 保存时冻结的指标；解析失败为 null */
+  metrics: SavedReviewMetrics | null
+}
+
+export function parseSavedReviewMetrics(value: string): SavedReviewMetrics | null {
+  try {
+    const parsed = JSON.parse(value) as unknown
+    return parsed && typeof parsed === 'object' ? parsed as SavedReviewMetrics : null
+  } catch {
+    return null
+  }
 }
 
 export interface ReviewPendingSettlementView {
@@ -310,6 +334,7 @@ export async function getReviewPageData(options: {
       authorName: savedReview.authorName,
       completedAt: savedReview.completedAt?.toISOString() ?? null,
       updatedAt: savedReview.updatedAt.toISOString(),
+      metrics: parseSavedReviewMetrics(savedReview.metricsSnapshot),
     } : null,
     month: selectedMonth,
     date: selectedDate,

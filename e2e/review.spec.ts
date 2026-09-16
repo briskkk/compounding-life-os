@@ -47,6 +47,18 @@ test('组合复盘：归因切换、周期深链与草稿保存', async ({ page 
   await page.reload()
   await expect(page.getByLabel('复盘笔记')).toHaveValue('E2E：记录本期利润来源与风险变化。')
   await expect(page.getByText('草稿', { exact: true })).toBeVisible()
+  // B7：保存后必须能看到「保存以来」的数据差异（而不是默认页面上显示的就是保存时那份结论）
+  await expect(page.getByText(/保存以来：/)).toBeVisible()
+
+  // B7：已完成 → 草稿是降级，必须经确认对话框
+  await page.getByRole('button', { name: '完成本期复盘' }).click()
+  await expect(page.getByTestId('write-flash')).toContainText('已完成')
+  await page.getByRole('button', { name: '保存草稿' }).click()
+  const downgrade = page.locator('dialog.confirm-dialog')
+  await expect(downgrade.getByRole('heading', { name: '把本期复盘退回草稿？' })).toBeVisible()
+  await expect(downgrade.getByTestId('confirm-impacts')).toContainText('审计记录保留')
+  await page.getByTestId('confirm-accept').click()
+  await expect(page.getByTestId('write-flash')).toContainText('草稿已保存')
 })
 
 test('组合复盘：按日查看并在历史日之间切换', async ({ page }) => {

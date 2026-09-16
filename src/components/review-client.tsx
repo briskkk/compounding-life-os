@@ -10,6 +10,7 @@ import type { ReviewContribution } from '@/lib/engine/review'
 import { cx, fmtCNY, fmtDateTime, fmtPct, toneOf } from '@/lib/format'
 import type { ReactNode } from 'react'
 import { ScopeLabel } from '@/components/ui'
+import { useConfirm } from '@/components/confirm-dialog'
 
 type Dimension = 'asset' | 'source' | 'class'
 
@@ -122,6 +123,7 @@ function ContributionRows({ rows, selected, onSelect }: {
 export function ReviewClient({ data }: { data: ReviewPageData }) {
   const router = useRouter()
   const navigateAfterWrite = useNavigateAfterWrite()
+  const confirmDialog = useConfirm()
   const [dimension, setDimension] = useState<Dimension>('asset')
   const [selectedAsset, setSelectedAsset] = useState(data.result.assets[0]?.key ?? null)
   const [note, setNote] = useState(data.savedReview?.note ?? '')
@@ -184,7 +186,43 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
     return `/review?${params.toString()}`
   }
 
-  function save(status: 'DRAFT' | 'COMPLETED') {
+  // 保存以来的数据差异：保存动作会冻结当时的指标，这里把「已经变了多少」显式说出来，
+  // 避免用户以为页面上看到的仍是保存时的那份结论。
+  const savedDelta = useMemo(() => {
+    const saved = data.savedReview?.metrics
+    if (!saved) return null
+    const parts: string[] = []
+    const pp = (label: string, before: number | null | undefined, after: number | null | undefined) => {
+      if (before == null || after == null) return
+      const delta = (after - before) * 100
+      if (Math.abs(delta) < 0.05) return
+      parts.push(`${label} ${delta > 0 ? '+' : ''}${delta.toFixed(2)}pp`)
+    }
+    pp('TWR', saved.pct, data.result.performance.pct)
+    pp('MWR', saved.mwrPct, data.result.performance.curve.at(-1)?.mwrPct ?? null)
+    pp('最大回撤', saved.maxDrawdown, data.result.maxDrawdown)
+    pp('估值覆盖率', saved.valuationCoverage, data.result.valuationCoverage)
+    return parts.length > 0 ? parts.join(' · ') : '保存以来指标未变化'
+  }, [data.savedReview, data.result])
+
+  async function save(status: 'DRAFT' | 'COMPLETED') {
+    const saved = data.savedReview
+    if (saved) {
+      // 降级（已完成 → 草稿）与覆盖已完成复盘都会改写审计链上的结论，必须先确认
+      const downgrade = status === 'DRAFT' && saved.status === 'COMPLETED'
+      const overwrite = status === 'COMPLETED' && saved.status === 'COMPLETED'
+      if (downgrade || overwrite) {
+        const ok = await confirmDialog({
+          title: downgrade ? '把本期复盘退回草稿？' : '重新完成本期复盘？',
+          impacts: downgrade
+            ? ['状态从「已完成」退回「草稿」', '审计记录保留，但完成时间会被清空', '当前结论文本会覆盖已保存内容']
+            : ['覆盖已保存的完成结论与完成时间', '审计链追加一条新的完成记录（旧记录保留）'],
+          confirmLabel: downgrade ? '退回草稿' : '重新完成',
+          tone: 'danger',
+        })
+        if (!ok) return
+      }
+    }
     setMessage(null)
     startTransition(async () => {
       const response = await savePortfolioReview({
@@ -459,7 +497,17 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
       <section id="notes" className="section-panel review-section review-notes">
         <div className="review-section-heading">
           <div><span>06</span><h2>写下自己的判断</h2><p>记录哪些判断被验证、哪些只是运气，以及下一周期要继续观察的事实。</p></div>
-          {data.savedReview && <div className="review-saved-state"><b>{data.savedReview.status === 'COMPLETED' ? '已完成' : '草稿'}</b><span>{data.savedReview.authorName} · {fmtDateTime(data.savedReview.updatedAt)}</span></div>}
+          {data.savedReview && (
+            <div className="review-saved-state">
+              <b>{data.savedReview.status === 'COMPLETED' ? '已完成' : '草稿'}</b>
+              <span>{data.savedReview.authorName} · {fmtDateTime(data.savedReview.updatedAt)}</span>
+              {savedDelta && (
+                <span className="review-saved-delta" title="对比保存时冻结的指标快照与当前页面的最新结果">
+                  保存以来：{savedDelta}
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <label htmlFor="review-note">复盘笔记</label>
         <textarea id="review-note" value={note} maxLength={4000} onChange={(event) => setNote(event.target.value)} placeholder="例如：本期利润集中在哪些来源？亏损来自判断失误、仓位还是正常波动？哪些交易需要在下个周期继续验证？" disabled={readOnly} />

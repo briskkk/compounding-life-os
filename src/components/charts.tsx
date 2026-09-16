@@ -775,7 +775,8 @@ export function SavingsRateChart({ data, target = 0.3 }: { data: SavingsRateDatu
           tickLine={false}
           axisLine={false}
           width={48}
-          domain={[0, 'auto']}
+          /* 负储蓄率（当月净流出）必须可见：下限交给数据而不是钉在 0 */
+          domain={['auto', 'auto']}
           tickFormatter={(value: number) => `${Math.round(value * 100)}%`}
         />
         <Tooltip content={<SavingsTooltip />} />
@@ -785,7 +786,8 @@ export function SavingsRateChart({ data, target = 0.3 }: { data: SavingsRateDatu
           strokeDasharray="4 7"
           label={{ value: `计划 ${Math.round(target * 100)}%`, fill: C.inkFaint, fontSize: 11, position: 'insideTopRight' }}
         />
-        <Line connectNulls type="monotone" dataKey="rate" name="储蓄率" stroke={C.info} strokeWidth={2} dot={{ r: 3, fill: C.info, strokeWidth: 0 }} isAnimationActive={false} />
+        {/* 不 connectNulls：缺流水的月份断开，避免把「没有数据」画成连续趋势 */}
+        <Line type="monotone" dataKey="rate" name="储蓄率" stroke={C.info} strokeWidth={2} dot={{ r: 3, fill: C.info, strokeWidth: 0 }} isAnimationActive={false} />
       </ComposedChart>
     </ResponsiveContainer>
   )

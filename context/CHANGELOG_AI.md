@@ -636,3 +636,11 @@ last_verified: 2026-09-10
 - 风险区 null 覆盖率复核为已正确，未改动。
 - E2E：断言 MWR/区间换手率标签与决策库年化换手率+分母。
 - 验证：npm test 506/506、build 通过、Playwright 92/92。
+
+# 2026-09-16 迭代 B 之 B7：复盘与情景收口
+
+- 储蓄率图 domain 改 [auto, auto]（负储蓄率可见）并去掉 connectNulls；新增负储蓄率单测。
+- 已保存复盘展示「保存以来」差异：解析 metricsSnapshot，对比 TWR/MWR/最大回撤/估值覆盖率，无变化时明确说明。
+- 完成态降级（已完成→草稿）与重新完成需经统一确认对话框。
+- 情景应用确认与 delayMonths 归零已在 B4 完成。
+- 验证：npm test 507/507、build 通过、Playwright 92/92。
