@@ -445,7 +445,16 @@
 - 新增 `src/test/semantic-colors.test.ts`（28 例）：两套主题下 8 个语义色在 bg/panel/panel2 上的对比度（正文 4.5:1、圆点/描边 3:1）、`--color-on-accent` 对 `--color-accent` ≥4.5:1、危险色与涨跌色不得同色、以及**状态文件不得再用涨跌色**的源码守卫。
 - 验证：`npm test` 501/501（73 文件）、构建通过、Playwright 92/92。
 
-**下一项**：B3 浅色主题补全（图表跟随主题、暗色内联色收敛、`.chart-surface` 浅色底纹）。
+**B3 浅色主题补全：已完成**
+
+- `src/lib/colors.ts` 的 14 个取值全部改为引用 CSS 变量（`var(--color-*)`）：图表、渐变与内联样式随 `data-theme` 切换，不再钉死深色。
+- `.chart-surface` 底纹由「白 5.5% / 白 1.8%」改为 `color-mix(accent 6%) + var(--surface-2)`；`.composition-legend-track`、证据条、资产删除锁定态等 3 处「白 1.2–6%」改用 `--surface-1/2`（此前在浅色主题下等于不可见）。
+- 把 `globals.css` 里 53 处硬编码色收敛为 token：30 处品牌色 tint（accent/up/down/amber/danger/violet/teal 的 rgba）→ `color-mix(in srgb, var(--token) N%, transparent)`；23 处中性白 tint 与两个色值变体 → `color-mix(var(--color-ink) N%)` 与 amber/down token。**仅保留 4 处黑色遮罩/阴影**（`rgba(0,0,0,…)`、`rgba(7,9,10,…)`）——这类在两套主题下都应是黑色半透明。
+- 图表 tooltip 光标由硬编码白色改为 `color-mix(var(--color-ink) 6%)`。
+- 守卫测试新增 3 例：`colors.ts` 不得含任何硬编码颜色、界面样式不得残留 `rgba(41, 46, 51…)`/`rgba(21, 23, 25…)`、强调色底文字只允许 token 定义处出现硬编码值（合计 30 例）。
+- 验证：`npm test` 503/503；构建通过；Playwright 92/92；深色与浅色各自截图复核总览/持仓/看盘/长期复盘（深浅两套图表、底纹、估值来源标签均正常）。
+
+**迭代 B 到此完成 B1–B3 与 P1-26。** 后续按 §六 路线图推进 B4–B8（统一 ConfirmDialog、表格基础设施、同名指标拆名、复盘/情景收口、嵌套 `<main>` 与遮挡），再到迭代 C。
 
 ### 7.3 未完成与阻塞
 

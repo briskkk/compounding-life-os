@@ -1,19 +1,24 @@
-// 终端配色常量（图表等 JS 场景使用；CSS 侧见 globals.css @theme）
+// 终端配色（图表等 JS 场景使用）。
+//
+// 这里**只引用 CSS 变量**，不再硬编码深色取值：图表、渐变与内联样式因此会随
+// data-theme 切换（深色 tokens 见 globals.css @theme，浅色覆盖见 themes.css）。
+// 需要透明度时用 color-mix(in srgb, var(--x) N%, transparent) 或 Tailwind 的 /N 修饰符。
 export const C = {
-  bg: '#151719',
-  panel: '#1A1D1F',
-  panel2: '#202428',
-  line: '#30363B',
-  ink: '#F3F5F7',
-  inkDim: '#A9AFB5',
-  inkFaint: '#8D959D',
-  accent: '#79BFFF',
-  up: '#FF7A3D',
-  down: '#43C692',
-  info: '#79BFFF',
-  violet: '#A995F5',
-  teal: '#57C8BE',
-  amber: '#E4B45F',
+  bg: 'var(--color-bg)',
+  panel: 'var(--color-panel)',
+  panel2: 'var(--color-panel2)',
+  line: 'var(--color-line)',
+  ink: 'var(--color-ink)',
+  inkDim: 'var(--color-ink-dim)',
+  inkFaint: 'var(--color-ink-faint)',
+  accent: 'var(--color-accent)',
+  up: 'var(--color-up)',
+  down: 'var(--color-down)',
+  info: 'var(--color-info)',
+  violet: 'var(--color-violet)',
+  teal: 'var(--color-teal)',
+  amber: 'var(--color-amber)',
+  danger: 'var(--color-danger)',
 } as const
 
 export const CLASS_COLORS: Record<string, string> = {

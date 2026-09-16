@@ -338,7 +338,7 @@ export function ReturnsCalendar({
                   tickFormatter={fmtBarAxis}
                   width={44}
                 />
-                <Tooltip content={<CalBarTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.04)' }} />
+                <Tooltip content={<CalBarTooltip />} cursor={{ fill: 'color-mix(in srgb, var(--color-ink) 6%, transparent)' }} />
                 <ReferenceLine y={0} stroke={C.inkFaint} strokeDasharray="4 7" />
                 <Bar dataKey="amount" isAnimationActive={false} maxBarSize={10} radius={[2, 2, 0, 0]}>
                   {bars.map((bar) => (

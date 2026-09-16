@@ -83,6 +83,21 @@ describe('状态语义不得再用涨跌色', () => {
     expect(hits, `${file} 仍包含 ${hits.join(', ')}`).toEqual([])
   })
 
+  it('图表配色只引用 CSS 变量（随主题切换）', () => {
+    const source = readFileSync('src/lib/colors.ts', 'utf8')
+    const hex = source.match(/#[0-9a-fA-F]{3,8}/g) ?? []
+    expect(hex, `colors.ts 仍有硬编码颜色：${hex.join(', ')}`).toEqual([])
+    expect(source).toContain("'var(--color-up)'")
+    expect(source).toContain("'var(--color-down)'")
+  })
+
+  it('界面样式里不再残留只适配深色的取值', () => {
+    const css = readFileSync(DARK, 'utf8')
+    for (const banned of ['rgba(41, 46, 51', 'rgba(21, 23, 25']) {
+      expect(css.includes(banned), `globals.css 仍包含 ${banned}`).toBe(false)
+    }
+  })
+
   it('强调色底文字只用 token：硬编码色仅允许出现在 token 定义处', () => {
     const css = readFileSync(DARK, 'utf8')
     const declarations = css

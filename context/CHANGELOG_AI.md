@@ -590,3 +590,11 @@ last_verified: 2026-09-10
 - 迁移误用：审计页、对账页、行情质量、持仓、账户、CSV 导入、估值来源圆点、设置页错误回执与「当前设备/当前」、冲正与删除按钮、行情刷新按钮状态。
 - 新增 `src/test/semantic-colors.test.ts`（28 例）：对比度、危险色与涨跌色可区分、状态文件源码守卫。
 - 验证：npm test 501/501、build 通过、Playwright 92/92。
+
+# 2026-09-16 迭代 B 之 B3：浅色主题补全
+
+- `src/lib/colors.ts` 改为全部引用 CSS 变量（14 项），图表与内联样式随主题切换。
+- `.chart-surface` 底纹、图例轨道、证据条、资产删除锁定态改 `--surface-1/2` 与 `color-mix(accent)`；tooltip 光标随主题。
+- `globals.css` 53 处硬编码色收敛为 token（品牌色 tint 30 处 → color-mix token；中性白 tint 23 处 → ink token），仅保留 4 处黑色遮罩/阴影。
+- 守卫测试增至 30 例（colors.ts 无硬编码、界面样式无深色专用残留）。
+- 验证：npm test 503/503、build 通过、Playwright 92/92；深浅主题截图复核四个页面。
