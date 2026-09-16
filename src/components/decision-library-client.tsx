@@ -34,8 +34,16 @@ function soldToneStyle(soldAtProfit: boolean | null): CSSProperties {
 
 function windowCell(window?: { status: string; pct: number | null; asOf: string | null }) {
   if (!window) return <span className="text-ink-faint">—</span>
-  if (window.status === 'BLOCKED') return <span className="ii-dec-badge ii-dec-badge-err" title={window.asOf ?? ''}>无净值</span>
-  if (window.status === 'CENSORED') return <span className="ii-dec-badge ii-dec-badge-warn" title={`观察期不足，asOf ${window.asOf ?? ''}`}>不足 {window.asOf ?? ''}</span>
+  if (window.status === 'BLOCKED') {
+    return <span className="ii-dec-badge ii-dec-badge-err" title="该观察窗口内没有可用净值点">无净值</span>
+  }
+  if (window.status === 'CENSORED') {
+    return (
+      <span className="ii-dec-badge ii-dec-badge-warn" title={`观察窗口未走完，最后可用净值点 ${window.asOf ?? '—'}`}>
+        不足 {window.asOf ?? ''}
+      </span>
+    )
+  }
   return <span className={toneClass(window.pct)}>{window.pct == null ? '—' : fmtPct(window.pct, { sign: true })}</span>
 }
 
@@ -114,7 +122,7 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
               const bucket = data.behavior.sells[window]
               return (
                 <div key={window} className="review-metric">
-                  <span>卖出后 {window} 交易日</span>
+                  <span title="按该资产的净值点计数，不是自然日或交易日">卖出后 {window} 净值点</span>
                   <strong className={toneClass(bucket.meanPct)}>{bucket.meanPct == null ? '—' : fmtPct(bucket.meanPct, { sign: true })}</strong>
                   <small>合格 {bucket.eligible} · 删失 {bucket.censored} · 无净值 {bucket.blocked}</small>
                 </div>
@@ -140,12 +148,13 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
           aria-label="决策事件表格，可横向滚动查看全部列"
           tabIndex={0}
         >
-          <table className="ii-dec-table" style={{ minWidth: '1180px' }}>
+          <table className="ii-dec-table">
             <thead>
               <tr>
                 <th>日期</th><th>事件</th><th>资产</th><th className="num">金额（CNY）</th>
-                <th className="num">前 20D</th><th className="num">前 60D</th>
-                <th className="num">后 30D</th><th className="num">后 90D</th><th className="num">后 180D</th>
+                <th className="num ii-dec-col-tail">前 20 净值点</th><th className="num ii-dec-col-tail">前 60 净值点</th>
+                <th className="num ii-dec-col-tail">后 30 净值点</th>
+                <th className="num">后 90 净值点</th><th className="num">后 180 净值点</th>
                 <th>资格</th>
               </tr>
             </thead>
@@ -165,9 +174,9 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
                   </td>
                   <td><b>{event.name}</b><span className="ii-dec-sub">{event.symbol} · {event.assetClass} · {event.marketLabel}</span></td>
                   <td className="num">{fmtCNY(event.amount)}</td>
-                  <td className="num">{windowCell(event.pre20)}</td>
-                  <td className="num">{windowCell(event.pre60)}</td>
-                  <td className="num">{windowCell(event.post30)}</td>
+                  <td className="num ii-dec-col-tail">{windowCell(event.pre20)}</td>
+                  <td className="num ii-dec-col-tail">{windowCell(event.pre60)}</td>
+                  <td className="num ii-dec-col-tail">{windowCell(event.post30)}</td>
                   <td className="num">{windowCell(event.post90)}</td>
                   <td className="num">{windowCell(event.post180)}</td>
                   <td>
@@ -183,7 +192,9 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
           </table>
         </div>
         <div className="ii-decision-pagination" aria-label="决策事件分页">
-          <p className="footnote">默认按最新事件排序；“不足”表示观察期未完成，不计为 0。当前显示 {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, newestFirst.length)} / {newestFirst.length}。</p>
+          <p className="footnote">
+        默认按最新事件排序；“不足”表示观察期未完成，不计为 0。窗口以<b>净值点</b>计数（该资产每个估值日记 1 点，QDII 等稀疏净值资产的一个点可能跨多日），不是自然日或交易日。当前显示 {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, newestFirst.length)} / {newestFirst.length}。
+      </p>
           <div>
             <button type="button" disabled={page === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>上一页</button>
             <span className="num">{page} / {pageCount}</span>

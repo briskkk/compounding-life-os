@@ -8566,3 +8566,19 @@ kbd {
   color: var(--color-ink);
   box-shadow: inset 0 -2px 0 var(--color-accent);
 }
+
+/* 决策库列优先级：窄视口先隐藏「前 20/60 净值点、后 30 净值点」三个低优先列，
+   让后 90/后 180 净值点与资格（最有价值的三列）无需横向滚动即可见。 */
+@media (max-width: 1599px) {
+  .ii-dec-table .ii-dec-col-tail {
+    display: none;
+  }
+}
+
+/* 决策库窄视口：收紧单元格左右内边距，让 7 列在 1280px 内放下（此前 1180px 强制宽度下需滚动 228px） */
+@media (max-width: 1599px) {
+  .ii-dec-table th,
+  .ii-dec-table td {
+    padding-inline: 6px;
+  }
+}

@@ -699,3 +699,10 @@ last_verified: 2026-09-10
 - 新增 SectionNav（IntersectionObserver + aria-current=location），周期复盘 6 项章节条改用；长期复盘补 5 个区块 id 与章节条。
 - E2E：当前态随滚动更新、点击锚点立即生效、全导航仅一个当前项。
 - 验证：npm test 522/522、build 通过、Playwright 96/96。
+
+# 2026-09-16 迭代 C 之 C8：决策库宽表列优先级、口径与枚举中文化
+
+- 去掉 1180px 强制宽度；<1600px 隐藏前 20/60、后 30 净值点并收紧内边距 → 1280/1440 核心三列无需滚动。
+- 表头与行为面板统一「净值点」口径并加说明（净值点计数、QDII 稀疏净值）。
+- 窗口状态 title 去英文 token 与 asOf。
+- E2E 在两个宽度断言可见性/隐藏/无溢出。验证：npm test 522/522、build 通过、Playwright 96/96。

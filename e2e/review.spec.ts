@@ -173,6 +173,19 @@ test('决策库：事件表、资格与 1280/1440 无溢出', async ({ page }) =
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/review/decisions')
     await expect(page.getByRole('heading', { name: '决策库：每笔买卖的确定性回看' })).toBeVisible()
+    // C8：核心三列（后 90/后 180 净值点、资格）在任何宽度都要可见；
+    // 低优先列（前 20/60、后 30 净值点）只在 1440px 以上显示，1280px 下隐藏以省出横向空间
+    await expect(page.getByRole('columnheader', { name: '后 90 净值点' })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: '后 180 净值点' })).toBeVisible()
+    if (width < 1600) {
+      await expect(page.getByRole('columnheader', { name: '前 20 净值点' })).toBeHidden()
+    } else {
+      await expect(page.getByRole('columnheader', { name: '前 20 净值点' })).toBeVisible()
+    }
+    const tableScroll = page.locator('.ii-dec-wrap')
+    const tableOverflow = await tableScroll.evaluate((el) => el.scrollWidth - el.clientWidth)
+    expect(tableOverflow).toBeLessThanOrEqual(0)
+    await expect(page.getByText(/窗口以/)).toBeVisible()
     // B6：年化换手率（原先恒为「未计算」）现在按区间快照均值算出，并标注口径
     await expect(page.getByText(/年化换手率/)).toBeVisible()
     await expect(page.getByText(/取自 \d+ 天快照/)).toBeVisible()
