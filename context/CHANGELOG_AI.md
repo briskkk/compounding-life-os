@@ -652,3 +652,9 @@ last_verified: 2026-09-10
 - 加固：月数 NaN 兜底，避免 projectStreamGoal 抛错导致 500。
 - 守卫：src/test/projection-equivalence.test.ts（10 例，冻结基线逐字段 ≤1e-12）。
 - 验证：npm test 517/517、build 通过、Playwright 92/92（23.0s→16.7s）。
+
+# 2026-09-16 性能补充：内联高斯算式与冷/热路径结论
+
+- 内联 Box-Muller 算式进采样内层（同 seed、同顺序，逐位一致）：页面规模冷算 221→213ms（约 4%）。
+- 插桩：首次渲染 loadGoals 409.7ms、同输入第二次 6.0ms；冷路径约 200ms 属 JIT 预热，非算法开销，故「数值不变」下冷渲染下限约 270ms。
+- 目标（~150ms 冷）需调整 sims（产品决策），已量化 500/750 两档。
