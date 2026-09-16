@@ -120,11 +120,7 @@ export function InvestmentHistoryBand({
     <div className="ii-band-surface" aria-label="决策时间带">
       <div className="ii-band-takeaway">
         <b>怎么读这张图</b>
-        <p>
-          曲线是<b>全部可投资资产每天的价值</b>（读左侧金额）；底部柱条是<b>每个季度买入/卖出的笔数</b>；
-          灰色竖带表示<b>那段时间价格沿用旧值、没有真实报价</b>。曲线起伏反映钱在涨跌，
-          柱条和灰带只回答“我何时动手、数据何时不完整”，不代表盈亏方向。
-        </p>
+        <p>曲线＝全部可投资资产的每日价值；柱条＝季度买卖笔数；灰带＝沿用旧值的时段。柱条与灰带不代表盈亏方向。</p>
       </div>
       <p className="ii-band-summary">{parts.length > 0 ? parts.join('；') : '区间数据不足，无法生成一句话结论。'}</p>
       <div className="ii-band-legend" aria-hidden="true">

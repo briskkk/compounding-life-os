@@ -296,9 +296,7 @@ export function HistoryClient({
             <div className="review-section-heading">
               <div>
                 <span>03</span>
-                <div><h2>决策时间带：路径、行为与数据缺口在同一时间轴上</h2>
-                  <p>蓝色曲线是全部可投资资产的价值路径；底部柱条是每个季度买入/卖出的笔数；灰色竖带表示价格沿用旧值的时段。看懂“什么时候赚钱、什么时候动手、什么时候数据不全”。</p>
-                </div>
+                <div><h2>决策时间带：路径、行为与数据缺口在同一时间轴上</h2></div>
               </div>
             </div>
             <InvestmentHistoryBand
