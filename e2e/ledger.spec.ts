@@ -53,19 +53,58 @@ test('流水页：表格、筛选、冲正入口与导出链接', async ({ page 
   expect(await page.locator('tbody tr').count()).toBeLessThanOrEqual(25)
 })
 
-test('资产选择器：打开不闪关、搜索过滤、键盘选中', async ({ page }) => {
+test('资产选择器：combobox 语义、搜索过滤与键盘选中', async ({ page }) => {
   await page.goto('/transactions')
   await page.locator('#new-entry summary').click()
-  // 打开选择器（历史 bug：label 激活行为导致下拉闪开闪关）
-  await page.locator('form div.cursor-text').first().click()
-  await expect(page.locator('form div.cursor-text input')).toBeVisible()
-  // 搜索过滤
-  await page.keyboard.type('CASH')
-  await expect(page.locator('div.max-h-72 button[data-idx]').first()).toBeVisible()
-  // 键盘选中第一项后下拉关闭并显示选中资产
+  const combo = page.getByRole('combobox', { name: '资产' })
+  // 键盘可直接聚焦（旧实现是不可聚焦的 div，键盘用户无法录入）
+  await combo.focus()
+  await expect(combo).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByRole('listbox', { name: '资产候选' })).toBeVisible()
+  // 搜索过滤：候选是 option 语义
+  await page.keyboard.type('110022')
+  const option = page.getByRole('listbox', { name: '资产候选' }).getByRole('option').first()
+  await expect(option).toBeVisible()
+  await expect(option).toHaveAttribute('aria-selected', 'false')
+  // 键盘选中后：收起候选、输入框显示选中资产、aria-activedescendant 清空
   await page.keyboard.press('Enter')
-  await expect(page.locator('form div.cursor-text input')).toHaveCount(0)
-  await expect(page.locator('form div.cursor-text span').first()).toContainText('·')
+  await expect(combo).toHaveAttribute('aria-expanded', 'false')
+  await expect(combo).toHaveValue(/·/)
+  await expect(page.getByRole('listbox', { name: '资产候选' })).toHaveCount(0)
+})
+
+test('资产选择器：纯键盘完成一次流水录入', async ({ page }) => {
+  await page.route('**/api/prices?**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ quotes: [] }) }))
+  await page.goto('/transactions')
+  // 连「录入与导入」面板也用键盘打开
+  await page.locator('#new-entry summary').focus()
+  await page.keyboard.press('Enter')
+
+  const form = page.locator('#new-entry form')
+  await form.locator('select[name="accountId"]').selectOption({ label: '天天基金' })
+
+  const combo = page.getByRole('combobox', { name: '资产' })
+  await combo.focus()
+  await page.keyboard.type('110022')
+  await expect(page.getByRole('listbox', { name: '资产候选' }).getByRole('option').first()).toBeVisible()
+  await expect(combo).toHaveAttribute('aria-activedescendant', /.+/)
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('Enter')
+  await expect(combo).toHaveValue(/110022/)
+
+  // 金额与备注也用键盘输入
+  await form.locator('input[name="amount"]').focus()
+  await page.keyboard.type('1234')
+  await form.locator('input[name="note"]').focus()
+  await page.keyboard.type('E2E 纯键盘录入')
+
+  // 提交：焦点移到按钮并用键盘触发
+  const submit = form.getByRole('button', { name: '写入账本' })
+  await submit.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('write-flash')).toContainText('已写入账本')
+  await expect(page.locator('tbody tr').filter({ hasText: 'E2E 纯键盘录入' })).toHaveCount(1)
 })
 
 test('场外基金：净值份额未知时先按金额记录，并进入当日复盘', async ({ page }) => {

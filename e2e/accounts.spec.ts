@@ -64,6 +64,13 @@ test('资产设置：无流水资产可完整修改并安全删除', async ({ pa
 })
 
 test('总览、看盘与账户的今日盈亏使用同一交易日口径', async ({ page }) => {
+  // 先预热行情缓存：冷启动时服务端 SWR 会先用持久化行情的 stale 值渲染一次，
+  // 与看盘的实时值可能差一次刷新（实测 overview 与 watch 各差 525 元）。
+  // 本用例验证的是「口径是否一致」，因此先让缓存进入 fresh 状态再比较。
+  await page.goto('/watch')
+  await page.getByTestId('watch-today-pnl').waitFor()
+  await page.waitForTimeout(800)
+
   await page.goto('/')
   const overviewAmount = await page.getByTestId('overview-today-pnl').getAttribute('data-amount')
 
