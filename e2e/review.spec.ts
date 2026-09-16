@@ -224,3 +224,15 @@ test('复盘章节导航：随滚动更新当前态', async ({ page }) => {
   await page.waitForTimeout(500)
   await expect(historyNav.getByRole('link', { name: '05 数据资格' })).toHaveAttribute('aria-current', 'location')
 })
+
+test('复盘 03 时点：日柱按可用宽度均分，不需要横向滚动且有零轴', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/review')
+  const chart = page.locator('.review-day-chart')
+  await expect(chart).toBeVisible()
+  const overflow = await chart.evaluate((el) => el.scrollWidth - el.clientWidth)
+  expect(overflow).toBeLessThanOrEqual(1)
+  // 每个日柱底部有零轴（伪元素），正负不再只靠颜色区分
+  const axis = await chart.locator('.review-day-column > div').first().evaluate((el) => getComputedStyle(el, '::after').borderTopWidth)
+  expect(parseFloat(axis)).toBeGreaterThan(0)
+})

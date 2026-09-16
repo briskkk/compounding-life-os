@@ -4379,6 +4379,21 @@ nav[aria-label="主导航"] a {
 }
 
 .review-contribution-track .is-positive,
+.review-day-column > div {
+  position: relative;
+  width: 100%;
+}
+
+/* 日柱的零轴：柱底/柱顶对齐处画一条基线，正负一眼可辨（不再只靠颜色） */
+.review-day-column > div::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-line) 90%, transparent);
+}
+
 .review-day-column .is-positive {
   background: var(--color-up);
 }
@@ -4627,7 +4642,9 @@ nav[aria-label="主导航"] a {
   display: flex;
   min-height: 190px;
   align-items: flex-end;
-  gap: 8px;
+  /* 用较小间距 + 可伸缩列：此前每列 min-width: 50px + 8px 间距，22 个交易日约 1276px
+     必然撑出横向滚动（容器约 992px）。现在按可用宽度均分，窄屏也不强制滚动。 */
+  gap: 4px;
   overflow-x: auto;
   margin-top: 2rem;
   padding: 1.5rem 0.5rem 0.7rem;
@@ -4644,7 +4661,8 @@ nav[aria-label="主导航"] a {
 
 .review-day-column {
   display: grid;
-  min-width: 50px;
+  flex: 1 1 0;
+  min-width: 14px;
   grid-template-rows: 32px 86px 22px;
   align-items: end;
   justify-items: center;
