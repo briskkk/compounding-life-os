@@ -55,11 +55,15 @@ test('终端首页：财富结果、对账桥、贡献来源与状态同屏', as
   await expect(page.getByRole('region', { name: '行情数据状态' })).toHaveCount(0)
   await expect(page.locator('.overview-data-quality').getByRole('link', { name: '查看数据状态 →' })).toBeVisible()
   // 账本可对账结果与双口径
-  await expect(page.getByText('期初可投资资产', { exact: true })).toBeVisible()
+  await expect(page.getByText(/期初可投资资产/).first()).toBeVisible()
+  // 口径徽标必须显示：期初/期末都是复盘口径，避免与当前可投资资产混淆
+  await expect(page.locator('.overview-equation').getByText('复盘口径').first()).toBeVisible()
   await expect(page.getByText('净投入').first()).toBeVisible()
   await expect(page.getByText('投资收益', { exact: true }).first()).toBeVisible()
-  await expect(page.getByText('本期末可投资资产', { exact: true })).toBeVisible()
-  await expect(page.getByText(/时点不同时金额可能不同/)).toBeVisible()
+  await expect(page.getByText(/期末可投资资产/).first()).toBeVisible()
+  await expect(page.getByText(/按所选周期的复盘证据重放/)).toBeVisible()
+  // 当前口径的可投资资产必须带作用域徽标，且与复盘期末是不同名称
+  await expect(page.locator('.overview-metric-strip').getByText('现金与可交易资产 + 在途')).toBeVisible()
   await expect(page.getByText('本月 TWR', { exact: true })).toBeVisible()
   await expect(page.getByText('负债率', { exact: true })).toBeVisible()
   // 图表渲染

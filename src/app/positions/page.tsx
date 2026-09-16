@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session'
 import { loadEngineState } from '@/lib/queries'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
-import { Empty, Panel, SetupScreen, Tag } from '@/components/ui'
+import { Empty, Panel, SetupScreen, Tag, ScopeLabel } from '@/components/ui'
 import { ValuationToggle } from '@/components/valuation-toggle'
 import { groupByTag, matchesTag, parseTags, UNTAGGED } from '@/lib/engine/groups'
 import { groupByMarket, groupByStyle, sumByKey, UNCLASSIFIED_STYLE_KEY } from '@/lib/engine/composition'
@@ -151,7 +151,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
     <div className="page-shell positions-shell">
       <section className="hero-grid border-b border-line pb-6">
         <div>
-          <div className="eyebrow">投资组合总资产（元）</div>
+          <div className="eyebrow"><ScopeLabel scope="PORTFOLIO_ASSETS" /></div>
           <h1 className="num hero-number mt-4" aria-label={`持仓总市值 ${fmtCNY(totalHeld)}`}>{fmtCNY(totalHeld)}</h1>
           <div className={cx('num mt-5 text-[18px]', totalUnrealized >= 0 ? 'text-up' : 'text-down')}>
             {fmtCNY(totalUnrealized, { sign: true })} · 持有收益

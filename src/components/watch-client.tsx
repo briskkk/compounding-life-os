@@ -8,7 +8,7 @@ import { summarizeDailyPortfolio } from '@/lib/engine/daily-pnl'
 import { sortHoldings, type HoldingSort } from '@/lib/engine/holding-sort'
 import { dateKeyAt, isCurrentPortfolioDay, seriesTradingDate, summarizeValuationDate } from '@/lib/engine/watch-market'
 import type { IntradaySeries } from '@/lib/market/intraday'
-import { Panel } from './ui'
+import { Panel, ScopeLabel } from './ui'
 import { IntradayChart } from './charts'
 import { cx, fmtCNY, fmtDateTime, fmtMoney, fmtPct, fmtQty } from '@/lib/format'
 import type { PriceSource } from '@/lib/engine/types'
@@ -307,7 +307,7 @@ export function WatchClient({
           <p className="mt-6 text-[15px] text-ink-faint">{asOf ? `数据更新于 ${fmtDateTime(asOf)}` : '分钟级行情加载中…'}</p>
           <p className="mt-2 text-[13px] text-ink-faint">{marketStatus} · 今日口径 {todayKey}</p>
           <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-ink-faint">
-            <span>组合总市值 <strong className="num ml-1 font-normal text-ink">{fmtCNY(totalValue)}</strong></span>
+            <span><ScopeLabel scope="PORTFOLIO_ASSETS_LIVE" /> <strong className="num ml-1 font-normal text-ink">{fmtCNY(totalValue)}</strong></span>
             <span>覆盖 <strong className="num ml-1 font-normal text-ink">{rows.length}</strong> 个标的</span>
             <span>{provider} · 30 秒刷新</span>
           </div>

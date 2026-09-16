@@ -3,6 +3,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { BRAND_NAME } from '@/lib/brand'
 import { cx, fmtCNY, fmtPct, toneOf } from '@/lib/format'
+import { WEALTH_SCOPES, type WealthScopeKey } from '@/lib/wealth-scope'
 
 export function PageHeader({
   kicker,
@@ -149,6 +150,20 @@ export function Empty({ children, action }: { children: ReactNode; action?: { hr
         </Link>
       )}
     </div>
+  )
+}
+
+/**
+ * 财富口径标签：统一命名 + 数字旁的作用域短注 + title/aria 上的完整解释。
+ * 目的：同一数值不再有多个名称，同名数字必须同源（见 context/PRODUCT_REQUIREMENTS.md 口径约定）。
+ */
+export function ScopeLabel({ scope, className, badgeClassName }: { scope: WealthScopeKey; className?: string; badgeClassName?: string }) {
+  const def = WEALTH_SCOPES[scope]
+  return (
+    <span className={className} title={def.detail} aria-label={`${def.label}（${def.badge}）：${def.detail}`}>
+      {def.label}
+      <em className={cx('scope-badge', badgeClassName)}>{def.badge}</em>
+    </span>
   )
 }
 

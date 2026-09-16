@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { getDashboard } from '@/lib/queries'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
-import { Empty, SetupScreen } from '@/components/ui'
+import { Empty, SetupScreen, ScopeLabel } from '@/components/ui'
 import { WealthChart } from '@/components/charts'
 import { C, CLASS_COLORS } from '@/lib/colors'
 import { ASSET_CLASS_LABEL } from '@/lib/labels'
@@ -164,7 +164,7 @@ export default async function OverviewPage({
       <section className="overview-ledger-hero" aria-label="财富核心结果">
         <div className="overview-net-worth">
           <div>
-            <div className="eyebrow">当前净资产</div>
+            <div className="eyebrow"><ScopeLabel scope="NET_WORTH" /></div>
             <div className="num overview-net-worth-value">{fmtCNY(d.state.netWorth)}</div>
             <div className="overview-net-worth-deltas">
               <span
@@ -203,20 +203,20 @@ export default async function OverviewPage({
             <Link href={reviewHref}>查看完整复盘 →</Link>
           </div>
           <div className="overview-equation">
-            <div><span>期初可投资资产</span><strong className="num">{money(performance.baseNetWorth)}</strong></div>
+            <div><span><ScopeLabel scope="PERIOD_START_INVESTABLE" /></span><strong className="num">{money(performance.baseNetWorth)}</strong></div>
             <i>+</i>
             <div><span>净投入</span><strong className="num">{money(performance.netFlow, true)}</strong></div>
             <i>+</i>
             <div><span>投资收益</span><strong className={cx('num', (performance.amount ?? 0) >= 0 ? 'text-up' : 'text-down')}>{money(performance.amount, true)}</strong></div>
             <i>=</i>
-            <div className="overview-equation-result"><span>本期末可投资资产</span><strong className="num">{money(performance.endNetWorth)}</strong></div>
+            <div className="overview-equation-result"><span><ScopeLabel scope="PERIOD_END_INVESTABLE" /></span><strong className="num">{money(performance.endNetWorth)}</strong></div>
           </div>
-          <p className="overview-bridge-note">此处按所选周期的复盘证据计算；下方“可投资资产”按当前账本与估值展示，时点不同时金额可能不同。</p>
+          <p className="overview-bridge-note">上方四个数字按所选周期的复盘证据重放（期末不等于当前）；下方“可投资资产”按当前账本与最新估值展示。</p>
         </div>
       </section>
 
       <section className="overview-metric-strip" aria-label="关键财富指标">
-        <div><span>可投资资产</span><strong className="num">{fmtCNY(d.state.investable)}</strong></div>
+        <div><span><ScopeLabel scope="INVESTABLE" /></span><strong className="num">{fmtCNY(d.state.investable)}</strong></div>
         <div><span>{periodLabel}投资收益</span><strong className={cx('num', (performance.amount ?? 0) >= 0 ? 'text-up' : 'text-down')}>{money(performance.amount, true)}</strong></div>
         <div><span>{periodLabel} TWR</span><strong className={cx('num', (performance.pct ?? 0) >= 0 ? 'text-up' : 'text-down')}>{fmtPct(performance.pct, { sign: true })}</strong></div>
         <div><span>现金水位</span><strong className="num">{fmtPct(m.cashRatio)}</strong></div>

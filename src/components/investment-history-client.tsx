@@ -4,6 +4,7 @@ import type { InvestmentHistoryPageData, HistoryScopeOption } from '@/lib/invest
 import { fmtCNY, fmtPct, toneOf } from '@/lib/format'
 import { InvestmentHistoryBand } from './investment-history-band'
 import { InvestmentHistoryContribution, type ContributionViewKey } from './investment-history-contribution'
+import { ScopeLabel } from '@/components/ui'
 
 function toneClass(value: number | null): string {
   if (value == null) return 'text-ink-faint'
@@ -126,13 +127,13 @@ export function HistoryClient({
               </div>
             </div>
             <div className="review-bridge" aria-label="期初期末资金桥">
-              <div className="review-metric"><span>期初可投资资产</span><strong className="num">{bridge.openingValue == null ? '—' : fmtCNY(bridge.openingValue)}</strong></div>
+              <div className="review-metric"><span><ScopeLabel scope="PERIOD_START_INVESTABLE" /></span><strong className="num">{bridge.openingValue == null ? '—' : fmtCNY(bridge.openingValue)}</strong></div>
               <i>+</i>
               <div className="review-metric"><span>外部净投入</span><strong className={`num ${toneClass(bridge.netInflow)}`}>{bridge.netInflow == null ? '—' : fmtCNY(bridge.netInflow, { sign: true })}</strong></div>
               <i>+</i>
               <div className="review-metric"><span>投资收益</span><strong className={`num ${toneClass(bridge.investGain)}`}>{bridge.investGain == null ? '—' : fmtCNY(bridge.investGain, { sign: true })}</strong></div>
               <i>=</i>
-              <div className="review-metric"><span>期末可投资资产</span><strong className="num">{bridge.endingValue == null ? '—' : fmtCNY(bridge.endingValue)}</strong></div>
+              <div className="review-metric"><span><ScopeLabel scope="PERIOD_END_INVESTABLE" /></span><strong className="num">{bridge.endingValue == null ? '—' : fmtCNY(bridge.endingValue)}</strong></div>
             </div>
             <div className="review-benchmark" style={{ justifyContent: 'flex-start', borderTop: '1px solid var(--color-line)', marginTop: '1.2rem', paddingTop: '1rem' }}>
               <span className="review-metric"><span>外部存入</span><strong className="num">{fmtCNY(flows.deposits)}</strong></span>

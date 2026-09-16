@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session'
 import { loadEngineState, type EngineState } from '@/lib/queries'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
-import { Empty, PageHeader, Panel, SetupScreen, Stat, Tag } from '@/components/ui'
+import { Empty, PageHeader, Panel, SetupScreen, Stat, Tag, ScopeLabel } from '@/components/ui'
 import { AccountForm, AssetForm } from '@/components/account-forms'
 import { LiabilityEntryForm, LiabilityForm } from '@/components/liability-forms'
 import { ACCOUNT_TYPE_LABEL, ASSET_CLASS_LABEL, LIABILITY_TYPE_LABEL } from '@/lib/labels'
@@ -174,7 +174,7 @@ export default async function AccountsPage({
           : '跨账户汇总可投资组合；华为股票在资产目录中作为长期资产独立维护。'}
         right={(
           <div className="flex flex-wrap items-end gap-5">
-            <div><div className="text-[14px] text-ink-faint">账户总资产</div><div className="num mt-2 whitespace-nowrap text-[34px] text-ink">{fmtCNY(totalAssets)}</div></div>
+            <div><div className="text-[14px] text-ink-faint"><ScopeLabel scope="PORTFOLIO_ASSETS" /></div><div className="num mt-2 whitespace-nowrap text-[34px] text-ink">{fmtCNY(totalAssets)}</div></div>
             <Link href="/investment-plans" className="inline-flex min-h-11 shrink-0 items-center text-[14px] whitespace-nowrap text-accent">定投管理 →</Link>
             {canWrite && (
               <a href={activeView === 'calendar' ? '#new-cash-plan' : '#new-account'} className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-accent px-5 text-[14px] font-medium whitespace-nowrap text-bg">

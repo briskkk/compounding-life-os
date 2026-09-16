@@ -3056,6 +3056,22 @@ select option {
   font-style: normal;
 }
 
+/* 财富口径徽标：紧跟在口径名之后，说明该数字的范围与时点 */
+.scope-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  color: var(--color-ink-faint);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0;
+  vertical-align: middle;
+}
+
 .overview-data-quality {
   display: flex;
   align-items: flex-start;

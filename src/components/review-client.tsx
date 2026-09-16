@@ -8,6 +8,8 @@ import { savePortfolioReview } from '@/lib/actions'
 import type { ReviewPageData } from '@/lib/review-data'
 import type { ReviewContribution } from '@/lib/engine/review'
 import { cx, fmtCNY, fmtDateTime, fmtPct, toneOf } from '@/lib/format'
+import type { ReactNode } from 'react'
+import { ScopeLabel } from '@/components/ui'
 
 type Dimension = 'asset' | 'source' | 'class'
 
@@ -67,7 +69,7 @@ function displayDate(date: string): string {
 }
 
 function Metric({ label, value, detail, className }: {
-  label: string
+  label: ReactNode
   value: string
   detail?: string
   className?: string
@@ -281,13 +283,13 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
           </div>
         </div>
         <div className="review-bridge" aria-label="期初期末资金桥">
-          <Metric label="期初可投资资产" value={result.performance.baseNetWorth == null ? '—' : fmtCNY(result.performance.baseNetWorth)} />
+          <Metric label={<ScopeLabel scope="PERIOD_START_INVESTABLE" />} value={result.performance.baseNetWorth == null ? '—' : fmtCNY(result.performance.baseNetWorth)} />
           <i>+</i>
           <Metric label="净投入" value={result.performance.netFlow == null ? '—' : fmtCNY(result.performance.netFlow, { sign: true })} />
           <i>+</i>
           <Metric label="投资收益" value={result.performance.amount == null ? '—' : fmtCNY(result.performance.amount, { sign: true })} className={tone(result.performance.amount)} />
           <i>=</i>
-          <Metric label="期末可投资资产" value={result.performance.endNetWorth == null ? '—' : fmtCNY(result.performance.endNetWorth)} />
+          <Metric label={<ScopeLabel scope="PERIOD_END_INVESTABLE" />} value={result.performance.endNetWorth == null ? '—' : fmtCNY(result.performance.endNetWorth)} />
         </div>
         <div className="review-benchmark">
           <label htmlFor="review-benchmark">比较基准</label>

@@ -42,7 +42,7 @@ test('多家庭：创建家庭、数据隔离与切换', async ({ browser }) => 
     // 切回种子家庭，数据恢复（净资产可见）
     await page.getByLabel('切换家庭').selectOption({ label: '沈家 · 财富空间 · OWNER' })
     await expect(page).toHaveURL('/')
-    await expect(page.locator('main').getByText('当前净资产')).toBeVisible()
+    await expect(page.locator('main').getByText('总资产 − 负债')).toBeVisible()
     await expect(page.locator('main').getByText(/¥\d[\d,]*\.\d{2}/).first()).toBeVisible()
   } finally {
     await ctx.close()

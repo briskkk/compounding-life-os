@@ -568,3 +568,11 @@ last_verified: 2026-09-10
 - 写入反馈定稿：同页 `router.refresh()`、跨页/改参数 `router.push()`，提示走 `WriteFlashProvider` 客户端 toast（不写 URL、不整页跳转）。`write-navigation` 也由 `.ts` 改为 `.tsx`。
 - 保留 `error/not-found/global-error`；导航加载骨架暂不恢复（根级有证实危害，恢复需按路由 + 通过率探针验证）。
 - 验证：`npm test` 461/461、`npm run build`/`build:e2e` 通过、Playwright 92/92（21.4s）。
+
+# 2026-09-16 迭代 B 之 B1：统一财富口径命名
+
+- 新增 `src/lib/wealth-scope.ts`（8 个口径的 label/badge/detail）与 `<ScopeLabel>` 原语 + `.scope-badge` 样式：数字旁显示作用域短注，title/aria 带完整解释。
+- 改名消除歧义：账户总资产 / 投资组合总资产（元）→ 投资组合总资产；组合总市值 → 投资组合总市值（实时 · 含在途）；本期末可投资资产 → 期末可投资资产（复盘口径），当前口径保留「可投资资产」。
+- 新增 `src/test/wealth-scope.test.ts`（7 例）：字典完整性/唯一性、废弃标签源码守卫、aggregate() 恒等式。
+- 验证：npm test 468/468；build/build:e2e 通过；Playwright 92/92。
+- 复现并记录 P1-26：跨页今日盈亏集合偶发不一致（同种子 2/6，差额可达 -274k vs -3.1k），下一项修复。
