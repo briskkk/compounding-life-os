@@ -8,6 +8,7 @@ import { GoalScenarioLab } from '@/components/goal-scenario-lab'
 import { SavingsCheckIn } from '@/components/savings-check-in'
 import { fmtCNY, fmtDate, fmtMonth, fmtPct, firePaceNote } from '@/lib/format'
 import { FIRE_SIMS_DEFAULT } from '@/lib/engine/projection'
+import { HashOpenDetails } from '@/components/hash-open-details'
 
 export const dynamic = 'force-dynamic'
 
@@ -246,10 +247,15 @@ export default async function GoalsPage() {
         )}
       </section>
 
-      <details id="new-goal" className="new-goal-section">
-        <summary><span><span className="eyebrow">New FIRE plan</span><strong>新建 FIRE 方案</strong></span><span aria-hidden="true">＋</span></summary>
+      {/* 用 HashOpenDetails：空态与标题里的「建立 FIRE 计划 →」「新建方案」都指向 #new-goal，
+          普通 <details> 只会滚动过去但不展开，用户会以为链接坏了 */}
+      <HashOpenDetails
+        id="new-goal"
+        className="new-goal-section"
+        summary={<span><span className="eyebrow">New FIRE plan</span><strong>新建 FIRE 方案</strong></span>}
+      >
         <div className="mt-6"><GoalForm mode="create" /></div>
-      </details>
+      </HashOpenDetails>
     </div>
   )
 }

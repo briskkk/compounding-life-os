@@ -311,3 +311,15 @@ test('导航：⌘K 支持 ↑↓/Enter，面包屑可点击并显示实体名',
   await expect(page.getByRole('navigation', { name: '主导航' }).locator('a[aria-current="page"]')).toHaveCount(1)
   await expect(page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '导入批次' })).toHaveAttribute('aria-current', 'page')
 })
+
+test('FIRE 页：#new-goal 深链会展开新建表单', async ({ page }) => {
+  await page.goto('/goals')
+  // P2-19：此前是普通 <details>，深链只滚动不展开，用户会以为链接坏了
+  await expect(page.locator('#new-goal')).not.toHaveAttribute('open')
+  await page.getByRole('link', { name: /建立 FIRE 计划|新建方案/ }).first().click()
+  await expect(page.locator('#new-goal')).toHaveAttribute('open')
+  await expect(page.locator('#new-goal').getByText('新建 FIRE 方案')).toBeVisible()
+  // 直接带 hash 打开（刷新后同样应展开）
+  await page.goto('/goals#new-goal')
+  await expect(page.locator('#new-goal')).toHaveAttribute('open')
+})
