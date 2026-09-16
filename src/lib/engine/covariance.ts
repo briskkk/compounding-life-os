@@ -47,27 +47,86 @@ export function cholesky(A: number[][]): number[][] {
 
 export type ClassWeights = Partial<Record<AssetClass, number>>
 
+// 相关矩阵恒为常量：Cholesky 只算一次，而不是每个 sim 重算（原先 1500 次/次投影）
+const CHOLESKY_CORR = cholesky(CORR)
+
+/**
+ * 组合月收益采样器的**计划**：只依赖权重（与 seed 无关），因此每次投影构建一次、
+ * 供全部 sim 复用（原先每个 sim 重跑一次 6×6 Cholesky）。
+ *
+ * 内层用扁平定长数组而不是对象数组：运算与顺序完全一致（同样的 `r += w·(μ + σ·e)`
+ * 与同样的列升序累加），只是省掉属性查找与逐样本分配。
+ */
+const PLAN_CACHE = new Map<string, (seed: number) => () => number>()
+
+function weightsKey(weights: ClassWeights): string {
+  // 用字符串拼接而不是模板字面量，避免嵌套反引号
+  return CLASSES.map((c) => c + ':' + (weights[c] ?? 0)).join('|')
+}
+
+export function portfolioSamplerFactory(weights: ClassWeights): (seed: number) => () => number {
+  const key = weightsKey(weights)
+  const cached = PLAN_CACHE.get(key)
+  if (cached) return cached
+  const built = buildPortfolioSamplerFactory(weights)
+  if (PLAN_CACHE.size > 32) PLAN_CACHE.clear()
+  PLAN_CACHE.set(key, built)
+  return built
+}
+
+function buildPortfolioSamplerFactory(weights: ClassWeights): (seed: number) => () => number {
+  const active = CLASSES.filter((c) => (weights[c] ?? 0) > 1e-9)
+  const total = active.reduce((s, c) => s + (weights[c] ?? 0), 0)
+  const termCount = active.length
+  const termWeight = new Float64Array(termCount)
+  const termMu = new Float64Array(termCount)
+  const termSigma = new Float64Array(termCount)
+  const termOffset = new Int32Array(termCount + 1)
+  const colIndex: number[] = []
+  const colCoef: number[] = []
+  active.forEach((c, t) => {
+    const i = CLASSES.indexOf(c)
+    termOffset[t] = colIndex.length
+    for (let k = 0; k <= i; k++) {
+      const lik = CHOLESKY_CORR[i][k]
+      if (lik !== 0) {
+        colIndex.push(k)
+        colCoef.push(lik)
+      }
+    }
+    const p = CLASS_PARAMS[c]
+    termWeight[t] = (weights[c] ?? 0) / (total || 1)
+    termMu[t] = p.mu / 12
+    termSigma[t] = p.sigma / Math.sqrt(12)
+  })
+  termOffset[termCount] = colIndex.length
+  const cols = Int32Array.from(colIndex)
+  const coefs = Float64Array.from(colCoef)
+  const z = new Float64Array(CLASSES.length)
+  const n = CLASSES.length
+
+  return (seed: number) => {
+    const rand = mulberry32(seed >>> 0)
+    return () => {
+      // 冲击顺序必须与 CLASSES 一致；数组复用只是省掉每次 6 个元素分配
+      for (let i = 0; i < n; i++) z[i] = gaussian(rand)
+      let r = 0
+      for (let t = 0; t < termCount; t++) {
+        let e = 0
+        for (let j = termOffset[t]; j < termOffset[t + 1]; j++) e += coefs[j] * z[cols[j]]
+        r += termWeight[t] * (termMu[t] + termSigma[t] * e)
+      }
+      return r
+    }
+  }
+}
+
 /**
  * 生成组合月收益采样器：r = Σ wᵢ·(μᵢ/12 + σᵢ/√12·eᵢ)，e = L·z 为相关标准冲击
  * 同一 seed 的采样器序列恒定（可复现）
  */
 export function portfolioReturnSampler(weights: ClassWeights, seed: number): () => number {
-  const L = cholesky(CORR)
-  const active = CLASSES.filter((c) => (weights[c] ?? 0) > 1e-9)
-  const total = active.reduce((s, c) => s + (weights[c] ?? 0), 0)
-  const w = active.map((c) => ({ i: CLASSES.indexOf(c), w: (weights[c] ?? 0) / (total || 1), cls: c }))
-  const rand = mulberry32(seed >>> 0)
-  return () => {
-    const z = CLASSES.map(() => gaussian(rand))
-    let r = 0
-    for (const { i, w: wi, cls } of w) {
-      let e = 0
-      for (let k = 0; k <= i; k++) e += L[i][k] * z[k]
-      const p = CLASS_PARAMS[cls]
-      r += wi * (p.mu / 12 + (p.sigma / Math.sqrt(12)) * e)
-    }
-    return r
-  }
+  return portfolioSamplerFactory(weights)(seed)
 }
 
 /** 组合的期望年化与年化波动（用于展示） */

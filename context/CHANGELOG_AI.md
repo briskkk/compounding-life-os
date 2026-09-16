@@ -644,3 +644,11 @@ last_verified: 2026-09-10
 - 完成态降级（已完成→草稿）与重新完成需经统一确认对话框。
 - 情景应用确认与 delayMonths 归零已在 B4 完成。
 - 验证：npm test 507/507、build 通过、Playwright 92/92。
+
+# 2026-09-16 性能：FIRE 投影与 /goals 渲染成本
+
+- 定位：/goals 冷渲染 432ms 全在 loadGoals（投影），引擎 projectFireGoal 冷算 230ms，页面两情景 458ms。
+- 优化（数值不变）：采样计划按权重缓存（不再每 sim 跑 Cholesky）、内层定长数组化、quickselect 取分位、支取额预计算、逐月数组预分配、projectFireScenarios 两情景共用冲击序列（458→181ms）、结果记忆化（命中 6ms）。
+- 加固：月数 NaN 兜底，避免 projectStreamGoal 抛错导致 500。
+- 守卫：src/test/projection-equivalence.test.ts（10 例，冻结基线逐字段 ≤1e-12）。
+- 验证：npm test 517/517、build 通过、Playwright 92/92（23.0s→16.7s）。

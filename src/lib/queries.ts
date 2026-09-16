@@ -13,7 +13,7 @@ import {
 } from './engine/ledger'
 import { valuePositions, type ValuedPosition } from './engine/valuation'
 import { aggregate, type Metrics } from './engine/metrics'
-import { projectFireGoal, monthsBetween, type FireProjectionInput, type FireProjectionResult } from './engine/projection'
+import { monthsBetween, projectFireScenarios, type FireProjectionInput, type FireProjectionResult } from './engine/projection'
 import type { ClassWeights } from './engine/covariance'
 import { annualized, dailyNetFlows, twrSeries, xirr, xirrFlowsFromTxs } from './engine/attribution'
 import { totalLiabilities, type LiabilityEntryInput } from './engine/liabilities'
@@ -299,10 +299,11 @@ export async function loadGoals(
       seed: [...g.id].reduce((s, c) => s + c.charCodeAt(0), 7),
       portfolioWeights: g.metric === 'NET_WORTH' ? grossW : investableW,
     }
-    const projection = projectFireGoal(baseInput)
-    const sustainableProjection = opts.sustainableMonthlySavings != null
-      ? projectFireGoal({ ...baseInput, monthlyContribution: opts.sustainableMonthlySavings })
-      : null
+    // 「计划投入」与「可持续投入」两个情景共用一条冲击序列，一次算完（成本≈单情景）
+    const scenarios = opts.sustainableMonthlySavings != null
+      ? projectFireScenarios(baseInput, [baseInput.monthlyContribution, opts.sustainableMonthlySavings])
+      : projectFireScenarios(baseInput, [baseInput.monthlyContribution])
+    const [projection, sustainableProjection = null] = scenarios
     return {
       id: g.id,
       name: g.name,

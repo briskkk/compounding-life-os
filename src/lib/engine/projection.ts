@@ -2,7 +2,32 @@
 // 支持两种回报模型：单因子（正态）或组合协方差模型（portfolioReturnSampler）
 // 支持两种目标：LUMP_SUM 一次性达标 / STREAM 支出流（积累 + 分年支出）
 import { gaussian, mulberry32 } from './rng'
-import { portfolioReturnSampler, type ClassWeights } from './covariance'
+import { portfolioSamplerFactory, type ClassWeights } from './covariance'
+
+const PERCENTILE_QS = [0.1, 0.5, 0.9] as const
+
+/**
+ * 结果记忆化：引擎是确定性的（seed 已含在输入里），同一组输入必然得到同一结果，
+ * 因此可安全缓存。FIRE 页每次渲染要算「真实投入」与「可持续投入」两个情景，
+ * 用户反复打开该页时命中缓存即瞬时返回。命中时返回**同一对象**，调用方只读。
+ */
+const RESULT_CACHE = new Map<string, unknown>()
+
+function memoize<T>(kind: string, input: object, compute: () => T): T {
+  const key = kind + '|' + JSON.stringify(input)
+  const hit = RESULT_CACHE.get(key)
+  if (hit !== undefined) return hit as T
+  const value = compute()
+  if (RESULT_CACHE.size > 256) RESULT_CACHE.clear()
+  RESULT_CACHE.set(key, value)
+  return value
+}
+
+
+/** 月数兜底：非有限值按 0 处理，避免 Array.from({length: NaN}) 造成空数组后崩溃 */
+function safeMonths(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0
+}
 
 export interface ProjectionInput {
   current: number
@@ -65,6 +90,65 @@ function percentile(sorted: number[], q: number): number {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo)
 }
 
+/** 就地 quickselect：把第 k 小的元素放到 values[k]（不需要整个数组有序） */
+function selectKth(values: number[], k: number): number {
+  let left = 0
+  let right = values.length - 1
+  while (left < right) {
+    // 三点取中，避免有序输入退化
+    const mid = (left + right) >> 1
+    if (values[mid] < values[left]) { const t = values[mid]; values[mid] = values[left]; values[left] = t }
+    if (values[right] < values[left]) { const t = values[right]; values[right] = values[left]; values[left] = t }
+    if (values[right] < values[mid]) { const t = values[right]; values[right] = values[mid]; values[mid] = t }
+    const pivot = values[mid]
+    let i = left
+    let j = right
+    while (i <= j) {
+      while (values[i] < pivot) i++
+      while (values[j] > pivot) j--
+      if (i <= j) {
+        const t = values[i]; values[i] = values[j]; values[j] = t
+        i++
+        j--
+      }
+    }
+    if (k <= j) right = j
+    else if (k >= i) left = i
+    else return values[k]
+  }
+  return values[k]
+}
+
+/**
+ * 逐月分位：与「整段排序后取分位」数值一致，但只做 3 次 O(n) 选择而不是 O(n log n) 排序。
+ * 出现非有限值时回退到排序路径，保持与旧实现完全相同的退化行为。
+ */
+function percentilesOf(values: number[], qs: readonly number[]): number[] {
+  if (values.length === 0) return qs.map(() => 0)
+  if (values.some((value) => !Number.isFinite(value))) {
+    const sorted = [...values].sort((a, b) => a - b)
+    return qs.map((q) => percentile(sorted, q))
+  }
+  const copy = [...values]
+  const cache = new Map<number, number>()
+  const at = (index: number) => {
+    const hit = cache.get(index)
+    if (hit !== undefined) return hit
+    const selected = selectKth(copy, index)
+    cache.set(index, selected)
+    return selected
+  }
+  return qs.map((q) => {
+    const idx = (values.length - 1) * q
+    const lo = Math.floor(idx)
+    const hi = Math.ceil(idx)
+    if (lo === hi) return at(lo)
+    const a = at(lo)
+    const b = at(hi)
+    return a + (b - a) * (idx - lo)
+  })
+}
+
 /** 确定性（零波动）路径终值，用于反解月缴 */
 function deterministicFinal(current: number, monthly: number, months: number, mr: number): number {
   let v = current
@@ -75,19 +159,27 @@ function deterministicFinal(current: number, monthly: number, months: number, mr
 function makeSampler(input: { annualReturn: number; volatility: number; portfolioWeights?: ClassWeights; seed: number }) {
   const usePortfolio =
     input.portfolioWeights != null && Object.values(input.portfolioWeights).some((v) => (v ?? 0) > 0)
+  const simSeedOf = (simIndex: number) => (input.seed ^ (simIndex * 2654435761)) >>> 0
+  if (usePortfolio) {
+    // 组合计划只与权重有关：构建一次，全部 sim 复用（原先每个 sim 重跑一次 Cholesky）
+    const fromSeed = portfolioSamplerFactory(input.portfolioWeights!)
+    return (simIndex: number): (() => number) => fromSeed(simSeedOf(simIndex))
+  }
+  const mr = input.annualReturn / 12
+  const ms = input.volatility / Math.sqrt(12)
   return (simIndex: number): (() => number) => {
-    const simSeed = (input.seed ^ (simIndex * 2654435761)) >>> 0
-    if (usePortfolio) return portfolioReturnSampler(input.portfolioWeights!, simSeed)
-    const rand = mulberry32(simSeed)
-    const mr = input.annualReturn / 12
-    const ms = input.volatility / Math.sqrt(12)
+    const rand = mulberry32(simSeedOf(simIndex))
     return () => mr + ms * gaussian(rand)
   }
 }
 
 export function projectGoal(input: ProjectionInput): ProjectionResult {
+  return memoize('goal', input, () => projectGoalUncached(input))
+}
+
+function projectGoalUncached(input: ProjectionInput): ProjectionResult {
   const { current, target, monthlyContribution: c, annualReturn: mu, seed = 42, sims = 1500 } = input
-  const months = Math.max(0, Math.round(input.months))
+  const months = safeMonths(input.months)
   const mr = mu / 12
 
   if (months === 0) {
@@ -101,9 +193,9 @@ export function projectGoal(input: ProjectionInput): ProjectionResult {
     }
   }
 
-  const byMonth: number[][] = Array.from({ length: months + 1 }, () => [])
-  byMonth[0].push(current)
-  const finals: number[] = []
+  // 月份 0 只有一个期初值（旧实现为单元素数组），其余月份预分配 sims 个槽位
+  const byMonth: number[][] = Array.from({ length: months + 1 }, (_, m) => (m === 0 ? [current] : new Array<number>(sims)))
+  const finals: number[] = new Array<number>(sims)
   const samplerOf = makeSampler({
     annualReturn: input.annualReturn,
     volatility: input.volatility,
@@ -117,14 +209,14 @@ export function projectGoal(input: ProjectionInput): ProjectionResult {
     for (let m = 1; m <= months; m++) {
       v = v * (1 + sample()) + c
       if (v < 0) v = 0
-      byMonth[m].push(v)
+      byMonth[m][s] = v
     }
-    finals.push(v)
+    finals[s] = v
   }
 
   const points: ProjectionPoint[] = byMonth.map((vals, m) => {
-    const sorted = [...vals].sort((a, b) => a - b)
-    return { month: m, p10: percentile(sorted, 0.1), p50: percentile(sorted, 0.5), p90: percentile(sorted, 0.9) }
+    const [p10, p50, p90] = percentilesOf(vals, PERCENTILE_QS)
+    return { month: m, p10, p50, p90 }
   })
 
   const successProb = finals.filter((v) => v >= target).length / sims
@@ -172,6 +264,10 @@ export interface StreamProjectionInput {
  * 成功 = 全程任意月末余额 ≥ 0（不断供）
  */
 export function projectStreamGoal(input: StreamProjectionInput): ProjectionResult {
+  return memoize('stream', input, () => projectStreamGoalUncached(input))
+}
+
+function projectStreamGoalUncached(input: StreamProjectionInput): ProjectionResult {
   const {
     current,
     monthlyContribution: c,
@@ -182,8 +278,8 @@ export function projectStreamGoal(input: StreamProjectionInput): ProjectionResul
     seed = 42,
     sims = 1500,
   } = input
-  const spendMonths = Math.max(0, Math.round(spendYears * 12))
-  const accum = Math.max(0, Math.round(monthsAccum))
+  const spendMonths = safeMonths(spendYears * 12)
+  const accum = safeMonths(monthsAccum)
   const months = accum + spendMonths
   const monthlySpend = annualSpend / 12
   const mr = mu / 12
@@ -200,8 +296,8 @@ export function projectStreamGoal(input: StreamProjectionInput): ProjectionResul
     }
   }
 
-  const byMonth: number[][] = Array.from({ length: months + 1 }, () => [])
-  byMonth[0].push(current)
+  // 月份 0 只有一个期初值（旧实现为单元素数组），其余月份预分配 sims 个槽位
+  const byMonth: number[][] = Array.from({ length: months + 1 }, (_, m) => (m === 0 ? [current] : new Array<number>(sims)))
   const samplerOf = makeSampler({
     annualReturn: input.annualReturn,
     volatility: input.volatility,
@@ -222,15 +318,15 @@ export function projectStreamGoal(input: StreamProjectionInput): ProjectionResul
         solvent = false
         v = 0
       }
-      byMonth[m].push(v)
+      byMonth[m][s] = v
     }
     if (solvent) success++
-    finals.push(v)
+    finals[s] = v
   }
 
   const points: ProjectionPoint[] = byMonth.map((vals, m) => {
-    const sorted = [...vals].sort((a, b) => a - b)
-    return { month: m, p10: percentile(sorted, 0.1), p50: percentile(sorted, 0.5), p90: percentile(sorted, 0.9) }
+    const [p10, p50, p90] = percentilesOf(vals, PERCENTILE_QS)
+    return { month: m, p10, p50, p90 }
   })
 
   // 反解月缴：确定性（零波动）路径在支出期末恰好归零
@@ -268,9 +364,21 @@ export function projectStreamGoal(input: StreamProjectionInput): ProjectionResul
  * fireNumberToday 与由它推导的年度组合支出均使用今日购买力口径。
  */
 export function projectFireGoal(input: FireProjectionInput): FireProjectionResult {
+  return projectFireScenarios(input, [input.monthlyContribution])[0]
+}
+
+/**
+ * 同一组假设下的多个投入情景（例如「计划月投」与「可持续月投」）一次算完：
+ * 高价的高斯抽样只在最内层抽一次，供全部情景共用，因此成本与只算一个情景接近。
+ * 每个情景的数值与单独调用 projectFireGoal 完全一致（看到的是同一条冲击序列）。
+ */
+export function projectFireScenarios(input: FireProjectionInput, contributions: number[]): FireProjectionResult[] {
+  return memoize('fire-scenarios', { input, contributions }, () => projectFireScenariosUncached(input, contributions))
+}
+
+function projectFireScenariosUncached(input: FireProjectionInput, contributions: number[]): FireProjectionResult[] {
   const {
     current,
-    monthlyContribution,
     withdrawalRate,
     inflationRate,
     retirementYears,
@@ -279,60 +387,25 @@ export function projectFireGoal(input: FireProjectionInput): FireProjectionResul
     sims = 1500,
   } = input
   const fireNumberToday = Math.max(0, input.fireNumberToday)
-  const months = Math.max(0, Math.round(input.monthsToRetirement))
-  const retirementMonths = Math.max(0, Math.round(retirementYears * 12))
+  const months = safeMonths(input.monthsToRetirement)
+  const retirementMonths = safeMonths(retirementYears * 12)
   const monthlyInflation = Math.pow(1 + inflationRate, 1 / 12) - 1
   const monthlyReturn = Math.pow(1 + annualReturn, 1 / 12) - 1
   const inflationFactor = Math.pow(1 + monthlyInflation, months)
   const fireNumberAtRetirement = fireNumberToday * inflationFactor
   const annualPortfolioSpendToday = fireNumberToday * withdrawalRate
   const firstMonthlyDraw = annualPortfolioSpendToday * inflationFactor / 12
-  const byMonth: number[][] = Array.from({ length: months + 1 }, () => [])
-  const finals: number[] = []
   const samplerOf = makeSampler({
     annualReturn,
     volatility: input.volatility,
     portfolioWeights: input.portfolioWeights,
     seed,
   })
-  let accumulationSuccess = 0
-  let retirementSuccess = 0
+  // 每期支取额只与月份有关：预先算好，避免在 sim × month 内层重复 Math.pow
+  const draws = new Array<number>(retirementMonths)
+  for (let m = 1; m <= retirementMonths; m++) draws[m - 1] = firstMonthlyDraw * Math.pow(1 + monthlyInflation, m - 1)
 
-  for (let s = 0; s < sims; s++) {
-    const sample = samplerOf(s)
-    let value = current
-    byMonth[0].push(value)
-    for (let month = 1; month <= months; month++) {
-      value = value * (1 + sample()) + monthlyContribution
-      if (value < 0) value = 0
-      byMonth[month].push(value)
-    }
-    finals.push(value)
-    if (value >= fireNumberAtRetirement) accumulationSuccess++
-
-    let solvent = value > 0 || firstMonthlyDraw === 0
-    for (let month = 1; month <= retirementMonths; month++) {
-      const draw = firstMonthlyDraw * Math.pow(1 + monthlyInflation, month - 1)
-      value = value * (1 + sample()) - draw
-      if (value < 0) {
-        solvent = false
-        value = 0
-      }
-    }
-    if (solvent) retirementSuccess++
-  }
-
-  const points: ProjectionPoint[] = byMonth.map((values, month) => {
-    const sorted = [...values].sort((a, b) => a - b)
-    return {
-      month,
-      p10: percentile(sorted, 0.1),
-      p50: percentile(sorted, 0.5),
-      p90: percentile(sorted, 0.9),
-    }
-  })
-  const projectedMedian = points[months]?.p50 ?? current
-
+  // 确定性（零波动）路径反解所需月缴：与投入情景无关，多情景共用
   const deterministicAtRetirement = (monthly: number) => {
     let value = current
     for (let month = 0; month < months; month++) value = value * (1 + monthlyReturn) + monthly
@@ -352,35 +425,84 @@ export function projectFireGoal(input: FireProjectionInput): FireProjectionResul
     requiredMonthly = hi
   }
 
-  let estimatedFireMonths: number | null = null
-  let estimatedValue = current
-  for (let month = 0; month <= 1200; month++) {
-    const target = fireNumberToday * Math.pow(1 + monthlyInflation, month)
-    if (estimatedValue >= target) {
-      estimatedFireMonths = month
-      break
+  // 按给定投入估算达标月份（用于「还需多久」）：依赖投入额，因此每个情景各算一次
+  const estimatedFireMonthsFor = (contribution: number): number | null => {
+    let value = current
+    for (let month = 0; month <= 1200; month++) {
+      const target = fireNumberToday * Math.pow(1 + monthlyInflation, month)
+      if (value >= target) return month
+      value = value * (1 + monthlyReturn) + contribution
     }
-    estimatedValue = estimatedValue * (1 + monthlyReturn) + monthlyContribution
+    return null
   }
 
   const coastFireNumber = months === 0
     ? fireNumberToday
     : fireNumberAtRetirement / Math.pow(1 + monthlyReturn, months)
 
-  return {
-    points,
-    successProb: retirementSuccess / sims,
-    accumulationSuccessProb: accumulationSuccess / sims,
-    retirementSuccessProb: retirementSuccess / sims,
-    requiredMonthly,
-    projectedMedian,
-    fundedRatio: fireNumberToday > 0 ? current / fireNumberToday : 1,
-    fireNumberToday,
-    fireNumberAtRetirement,
-    annualPortfolioSpendToday,
-    coastFireNumber,
-    estimatedFireMonths,
+  // 多情景一次遍历：每个月的冲击只抽一次，供全部情景复用。
+  // 这与「每个情景各自跑一遍」逐位一致——每个情景看到的都是同一条冲击序列的前缀。
+  const scenarioCount = contributions.length
+  const values = contributions.map(() => current)
+  const accumSuccess = new Array<number>(scenarioCount).fill(0)
+  const retireSuccess = new Array<number>(scenarioCount).fill(0)
+  const byMonthAll: number[][][] = contributions.map(() =>
+    Array.from({ length: months + 1 }, () => new Array<number>(sims)))
+
+  for (let s = 0; s < sims; s++) {
+    const sample = samplerOf(s)
+    for (let k = 0; k < scenarioCount; k++) {
+      values[k] = current
+      byMonthAll[k][0][s] = current
+    }
+    for (let month = 1; month <= months; month++) {
+      const shock = sample()
+      for (let k = 0; k < scenarioCount; k++) {
+        let v = values[k] * (1 + shock) + contributions[k]
+        if (v < 0) v = 0
+        values[k] = v
+        byMonthAll[k][month][s] = v
+      }
+    }
+    const solvent = contributions.map((_, k) => values[k] > 0 || firstMonthlyDraw === 0)
+    for (let k = 0; k < scenarioCount; k++) {
+      if (values[k] >= fireNumberAtRetirement) accumSuccess[k]++
+    }
+    for (let month = 1; month <= retirementMonths; month++) {
+      const draw = draws[month - 1]
+      const shock = sample()
+      for (let k = 0; k < scenarioCount; k++) {
+        let v = values[k] * (1 + shock) - draw
+        if (v < 0) {
+          solvent[k] = false
+          v = 0
+        }
+        values[k] = v
+      }
+    }
+    for (let k = 0; k < scenarioCount; k++) if (solvent[k]) retireSuccess[k]++
   }
+
+  return contributions.map((contribution, k) => {
+    const points: ProjectionPoint[] = byMonthAll[k].map((valuesOfMonth, month) => {
+      const [p10, p50, p90] = percentilesOf(valuesOfMonth, PERCENTILE_QS)
+      return { month, p10, p50, p90 }
+    })
+    return {
+      points,
+      successProb: retireSuccess[k] / sims,
+      accumulationSuccessProb: accumSuccess[k] / sims,
+      retirementSuccessProb: retireSuccess[k] / sims,
+      requiredMonthly,
+      projectedMedian: points[months]?.p50 ?? current,
+      fundedRatio: fireNumberToday > 0 ? current / fireNumberToday : 1,
+      fireNumberToday,
+      fireNumberAtRetirement,
+      annualPortfolioSpendToday,
+      coastFireNumber,
+      estimatedFireMonths: estimatedFireMonthsFor(contribution),
+    }
+  })
 }
 
 export function monthsBetween(from: Date, to: Date): number {

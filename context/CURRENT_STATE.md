@@ -28,6 +28,7 @@ last_verified: 2026-09-15
 
 ## 最近完成
 
+- FIRE 页渲染成本优化：服务端插桩定位到 `loadGoals` 独占冷渲染 432ms（引擎状态 7ms、储蓄 <1ms），引擎级 `projectFireGoal` 冷算 230ms×2 情景=458ms。优化（数值不变）：采样计划（Cholesky/权重）从每 sim 重算改为按权重缓存一次、内层扁平化到定长数组并复用冲击数组、逐月分位改 quickselect、退休期支取额预计算、逐月数组预分配、**新增 `projectFireScenarios` 让两个投入情景共用同一条冲击序列**（458→181ms，−60%）、结果按输入 JSON 记忆化（输入未变时 6ms）。全量 E2E 由 23.0s 降到 16.7s。顺带修掉月数 NaN 会让 `projectStreamGoal` 抛错（页面 500）的隐患。新增 `src/test/projection-equivalence.test.ts`（10 例，含冻结基线逐字段 ≤1e-12 比对）。验证：`npm test` 517/517、构建通过、Playwright 92/92。
 - B7 复盘与情景收口：储蓄率图 `domain` 改为 `['auto', 'auto']` 并去掉 `connectNulls`（负储蓄率不再被裁掉、缺数据月份断开），新增负储蓄率单测；已保存复盘解析 `metricsSnapshot` 并展示「保存以来」差异（TWR/MWR/最大回撤/估值覆盖率，阈值 0.05pp）；「已完成 → 草稿」降级与「重新完成」改走统一确认对话框（情景应用确认与 delayMonths 归零已在 B4 完成）。验证：`npm test` 507/507、构建通过、Playwright 92/92。
 - B6 同名指标拆名：MWR 与 XIRR 分开命名（「资金体验 MWR（区间）」/「XIRR · 年化资金体验」）；两个公式不同的换手率拆为「区间换手率」与「年化换手率」；**年化换手率真正算出**——`decision-library-data.ts` 的 `averageCapital` 从硬编码 `null` 改为区间内每日快照可投资口径均值，并返回 `averageCapitalDays`，界面标注分母与快照天数，无快照时明确显示「不可计算」原因。风险区 null 覆盖率经复核本就正确（null → `—`），未做无谓改动。验证：`npm test` 506/506、构建通过、Playwright 92/92。
 - B5 第 2 片（表格基础设施收尾）：新增 `src/lib/engine/tx-sort.ts` 与 `src/components/tx-sort-select.tsx`，交易流水表支持服务端排序（URL 参数 + `aria-sort`，切换排序回到第 1 页，分页保留排序；**不提供金额排序**因为金额是原币、多币种混排会误导）；补 `<caption>` 与 11 个 `scope="col"` 列头；新增「净值日」「结算日」列；冲正行改为显式墓碑（danger 底 + 「已作废」标签 + 「已冲正 · 时间」+ 行 title），不再只靠 `opacity-40` 压暗。单测 +3、E2E 断言排序/列语义/墓碑。验证：`npm test` 506/506、构建通过、Playwright 92/92。
@@ -121,6 +122,7 @@ last_verified: 2026-09-15
 3. SQLite 与 PostgreSQL 使用独立 schema；CI 已验证 PostgreSQL 建表和 RLS 契约，但真实生产迁移仍需在目标环境做备份、行数核对与回滚演练。
 
 ## 验证状态
+- `npm test`：2026-09-16 FIRE 投影优化后 75 文件、517/517 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 92/92（16.7s）。
 - `npm test`：2026-09-16 B7 后 74 文件、507/507 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 92/92。
 - `npm test`：2026-09-16 B5-2 后 74 文件、506/506 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 92/92。
 - `npm test`：2026-09-16 B4 后 73 文件、503/503 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 92/92。
