@@ -70,14 +70,14 @@ export default async function FundOperationsPage() {
           {policies.length === 0 ? <Empty>尚未登记基金交易规则</Empty> : (
             <TableScroll label="基金操作记录表">
               <table className="w-full text-[13px] whitespace-nowrap">
-                <thead><tr className="border-b border-line text-left text-[11px] tracking-wider text-ink-faint">
+                <thead><tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
                   <th className="px-5 py-3 font-normal">基金</th><th className="px-3 py-3 font-normal">申购费率</th><th className="px-3 py-3 font-normal">赎回阶梯</th><th className="px-3 py-3 font-normal">申购状态</th><th className="px-5 py-3 font-normal">证据</th>
                 </tr></thead>
                 <tbody className="divide-y divide-line/70">{policies.map((policy) => {
                   const rules = parseRedemptionFeeRules(policy.redemptionFeeRules)
                   const suspended = Boolean(policy.purchaseSuspendedFrom || policy.purchaseSuspendedUntil)
                   return <tr key={policy.id}>
-                    <td className="px-5 py-4 text-ink">{policy.asset.name}<div className="num mt-1 text-[11px] text-ink-faint">{policy.asset.symbol}</div></td>
+                    <td className="px-5 py-4 text-ink">{policy.asset.name}<div className="num mt-1 text-[12px] text-ink-faint">{policy.asset.symbol}</div></td>
                     <td className="num px-3 py-4 text-ink">{(policy.purchaseFeeRate * 100).toFixed(3).replace(/0+$/, '').replace(/\.$/, '')}%</td>
                     <td className="px-3 py-4 text-ink-dim">{rules.length ? rules.map((rule) => `≤${rule.maxHoldingDays}日 ${(rule.rate * 100).toFixed(2)}%`).join(' · ') : '以成交单为准'}</td>
                     <td className="px-3 py-4"><Tag tone={suspended ? 'amber' : 'up'}>{suspended ? '有暂停窗口' : '未登记暂停'}</Tag></td>
@@ -93,7 +93,7 @@ export default async function FundOperationsPage() {
           {events.length === 0 ? <Empty>暂无现金分红或红利再投事件</Empty> : (
             <div className="divide-y divide-line/70">{events.map((event) => (
               <div key={event.id} className="grid grid-cols-[1fr_auto] gap-4 py-4 first:pt-0 last:pb-0">
-                <div><div className="text-[13px] text-ink">{event.asset.name}</div><div className="mt-1 text-[11px] text-ink-faint">{fmtDate(event.effectiveAt)} · {event.account.name} · {event.sourceName ?? '手工核验'}</div></div>
+                <div><div className="text-[13px] text-ink">{event.asset.name}</div><div className="mt-1 text-[12px] text-ink-faint">{fmtDate(event.effectiveAt)} · {event.account.name} · {event.sourceName ?? '手工核验'}</div></div>
                 <div className="text-right"><Tag tone={event.type === 'FUND_REINVESTMENT' ? 'info' : 'accent'}>{event.type === 'FUND_REINVESTMENT' ? '红利再投' : '现金分红'}</Tag><div className="num mt-2 text-[12px] text-ink">{fmtMoney(Number(event.cashAmount), event.asset.currency)}</div></div>
               </div>
             ))}</div>

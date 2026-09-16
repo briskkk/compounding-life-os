@@ -28,6 +28,8 @@ last_verified: 2026-09-15
 
 ## 最近完成
 
+- 迭代 C 之 C4（字号下限）：全仓把小字号并入 12px 下限——globals.css 84 处 10/11px（含 8px）、decisions.css 3 处、界面代码 13 处 `text-[9/10/11px]`，合计 100 处改走新 token `--font-size-micro: 12px`；新增 `src/test/design-tokens.test.ts`（3 例守卫：CSS/工具类不得出现 <12px、token 必须被引用）。E2E 96/96 无布局回归。**另一半（圆角 10 种 / 阴影 20 种 / 断点 14 个）留待下一轮**。验证：`npm test` 525/525、构建通过、Playwright 96/96。
+
 - 迭代 C 之 C8（决策库宽表）：去掉 1180px 强制宽度，窄视口（<1600px）隐藏三个低优先列并收紧内边距，1280/1440 下核心三列（后 90/后 180 净值点、资格）无需横向滚动；表头与行为面板统一为「净值点」并加口径说明（QDII 稀疏净值）；窗口状态 title 去掉英文 token 与 `asOf`。E2E 在两个宽度断言可见性、隐藏规则与无溢出。验证：`npm test` 522/522、构建通过、Playwright 96/96。
 
 - 迭代 C 之 C5（章节 scroll-spy）：新增 `SectionNav`（IntersectionObserver 取最靠上可见章节、`aria-current="location"`、停在两节之间不跳动）；周期复盘改用它的 6 项章节条，长期复盘补上 5 个区块 id 与章节条（此前没有章节导航）。E2E 断言当前态随滚动更新且全导航仅一个当前项。验证：`npm test` 522/522、构建通过、Playwright 96/96。
@@ -134,6 +136,7 @@ last_verified: 2026-09-15
 3. SQLite 与 PostgreSQL 使用独立 schema；CI 已验证 PostgreSQL 建表和 RLS 契约，但真实生产迁移仍需在目标环境做备份、行数核对与回滚演练。
 
 ## 验证状态
+- `npm test`：2026-09-16 迭代 C 之 C4（字号下限）后 77 文件、525/525 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 96/96。
 - `npm test`：2026-09-16 迭代 C 之 C8 后 76 文件、522/522 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 96/96。
 - `npm test`：2026-09-16 迭代 C 之 C5 后 76 文件、522/522 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 96/96。
 - `npm test`：2026-09-16 迭代 C 之 C7 后 76 文件、522/522 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 95/95。

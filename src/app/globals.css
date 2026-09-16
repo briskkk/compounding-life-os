@@ -20,6 +20,9 @@
   /* 强调色底上的文字色：保证浅色主题下也满足对比度（勿硬编码 #101820） */
   --color-on-accent: #101820;
   --font-mono: "JetBrains Mono", "PingFang SC", "Hiragino Sans GB", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  /* 字号下限：正文之外的最小一级。低于 12px 的中文与数字在 1440 以下难以辨认，
+     因此 10px/11px 一律并入这一级（见 src/test/design-tokens.test.ts 的守卫）。 */
+  --font-size-micro: 12px;
 }
 
 /* ---------- 定投管理：计划轨 × 账本轨 ---------- */
@@ -258,7 +261,7 @@
 .investment-plan-entry-table td small {
   margin-top: 0.1rem;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .investment-plan-entry-table input[type="number"] {
@@ -430,7 +433,7 @@
 
 .investment-plan-amounts span {
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .investment-plan-amounts b {
@@ -498,7 +501,7 @@
 .investment-plan-day-date { color: var(--color-ink); font-size: 13px; }
 .investment-plan-day strong { color: var(--color-ink-dim); font-size: 12px; font-weight: 550; text-align: right; }
 .investment-plan-day small { grid-column: 1 / -1; color: var(--color-ink-faint); font-size: 12px; }
-.investment-plan-day em { grid-column: 1 / -1; color: var(--color-amber); font-size: 11px; font-style: normal; }
+.investment-plan-day em { grid-column: 1 / -1; color: var(--color-amber); font-size: var(--font-size-micro); font-style: normal; }
 .investment-plan-day.is-recorded { border-left: 3px solid var(--color-accent); }
 .investment-plan-day.is-recorded strong, .investment-plan-day.is-recorded small { color: var(--color-accent); }
 .investment-plan-day.is-confirmed-no-buy { border-left: 3px solid var(--color-ink-faint); }
@@ -543,7 +546,7 @@
   border-radius: 5px;
   background: var(--surface-2);
   color: var(--color-ink-faint);
-  font-size: 10px;
+  font-size: var(--font-size-micro);
 }
 
 .investment-plan-row > footer span b {
@@ -554,14 +557,14 @@
 
 .investment-plan-row > footer p {
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   text-align: right;
 }
 
 .investment-plan-boundary {
   padding: 1rem 1.5rem;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   line-height: 1.6;
 }
 
@@ -585,7 +588,7 @@
 .investment-plan-assets > p {
   margin-top: 0.25rem;
   color: var(--color-ink-faint);
-  font-size: 10px;
+  font-size: var(--font-size-micro);
   line-height: 1.5;
 }
 
@@ -628,7 +631,7 @@
   grid-template-columns: 70px minmax(0, 1fr);
   gap: 0.45rem;
   min-width: 0;
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .investment-plan-assets label:has(input:checked) > span {
@@ -650,7 +653,7 @@
 .investment-plan-assets label > em {
   color: var(--color-ink-faint);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--font-size-micro);
   font-style: normal;
 }
 
@@ -1057,7 +1060,7 @@ th {
 }
 
 .composition-donut-center span {
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   letter-spacing: 0.12em;
   color: var(--color-ink-faint);
 }
@@ -1338,7 +1341,7 @@ th {
 
 .returns-cal-date {
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   line-height: 1.3;
 }
 
@@ -1692,7 +1695,7 @@ button.returns-cal-cell:hover {
   display: block;
   margin-top: 0.28rem;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   white-space: nowrap;
 }
 
@@ -2019,7 +2022,7 @@ button.returns-cal-cell:hover {
 
 .tx-form-preview-head span {
   color: var(--color-info);
-  font-size: 10px;
+  font-size: var(--font-size-micro);
   letter-spacing: 0.16em;
 }
 
@@ -2178,7 +2181,7 @@ button.returns-cal-cell:hover {
 .asset-delete-zone > div > span {
   display: block;
   color: var(--color-ink-faint);
-  font-size: 10px;
+  font-size: var(--font-size-micro);
   letter-spacing: 0.16em;
 }
 
@@ -2212,7 +2215,7 @@ button.returns-cal-cell:hover {
   padding-top: 0.16rem;
   color: var(--color-info);
   font-family: var(--font-mono), monospace;
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .asset-settings-section-head h4,
@@ -2225,7 +2228,7 @@ button.returns-cal-cell:hover {
 .asset-settings-section-head p {
   margin-top: 0.2rem;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .asset-identity-grid,
@@ -3330,7 +3333,7 @@ select option {
 .overview-contributor-row small {
   margin-top: 0.08rem;
   color: var(--color-ink-faint);
-  font-size: 10px;
+  font-size: var(--font-size-micro);
 }
 
 .overview-contributor-row > strong {
@@ -3364,7 +3367,7 @@ select option {
   padding: 0.8rem 0 0;
   border-top: 1px dashed var(--color-line);
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   line-height: 1.55;
 }
 
@@ -3473,7 +3476,7 @@ select option {
 
 .overview-state-list strong {
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   font-weight: 450;
   white-space: nowrap;
 }
@@ -3503,7 +3506,7 @@ select option {
 .overview-fire-panel > p {
   margin-top: 0.85rem;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .overview-fire-progress {
@@ -3527,7 +3530,7 @@ select option {
   gap: 0.75rem;
   margin-top: 0.85rem;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .overview-fire-meta b {
@@ -3539,7 +3542,7 @@ select option {
   display: inline-block;
   margin-top: 0.7rem;
   color: var(--color-accent);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .overview-transit-list {
@@ -3633,13 +3636,13 @@ select option {
 .overview-setup-grid p {
   margin-top: 0.2rem;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   line-height: 1.5;
 }
 
 .overview-setup-grid a {
   color: var(--color-accent);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   white-space: nowrap;
 }
 
@@ -3832,7 +3835,7 @@ nav[aria-label="主导航"] a {
   }
 
 .returns-cal-amount {
-    font-size: 10px;
+    font-size: var(--font-size-micro);
     letter-spacing: -0.03em;
   }
 
@@ -4359,7 +4362,7 @@ nav[aria-label="主导航"] a {
   margin-top: 0.2rem;
   color: var(--color-ink-faint);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .review-contribution-track {
@@ -4465,7 +4468,7 @@ nav[aria-label="主导航"] a {
   border-radius: 999px;
   padding: 0.25rem 0.55rem;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -4591,7 +4594,7 @@ nav[aria-label="主导航"] a {
 .review-transit-empty {
   margin-top: 0.25rem;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .review-transit-empty {
@@ -4649,7 +4652,7 @@ nav[aria-label="主导航"] a {
 
 .review-day-column > span,
 .review-day-column small {
-  font-size: 10px;
+  font-size: var(--font-size-micro);
   white-space: nowrap;
 }
 
@@ -5371,7 +5374,7 @@ nav[aria-label="主导航"] a {
 .health-inline-action button:hover { border-color: var(--color-accent); }
 .health-repair-actions button:disabled,
 .health-inline-action button:disabled { opacity: 0.45; }
-.health-repair-actions > span { max-width: 340px; color: var(--color-ink-dim); font-size: 11px; }
+.health-repair-actions > span { max-width: 340px; color: var(--color-ink-dim); font-size: var(--font-size-micro); }
 
 .health-job-center,
 .health-confirmation-center {
@@ -5413,7 +5416,7 @@ nav[aria-label="主导航"] a {
 .health-job-schedule b,
 .health-job-schedule span { display: block; }
 .health-job-schedule b { color: var(--color-info); font-size: 17px; font-weight: 500; }
-.health-job-schedule span { margin-top: 0.35rem; color: var(--color-ink-faint); font-size: 11px; line-height: 1.5; }
+.health-job-schedule span { margin-top: 0.35rem; color: var(--color-ink-faint); font-size: var(--font-size-micro); line-height: 1.5; }
 
 .health-job-timeline { max-height: 214px; overflow: auto; }
 .health-job-timeline > p { padding: 2rem; color: var(--color-ink-faint); font-size: 12px; }
@@ -5439,13 +5442,13 @@ nav[aria-label="主导航"] a {
 .health-confirmation-list article > div:first-child span,
 .health-confirmation-list article > div:first-child strong,
 .health-confirmation-list article > div:first-child small { display: block; }
-.health-confirmation-list article > div:first-child span { color: var(--color-amber); font-size: 11px; }
+.health-confirmation-list article > div:first-child span { color: var(--color-amber); font-size: var(--font-size-micro); }
 .health-confirmation-list article > div:first-child strong { margin-top: 0.22rem; font-size: 15px; font-weight: 500; }
-.health-confirmation-list article > div:first-child small { margin-top: 0.25rem; color: var(--color-ink-faint); font-size: 11px; }
+.health-confirmation-list article > div:first-child small { margin-top: 0.25rem; color: var(--color-ink-faint); font-size: var(--font-size-micro); }
 .health-confirmation-list article > b { text-align: right; color: var(--color-ink-dim); font-size: 14px; font-weight: 500; }
 .health-confirmation-list article > div:last-child { justify-self: end; }
 .health-inline-action { display: inline-grid; justify-items: end; gap: 0.3rem; }
-.health-inline-action small { max-width: 180px; color: var(--color-up); font-size: 10px; text-align: right; }
+.health-inline-action small { max-width: 180px; color: var(--color-up); font-size: var(--font-size-micro); text-align: right; }
 
 /* ---------- 基金份额核对 ---------- */
 
@@ -5483,7 +5486,7 @@ nav[aria-label="主导航"] a {
 }
 
 .fund-confirm-overview span,
-.fund-confirm-overview small { display: block; color: var(--color-ink-faint); font-size: 11px; }
+.fund-confirm-overview small { display: block; color: var(--color-ink-faint); font-size: var(--font-size-micro); }
 .fund-confirm-overview strong { display: block; margin-top: 0.55rem; color: var(--color-ink); font-size: 26px; font-weight: 500; }
 .fund-confirm-overview small { margin-top: 0.45rem; line-height: 1.45; }
 .fund-confirm-overview > p { align-self: center; margin: 0; padding: 1.25rem 1.6rem; color: var(--color-ink-faint); font-size: 12px; line-height: 1.75; }
@@ -5527,7 +5530,7 @@ nav[aria-label="主导航"] a {
 
 .fund-confirm-card-summary:hover { background: color-mix(in srgb, var(--color-info) 4%, transparent); }
 .fund-confirm-card-summary:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -3px; }
-.fund-confirm-state { color: var(--color-amber); font-size: 11px; }
+.fund-confirm-state { color: var(--color-amber); font-size: var(--font-size-micro); }
 .fund-confirm-identity strong,
 .fund-confirm-identity small,
 .fund-confirm-date small,
@@ -5537,7 +5540,7 @@ nav[aria-label="主导航"] a {
 .fund-confirm-identity strong { overflow: hidden; color: var(--color-ink); font-size: 15px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .fund-confirm-identity small,
 .fund-confirm-date small,
-.fund-confirm-amount small { margin-top: 0.25rem; color: var(--color-ink-faint); font-size: 11px; }
+.fund-confirm-amount small { margin-top: 0.25rem; color: var(--color-ink-faint); font-size: var(--font-size-micro); }
 .fund-confirm-date strong,
 .fund-confirm-amount strong { margin-top: 0.32rem; color: var(--color-ink-dim); font-size: 13px; font-weight: 500; }
 .fund-confirm-amount { text-align: right; }
@@ -5557,11 +5560,11 @@ nav[aria-label="主导航"] a {
 
 .fund-confirm-step { display: grid; grid-template-columns: 28px 1fr; gap: 0.8rem; align-items: start; min-height: 86px; padding: 1.05rem 1.15rem; border-left: 1px solid var(--color-line); }
 .fund-confirm-step:first-child { border-left: 0; }
-.fund-confirm-step i { display: grid; width: 25px; height: 25px; place-items: center; border: 1px solid var(--color-info); border-radius: 50%; color: var(--color-info); font-family: var(--font-mono); font-size: 11px; font-style: normal; }
+.fund-confirm-step i { display: grid; width: 25px; height: 25px; place-items: center; border: 1px solid var(--color-info); border-radius: 50%; color: var(--color-info); font-family: var(--font-mono); font-size: var(--font-size-micro); font-style: normal; }
 .fund-confirm-step b,
 .fund-confirm-step small { display: block; }
 .fund-confirm-step b { color: var(--color-ink); font-size: 12px; font-weight: 500; }
-.fund-confirm-step small { margin-top: 0.36rem; color: var(--color-ink-faint); font-size: 11px; line-height: 1.55; }
+.fund-confirm-step small { margin-top: 0.36rem; color: var(--color-ink-faint); font-size: var(--font-size-micro); line-height: 1.55; }
 
 .fund-confirm-start,
 .fund-confirm-check {
@@ -5593,16 +5596,16 @@ nav[aria-label="主导航"] a {
 .fund-confirm-check input:focus { border-color: var(--color-accent); outline: 0; }
 .fund-confirm-check label em { display: grid; min-height: 42px; place-items: center; border: 1px solid var(--color-line); border-left: 0; border-radius: 0 8px 8px 0; padding: 0 0.75rem; color: var(--color-ink-faint); font-size: 12px; font-style: normal; }
 .fund-confirm-check label > small,
-.fund-confirm-fixed small { display: block; margin-top: 0.42rem; color: var(--color-ink-faint); font-size: 10px; }
+.fund-confirm-fixed small { display: block; margin-top: 0.42rem; color: var(--color-ink-faint); font-size: var(--font-size-micro); }
 .fund-confirm-fixed strong { display: block; min-height: 42px; color: var(--color-ink); font-size: 18px; font-weight: 500; }
 
 .fund-confirm-result { min-height: 66px; border-left: 2px solid var(--color-line); padding: 0.35rem 0 0.35rem 0.9rem; }
 .fund-confirm-result span,
 .fund-confirm-result strong,
 .fund-confirm-result small { display: block; }
-.fund-confirm-result span { color: var(--color-ink-faint); font-size: 11px; }
+.fund-confirm-result span { color: var(--color-ink-faint); font-size: var(--font-size-micro); }
 .fund-confirm-result strong { margin-top: 0.25rem; color: var(--color-ink-dim); font-size: 16px; font-weight: 500; }
-.fund-confirm-result small { margin-top: 0.2rem; max-width: 300px; color: var(--color-ink-faint); font-size: 10px; line-height: 1.45; }
+.fund-confirm-result small { margin-top: 0.2rem; max-width: 300px; color: var(--color-ink-faint); font-size: var(--font-size-micro); line-height: 1.45; }
 .fund-confirm-result.is-match { border-color: var(--color-down); }
 .fund-confirm-result.is-match strong { color: var(--color-down); }
 .fund-confirm-result.is-mismatch { border-color: var(--color-amber); }
@@ -5611,8 +5614,8 @@ nav[aria-label="主导航"] a {
 .fund-confirm-submit { border: 1px solid var(--color-accent); background: var(--color-accent); color: var(--color-bg); }
 .fund-confirm-submit:disabled,
 .fund-confirm-start button:disabled { cursor: not-allowed; opacity: 0.4; }
-.fund-confirm-readonly { align-self: center; margin: 0; color: var(--color-ink-faint); font-size: 11px; }
-.fund-confirm-feedback { margin: 0.7rem 0 0; font-size: 11px; }
+.fund-confirm-readonly { align-self: center; margin: 0; color: var(--color-ink-faint); font-size: var(--font-size-micro); }
+.fund-confirm-feedback { margin: 0.7rem 0 0; font-size: var(--font-size-micro); }
 .fund-confirm-feedback.is-error { color: var(--color-up); }
 .fund-confirm-feedback.is-ok { color: var(--color-down); }
 
@@ -5625,8 +5628,8 @@ nav[aria-label="主导航"] a {
 }
 
 .fund-confirm-footnote > div { display: grid; grid-template-columns: 30px 1fr; gap: 0.75rem; }
-.fund-confirm-footnote span { color: var(--color-info); font-size: 11px; }
-.fund-confirm-footnote p { margin: 0; color: var(--color-ink-faint); font-size: 11px; line-height: 1.65; }
+.fund-confirm-footnote span { color: var(--color-info); font-size: var(--font-size-micro); }
+.fund-confirm-footnote p { margin: 0; color: var(--color-ink-faint); font-size: var(--font-size-micro); line-height: 1.65; }
 .fund-confirm-footnote b { color: var(--color-ink-dim); font-weight: 500; }
 
 @media (max-width: 1180px) {
@@ -5803,7 +5806,7 @@ nav[aria-label="主导航"] a {
 .allocation-drift-bars span,
 .allocation-drift-bars b {
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   font-weight: 400;
 }
 
@@ -5836,7 +5839,7 @@ nav[aria-label="主导航"] a {
 .allocation-drift-result span {
   margin-top: 0.2rem;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .allocation-drift-result.is-over strong { color: var(--color-up); }
@@ -5873,7 +5876,7 @@ nav[aria-label="主导航"] a {
 .allocation-editor-head p {
   max-width: 260px;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   line-height: 1.45;
 }
 
@@ -5934,7 +5937,7 @@ nav[aria-label="主导航"] a {
 
 .allocation-editor-footer > div:first-child span {
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .allocation-editor-footer strong {
@@ -6013,7 +6016,7 @@ nav[aria-label="主导航"] a {
 .cash-calendar-summary span,
 .cash-calendar-summary small {
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .cash-calendar-summary strong {
@@ -6041,7 +6044,7 @@ nav[aria-label="主导航"] a {
   border: 1px solid var(--color-line);
   border-radius: 6px;
   color: var(--color-ink-dim);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .cash-calendar-weekdays,
@@ -6057,7 +6060,7 @@ nav[aria-label="主导航"] a {
 .cash-calendar-weekdays span {
   padding: 0.65rem 0.8rem;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   text-align: right;
 }
 
@@ -6076,7 +6079,7 @@ nav[aria-label="主导航"] a {
 .cash-calendar-day > span {
   display: block;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   text-align: right;
 }
 
@@ -6131,20 +6134,20 @@ nav[aria-label="主导航"] a {
 }
 
 .cash-calendar-day article strong {
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   font-weight: 500;
 }
 
 .cash-calendar-day article b {
   margin-top: 0.2rem;
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   font-weight: 500;
 }
 
 .cash-calendar-day article small {
   margin-top: 0.1rem;
   color: var(--color-ink-faint);
-  font-size: 9px;
+  font-size: var(--font-size-micro);
 }
 
 .cash-calendar-sidebar {
@@ -6184,11 +6187,11 @@ nav[aria-label="主导航"] a {
 .cash-calendar-agenda small {
   margin-top: 0.1rem;
   color: var(--color-ink-faint);
-  font-size: 10px;
+  font-size: var(--font-size-micro);
 }
 
 .cash-calendar-agenda > div > b {
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -6201,7 +6204,7 @@ nav[aria-label="主导航"] a {
 .cash-calendar-disclaimer {
   padding: 0.15rem 0.3rem;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   line-height: 1.6;
 }
 
@@ -6249,7 +6252,7 @@ nav[aria-label="主导航"] a {
   border-radius: 999px;
   padding: 0.22rem 0.6rem;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   letter-spacing: 0.06em;
 }
 .review-status-chip.eligible { border-color: var(--color-down); color: var(--color-down); background: color-mix(in srgb, var(--color-down) 8%, transparent); }
@@ -6280,7 +6283,7 @@ nav[aria-label="主导航"] a {
 .ii-annual-card .yr { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
 .ii-annual-card .yr b { font-size: 15px; font-weight: 500; }
 .ii-annual-card .num { display: block; margin-top: 0.6rem; font-size: 18px; font-weight: 500; white-space: nowrap; }
-.ii-annual-card .flow { margin-top: 0.35rem; color: var(--color-ink-faint); font-size: 11px; line-height: 1.5; }
+.ii-annual-card .flow { margin-top: 0.35rem; color: var(--color-ink-faint); font-size: var(--font-size-micro); line-height: 1.5; }
 .ii-annual-card .twr { margin-top: 0.45rem; border-top: 1px dashed var(--color-line); padding-top: 0.4rem; display: flex; justify-content: space-between; gap: 0.5rem; font-size: 12px; color: var(--color-ink-faint); }
 
 .ii-band-surface { min-width: 0; border-radius: 16px; background: var(--chart-tint); padding: clamp(1.25rem, 2vw, 2rem); }
@@ -6299,12 +6302,12 @@ nav[aria-label="主导航"] a {
 .ii-contrib-dim-tabs button.is-active { background: var(--surface-2); color: var(--color-accent); }
 .ii-contrib-row { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(110px, 0.9fr) auto; align-items: center; gap: 1rem; min-height: 62px; padding: 0.7rem 0.5rem; border-bottom: 1px solid var(--color-line); }
 .ii-contrib-row .n b { font-size: 14px; font-weight: 500; }
-.ii-contrib-row .n small { display: block; margin-top: 0.1rem; color: var(--color-ink-faint); font-family: var(--font-mono); font-size: 11px; }
+.ii-contrib-row .n small { display: block; margin-top: 0.1rem; color: var(--color-ink-faint); font-family: var(--font-mono); font-size: var(--font-size-micro); }
 .ii-contrib-row .t { height: 5px; border-radius: 99px; background: var(--color-panel2); overflow: hidden; }
 .ii-contrib-row .t i { display: block; height: 100%; border-radius: inherit; background: var(--color-accent); }
 .ii-contrib-row .a { justify-self: end; text-align: right; }
 .ii-contrib-row .a b { font-weight: 500; }
-.ii-contrib-row .a small { display: block; margin-top: 0.1rem; color: var(--color-ink-faint); font-size: 11px; }
+.ii-contrib-row .a small { display: block; margin-top: 0.1rem; color: var(--color-ink-faint); font-size: var(--font-size-micro); }
 .ii-contrib-row.pos .t i { background: var(--color-up); }
 .ii-contrib-row.neg .t i { background: var(--color-down); }
 .ii-contrib-residual { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 1.2rem; padding: 0.8rem 0.5rem; color: var(--color-ink-faint); font-size: 13px; }
@@ -6534,7 +6537,7 @@ nav[aria-label="主导航"] a {
 .ii-evidence-head {
   border-top: 0;
   background: var(--surface-2);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--color-ink-faint);
@@ -6659,7 +6662,7 @@ nav[aria-label="主导航"] a {
 .month-close-month-control div span {
   color: var(--color-ink-faint);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-micro);
   letter-spacing: 0.13em;
   text-transform: uppercase;
 }
@@ -6711,7 +6714,7 @@ nav[aria-label="主导航"] a {
 .month-close-score > p {
   margin-top: 0.65rem;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   line-height: 1.55;
 }
 
@@ -6754,7 +6757,7 @@ nav[aria-label="主导航"] a {
 
 .month-close-tape li > span {
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .month-close-tape li small,
@@ -6767,7 +6770,7 @@ nav[aria-label="主导航"] a {
   overflow: hidden;
   color: var(--color-ink-faint);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-micro);
   letter-spacing: 0.08em;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -6787,7 +6790,7 @@ nav[aria-label="主导航"] a {
   border-radius: 999px;
   padding: 0.25rem 0.5rem;
   color: var(--color-ink-faint);
-  font-size: 10px;
+  font-size: var(--font-size-micro);
   font-weight: 400;
 }
 
@@ -6821,14 +6824,14 @@ nav[aria-label="主导航"] a {
 .month-close-stage > header > span {
   padding-top: 0.1rem;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .month-close-stage > header small {
   display: block;
   color: var(--color-ink-faint);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-micro);
   letter-spacing: 0.1em;
 }
 
@@ -6844,7 +6847,7 @@ nav[aria-label="主导航"] a {
   border-radius: 999px;
   padding: 0.35rem 0.6rem;
   color: var(--color-ink-faint);
-  font-size: 10px;
+  font-size: var(--font-size-micro);
   font-weight: 400;
   white-space: nowrap;
 }
@@ -6885,7 +6888,7 @@ nav[aria-label="主导航"] a {
 
 .month-close-stage dt {
   color: var(--color-ink-faint);
-  font-size: 10px;
+  font-size: var(--font-size-micro);
 }
 
 .month-close-stage dd {
@@ -6948,7 +6951,7 @@ nav[aria-label="主导航"] a {
 
 .month-close-missing span {
   color: var(--color-ink-faint);
-  font-size: 10px;
+  font-size: var(--font-size-micro);
 }
 
 .month-close-missing p {
@@ -6971,7 +6974,7 @@ nav[aria-label="主导航"] a {
 .month-close-review-state span,
 .month-close-review-state small {
   color: var(--color-ink-faint);
-  font-size: 10px;
+  font-size: var(--font-size-micro);
 }
 
 .month-close-review-state strong {
@@ -6988,7 +6991,7 @@ nav[aria-label="主导航"] a {
 .month-close-footnote {
   margin-top: -1rem;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   line-height: 1.7;
 }
 
@@ -7103,7 +7106,7 @@ select {
   overflow: hidden;
   color: var(--color-ink-faint);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-micro);
   letter-spacing: 0.08em;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -7156,7 +7159,7 @@ select {
   margin: 18px 10px 7px;
   color: var(--color-ink-faint);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -7276,7 +7279,7 @@ select {
 .terminal-user strong {
   overflow: hidden;
   color: var(--color-ink-dim);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   font-weight: 550;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -7287,7 +7290,7 @@ select {
   margin-top: 2px;
   overflow: hidden;
   color: var(--color-ink-faint);
-  font-size: 9px;
+  font-size: var(--font-size-micro);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -7317,7 +7320,7 @@ select {
   background: color-mix(in srgb, var(--color-accent) 18%, var(--color-panel));
   color: color-mix(in srgb, var(--color-accent) 38%, var(--color-ink));
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-micro);
   font-weight: 600;
 }
 
@@ -7327,7 +7330,7 @@ select {
   min-height: 32px;
   padding: 0 4px;
   border: 0;
-  font-size: 10px;
+  font-size: var(--font-size-micro);
 }
 
 .terminal-workspace {
@@ -7406,7 +7409,7 @@ kbd {
   background: var(--color-panel2);
   color: var(--color-ink-faint);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-micro);
   font-weight: 500;
   box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--color-line) 80%, transparent);
 }
@@ -7425,7 +7428,7 @@ kbd {
   align-items: center;
   gap: 7px;
   color: var(--color-ink-faint);
-  font-size: 9px;
+  font-size: var(--font-size-micro);
 }
 
 .terminal-market i {
@@ -7446,7 +7449,7 @@ kbd {
 .terminal-market b {
   color: var(--color-ink-faint);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: var(--font-size-micro);
   font-weight: 400;
   white-space: nowrap;
 }
@@ -7456,7 +7459,7 @@ kbd {
   height: 38px;
   min-height: 38px;
   border-radius: 9px;
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .terminal-top-actions > button {
@@ -7493,14 +7496,14 @@ kbd {
   background: color-mix(in srgb, var(--color-accent) 18%, var(--color-panel));
   color: color-mix(in srgb, var(--color-accent) 38%, var(--color-ink));
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: var(--font-size-micro);
   font-weight: 600;
 }
 
 .terminal-profile b {
   max-width: 96px;
   overflow: hidden;
-  font-size: 10px;
+  font-size: var(--font-size-micro);
   font-weight: 520;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -7533,7 +7536,7 @@ kbd {
 .terminal-main .page-kicker,
 .terminal-main .eyebrow {
   color: color-mix(in srgb, var(--color-accent) 58%, var(--color-ink));
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   font-weight: 500;
   letter-spacing: 0.13em;
 }
@@ -7580,7 +7583,7 @@ kbd {
 }
 
 .terminal-main .section-panel > header span {
-  font-size: 11px;
+  font-size: var(--font-size-micro);
   letter-spacing: 0.11em;
 }
 
@@ -7711,7 +7714,7 @@ kbd {
 .terminal-command-group > p {
   margin: 10px 8px 6px;
   color: var(--color-ink-faint);
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .terminal-command-group > a {
@@ -7940,7 +7943,7 @@ kbd {
 .auth-brand small {
   color: var(--color-ink-faint);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-micro);
   letter-spacing: 0.08em;
 }
 
@@ -7976,7 +7979,7 @@ kbd {
   min-width: 54px;
   min-height: 34px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .terminal-main .overview-period-tabs a[aria-current='page'] {
@@ -8024,7 +8027,7 @@ kbd {
 
 .terminal-main .overview-equation span {
   margin-bottom: 0.3rem;
-  font-size: 11px;
+  font-size: var(--font-size-micro);
 }
 
 .terminal-main .overview-equation strong {
@@ -8183,7 +8186,7 @@ kbd {
 
 .terminal-main .investment-plan-summary span,
 .terminal-main .investment-plan-summary small {
-  font-size: 9px;
+  font-size: var(--font-size-micro);
 }
 
 .terminal-main .investment-plan-summary strong {
@@ -8216,7 +8219,7 @@ kbd {
 }
 
 .terminal-main .investment-plan-boundary {
-  font-size: 10px;
+  font-size: var(--font-size-micro);
 }
 
 .terminal-main .investment-plan-editor {

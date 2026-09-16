@@ -114,7 +114,7 @@ export function FundPolicyForm({ funds, policies }: { funds: FundOption[]; polic
         </Field>
         <Field label="赎回费率阶梯">
           <input name="redemptionFeeRules" defaultValue={selected ? rulesText(selected.redemptionFeeRules) : ''} className={inputCls} placeholder="7:1.5, 30:0.5, 365:0" />
-          <span className="mt-1 block text-[11px] text-ink-faint">格式：持有天数上限:费率%，逗号分隔；实际费用仍以成交单为准。</span>
+          <span className="mt-1 block text-[12px] text-ink-faint">格式：持有天数上限:费率%，逗号分隔；实际费用仍以成交单为准。</span>
         </Field>
         <Field label="暂停申购开始">
           <input name="purchaseSuspendedFrom" type="date" defaultValue={dateInput(selected?.purchaseSuspendedFrom ?? null)} className={inputCls} />

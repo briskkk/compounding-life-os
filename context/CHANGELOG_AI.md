@@ -706,3 +706,10 @@ last_verified: 2026-09-10
 - 表头与行为面板统一「净值点」口径并加说明（净值点计数、QDII 稀疏净值）。
 - 窗口状态 title 去英文 token 与 asOf。
 - E2E 在两个宽度断言可见性/隐藏/无溢出。验证：npm test 522/522、build 通过、Playwright 96/96。
+
+# 2026-09-16 迭代 C 之 C4（字号下限）：100 处小字号并入 12px
+
+- 新增 token --font-size-micro: 12px；globals.css 84 处、decisions.css 3 处、界面 13 处 text-[9/10/11px] 全部提升。
+- 新增 src/test/design-tokens.test.ts（3 例守卫）。
+- 验证：npm test 525/525、build 通过、Playwright 96/96（无溢出/换行回归）。
+- 圆角/阴影/断点收敛留下一轮（清点：圆角 10 种、阴影 20 种、断点 14 个）。
