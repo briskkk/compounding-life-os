@@ -31,6 +31,10 @@ test('组合复盘：归因切换、周期深链与草稿保存', async ({ page 
   await expect(page.locator('.review-contribution-list').getByText('待对账差额')).toHaveCount(0)
   await expect(page.getByText('当前维度已归属')).toBeVisible()
 
+  // B6：MWR 与 XIRR、区间与年化换手率不再共用一个名字
+  await expect(page.getByText('资金体验 MWR（区间）')).toBeVisible()
+  await expect(page.getByText('区间换手率')).toBeVisible()
+
   await page.getByRole('link', { name: '本季度' }).click()
   await expect(page).toHaveURL(/period=THIS_QUARTER/)
   await expect(page.getByText('本季度投资收益')).toBeVisible()
@@ -107,7 +111,7 @@ test('长期复盘：成立以来/近五年/自然年范围切换、桥与数据
   // 桥：期初 + 净投入 + 投资收益 = 期末（文本同时存在，数值守恒由引擎单测覆盖）
   await expect(page.locator('.review-outcome').getByText('可投资组合收益').first()).toBeVisible()
   await expect(page.locator('.review-outcome').getByText('期初可投资资产')).toBeVisible()
-  await expect(page.getByLabel('资金体验与风险证据').getByText('XIRR · 资金体验')).toBeVisible()
+  await expect(page.getByLabel('资金体验与风险证据').getByText('XIRR · 年化资金体验')).toBeVisible()
   await expect(page.getByLabel('资金体验与风险证据').getByText('年化波动率')).toBeVisible()
   await expect(page.getByLabel('资金体验与风险证据').getByText('最大回撤 · TWR 路径')).toBeVisible()
   await expect(page.getByLabel('资金体验与风险证据').getByText('收益回撤比 · Calmar')).toBeVisible()
@@ -157,6 +161,9 @@ test('决策库：事件表、资格与 1280/1440 无溢出', async ({ page }) =
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/review/decisions')
     await expect(page.getByRole('heading', { name: '决策库：每笔买卖的确定性回看' })).toBeVisible()
+    // B6：年化换手率（原先恒为「未计算」）现在按区间快照均值算出，并标注口径
+    await expect(page.getByText(/年化换手率/)).toBeVisible()
+    await expect(page.getByText(/取自 \d+ 天快照/)).toBeVisible()
     await expect(page.getByText('买入事件')).toBeVisible()
     await expect(page.getByLabel('复盘模式').getByText('决策库')).toHaveClass(/is-active/)
     await expect(page.getByLabel('决策事件分页')).toContainText('当前显示')

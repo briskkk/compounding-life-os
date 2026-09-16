@@ -100,8 +100,13 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
             <div className="ii-dec-asym-row"><span className="ii-dec-lb">亏损持仓段</span><span className="ii-dec-asym-track"><i className="ii-dec-lose" style={{ width: `${data.behavior.asymmetry ? Math.min(100, data.behavior.asymmetry.loss.count * 12) : 0}%` }} /></span>
               <span className="ii-dec-val num">{data.behavior.asymmetry ? `${data.behavior.asymmetry.loss.count} 段 · 中位 ${data.behavior.asymmetry.loss.medianDays ?? '—'} 天` : '—'}</span></div>
             <p className="footnote" style={{ marginTop: '1rem' }}>
-              换手率（年化，近似 min(买,卖)×2/平均市值）：
-              <b className="num">{data.behavior.turnoverRate == null ? '未计算（需平均市值）' : fmtPct(data.behavior.turnoverRate)}</b>
+              <span title="年化换手率 = min(区间买入, 区间卖出) × 2 ÷ 日均占用资本；分母取区间内每日快照的可投资口径均值">
+                年化换手率（min(买,卖)×2 ÷ 日均占用资本）
+              </span>：
+              <b className="num">{data.behavior.turnoverRate == null ? '不可计算' : fmtPct(data.behavior.turnoverRate)}</b>
+              {data.behavior.turnoverRate == null
+                ? <span className="text-ink-faint"> · 区间内没有可用的每日快照（快照缺口不会被当成 0）</span>
+                : <span className="text-ink-faint"> · 分母 {fmtCNY(data.averageCapital ?? 0)}，取自 {data.averageCapitalDays} 天快照</span>}
             </p>
           </div>
           <aside className="review-risk-summary">

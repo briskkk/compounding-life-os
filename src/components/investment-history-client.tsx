@@ -148,7 +148,7 @@ export function HistoryClient({
             <div className="ii-return-risk-grid" aria-label="资金体验与风险证据">
               <article className="ii-return-risk-card">
                 <div className="ii-return-risk-label">
-                  <span>XIRR · 资金体验</span>
+                  <span title="XIRR 为年化内部收益率（含出入金时点），与区间口径的 MWR 不同">XIRR · 年化资金体验</span>
                   <span className={`review-status-chip ${xirr.status.toLowerCase()}`}>{xirr.status}</span>
                 </div>
                 <strong className={xirr.pct == null ? 'num text-ink-faint' : `num ${toneClass(xirr.pct)}`}>

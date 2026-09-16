@@ -628,3 +628,11 @@ last_verified: 2026-09-10
 - 冲正行改为显式墓碑：danger 底色 + 已作废标签 + 已冲正时间 + 行 title，替代 opacity 压暗。
 - 单测 +3（tx-sort）；E2E 断言排序 URL/aria-sort、列语义、墓碑可见。
 - 验证：npm test 506/506、build 通过、Playwright 92/92。
+
+# 2026-09-16 迭代 B 之 B6：同名指标拆名与年化换手率落地
+
+- MWR/XIRR 分开命名；区间换手率与年化换手率分开命名并各自标注公式。
+- decision-library-data 的 averageCapital 改为区间快照可投资口径均值（原先硬编码 null → 恒为「未计算」），返回 averageCapitalDays 供界面标注口径。
+- 风险区 null 覆盖率复核为已正确，未改动。
+- E2E：断言 MWR/区间换手率标签与决策库年化换手率+分母。
+- 验证：npm test 506/506、build 通过、Playwright 92/92。

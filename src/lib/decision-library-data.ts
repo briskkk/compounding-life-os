@@ -25,6 +25,10 @@ export interface DecisionLibraryPageData {
   tradingFees: number
   pendingCount: number
   assetsCount: number
+  /** 日均占用资本（区间内快照可投资口径均值）；无快照时为 null */
+  averageCapital: number | null
+  /** 参与均值的快照天数（口径可复核） */
+  averageCapitalDays: number
   empty: boolean
   methodVersion: string
 }
@@ -48,6 +52,8 @@ export async function getDecisionLibraryPageData(
       tradingFees: 0,
       pendingCount: 0,
       assetsCount: 0,
+      averageCapital: null,
+      averageCapitalDays: 0,
       empty: true,
       methodVersion: METHOD_VERSION,
     }
@@ -55,7 +61,7 @@ export async function getDecisionLibraryPageData(
   const assetIds = new Set(rawAssets.map((asset) => asset.id))
   const symbols = rawAssets.filter((asset) => asset.cls !== 'CASH').map((asset) => asset.symbol)
 
-  const [txRows, priceMap, rateAt] = await Promise.all([
+  const [txRows, priceMap, rateAt, snapshots] = await Promise.all([
     db.transaction.findMany({
       where: { assetId: { in: [...assetIds] } },
       include: { asset: true },
@@ -63,6 +69,8 @@ export async function getDecisionLibraryPageData(
     }),
     loadPriceSeries(prisma, symbols),
     fxRateAtFactory(prisma, rawAssets.map((asset) => asset.currency)),
+    // 日均占用资本：取区间内快照的可投资口径均值（快照是派生数据；区间在下方算出后再过滤）
+    db.snapshot.findMany({ orderBy: { date: 'asc' }, select: { date: true, investable: true } }),
   ])
   const valid = txRows.filter((tx) => !tx.voidedAt)
   const first = valid[0]
@@ -77,6 +85,8 @@ export async function getDecisionLibraryPageData(
       tradingFees: 0,
       pendingCount: 0,
       assetsCount: rawAssets.length,
+      averageCapital: null,
+      averageCapitalDays: 0,
       empty: true,
       methodVersion: METHOD_VERSION,
     }
@@ -156,12 +166,20 @@ export async function getDecisionLibraryPageData(
     .reduce((sum, tx) => sum + (tx.type === 'FEE' ? tx.amount : tx.fee) * rateOf(tx), 0)
   const pendingCount = ledgerTxs.filter((tx) => tx.type === 'BUY' && tx.navSource === 'PENDING').length
 
+  // 日均占用资本：区间内快照可投资口径的算术平均；无快照则如实留空（不写成 0，也不算换手率）
+  const capitalSnapshots = snapshots.filter((snapshot) => {
+    const key = dateKeyAt(snapshot.date)
+    return key >= rangeStart && key <= rangeEnd
+  })
+  const averageCapital = capitalSnapshots.length > 0
+    ? capitalSnapshots.reduce((sum, snapshot) => sum + Number(snapshot.investable), 0) / capitalSnapshots.length
+    : null
   const behavior = behaviorSummary({
     events,
     txs: ledgerTxs,
     startDate: rangeStart,
     endDate: rangeEnd,
-    averageCapital: null,
+    averageCapital,
     tradingFees,
   })
 
@@ -174,6 +192,8 @@ export async function getDecisionLibraryPageData(
     tradingFees: Math.round(tradingFees * 100) / 100,
     pendingCount,
     assetsCount: rawAssets.length,
+    averageCapital,
+    averageCapitalDays: capitalSnapshots.length,
     empty: false,
     methodVersion: METHOD_VERSION,
   }

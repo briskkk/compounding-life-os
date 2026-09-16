@@ -28,6 +28,7 @@ last_verified: 2026-09-15
 
 ## 最近完成
 
+- B6 同名指标拆名：MWR 与 XIRR 分开命名（「资金体验 MWR（区间）」/「XIRR · 年化资金体验」）；两个公式不同的换手率拆为「区间换手率」与「年化换手率」；**年化换手率真正算出**——`decision-library-data.ts` 的 `averageCapital` 从硬编码 `null` 改为区间内每日快照可投资口径均值，并返回 `averageCapitalDays`，界面标注分母与快照天数，无快照时明确显示「不可计算」原因。风险区 null 覆盖率经复核本就正确（null → `—`），未做无谓改动。验证：`npm test` 506/506、构建通过、Playwright 92/92。
 - B5 第 2 片（表格基础设施收尾）：新增 `src/lib/engine/tx-sort.ts` 与 `src/components/tx-sort-select.tsx`，交易流水表支持服务端排序（URL 参数 + `aria-sort`，切换排序回到第 1 页，分页保留排序；**不提供金额排序**因为金额是原币、多币种混排会误导）；补 `<caption>` 与 11 个 `scope="col"` 列头；新增「净值日」「结算日」列；冲正行改为显式墓碑（danger 底 + 「已作废」标签 + 「已冲正 · 时间」+ 行 title），不再只靠 `opacity-40` 压暗。单测 +3、E2E 断言排序/列语义/墓碑。验证：`npm test` 506/506、构建通过、Playwright 92/92。
 - B8 结构性 HTML 与遮挡：`/review`、`/review/decisions`、`/review/history`、`/month-close` 去掉嵌套 `<main>`，并移除 `review-client.tsx` 里重复的 `page-shell/review-shell`（双层 page-shell 与三重 main 的真正来源），每页 main 数量为 1；`.review-section-nav` 改为 `top: var(--terminal-topbar); z-index: 15`，修复滚动时章节条盖住顶栏搜索/刷新/家庭切换。E2E 断言 main 唯一、章节条 top=68px、滚动后顶栏搜索触发器仍是最上层元素。验证：`npm test` 503/503、构建通过、Playwright 92/92。
 - B5 表格基础设施（第 1 片）：新增 `src/components/table-scroll.tsx`，把 12 处宽表格容器统一为 `role="region" + tabIndex={0} + aria-label`（键盘可聚焦并横向滚动），并加 `.table-scroll:focus-visible` 聚焦环与 `.table-scroll thead th` 粘性表头；E2E 断言交易流水表容器 `tabindex="0"`、表头 `position: sticky`。验证：`npm test` 503/503、构建通过、Playwright 92/92。第 2 片（交易流水服务端排序与 `aria-sort`、净值日/结算日列、冲正墓碑行）待做。

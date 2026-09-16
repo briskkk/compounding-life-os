@@ -279,7 +279,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
           </strong>
           <div className="review-return-pills">
             <span>TWR <b className={cx('num', tone(result.performance.pct))}>{fmtPct(result.performance.pct, { sign: true })}</b></span>
-            <span>资金体验 <b className={cx('num', tone(mwrPct))}>{fmtPct(mwrPct, { sign: true })}</b></span>
+            <span title="资金体验 = 资金加权收益率（MWR / IRR），把出入金时点计入；与上方 TWR 的口径不同">资金体验 MWR（区间）<b className={cx('num ml-1', tone(mwrPct))}>{fmtPct(mwrPct, { sign: true })}</b></span>
           </div>
         </div>
         <div className="review-bridge" aria-label="期初期末资金桥">
@@ -413,7 +413,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
         <div className="review-stat-grid review-stat-grid-four">
           <Metric label="买入金额" value={fmtCNY(result.behavior.buyAmount)} />
           <Metric label="卖出金额" value={fmtCNY(result.behavior.sellAmount)} />
-          <Metric label="换手率" value={fmtPct(result.behavior.turnover)} />
+          <Metric label="区间换手率" value={fmtPct(result.behavior.turnover)} detail="(区间买入 + 区间卖出) ÷ 期初期末平均市值" />
           <Metric label="费用率" value={fmtPct(result.behavior.feeRate)} />
         </div>
         <div className="review-decision-list">

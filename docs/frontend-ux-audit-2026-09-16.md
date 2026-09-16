@@ -479,6 +479,15 @@
 - 单测 3 例（`src/test/tx-sort.test.ts`）：非法参数回落、只接受登记的排序值、`aria-sort` 映射；E2E 断言排序切换改 URL 与 `aria-sort`、净值日/结算日列存在、caption 存在、墓碑行的「已作废 / 已冲正 ·」可见。
 - 验证：`npm test` 506/506（74 文件）、构建通过、Playwright 92/92。
 
+**B6 同名不同指标拆名：已完成**
+
+- `MWR` 与 `XIRR` 不再共用一个名字：周期复盘改为「**资金体验 MWR（区间）**」，长期复盘改为「**XIRR · 年化资金体验**」，两者都挂 title 说明口径差异。
+- 两个不同公式的换手率拆名：周期复盘的 `(区间买入 + 区间卖出) ÷ 期初期末平均市值` → 「**区间换手率**」（附 detail 公式）；决策库的 `min(买,卖)×2 ÷ 日均占用资本` → 「**年化换手率**」（附公式与分母）。
+- **年化换手率真正算出**（原先恒为「未计算（需平均市值）」）：`src/lib/decision-library-data.ts` 的 `averageCapital` 由硬编码 `null` 改为**区间内每日快照可投资口径的算术均值**（快照是派生数据），并把 `averageCapital`/`averageCapitalDays` 一并返回，界面标注「分母 ¥X，取自 N 天快照」，无快照时显示「不可计算 · 区间内没有可用的每日快照（快照缺口不会被当成 0）」而不是含糊的「需平均市值」。
+- 风险区 null 覆盖率经复核**本就是对的**（null 渲染 `—` 且降为 ink-faint，状态用 `review-status-chip`），无需改动；最大回撤沿用 `text-down`（本设计里绿=跌，与 A 股口径一致）并保留该判断。
+- E2E：断言「资金体验 MWR（区间）」「区间换手率」存在；决策库断言年化换手率已算出且带「取自 N 天快照」。
+- 验证：`npm test` 506/506、构建通过、Playwright 92/92。
+
 **B8 结构性 HTML 与遮挡：已完成**
 
 - 消除嵌套 `<main>`：`/review`、`/review/decisions`、`/review/history`、`/month-close` 的页面根改为 `<div className="page-shell …">`；并修掉 `review-client.tsx` 里额外的 `<main className="page-shell review-shell">`——它是「双层 page-shell + 三重 main」的真正来源。现在每页 `document.querySelectorAll('main').length === 1`（E2E 断言）。
