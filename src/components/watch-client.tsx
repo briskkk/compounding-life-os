@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { buildPortfolioCurve, type CurveHolding } from '@/lib/engine/intraday'
-import { summarizeDailyPortfolio } from '@/lib/engine/daily-pnl'
+import { dailyQuoteValuation, summarizeDailyPortfolio } from '@/lib/engine/daily-pnl'
 import { sortHoldings, type HoldingSort } from '@/lib/engine/holding-sort'
 import { dateKeyAt, isCurrentPortfolioDay, seriesTradingDate, summarizeValuationDate } from '@/lib/engine/watch-market'
 import type { IntradaySeries } from '@/lib/market/intraday'
@@ -171,27 +171,30 @@ export function WatchClient({
   const rows = useMemo(() => holdings.map((holding) => {
     const series = seriesMap.get(holding.symbol)
     const quote = quotes.get(holding.symbol)
-    // /api/prices 的 price 为人民币展示口径；组合计算必须使用原币报价，再统一乘一次汇率。
-    const quotePrice = quote?.rawPrice ?? (quote ? quote.price / holding.rateToCny : null)
-    const quotePrevClose = quote?.rawPrevClose ?? (quote ? quote.prevClose / holding.rateToCny : null)
-    const price = quotePrice ?? series?.points.at(-1)?.price ?? holding.price ?? null
-    const prevClose = series?.prevClose ?? quotePrevClose ?? holding.prevClose ?? series?.points[0]?.price ?? null
-    const changePct = price != null && prevClose ? price / prevClose - 1 : null
-    const valueCny = price != null ? holding.qty * price * holding.rateToCny : holding.fallbackValueCny
-    const dayPnlCny = price != null && prevClose != null ? holding.qty * (price - prevClose) * holding.rateToCny : null
-    const tradingDate = quote?.tradingDate
-      ?? seriesTradingDate(series, holding.currency, holding.cls)
-      ?? holding.tradingDate
-    const currentPortfolioDay = isCurrentPortfolioDay(tradingDate, todayKey)
+    // 现价与昨收只取报价（原币），并统一乘一次汇率。
+    // 不再回退到分时序列的昨收/首点/服务端旧值：那些回退会让「今日涨跌」代表不同的
+    // 资产集合（P1-26），此处与总览、收益日历共用 dailyQuoteValuation 的同一判定。
+    // 首屏回退到服务端注入的报价（同样来自 state.quotes），因此与总览的初始值完全一致；
+    // 但**不回退到分时序列**的昨收/首点——那正是两条路径算出两套「今日涨跌」的原因（P1-26）。
+    const price = quote?.rawPrice ?? holding.price
+    const prevClose = quote?.rawPrevClose ?? holding.prevClose
+    const tradingDate = quote?.tradingDate ?? holding.tradingDate
+    const { currentValueCny, previousValueCny } = dailyQuoteValuation({
+      quantity: holding.qty,
+      quote: price == null ? null : { price, prevClose, tradingDate },
+      fallbackValueCny: holding.fallbackValueCny,
+      todayKey,
+      rateToCny: holding.rateToCny,
+    })
     return {
       ...holding,
       price,
       prevClose,
-      changePct,
-      valueCny,
-      dayPnlCny,
+      changePct: price != null && prevClose ? price / prevClose - 1 : null,
+      valueCny: currentValueCny,
+      dayPnlCny: previousValueCny == null ? null : currentValueCny - previousValueCny,
       tradingDate,
-      currentPortfolioDay,
+      currentPortfolioDay: isCurrentPortfolioDay(tradingDate, todayKey),
       source: quote?.source ?? series?.source ?? holding.source ?? null,
       confidencePct: quote?.confidencePct ?? holding.confidencePct ?? null,
     }

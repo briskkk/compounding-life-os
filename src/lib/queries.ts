@@ -24,11 +24,11 @@ import { cnyRateFor, fxRateAtFactory, fxRatesForCurrenciesSWR } from './market/f
 import { eastmoneyFundProvider } from './market/eastmoney-fund'
 import type { AssetInfo, TxInput } from './engine/types'
 import { mergePositionsByAsset } from './engine/merge'
-import { summarizeDailyPortfolio } from './engine/daily-pnl'
+import { dailyQuoteValuation, summarizeDailyPortfolio } from './engine/daily-pnl'
 import { buildSavingsOverview, type SavingsOverview } from './engine/savings'
 import type { QuoteData } from './market/provider'
 import { isInvestableAsset, isPortfolioAssetClass } from './asset-classification'
-import { dateKeyAt, previousCloseOnPortfolioDay } from './engine/watch-market'
+import { dateKeyAt } from './engine/watch-market'
 import type { ValuationGap, ValuationStatus } from './engine/valuation-status'
 import { loadLatestPersistedQuotes, loadPriceSeries, priceAtFn, priceObservationAtFn } from './market/persist'
 import { computeWealthSeries } from './snapshots'
@@ -742,13 +742,13 @@ export async function getDashboard(period: ReviewPeriod = 'THIS_MONTH'): Promise
     .filter((v) => !v.asset.manual && v.asset.cls !== 'CASH' && v.asset.cls !== 'REAL_ESTATE')
     .map((v) => {
       const quote = quoteBySymbol.get(v.asset.symbol)
-      const previousClose = quote
-        ? previousCloseOnPortfolioDay(quote.prevClose, quote.tradingDate, todayKey)
-        : null
-      return {
-        currentValueCny: quote ? v.quantity * quote.price : v.value,
-        previousValueCny: previousClose == null ? null : v.quantity * previousClose,
-      }
+      // 与看盘、收益日历共用同一判定，避免同一时刻两套「今日涨跌」（见 dailyQuoteValuation）
+      return dailyQuoteValuation({
+        quantity: v.quantity,
+        quote: quote ? { price: quote.price, prevClose: quote.prevClose, tradingDate: quote.tradingDate } : null,
+        fallbackValueCny: v.value,
+        todayKey,
+      })
     })
   const marketDay = summarizeDailyPortfolio(marketItems, staticValueCny)
 
