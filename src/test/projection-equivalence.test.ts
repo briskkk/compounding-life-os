@@ -2,7 +2,7 @@
 // 必须**逐字段保持数值不变**。基线由优化前的实现生成并冻结在 fixtures 里。
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { projectFireGoal, projectFireScenarios, projectGoal, projectStreamGoal } from '@/lib/engine/projection'
+import { FIRE_SIMS_DEFAULT, projectFireGoal, projectFireScenarios, projectGoal, projectStreamGoal } from '@/lib/engine/projection'
 
 interface FixtureCase {
   fn: string
@@ -138,5 +138,24 @@ describe('多情景共用一条冲击序列', () => {
     const [first, second] = projectFireScenarios(base, [15_000, 20_000])
     compare(first, projectFireGoal({ ...base, monthlyContribution: 15_000 }))
     compare(second, projectFireGoal({ ...base, monthlyContribution: 20_000 }))
+  })
+})
+
+describe('默认路径数与抽样误差标注', () => {
+  it('默认路径数是显式常量，且缺省输入的输出与显式传入一致', () => {
+    expect(FIRE_SIMS_DEFAULT).toBe(1500)
+    const input = {
+      current: 1_000_000,
+      fireNumberToday: 6_000_000,
+      monthsToRetirement: 60,
+      withdrawalRate: 0.04,
+      inflationRate: 0.025,
+      retirementYears: 10,
+      monthlyContribution: 20_000,
+      annualReturn: 0.07,
+      volatility: 0.15,
+      seed: 31,
+    }
+    compare(projectFireGoal(input), projectFireGoal({ ...input, sims: FIRE_SIMS_DEFAULT }))
   })
 })

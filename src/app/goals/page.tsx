@@ -7,8 +7,14 @@ import { GoalEditDialog } from '@/components/goal-edit-dialog'
 import { GoalScenarioLab } from '@/components/goal-scenario-lab'
 import { SavingsCheckIn } from '@/components/savings-check-in'
 import { fmtCNY, fmtDate, fmtMonth, fmtPct, firePaceNote } from '@/lib/format'
+import { FIRE_SIMS_DEFAULT } from '@/lib/engine/projection'
 
 export const dynamic = 'force-dynamic'
+
+// 概率来自蒙特卡洛路径估计：如实标注抽样误差，避免把估计值当成确定结论。
+// 路径数与误差/耗时的对照见 projection.ts 的 FIRE_SIMS_DEFAULT。
+const PROBABILITY_SAMPLING_NOTE = '蒙特卡洛估计'
+const monteCarloNote = '概率由 ' + FIRE_SIMS_DEFAULT + ' 条模拟路径估计，抽样标准误约 ±1.3 个百分点；调高路径数可略微收窄，但会成比例增加计算时间。'
 
 function fireStatus(probability: number): { label: string; tone: 'amber' | 'info' | 'down' } {
   if (probability < 0.7) return { label: '需要调整', tone: 'amber' }
@@ -81,11 +87,12 @@ export default async function GoalsPage() {
             <div className="goal-context">
               <span>FIRE Number <strong>{fmtCNY(primary.goal.targetAmount)}</strong></span>
               <span>当前资产 <strong>{fmtCNY(primary.goal.current)}</strong></span>
-              <span>
+              <span title={monteCarloNote}>
                 退休全周期不断供概率{' '}
                 <strong className={primary.goal.projection.retirementSuccessProb < 0.7 ? 'text-amber' : undefined}>
                   {fmtPct(primary.goal.projection.retirementSuccessProb)}
                 </strong>
+                <small className="ml-1 text-ink-faint">（{PROBABILITY_SAMPLING_NOTE}）</small>
               </span>
             </div>
             <div className="flex flex-wrap gap-2">

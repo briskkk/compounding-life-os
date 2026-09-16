@@ -4,6 +4,19 @@
 import { gaussian, mulberry32 } from './rng'
 import { portfolioSamplerFactory, type ClassWeights } from './covariance'
 
+/**
+ * 蒙特卡洛默认路径数。
+ *
+ * 成本与抽样误差（本地生产构建实测，页面规模 147+600 个月、两情景）：
+ *   sims=1500 → 冷算 213ms，概率抽样标准误 ±1.3pp（当前默认）
+ *   sims=750  → 冷算  90ms，±1.8pp
+ *   sims=500  → 冷算  59ms，±2.2pp
+ *   sims=300  → 冷算  36ms，±2.9pp
+ * 调低会改变页面上的概率与分位数（属产品决策）；调高只增加耗时。
+ * 冷渲染还有约 200ms 来自进程内首次执行的 JIT 预热，与路径数无关。
+ */
+export const FIRE_SIMS_DEFAULT = 1500
+
 const PERCENTILE_QS = [0.1, 0.5, 0.9] as const
 
 /**
@@ -178,7 +191,7 @@ export function projectGoal(input: ProjectionInput): ProjectionResult {
 }
 
 function projectGoalUncached(input: ProjectionInput): ProjectionResult {
-  const { current, target, monthlyContribution: c, annualReturn: mu, seed = 42, sims = 1500 } = input
+  const { current, target, monthlyContribution: c, annualReturn: mu, seed = 42, sims = FIRE_SIMS_DEFAULT } = input
   const months = safeMonths(input.months)
   const mr = mu / 12
 
@@ -276,7 +289,7 @@ function projectStreamGoalUncached(input: StreamProjectionInput): ProjectionResu
     spendYears,
     annualReturn: mu,
     seed = 42,
-    sims = 1500,
+    sims = FIRE_SIMS_DEFAULT,
   } = input
   const spendMonths = safeMonths(spendYears * 12)
   const accum = safeMonths(monthsAccum)
@@ -384,7 +397,7 @@ function projectFireScenariosUncached(input: FireProjectionInput, contributions:
     retirementYears,
     annualReturn,
     seed = 42,
-    sims = 1500,
+    sims = FIRE_SIMS_DEFAULT,
   } = input
   const fireNumberToday = Math.max(0, input.fireNumberToday)
   const months = safeMonths(input.monthsToRetirement)
