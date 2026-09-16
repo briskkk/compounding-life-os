@@ -28,6 +28,7 @@ last_verified: 2026-09-15
 
 ## 最近完成
 
+- B5 第 2 片（表格基础设施收尾）：新增 `src/lib/engine/tx-sort.ts` 与 `src/components/tx-sort-select.tsx`，交易流水表支持服务端排序（URL 参数 + `aria-sort`，切换排序回到第 1 页，分页保留排序；**不提供金额排序**因为金额是原币、多币种混排会误导）；补 `<caption>` 与 11 个 `scope="col"` 列头；新增「净值日」「结算日」列；冲正行改为显式墓碑（danger 底 + 「已作废」标签 + 「已冲正 · 时间」+ 行 title），不再只靠 `opacity-40` 压暗。单测 +3、E2E 断言排序/列语义/墓碑。验证：`npm test` 506/506、构建通过、Playwright 92/92。
 - B8 结构性 HTML 与遮挡：`/review`、`/review/decisions`、`/review/history`、`/month-close` 去掉嵌套 `<main>`，并移除 `review-client.tsx` 里重复的 `page-shell/review-shell`（双层 page-shell 与三重 main 的真正来源），每页 main 数量为 1；`.review-section-nav` 改为 `top: var(--terminal-topbar); z-index: 15`，修复滚动时章节条盖住顶栏搜索/刷新/家庭切换。E2E 断言 main 唯一、章节条 top=68px、滚动后顶栏搜索触发器仍是最上层元素。验证：`npm test` 503/503、构建通过、Playwright 92/92。
 - B5 表格基础设施（第 1 片）：新增 `src/components/table-scroll.tsx`，把 12 处宽表格容器统一为 `role="region" + tabIndex={0} + aria-label`（键盘可聚焦并横向滚动），并加 `.table-scroll:focus-visible` 聚焦环与 `.table-scroll thead th` 粘性表头；E2E 断言交易流水表容器 `tabindex="0"`、表头 `position: sticky`。验证：`npm test` 503/503、构建通过、Playwright 92/92。第 2 片（交易流水服务端排序与 `aria-sort`、净值日/结算日列、冲正墓碑行）待做。
 - B4 统一确认对话框：新增 `src/components/confirm-dialog.tsx`（`ConfirmProvider` + `useConfirm()`，原生 `<dialog>`：Esc/遮罩关闭、焦点归还、默认焦点在「取消」、影响面清单、danger 语气、可选确认词 `requireText`），取代 7 处 `window.confirm` 与 4 处内联两段式确认（冲正、公司行动冲正、资产删除、家庭清空）；为「完整补齐行情历史」「重建派生快照」补确认与耗时预期。E2E 断言冲正/删除对话框的影响面清单与「取消不写入」，3 处 `page.once('dialog')` 改为点击确认按钮。验证：`npm test` 503/503、构建通过、Playwright 92/92。
@@ -118,6 +119,7 @@ last_verified: 2026-09-15
 3. SQLite 与 PostgreSQL 使用独立 schema；CI 已验证 PostgreSQL 建表和 RLS 契约，但真实生产迁移仍需在目标环境做备份、行数核对与回滚演练。
 
 ## 验证状态
+- `npm test`：2026-09-16 B5-2 后 74 文件、506/506 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 92/92。
 - `npm test`：2026-09-16 B4 后 73 文件、503/503 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 92/92。
 - `npm test`：2026-09-16 B3 后 73 文件、503/503 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 92/92（22.6s）。浅色与深色主题均已截图复核（`outputs/light-theme/`，本地）。
 - `npm test`：2026-09-16 B2 后 73 文件、501/501 通过；`npm run build`、`npm run build:e2e` 通过；Playwright 全量 92/92。

@@ -470,7 +470,14 @@
 - E2E 断言：交易流水表容器 `tabindex="0"` 且表头 `position: sticky`。
 - 验证：`npm test` 503/503、构建通过、Playwright 92/92（涉改 spec 单跑 19/19）。
 
-**B5 第 2 片（待做）**：交易流水表的服务端排序（参照 `holding-sort`：URL 参数 + `aria-sort`）、「净值日 / 结算日」列，以及冲正墓碑行的显式呈现；同样按 `<caption>`/`scope` 补齐列语义。
+**B5 第 2 片：已完成**
+
+- 服务端排序：新增 `src/lib/engine/tx-sort.ts`（`date-desc`/date-asc/navDate-desc/navDate-asc）与 `src/components/tx-sort-select.tsx`；排序写入 URL（切换排序时回到第 1 页，分页链接保留排序），日期与净值日列头带 `aria-sort`。**不提供金额排序**——流水金额是原币，多币种混排会让「按金额排序」产生误导，这一点写在代码注释里。
+- 列语义：交易流水表补 `<caption class="sr-only">` 与 11 个 `scope="col"` 列头。
+- 新列：「净值日」（区分交易日与确认净值日，附 15:00 前后取日说明）与「结算日」（T+N 到账）。
+- 冲正墓碑行：被冲正的行不再只靠 `opacity-40` 压暗（文字随之不可读），改为 danger 底色 + 「已作废」标签 + 「已冲正 · 时间」+ 行 `title` 提示作废时间。
+- 单测 3 例（`src/test/tx-sort.test.ts`）：非法参数回落、只接受登记的排序值、`aria-sort` 映射；E2E 断言排序切换改 URL 与 `aria-sort`、净值日/结算日列存在、caption 存在、墓碑行的「已作废 / 已冲正 ·」可见。
+- 验证：`npm test` 506/506（74 文件）、构建通过、Playwright 92/92。
 
 **B8 结构性 HTML 与遮挡：已完成**
 

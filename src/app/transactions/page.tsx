@@ -11,8 +11,10 @@ import { foldTransactions, holdingsIndex } from '@/lib/engine/ledger'
 import { TxFilters } from '@/components/tx-filters'
 import { CsvImport } from '@/components/csv-import'
 import { ReverseButton } from '@/components/reverse-button'
+import { TxSortSelect } from '@/components/tx-sort-select'
+import { DEFAULT_TX_SORT, parseTxSort, txAriaSort } from '@/lib/engine/tx-sort'
 import { TX_TYPE_LABEL } from '@/lib/labels'
-import { cx, fmtCNY, fmtDate, fmtMoney, fmtQty } from '@/lib/format'
+import { cx, fmtCNY, fmtDate, fmtDateTime, fmtMoney, fmtQty } from '@/lib/format'
 import type { TxType } from '@/lib/engine/types'
 import { TableScroll } from '@/components/table-scroll'
 
@@ -31,7 +33,7 @@ const PAGE_SIZES = [25, 50, 100] as const
 export default async function TransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ account?: string; type?: string; q?: string; page?: string; size?: string; batch?: string; history?: string }>
+  searchParams: Promise<{ account?: string; type?: string; q?: string; page?: string; size?: string; batch?: string; history?: string; sort?: string }>
 }) {
   const sp = await searchParams
   const ctx = await getSession()
@@ -77,6 +79,15 @@ export default async function TransactionsPage({
     ...(sp.type ? { type: sp.type as TxType } : showHistory ? {} : { type: { not: 'REVERSAL' } }),
     ...(showHistory ? {} : { voidedAt: null }),
   }
+  // 服务端排序（URL 参数驱动）：净值日为空的行在 SQLite 下会排在最前（asc）或最后（desc）
+  const activeSort = parseTxSort(sp.sort)
+  const txOrderBy = activeSort === 'date-asc'
+    ? [{ occurredAt: 'asc' as const }, { createdAt: 'asc' as const }]
+    : activeSort === 'navDate-desc'
+      ? [{ navDate: 'desc' as const }, { occurredAt: 'desc' as const }]
+      : activeSort === 'navDate-asc'
+        ? [{ navDate: 'asc' as const }, { occurredAt: 'asc' as const }]
+        : [{ occurredAt: 'desc' as const }, { createdAt: 'desc' as const }]
   const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1)
   const requestedSize = Number(sp.size)
   const pageSize = PAGE_SIZES.find((size) => size === requestedSize) ?? 50
@@ -84,7 +95,7 @@ export default async function TransactionsPage({
     db.transaction.findMany({
       where,
       include: { account: true, asset: true },
-      orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
+      orderBy: txOrderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
@@ -107,6 +118,7 @@ export default async function TransactionsPage({
   if (sp.batch) filterParams.set('batch', sp.batch)
   if (pageSize !== 50) filterParams.set('size', String(pageSize))
   if (showHistory) filterParams.set('history', 'all')
+  if (activeSort !== DEFAULT_TX_SORT) filterParams.set('sort', activeSort)
   const pageHref = (target: number) => {
     const params = new URLSearchParams(filterParams)
     if (target > 1) params.set('page', String(target))
@@ -215,27 +227,40 @@ export default async function TransactionsPage({
         ) : (
           <TableScroll label="交易流水表">
           <table className="w-full text-[14px] whitespace-nowrap">
+            <caption className="sr-only">交易流水表：日期、类型、资产、账户、数量、单价、金额、净值日、结算日与操作</caption>
             <thead>
               <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
-                <th className="px-4 py-2.5 font-normal">日期</th>
-                <th className="px-2 py-2.5 font-normal">类型</th>
-                <th className="px-2 py-2.5 font-normal">资产</th>
-                <th className="px-2 py-2.5 font-normal">账户</th>
-                <th className="px-2 py-2.5 text-right font-normal">数量</th>
-                <th className="px-2 py-2.5 text-right font-normal">单价</th>
-                <th className="px-2 py-2.5 text-right font-normal">金额</th>
-                <th className="px-2 py-2.5 text-right font-normal">备注</th>
-                <th className="px-4 py-2.5 text-right font-normal">操作</th>
+                <th scope="col" className="px-4 py-2.5 font-normal" aria-sort={txAriaSort(activeSort, 'date')}>
+                  <div className="flex items-center gap-2">
+                    <span>日期</span>
+                    <TxSortSelect value={activeSort} />
+                  </div>
+                </th>
+                <th scope="col" className="px-2 py-2.5 font-normal">类型</th>
+                <th scope="col" className="px-2 py-2.5 font-normal">资产</th>
+                <th scope="col" className="px-2 py-2.5 font-normal">账户</th>
+                <th scope="col" className="px-2 py-2.5 text-right font-normal">数量</th>
+                <th scope="col" className="px-2 py-2.5 text-right font-normal">单价</th>
+                <th scope="col" className="px-2 py-2.5 text-right font-normal">金额</th>
+                <th scope="col" className="px-2 py-2.5 text-right font-normal" aria-sort={txAriaSort(activeSort, 'navDate')}>净值日</th>
+                <th scope="col" className="px-2 py-2.5 text-right font-normal">结算日</th>
+                <th scope="col" className="px-2 py-2.5 text-right font-normal">备注</th>
+                <th scope="col" className="px-4 py-2.5 text-right font-normal">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60">
               {txs.map((t) => (
-                <tr key={t.id} className={cx('transition-colors hover:bg-panel2/50', t.voidedAt && 'opacity-40')}>
+                <tr
+                  key={t.id}
+                  title={t.voidedAt ? `该流水已于 ${fmtDateTime(t.voidedAt)} 冲正作废` : undefined}
+                  className={cx('transition-colors hover:bg-panel2/50', t.voidedAt && 'bg-danger/[0.05] [&>td]:text-ink-dim')}
+                >
                   <td className="num px-4 py-2 text-ink-dim">{fmtDate(t.occurredAt)}</td>
                   <td className="px-2 py-2">
                     <Tag tone={TONE_BY_TYPE[t.type] ?? 'dim'}>{TX_TYPE_LABEL[t.type]}</Tag>
                     {t.internal && <span className="ml-1 text-[12px] text-ink-faint">结算</span>}
                     {t.navSource === 'PENDING' && <span className="ml-1 text-[12px] text-amber">份额待确认</span>}
+                    {t.voidedAt && <span className="ml-1"><Tag tone="danger">已作废</Tag></span>}
                   </td>
                   <td className="max-w-[180px] truncate px-2 py-2 text-ink">
                     {t.asset.name}
@@ -256,10 +281,16 @@ export default async function TransactionsPage({
                   >
                     {fmtMoney(Number(t.amount), t.asset.currency)}
                   </td>
+                  <td className="num px-2 py-2 text-right text-[13px] text-ink-dim" title="份额对应的净值日期（场外基金按 15:00 前后取当日或下一交易日）">
+                    {t.navDate ? fmtDate(t.navDate) : '—'}
+                  </td>
+                  <td className="num px-2 py-2 text-right text-[13px] text-ink-dim" title="资金到账日（申购/赎回的 T+N）">
+                    {t.settlementDate ? fmtDate(t.settlementDate) : '—'}
+                  </td>
                   <td className="max-w-[120px] truncate px-2 py-2 text-right text-[13px] text-ink-faint">{t.note ?? ''}</td>
                   <td className="px-4 py-2 text-right">
                     {t.voidedAt ? (
-                      <span className="text-[12px] text-ink-faint">已冲正</span>
+                      <span className="text-[12px] text-ink-dim">已冲正 · {fmtDateTime(t.voidedAt)}</span>
                     ) : (
                       canWrite &&
                       t.type !== 'REVERSAL' && (

@@ -620,3 +620,11 @@ last_verified: 2026-09-10
 - 修正表头粘性：.table-scroll 自身是滚动容器，top 必须为 0（写成顶栏高度会盖住前几行，曾导致「核对份额」点击超时）。
 - E2E：main 数量为 1、章节条 top=68px、滚动 1200px 后顶栏搜索触发器仍最上层。
 - 验证：npm test 503/503、build 通过、Playwright 92/92。
+
+# 2026-09-16 迭代 B 之 B5（第 2 片）：流水表排序、列语义与冲正墓碑
+
+- 新增 tx-sort 引擎助手与 TxSortSelect：URL 参数服务端排序（date/navDate 升降），aria-sort、分页保留排序；不提供金额排序（原币多币种会误导）。
+- 交易流水表补 caption 与 11 个 scope="col"；新增净值日/结算日列。
+- 冲正行改为显式墓碑：danger 底色 + 已作废标签 + 已冲正时间 + 行 title，替代 opacity 压暗。
+- 单测 +3（tx-sort）；E2E 断言排序 URL/aria-sort、列语义、墓碑可见。
+- 验证：npm test 506/506、build 通过、Playwright 92/92。

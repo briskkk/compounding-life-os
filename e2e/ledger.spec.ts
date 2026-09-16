@@ -27,6 +27,15 @@ test('流水页：表格、筛选、冲正入口与导出链接', async ({ page 
   await expect(page.locator('dialog.confirm-dialog')).not.toBeVisible()
   await expect(page.getByText('↓ 导出 CSV')).toBeVisible()
 
+  // B5：服务端排序（URL 参数驱动）+ aria-sort + 净值日/结算日列
+  await expect(page.getByRole('columnheader', { name: /日期/ })).toHaveAttribute('aria-sort', 'descending')
+  await page.getByLabel('流水排序').selectOption('date-asc')
+  await expect(page).toHaveURL(/sort=date-asc/)
+  await expect(page.getByRole('columnheader', { name: /日期/ })).toHaveAttribute('aria-sort', 'ascending')
+  await expect(page.getByRole('columnheader', { name: '净值日' })).toBeVisible()
+  await expect(page.getByRole('columnheader', { name: '结算日' })).toBeVisible()
+  await expect(page.locator('table caption')).toContainText('交易流水表')
+
   // B5：宽表格容器对键盘可聚焦（可横向滚动），且表头粘性
   const tableRegion = page.getByRole('region', { name: '交易流水表' })
   await expect(tableRegion).toHaveAttribute('tabindex', '0')
@@ -106,6 +115,12 @@ test('场外基金：净值份额未知时先按金额记录，并进入当日�
   await page.getByTestId('confirm-accept').click()
   await expect(page.locator('tbody tr').filter({ hasText: 'E2E 当日申购待确认' })).toHaveCount(0)
   const showHistory = page.getByRole('link', { name: /显示冲正历史/ })
+  await showHistory.click()
+  // B5：被冲正的行以显式墓碑呈现（标签 + 作废时间），而不是仅靠降低透明度
+  const tombstone = page.locator('tbody tr').filter({ hasText: 'E2E 当日申购待确认' }).first()
+  await expect(tombstone.getByText('已作废')).toBeVisible()
+  await expect(tombstone.getByText(/已冲正 ·/)).toBeVisible()
+  await page.goBack()
   await expect(showHistory).toContainText('3')
   await showHistory.click()
   await expect(page.locator('tbody tr').filter({ hasText: 'E2E 当日申购待确认' })).toBeVisible()
