@@ -21,7 +21,7 @@ last_verified: 2026-09-14
 | 基金确认 | `src/app/fund-confirmations/page.tsx` | 待确认基金集中队列、官方净值只读预览、平台份额比对与确认写入 |
 | FIRE | `src/app/goals/page.tsx` | 目标编辑、储蓄、情景实验室、蒙特卡洛结果 |
 | 账户 | `src/app/accounts/page.tsx`、`accounts/[accountId]/page.tsx` | 账户、资产目录、结算关系、负债 |
-| 定投管理 | `src/app/investment-plans/page.tsx` | 定投节奏、同币种候选资产、月度计划与有效 BUY 核对 |
+| 定投管理 | `src/app/investment-plans/page.tsx` | 定投节奏、月度计划与有效 BUY 核对；用户核对实际申购后按日批量快速录入 |
 | 月结中心 | `src/app/month-close/page.tsx` | 数据确认、账户对账、定投核对与月度复盘的只读编排 |
 | 审计 | `src/app/audit/page.tsx` | 审计哈希链验证与时间线 |
 
@@ -102,9 +102,10 @@ Route Handlers：
 - `src/lib/engine/data-settlement.ts`、`src/components/data-settlement-rail.tsx`：实时/已结算证据计算与看盘低权重数据状态行；总览仅显示摘要，详细证据进入健康中心。
 - `src/app/allocation/page.tsx`、`src/lib/engine/allocation-drift.ts`：资产大类目标、容忍带与事实性偏离计算。
 - `src/app/accounts/page.tsx` 的 `calendar` 视图、`src/lib/engine/cash-calendar.ts`：计划现金事项与账本派生在途到账合并。
-- `src/app/investment-plans/page.tsx`、`src/lib/engine/investment-plan.ts`：工作日/每周/每月计划节点与同币种有效 BUY 的月度核对；不写账本或收益。
+- `src/app/investment-plans/page.tsx`、`src/lib/engine/investment-plan.ts`：工作日/每周/每月计划节点与同币种有效 BUY 的月度核对，区分已录、用户已核对未买、待核对与未到期；计划节点不自动写账本或收益。
 - `src/components/allocation-target-editor.tsx`、`cash-plan-form.tsx`：受权限与审计保护的计划写入界面。
 - `src/components/investment-plan-form.tsx`：定投计划创建与结束；候选资产、账户和币种服务端复核。
+- `src/components/investment-plan-quick-entry.tsx`、`src/lib/actions.ts` 的 `recordInvestmentPlanBuys`：同日已买申购走交易写服务和现金结算，明确未买只留 `InvestmentPlanDayReview` 计划层证据；`revokeInvestmentPlanNoBuyReview` 可撤销核对，不新建第二账本。
 - `src/lib/engine/month-close.ts`：基于既有证据推导月结四步状态，不保存第二余额或结账标记。
 
 ### FIRE
@@ -147,6 +148,7 @@ Route Handlers：
 - `prisma/migrations/20260824173000_add_import_batches/`、`20260824183000_add_transaction_idempotency/`：CSV 批次幂等与 APP 写入幂等。
 - `prisma/migrations/20260825090000_add_portfolio_planning/`：目标配置与资金计划表。
 - `prisma/migrations/20260911190000_add_investment_plans/`：定投策略与候选资产关系表。
+- `prisma/migrations/20260915193000_add_investment_plan_day_reviews/`：可撤销的计划日未买入核对证据表。
 - `prisma/rls.sql`：PostgreSQL 原生 RLS。
 - `scripts/check-schema-sync.ts`：双 schema + RLS 清单一致性检查（CI 门禁）。
 - `scripts/init-empty.ts`：空白工作区初始化。

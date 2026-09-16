@@ -206,6 +206,27 @@ export const goalScenarioSchema = z.object({
   targetReduction: z.number().min(0).max(0.2),
 })
 
+/**
+ * FIRE 情景预览输入：服务端渲染时装配好的基准投影输入 + 候选调整。
+ * 预览必须用与页面相同的引擎重算，不能再造第二套近似模型。
+ */
+export const goalScenarioPreviewSchema = z.object({
+  monthlyContribution: z.number().nonnegative(),
+  delayMonths: z.number().int().min(0).max(36),
+  base: z.object({
+    current: z.number().finite(),
+    fireNumberToday: z.number().finite().nonnegative(),
+    monthsToRetirement: z.number().finite().min(0).max(1200),
+    withdrawalRate: z.number().min(0).max(0.2),
+    inflationRate: z.number().min(-0.1).max(0.5),
+    retirementYears: z.number().min(0).max(80),
+    annualReturn: z.number().min(-0.5).max(0.5),
+    volatility: z.number().min(0).max(1),
+    seed: z.number().int(),
+    portfolioWeights: z.record(z.string(), z.number().min(0).max(1)).optional(),
+  }),
+})
+
 export const savingsEntryInputSchema = z.object({
   periodType: z.enum(['WEEK', 'MONTH']),
   periodStart: z.coerce.date(),
@@ -311,6 +332,38 @@ export const investmentPlanInputSchema = z.object({
   }
   if (value.endDate && value.endDate.getTime() < value.startDate.getTime()) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: '结束日期不能早于开始日期', path: ['endDate'] })
+  }
+})
+
+const investmentPlanEntryDate = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/, '日期格式必须为 YYYY-MM-DD')
+
+export const investmentPlanBuysInputSchema = z.object({
+  confirmedActual: z.boolean().default(false),
+  confirmedNoBuy: z.boolean().default(false),
+  buys: z.array(z.object({
+    planId: z.string().min(1),
+    date: investmentPlanEntryDate,
+    navDate: investmentPlanEntryDate,
+    amount: z.number().positive('实际申购金额必须大于 0'),
+    fee: z.number().nonnegative('实际费用不能为负'),
+  })).max(20, '每次最多确认 20 笔'),
+  noBuy: z.array(z.object({
+    planId: z.string().min(1),
+    date: investmentPlanEntryDate,
+  })).max(20, '每次最多确认 20 个未买入计划节点').default([]),
+}).superRefine((value, ctx) => {
+  if (value.buys.length + value.noBuy.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '请选择实际买入，或确认当天未买入', path: ['buys'] })
+  }
+  if (value.buys.length > 0 && !value.confirmedActual) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '请先核对已实际发生的申购', path: ['confirmedActual'] })
+  }
+  if (value.noBuy.length > 0 && !value.confirmedNoBuy) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '请先确认未勾选的基金当天确实未买入', path: ['confirmedNoBuy'] })
+  }
+  const keys = [...value.buys.map((buy) => `${buy.planId}|${buy.date}`), ...value.noBuy.map((item) => `${item.planId}|${item.date}`)]
+  if (new Set(keys).size !== keys.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '同一计划日期不能同时买入和确认未买，或重复提交', path: ['buys'] })
   }
 })
 

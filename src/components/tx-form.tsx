@@ -1,8 +1,8 @@
 'use client'
 
 // 手工录入流水；基金资产启用智能录入（按金额申购 / 卖出自动关联当前份额，ADR-012）
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState, type FormEvent } from 'react'
 import { createTransaction } from '@/lib/actions'
 import { Field, FormMsg, btnCls, inputCls } from './fields'
 import { AssetPicker } from './asset-picker'
@@ -37,6 +37,14 @@ function parseNum(text: string): number | null {
   if (trimmed === '') return null
   const n = Number(trimmed)
   return Number.isFinite(n) ? n : null
+}
+
+/** 幂等键：同一次录入重试沿用同一键，成功写入后轮换 */
+function newRequestKey(): string {
+  const random = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `web:${random}`
 }
 
 export function TxForm({
@@ -84,7 +92,13 @@ export function TxForm({
   const [settle, setSettle] = useState(Boolean(firstAccount?.settlementAccountName))
   const [assetId, setAssetId] = useState(initialAsset?.id ?? '')
   const [pending, setPending] = useState(false)
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string; tone?: 'ok' | 'warn' | 'error' } | null>(null)
+  // 字段级校验错误（来自服务端 fieldErrors），就地展示并聚焦首个出错字段
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string> | null>(null)
+  // 幂等键：一次录入内容对应一个键；成功后轮换，重复提交由服务端折叠为同一笔
+  const requestKeyRef = useRef<string>(newRequestKey())
+  const submittingRef = useRef(false)
+  const formRef = useRef<HTMLFormElement>(null)
   const [dateText, setDateText] = useState(localDateInput(new Date()))
   const [qtyText, setQtyText] = useState('')
   const [priceText, setPriceText] = useState('')
@@ -197,6 +211,8 @@ export function TxForm({
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    // 连击 / 回车重复触发：同一次提交只允许在途一笔（服务端幂等键是第二道保护）
+    if (submittingRef.current) return
     const form = e.currentTarget
     const fd = new FormData(form)
     let qty = quantity
@@ -209,7 +225,9 @@ export function TxForm({
     if (isFund && type === 'BUY' && fundMode === 'amount') {
       // 按金额申购只记录本金；净值与份额必须在基金核对台确认后才写入持仓。
       if (amt == null || amt <= 0) {
+        setFieldErrors({ amount: '请填写大于 0 的申购金额' })
         setMsg({ ok: false, text: '请填写申购金额' })
+        focusFirstInvalidField(form)
         return
       }
       if (!settle) {
@@ -232,7 +250,9 @@ export function TxForm({
     }
 
     if (sellOvershoot) {
+      setFieldErrors({ quantity: `可卖份额不足：当前可卖 ${fmtQty(holding!.availableQty)} 份` })
       setMsg({ ok: false, text: `可卖份额不足：当前可卖 ${fmtQty(holding!.availableQty)} 份` })
+      focusFirstInvalidField(form)
       return
     }
     if (purchaseSuspended) {
@@ -240,8 +260,10 @@ export function TxForm({
       return
     }
 
+    submittingRef.current = true
     setPending(true)
     setMsg(null)
+    setFieldErrors(null)
     const res = await createTransaction({
       accountId,
       assetId: String(fd.get('assetId')),
@@ -256,15 +278,20 @@ export function TxForm({
       settlementDate: settleDateValue,
       note: (fd.get('note') as string) || null,
       settleCash: !isLongTermAsset && settle && ['BUY', 'SELL', 'DIVIDEND', 'INTEREST', 'FEE'].includes(type),
-    })
+    }, requestKeyRef.current)
+    submittingRef.current = false
     setPending(false)
     if (res.ok) {
-      setMsg({
-        ok: true,
-        text: res.warning ?? (navSource === 'PENDING'
+      const base = res.data?.replayed
+        ? '这笔提交已在账本中，重复提交已自动忽略'
+        : navSource === 'PENDING'
           ? '申购已写入账本，净值与份额待官方确认'
-          : isLongTermAsset ? '长期资产记录已保存' : '已写入账本，快照已重建'),
-      })
+          : isLongTermAsset ? '长期资产记录已保存' : '已写入账本，快照已重建'
+      // 快照重建失败等未完成部分必须显示为警告，不能当作成功
+      setMsg(res.warning
+        ? { ok: false, tone: 'warn', text: base + '；' + res.warning }
+        : { ok: true, tone: 'ok', text: base })
+      requestKeyRef.current = newRequestKey()
       form.reset()
       setType(defaultType)
       setSettle(Boolean(selectedAccount?.settlementAccountName))
@@ -276,17 +303,28 @@ export function TxForm({
       setSettleTouched(false)
       router.refresh()
     } else {
+      setFieldErrors(res.fieldErrors ?? null)
       setMsg({ ok: false, text: res.error })
+      focusFirstInvalidField(form)
     }
+  }
+
+  /** 聚焦第一个标记为无效的控件，让用户不必自己找 */
+  function focusFirstInvalidField(form: HTMLFormElement | null) {
+    requestAnimationFrame(() => {
+      const target = form?.querySelector<HTMLElement>('[aria-invalid="true"]')
+        ?? formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')
+      target?.focus()
+    })
   }
 
   const fundPreview = isFund && (type === 'BUY' || type === 'SELL')
 
   return (
-    <form onSubmit={onSubmit} className={cx(layout === 'wide' ? 'tx-form-wide' : 'space-y-3')}>
+    <form ref={formRef} onSubmit={onSubmit} className={cx(layout === 'wide' ? 'tx-form-wide' : 'space-y-3')}>
       <div className="tx-form-core">
         <div className="tx-form-date-type grid grid-cols-2 gap-3">
-          <Field label="日期">
+          <Field label="日期" fieldKey="occurredAt" error={fieldErrors?.occurredAt}>
             <input
               name="occurredAt"
               type="date"
@@ -315,7 +353,7 @@ export function TxForm({
             </select>
           </Field>
         </div>
-        <Field label="账户" className="tx-form-account">
+        <Field label="账户" className="tx-form-account" fieldKey="accountId" error={fieldErrors?.accountId}>
           {lockAccount ? (
             <div className={`${inputCls} flex items-center justify-between`}>
               <span>{selectedAccount?.name ?? '—'}</span>
@@ -356,6 +394,7 @@ export function TxForm({
             setPriceText('')
             setSettleTouched(false)
           }} />
+          {fieldErrors?.assetId && <span role="alert" className="mt-1 block text-[12px] text-danger">{fieldErrors.assetId}</span>}
         </div>
       </div>
 
@@ -415,7 +454,7 @@ export function TxForm({
 
           <div className="tx-form-values grid grid-cols-2 gap-3">
         {NEEDS_QTY.includes(type) && !(isFund && type === 'BUY' && fundMode === 'amount') && (
-          <Field label={isFund && type === 'SELL' ? '赎回份额' : '数量'}>
+          <Field label={isFund && type === 'SELL' ? '赎回份额' : '数量'} fieldKey="quantity" error={fieldErrors?.quantity}>
             <input
               name="quantity"
               type="number"
@@ -429,7 +468,7 @@ export function TxForm({
           </Field>
         )}
         {NEEDS_PRICE.includes(type) && !(isFund && type === 'BUY' && fundMode === 'amount') && (
-          <Field label={isFund ? '净值' : '单价'}>
+          <Field label={isFund ? '净值' : '单价'} fieldKey="price" error={fieldErrors?.price}>
             <input
               name="price"
               type="number"
@@ -452,6 +491,8 @@ export function TxForm({
                 : '金额（买卖可留空）'
           }
           className={layout === 'compact' && !NEEDS_QTY.includes(type) ? 'col-span-2' : undefined}
+          fieldKey="amount"
+          error={fieldErrors?.amount}
         >
           <input
             name="amount"
@@ -464,14 +505,14 @@ export function TxForm({
             required={!NEEDS_PRICE.includes(type) || (isFund && type === 'BUY' && fundMode === 'amount')}
           />
         </Field>
-        <Field label="费用">
+        <Field label="费用" fieldKey="fee" error={fieldErrors?.fee}>
           <input name="fee" type="number" min="0" step="any" value={feeText} onChange={(e) => setFeeText(e.target.value)} className={inputCls} />
         </Field>
           </div>
 
           {/* 基金卖出：预计到账日（赎回在途） */}
           {isFund && type === 'SELL' && (
-            <Field label="预计到账日" className="tx-form-settle-date">
+            <Field label="预计到账日" className="tx-form-settle-date" fieldKey="settlementDate" error={fieldErrors?.settlementDate}>
               <input
                 type="date"
                 value={effectiveSettleDateText}
@@ -559,7 +600,7 @@ export function TxForm({
                 </p>
               )}
               {sellOvershoot && (
-                <p className="mt-1 text-up">超出可卖份额（{fmtQty(holding!.availableQty)} 份）</p>
+                <p className="mt-1 text-danger">超出可卖份额（{fmtQty(holding!.availableQty)} 份）</p>
               )}
             </>
           )}
@@ -567,7 +608,7 @@ export function TxForm({
         )}
       </div>
 
-      <Field label="备注" className="tx-form-note">
+      <Field label="备注" className="tx-form-note" fieldKey="note" error={fieldErrors?.note}>
         <input name="note" className={inputCls} placeholder="可选" />
       </Field>
       <div className="tx-form-footer">

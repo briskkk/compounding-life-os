@@ -50,6 +50,9 @@ export function Nav() {
                 key={link.href}
                 href={link.href}
                 title={link.label}
+                // 所有页面都是 force-dynamic（每次请求都要重放账本与行情），预取只会
+                // 造成重复服务端渲染，并与写入后的刷新竞争载荷，因此关闭预取。
+                prefetch={false}
                 aria-current={active ? 'page' : undefined}
                 className={cx('terminal-nav-item', active && 'is-active')}
               >

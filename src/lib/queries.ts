@@ -13,7 +13,7 @@ import {
 } from './engine/ledger'
 import { valuePositions, type ValuedPosition } from './engine/valuation'
 import { aggregate, type Metrics } from './engine/metrics'
-import { projectFireGoal, monthsBetween, type FireProjectionResult } from './engine/projection'
+import { projectFireGoal, monthsBetween, type FireProjectionInput, type FireProjectionResult } from './engine/projection'
 import type { ClassWeights } from './engine/covariance'
 import { annualized, dailyNetFlows, twrSeries, xirr, xirrFlowsFromTxs } from './engine/attribution'
 import { totalLiabilities, type LiabilityEntryInput } from './engine/liabilities'
@@ -226,6 +226,8 @@ export interface GoalView {
   projection: FireProjectionResult
   /** 以近月可持续投入替换计划投入的平行投影；未提供可持续投入时为 null */
   sustainableProjection: FireProjectionResult | null
+  /** 情景预览用：与页面同源的引擎输入（含 seed 与组合权重），服务端预览复用它重算 */
+  projectionInput: FireProjectionInput & { seed: number }
 }
 
 export async function loadSavingsOverview(ctx: FamilyCtx, monthCount = 12): Promise<SavingsOverview> {
@@ -321,6 +323,8 @@ export async function loadGoals(
       monthsLeft,
       projection,
       sustainableProjection,
+      /** 情景预览用：与页面同源的引擎输入（含 seed 与组合权重），服务端预览复用它重算 */
+      projectionInput: baseInput,
     }
   })
 }

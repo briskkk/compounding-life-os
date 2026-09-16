@@ -26,12 +26,29 @@ export interface InvestmentPlanBuy {
   navSource: string | null
 }
 
+export interface InvestmentPlanDayReviewInput {
+  planId: string
+  scheduledDate: Date
+  revokedAt: Date | null
+}
+
+export interface InvestmentPlanDay {
+  date: Date
+  status: 'RECORDED' | 'CONFIRMED_NO_BUY' | 'UNRECORDED_DUE' | 'UPCOMING'
+  actualAmount: number
+  transactionCount: number
+  pendingCount: number
+  hasNoBuyReviewConflict: boolean
+}
+
 export interface InvestmentPlanMonthRow {
   id: string
   name: string
   currency: string
   scheduledDates: Date[]
   actualDates: Date[]
+  days: InvestmentPlanDay[]
+  offScheduleDates: Date[]
   dueOccurrences: number
   plannedAmount: number
   dueAmount: number
@@ -106,6 +123,30 @@ export function scheduledDatesInMonth(month: string, plan: InvestmentPlanInput):
   return dates
 }
 
+/** 列出所有已到期、同日无匹配 BUY 的计划节点；之后日期已买入也不能掩盖较早的漏录。 */
+export function unrecordedScheduledDatesInMonth(
+  month: string,
+  plan: InvestmentPlanInput,
+  buys: InvestmentPlanBuy[],
+  now = new Date(),
+  reviews: InvestmentPlanDayReviewInput[] = [],
+): Date[] {
+  const allowedAssets = new Set(plan.assetIds)
+  const matching = buys.filter((buy) => (
+    allowedAssets.has(buy.assetId)
+    && (!plan.accountId || buy.accountId === plan.accountId)
+    && isInPlanWindow(buy.occurredAt, plan)
+  ))
+  const recordedDays = new Set(matching.map((buy) => dayStart(buy.occurredAt)))
+  const reviewedDays = new Set(reviews.filter((review) => review.planId === plan.id && !review.revokedAt)
+    .map((review) => dayStart(review.scheduledDate)))
+  return scheduledDatesInMonth(month, plan).filter((date) => (
+    dayStart(date) <= dayStart(now)
+    && !recordedDays.has(dayStart(date))
+    && !reviewedDays.has(dayStart(date))
+  ))
+}
+
 function nextScheduledDate(plan: InvestmentPlanInput, now: Date): Date | null {
   const start = Math.max(dayStart(now), dayStart(plan.startDate))
   for (let offset = 0; offset <= 370; offset++) {
@@ -131,6 +172,7 @@ export function buildInvestmentPlanMonth(
   plans: InvestmentPlanInput[],
   buys: InvestmentPlanBuy[],
   now = new Date(),
+  reviews: InvestmentPlanDayReviewInput[] = [],
 ): InvestmentPlanMonthResult {
   const window = monthWindow(month)
   const comparisonDate = dayStart(now) < dayStart(window.start)
@@ -153,6 +195,31 @@ export function buildInvestmentPlanMonth(
     const pendingAmount = pendingBuys.reduce((sum, buy) => sum + buy.amount, 0)
     const plannedAmount = scheduledDates.length * plan.amount
     const dueAmount = dueDates.length * plan.amount
+    const buysByDay = new Map<number, InvestmentPlanBuy[]>()
+    for (const buy of planBuys) {
+      const stamp = dayStart(buy.occurredAt)
+      buysByDay.set(stamp, [...(buysByDay.get(stamp) ?? []), buy])
+    }
+    const reviewedDays = new Set(reviews.filter((review) => review.planId === plan.id && !review.revokedAt)
+      .map((review) => dayStart(review.scheduledDate)))
+    const days = scheduledDates.map((date): InvestmentPlanDay => {
+      const dayBuys = buysByDay.get(dayStart(date)) ?? []
+      return {
+        date,
+        status: dayBuys.length > 0 ? 'RECORDED'
+          : dayStart(date) > dayStart(comparisonDate) ? 'UPCOMING'
+            : reviewedDays.has(dayStart(date)) ? 'CONFIRMED_NO_BUY' : 'UNRECORDED_DUE',
+        actualAmount: dayBuys.reduce((sum, buy) => sum + buy.amount, 0),
+        transactionCount: dayBuys.length,
+        pendingCount: dayBuys.filter((buy) => buy.navSource === 'PENDING').length,
+        hasNoBuyReviewConflict: dayBuys.length > 0 && reviewedDays.has(dayStart(date)),
+      }
+    })
+    const scheduledDays = new Set(scheduledDates.map(dayStart))
+    const offScheduleDates = [...buysByDay.keys()]
+      .filter((stamp) => !scheduledDays.has(stamp))
+      .sort((a, b) => a - b)
+      .map((stamp) => new Date(stamp))
     const progress = plannedAmount > 0 ? actualAmount / plannedAmount : null
     const end = effectiveEnd(plan)
     const isEnded = plan.status === 'ENDED' || Boolean(end && dayStart(end) < dayStart(now))
@@ -171,6 +238,8 @@ export function buildInvestmentPlanMonth(
       scheduledDates,
       actualDates: [...new Map(planBuys.map((buy) => [dayStart(buy.occurredAt), buy.occurredAt])).values()]
         .sort((a, b) => a.getTime() - b.getTime()),
+      days,
+      offScheduleDates,
       dueOccurrences: dueDates.length,
       plannedAmount,
       dueAmount,

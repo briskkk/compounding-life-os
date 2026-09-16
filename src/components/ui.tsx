@@ -104,7 +104,7 @@ export function Delta({
   )
 }
 
-type Tone = 'up' | 'down' | 'accent' | 'info' | 'dim' | 'violet' | 'amber'
+type Tone = 'up' | 'down' | 'accent' | 'info' | 'dim' | 'violet' | 'amber' | 'danger'
 
 const TONE_CLS: Record<Tone, string> = {
   up: 'text-up border-up/30 bg-up/10',
@@ -114,6 +114,7 @@ const TONE_CLS: Record<Tone, string> = {
   dim: 'text-ink-dim border-line bg-panel2',
   violet: 'text-violet border-violet/30 bg-violet/10',
   amber: 'text-amber border-amber/30 bg-amber/10',
+  danger: 'text-danger border-danger/30 bg-danger/10',
 }
 
 export function Tag({ tone = 'dim', children }: { tone?: Tone; children: ReactNode }) {

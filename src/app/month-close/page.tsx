@@ -175,7 +175,7 @@ export default async function MonthClosePage({
 
   return (
     <main className="page-shell month-close-page">
-      <ReviewModeNav current="month-close" />
+      <ReviewModeNav current="month-close" month={selectedMonth} />
       <PageHeader
         kicker="Monthly close"
         title="这个月，不靠记忆收尾。"

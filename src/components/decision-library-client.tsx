@@ -2,7 +2,7 @@
 // 仅展示确定性派生事件与行为事实，不提供买卖建议、语境写入（P1 数据模型确认前）
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import type { DecisionLibraryPageData } from '@/lib/decision-library-data'
 import { fmtCNY, fmtPct, toneOf } from '@/lib/format'
 
@@ -12,10 +12,30 @@ function toneClass(value: number | null): string {
   return tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : 'text-ink-dim'
 }
 
+// 卖出事件盈亏语义：橙 = 盈利（--color-up），绿 = 亏损（--color-down），无法判定用强调色
+// 柔和底色 --up-soft / --down-soft 定义在 src/app/decisions.css
+function soldToneStyle(soldAtProfit: boolean | null): CSSProperties {
+  if (soldAtProfit === true) {
+    return {
+      background: 'var(--up-soft)',
+      color: 'var(--color-up)',
+      borderColor: 'color-mix(in srgb, var(--color-up) 32%, transparent)',
+    }
+  }
+  if (soldAtProfit === false) {
+    return {
+      background: 'var(--down-soft)',
+      color: 'var(--color-down)',
+      borderColor: 'color-mix(in srgb, var(--color-down) 32%, transparent)',
+    }
+  }
+  return { background: 'transparent', color: 'var(--color-accent)' }
+}
+
 function windowCell(window?: { status: string; pct: number | null; asOf: string | null }) {
   if (!window) return <span className="text-ink-faint">—</span>
-  if (window.status === 'BLOCKED') return <span className="badge err" title={window.asOf ?? ''}>无净值</span>
-  if (window.status === 'CENSORED') return <span className="badge warn" title={`观察期不足，asOf ${window.asOf ?? ''}`}>不足 {window.asOf ?? ''}</span>
+  if (window.status === 'BLOCKED') return <span className="ii-dec-badge ii-dec-badge-err" title={window.asOf ?? ''}>无净值</span>
+  if (window.status === 'CENSORED') return <span className="ii-dec-badge ii-dec-badge-warn" title={`观察期不足，asOf ${window.asOf ?? ''}`}>不足 {window.asOf ?? ''}</span>
   return <span className={toneClass(window.pct)}>{window.pct == null ? '—' : fmtPct(window.pct, { sign: true })}</span>
 }
 
@@ -75,10 +95,10 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
         </div>
         <div className="review-risk-layout">
           <div>
-            <div className="asym-row"><span className="lb">盈利持仓段</span><span className="asym-track"><i className="win" style={{ width: `${data.behavior.asymmetry ? Math.min(100, data.behavior.asymmetry.profit.count * 12) : 0}%` }} /></span>
-              <span className="val num">{data.behavior.asymmetry ? `${data.behavior.asymmetry.profit.count} 段 · 中位 ${data.behavior.asymmetry.profit.medianDays ?? '—'} 天` : '—'}</span></div>
-            <div className="asym-row"><span className="lb">亏损持仓段</span><span className="asym-track"><i className="lose" style={{ width: `${data.behavior.asymmetry ? Math.min(100, data.behavior.asymmetry.loss.count * 12) : 0}%` }} /></span>
-              <span className="val num">{data.behavior.asymmetry ? `${data.behavior.asymmetry.loss.count} 段 · 中位 ${data.behavior.asymmetry.loss.medianDays ?? '—'} 天` : '—'}</span></div>
+            <div className="ii-dec-asym-row"><span className="ii-dec-lb">盈利持仓段</span><span className="ii-dec-asym-track"><i className="ii-dec-win" style={{ width: `${data.behavior.asymmetry ? Math.min(100, data.behavior.asymmetry.profit.count * 12) : 0}%` }} /></span>
+              <span className="ii-dec-val num">{data.behavior.asymmetry ? `${data.behavior.asymmetry.profit.count} 段 · 中位 ${data.behavior.asymmetry.profit.medianDays ?? '—'} 天` : '—'}</span></div>
+            <div className="ii-dec-asym-row"><span className="ii-dec-lb">亏损持仓段</span><span className="ii-dec-asym-track"><i className="ii-dec-lose" style={{ width: `${data.behavior.asymmetry ? Math.min(100, data.behavior.asymmetry.loss.count * 12) : 0}%` }} /></span>
+              <span className="ii-dec-val num">{data.behavior.asymmetry ? `${data.behavior.asymmetry.loss.count} 段 · 中位 ${data.behavior.asymmetry.loss.medianDays ?? '—'} 天` : '—'}</span></div>
             <p className="footnote" style={{ marginTop: '1rem' }}>
               换手率（年化，近似 min(买,卖)×2/平均市值）：
               <b className="num">{data.behavior.turnoverRate == null ? '未计算（需平均市值）' : fmtPct(data.behavior.turnoverRate)}</b>
@@ -109,8 +129,13 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
             </div>
           </div>
         </div>
-        <div className="table-wrap" style={{ overflowX: 'auto' }}>
-          <table className="ii" style={{ minWidth: '1180px' }}>
+        <div
+          className="ii-dec-wrap"
+          role="region"
+          aria-label="决策事件表格，可横向滚动查看全部列"
+          tabIndex={0}
+        >
+          <table className="ii-dec-table" style={{ minWidth: '1180px' }}>
             <thead>
               <tr>
                 <th>日期</th><th>事件</th><th>资产</th><th className="num">金额（CNY）</th>
@@ -123,15 +148,17 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
               {visibleEvents.map((event) => {
                 const windows = [event.pre20, event.pre60, event.post30, event.post90, event.post180]
                 const eligibleWindows = windows.filter((window) => window.status === 'ELIGIBLE').length
+                const isSell = event.action.includes('减') || event.action.includes('清')
+                const badgeClass = isSell ? 'ii-dec-badge ii-dec-badge-neutral' : 'ii-dec-badge ii-dec-badge-ok'
                 return (
                 <tr key={event.id}>
                   <td className="num">{event.date}</td>
                   <td>
-                    <span className={event.action.includes('减') || event.action.includes('清') ? 'badge neutral sell' : 'badge ok buy'} style={{ background: event.soldAtProfit !== null ? 'var(--down-soft)' : 'var(--accent-soft)', color: event.soldAtProfit !== null ? 'var(--color-down)' : 'var(--color-accent)', border: '1px solid var(--color-line)' }}>
+                    <span className={badgeClass} style={isSell ? soldToneStyle(event.soldAtProfit) : undefined}>
                       {event.action}{event.soldAtProfit === true ? '·盈' : event.soldAtProfit === false ? '·亏' : ''}
                     </span>
                   </td>
-                  <td><b>{event.name}</b><span className="sub">{event.symbol} · {event.assetClass} · {event.marketLabel}</span></td>
+                  <td><b>{event.name}</b><span className="ii-dec-sub">{event.symbol} · {event.assetClass} · {event.marketLabel}</span></td>
                   <td className="num">{fmtCNY(event.amount)}</td>
                   <td className="num">{windowCell(event.pre20)}</td>
                   <td className="num">{windowCell(event.pre60)}</td>
@@ -139,10 +166,10 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
                   <td className="num">{windowCell(event.post90)}</td>
                   <td className="num">{windowCell(event.post180)}</td>
                   <td>
-                    {event.pending ? <span className="badge err">待确认</span>
-                      : eligibleWindows === windows.length ? <span className="badge ok">5/5 合格</span>
-                      : eligibleWindows > 0 ? <span className="badge warn">{eligibleWindows}/5 可用</span>
-                      : <span className="badge warn">0/5 可用</span>}
+                    {event.pending ? <span className="ii-dec-badge ii-dec-badge-err">待确认</span>
+                      : eligibleWindows === windows.length ? <span className="ii-dec-badge ii-dec-badge-ok">5/5 合格</span>
+                      : eligibleWindows > 0 ? <span className="ii-dec-badge ii-dec-badge-warn">{eligibleWindows}/5 可用</span>
+                      : <span className="ii-dec-badge ii-dec-badge-warn">0/5 可用</span>}
                   </td>
                 </tr>
                 )

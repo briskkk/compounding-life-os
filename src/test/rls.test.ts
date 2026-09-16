@@ -150,14 +150,23 @@ describe('行级安全（family 作用域）', () => {
       data: { familyId: famB, planId: created.id, assetId: assetA },
     })
     expect(link.familyId).toBe(famA)
+    const review = await dbA.investmentPlanDayReview.create({
+      data: { familyId: famB, planId: created.id, scheduledDate: new Date('2026-09-14T04:00:00Z') },
+    })
+    expect(review.familyId).toBe(famA)
 
     const dbB = scopedDb(base, ctxOf(famB))
     expect(await dbB.investmentPlan.count()).toBe(0)
     expect(await dbB.investmentPlanAsset.count()).toBe(0)
+    expect(await dbB.investmentPlanDayReview.count()).toBe(0)
 
     const viewer = scopedDb(base, ctxOf(famA, 'VIEWER'))
     await expect(viewer.investmentPlanAsset.create({
       data: { familyId: famA, planId: created.id, assetId: assetB },
+    })).rejects.toThrow(/VIEWER/)
+    await expect(viewer.investmentPlanDayReview.update({
+      where: { id: review.id },
+      data: { revokedAt: new Date() },
     })).rejects.toThrow(/VIEWER/)
   })
 })

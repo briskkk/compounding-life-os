@@ -30,7 +30,10 @@ last_verified: 2026-09-07
 | 运行核对只追加证据 | 实时/结算分轨；账户对账、任务与到账确认写审计凭证，不建立可写余额 | [ADR-017](../docs/adr/017-operational-evidence-not-second-ledger.md) |
 | 运营事件、基金规则与行情质量分层 | 公司行动展开为流水；规则与质量只保存证据，不自动改持仓、费用或行情源 | [ADR-018](../docs/adr/018-operational-ledgers-and-market-quality.md) |
 | 份额未知的基金申购先记录金额 | `PENDING` BUY 不猜净值份额，必须现金联动；金额作为在途资产派生，官方确认走冲正替换 | [ADR-019](../docs/adr/019-pending-fund-purchase-evidence.md) |
-| 定投计划只定义节奏，实际投入由账本派生 | 同币种候选资产可合并核对；计划不生成流水、下单或独立收益 | [ADR-023](../docs/adr/023-investment-plan-ledger-reconciliation.md) |
+| 定投计划只定义节奏，实际投入由账本派生 | 同币种候选资产可合并核对；计划不自动生成流水、下单或独立收益 | [ADR-023](../docs/adr/023-investment-plan-ledger-reconciliation.md) |
+| 定投页可核对后批量录入实际申购 | 用户按平台记录确认实际发生、金额、费用和净值日后，复用账本写入与现金结算；计划节点本身不入账 | [ADR-024](../docs/adr/024-user-confirmed-investment-plan-batch-entry.md) |
+| 较晚定投买入不掩盖较早漏录日 | 快速录入列出所有已到期且同日无有效 BUY 的计划日；未实际买入不生成流水，提交时仍逐笔查重 | [ADR-025](../docs/adr/025-backfill-unrecorded-investment-plan-days.md) |
+| 定投未买入由用户按日核对 | 同日已买入写账本，未买入只存可撤销的计划核对证据；确认状态不改变计划金额或财务口径 | [ADR-026](../docs/adr/026-investment-plan-no-buy-review.md) |
 
 ## 补充已定规则
 

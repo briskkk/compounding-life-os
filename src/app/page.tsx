@@ -104,6 +104,25 @@ export default async function OverviewPage({
   const latestValuationDate = d.review.latestValuationDate
   const concentration = m.concentration
 
+  // 数据质量结论：除缺口外还要看估值日是否落后于已取得的最新行情交易日，
+  // 否则“数据已更新”会在行情已更新的情况下持续显示为正常。
+  const valuationNotice = (() => {
+    if (d.review.valuationGapCount > 0) {
+      return { warning: true, label: `${d.review.valuationGapCount} 项数据待更新` }
+    }
+    const heldSymbols = new Set(d.state.valued.map((position) => position.asset.symbol))
+    const quoteDates = [...heldSymbols]
+      .map((symbol) => d.state.quotes.get(symbol)?.tradingDate)
+      .filter((value): value is string => Boolean(value))
+      .sort()
+    const newestQuoteDate = quoteDates.length > 0 ? quoteDates[quoteDates.length - 1] : null
+    if (newestQuoteDate && latestValuationDate && latestValuationDate < newestQuoteDate) {
+      return { warning: true, label: `估值日落后最新行情（${newestQuoteDate}）` }
+    }
+    if (!latestValuationDate) return { warning: true, label: '暂无估值日期' }
+    return { warning: false, label: '数据已更新' }
+  })()
+
   return (
     <div className="page-shell overview-dashboard">
       {!setupDone && (
@@ -162,9 +181,9 @@ export default async function OverviewPage({
             </div>
           </div>
           <div className="overview-data-quality">
-            <i className={d.review.valuationGapCount > 0 ? 'is-warning' : undefined} />
+            <i className={valuationNotice.warning ? 'is-warning' : undefined} />
             <span>
-              {d.review.valuationGapCount > 0 ? `${d.review.valuationGapCount} 项数据待更新` : '数据已更新'}
+              {valuationNotice.label}
               <b>·</b>{latestValuationDate ? `最新估值日 ${latestValuationDate}` : '暂无估值日期'}
               <b>·</b><Link href="/health">查看数据状态 →</Link>
             </span>

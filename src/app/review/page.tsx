@@ -16,7 +16,7 @@ export default async function ReviewPage({
 
   return (
     <main className="page-shell review-shell">
-      <ReviewModeNav current="cyclical" />
+      <ReviewModeNav current="cyclical" month={params.month} />
       <ReviewClient key={`${data.period}-${data.range.startDate}`} data={data} />
     </main>
   )

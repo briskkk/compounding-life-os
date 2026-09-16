@@ -12,6 +12,8 @@ export function TxFilters({
   type,
   showHistory,
   hiddenHistoryCount,
+  pageSize,
+  batch,
 }: {
   accounts: { id: string; name: string }[]
   types: [string, string][]
@@ -19,10 +21,14 @@ export function TxFilters({
   type: string
   showHistory: boolean
   hiddenHistoryCount: number
+  pageSize: number
+  batch: string
 }) {
   const historyParams = new URLSearchParams()
   if (account) historyParams.set('account', account)
   if (type && type !== 'REVERSAL') historyParams.set('type', type)
+  if (batch) historyParams.set('batch', batch)
+  if (pageSize !== 50) historyParams.set('size', String(pageSize))
   if (!showHistory) historyParams.set('history', 'all')
   const historyQuery = historyParams.toString()
   const historyHref = historyQuery ? `/transactions?${historyQuery}` : '/transactions'
@@ -30,6 +36,7 @@ export function TxFilters({
   return (
     <form className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3" method="GET">
       {showHistory && <input type="hidden" name="history" value="all" />}
+      {batch && <input type="hidden" name="batch" value={batch} />}
       <select
         name="account"
         defaultValue={account}
@@ -53,6 +60,17 @@ export function TxFilters({
         {types.map(([value, label]) => (
           <option key={value} value={value}>{label}</option>
         ))}
+      </select>
+      <select
+        name="size"
+        defaultValue={pageSize}
+        aria-label="每页流水条数"
+        className={SELECT_CLS}
+        onChange={(e) => e.currentTarget.form?.requestSubmit()}
+      >
+        <option value="25">每页 25 条</option>
+        <option value="50">每页 50 条</option>
+        <option value="100">每页 100 条</option>
       </select>
       <button type="submit" className="min-h-11 rounded-lg border border-line bg-panel2 px-4 text-[14px] text-ink-dim transition-colors hover:text-ink">
         筛选

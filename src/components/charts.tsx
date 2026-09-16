@@ -85,6 +85,15 @@ export function WealthChart({
     const result = data.filter((point) => new Date(`${point.date}T00:00:00`) >= cutoff)
     return result.length >= 2 ? result : data
   }, [data, range])
+  // 纵轴域：数据极值上下留 12% 余量，避免 0.1% 的波动被画成陡坡。
+  // 空数据/all-equal 时用兜底 span，保证 domain 永远有限且非零跨度（否则 min/max 会退化为 ±Infinity/NaN）。
+  const values = ranged.map((point) => point.netWorth)
+  const min = values.length > 0 ? Math.min(...values) : 0
+  const max = values.length > 0 ? Math.max(...values) : 0
+  const spread = max - min || Math.abs(max) * 0.02 || 1
+  const domain: [number, number] = [min - spread * 0.12, max + spread * 0.12]
+  // 显式刻度：窄区间下 recharts 自动刻度经 fmtCNYAxis 格式化后会重名
+  const ticks = niceTicks(domain[0], domain[1])
   return (
     <div>
       <ResponsiveContainer width="100%" height={height}>
@@ -102,11 +111,22 @@ export function WealthChart({
             axisLine={false}
             minTickGap={80}
           />
-          <YAxis hide domain={['dataMin', 'dataMax']} />
+          <YAxis
+            width={56}
+            tick={{ fill: C.inkFaint, fontSize: 11 }}
+            tickLine={false}
+            axisLine={false}
+            domain={domain}
+            ticks={ticks}
+            tickFormatter={fmtCNYAxis}
+          />
           <Tooltip content={<DarkTooltip />} />
           <Area type="monotone" dataKey="netWorth" name="净资产" stroke={C.info} strokeWidth={2.25} fill="url(#gNW)" dot={false} isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
+      {ranged.length > 0 && (
+        <p className="mt-3 text-[13px] text-ink-faint">纵轴刻度 {fmtCNYAxis(domain[0])} – {fmtCNYAxis(domain[1])}（非零起点）</p>
+      )}
       {showRange && (
         <div className="mt-5 flex justify-end gap-3 text-[15px]" role="group" aria-label="财富轨迹区间">
           {WEALTH_RANGES.map(({ key }) => (

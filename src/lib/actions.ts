@@ -3,10 +3,13 @@
 // Server Actions：所有写操作入口 —— RLS 作用域 + 审计 + 快照重建
 import { revalidatePath } from 'next/cache'
 import { createHash } from 'node:crypto'
+import { ZodError } from 'zod'
 import type { Prisma, PrismaClient } from '@prisma/client'
 import { prisma } from './db'
 import { scopedDb, type FamilyCtx } from './scoped'
 import { getSessionOrThrow } from './session'
+import { describeZodError } from './validation-message'
+import { isUniqueViolation, normalizeRequestKey, requestHashOf } from './idempotency'
 import { auditedTransaction, recordAudit } from './audit'
 import { rebuildSnapshots } from './snapshots'
 import { scanSplitEvents } from './services/split-discovery'
@@ -23,9 +26,11 @@ import {
   corporateActionInputSchema,
   goalInputSchema,
   goalScenarioSchema,
+  goalScenarioPreviewSchema,
   goalUpdateSchema,
   fundTradePolicyInputSchema,
   investmentPlanInputSchema,
+  investmentPlanBuysInputSchema,
   liabilityEntryInputSchema,
   liabilityInputSchema,
   portfolioReviewInputSchema,
@@ -44,6 +49,9 @@ import {
 } from './market/persist'
 import { backfillHistoricalFx, fxRates, persistDailyFx } from './market/fx'
 import { dateKeyAt } from './engine/watch-market'
+import { scheduledDatesInMonth } from './engine/investment-plan'
+import { projectFireGoal } from './engine/projection'
+import type { ClassWeights } from './engine/covariance'
 import { fundSettlementDate, isQdiiFund } from './engine/fund-order'
 import { type LedgerTx } from './engine/ledger'
 import type { AssetInfo } from './engine/types'
@@ -71,7 +79,7 @@ import { loadEngineState } from './queries'
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T; warning?: string }
-  | { ok: false; error: string }
+  | { ok: false; error: string; fieldErrors?: Record<string, string> }
 
 // ---------- 组合计划（不写入交易账本） ----------
 
@@ -226,6 +234,180 @@ export async function endInvestmentPlan(id: string): Promise<ActionResult> {
       await audit(ctx, 'UPDATE', 'InvestmentPlan', id, `${plan.name} · 结束计划`, txDb)
     })
     revalidatePath('/investment-plans')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/** 同日核对：已买入才写账本；未买入只保存可撤销的计划层证据。 */
+export async function recordInvestmentPlanBuys(input: unknown): Promise<ActionResult<{ count: number; noBuyCount: number }>> {
+  try {
+    const ctx = await requireWrite()
+    const data = investmentPlanBuysInputSchema.parse(input)
+    const today = dateKeyAt(new Date())
+    const result = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      let affectedSinceMs = Infinity
+      for (const buy of data.buys) {
+        const occurredAt = new Date(`${buy.date}T12:00:00+08:00`)
+        const navDate = new Date(`${buy.navDate}T12:00:00+08:00`)
+        if (dateKeyAt(occurredAt) !== buy.date || dateKeyAt(navDate) !== buy.navDate) {
+          throw new Error('申购日期或成交净值日无效')
+        }
+        if (buy.date > today) throw new Error('未来计划节点不能录为已发生申购')
+        if (buy.navDate < buy.date || navDate.getTime() - occurredAt.getTime() > 7 * 86400000) {
+          throw new Error('成交净值日需在申购日之后七天内，请核对平台记录')
+        }
+        const plan = await txDb.investmentPlan.findFirst({
+          where: { id: buy.planId, familyId: ctx.familyId },
+          include: { account: true, assets: { include: { asset: true } } },
+        })
+        if (!plan || !plan.accountId || !plan.account || plan.assets.length !== 1) {
+          throw new Error('快速录入只支持已限定账户且关联单只基金的计划')
+        }
+        const asset = plan.assets[0].asset
+        if (asset.cls !== 'FUND' || asset.currency !== plan.currency || plan.account.currency !== asset.currency) {
+          throw new Error('计划基金与交易账户不匹配')
+        }
+        const scheduled = scheduledDatesInMonth(buy.date.slice(0, 7), {
+          id: plan.id,
+          name: plan.name,
+          amount: Number(plan.amount),
+          currency: plan.currency,
+          cadence: plan.cadence,
+          scheduleDay: plan.scheduleDay,
+          startDate: plan.startDate,
+          endDate: plan.endDate,
+          status: plan.status,
+          endedAt: plan.endedAt,
+          accountId: plan.accountId,
+          assetIds: [asset.id],
+        }).some((date) => dateKeyAt(date) === buy.date)
+        if (!scheduled) throw new Error(`${plan.name} 在 ${buy.date} 没有有效计划节点`)
+        const dayStart = new Date(`${buy.date}T00:00:00+08:00`)
+        const dayEnd = new Date(dayStart.getTime() + 86400000)
+        const existing = await txDb.transaction.findFirst({
+          where: {
+            familyId: ctx.familyId,
+            accountId: plan.accountId,
+            assetId: asset.id,
+            type: 'BUY',
+            voidedAt: null,
+            occurredAt: { gte: dayStart, lt: dayEnd },
+          },
+        })
+        if (existing) throw new Error(`${plan.account.name} · ${asset.name} 在 ${buy.date} 已有有效买入流水，未重复录入`)
+        const txData = txInputSchema.parse({
+          accountId: plan.accountId,
+          assetId: asset.id,
+          type: 'BUY',
+          quantity: null,
+          price: null,
+          amount: buy.amount,
+          fee: buy.fee,
+          occurredAt,
+          navDate,
+          navSource: 'PENDING',
+          note: '定投管理快速录入 · 实际申购由用户核对；份额待确认',
+          settleCash: true,
+        })
+        await createTransactionRecord(txDb, ctx, txData)
+        affectedSinceMs = Math.min(affectedSinceMs, occurredAt.getTime())
+      }
+      for (const item of data.noBuy) {
+        const scheduledDate = new Date(`${item.date}T12:00:00+08:00`)
+        if (dateKeyAt(scheduledDate) !== item.date || item.date > today) {
+          throw new Error('未来或无效的计划日不能确认未买入')
+        }
+        const plan = await txDb.investmentPlan.findFirst({
+          where: { id: item.planId, familyId: ctx.familyId },
+          include: { account: true, assets: { include: { asset: true } } },
+        })
+        if (!plan || !plan.accountId || !plan.account || plan.assets.length !== 1) {
+          throw new Error('未买入确认只支持已限定账户且关联单只基金的计划')
+        }
+        const asset = plan.assets[0].asset
+        if (asset.cls !== 'FUND' || asset.currency !== plan.currency || plan.account.currency !== asset.currency) {
+          throw new Error('计划基金与交易账户不匹配')
+        }
+        const scheduled = scheduledDatesInMonth(item.date.slice(0, 7), {
+          id: plan.id,
+          name: plan.name,
+          amount: Number(plan.amount),
+          currency: plan.currency,
+          cadence: plan.cadence,
+          scheduleDay: plan.scheduleDay,
+          startDate: plan.startDate,
+          endDate: plan.endDate,
+          status: plan.status,
+          endedAt: plan.endedAt,
+          accountId: plan.accountId,
+          assetIds: [asset.id],
+        }).some((date) => dateKeyAt(date) === item.date)
+        if (!scheduled) throw new Error(`${plan.name} 在 ${item.date} 没有有效计划节点`)
+        const dayStart = new Date(`${item.date}T00:00:00+08:00`)
+        const existingBuy = await txDb.transaction.findFirst({
+          where: {
+            familyId: ctx.familyId,
+            accountId: plan.accountId,
+            assetId: asset.id,
+            type: 'BUY',
+            voidedAt: null,
+            occurredAt: { gte: dayStart, lt: new Date(dayStart.getTime() + 86400000) },
+          },
+        })
+        if (existingBuy) throw new Error(`${plan.account.name} · ${asset.name} 在 ${item.date} 已有有效买入，不能确认未买入`)
+        const existingReview = await txDb.investmentPlanDayReview.findUnique({
+          where: { planId_scheduledDate: { planId: plan.id, scheduledDate } },
+        })
+        if (existingReview && !existingReview.revokedAt) {
+          throw new Error(`${plan.name} 在 ${item.date} 已确认未买入，无需重复提交`)
+        }
+        const review = existingReview
+          ? await txDb.investmentPlanDayReview.update({
+            where: { id: existingReview.id },
+            data: { reviewedAt: new Date(), revokedAt: null },
+          })
+          : await txDb.investmentPlanDayReview.create({
+            data: { familyId: ctx.familyId, planId: plan.id, scheduledDate },
+          })
+        await audit(ctx, existingReview ? 'UPDATE' : 'CREATE', 'InvestmentPlanDayReview', review.id, `${plan.name} · ${item.date} · 已核对未买入`, txDb)
+      }
+      return {
+        count: data.buys.length,
+        noBuyCount: data.noBuy.length,
+        affectedSince: Number.isFinite(affectedSinceMs) ? new Date(affectedSinceMs) : null,
+      }
+    }, { timeout: 60000 })
+    const warning = result.affectedSince ? await refresh(ctx, result.affectedSince) : undefined
+    revalidatePath('/investment-plans')
+    revalidatePath('/transactions')
+    revalidatePath('/fund-confirmations')
+    revalidatePath('/health')
+    revalidatePath('/accounts')
+    revalidatePath('/month-close')
+    revalidatePath('/review')
+    return { ok: true, data: { count: result.count, noBuyCount: result.noBuyCount }, warning }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function revokeInvestmentPlanNoBuyReview(id: string): Promise<ActionResult> {
+  try {
+    const ctx = await requireWrite()
+    await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      const review = await txDb.investmentPlanDayReview.findFirst({
+        where: { id, familyId: ctx.familyId },
+        include: { plan: true },
+      })
+      if (!review) throw new Error('未买入核对记录不存在')
+      if (review.revokedAt) throw new Error('该未买入核对已撤销')
+      await txDb.investmentPlanDayReview.update({ where: { id }, data: { revokedAt: new Date() } })
+      await audit(ctx, 'UPDATE', 'InvestmentPlanDayReview', id, `${review.plan.name} · ${dateKeyAt(review.scheduledDate)} · 撤销未买入核对`, txDb)
+    })
+    revalidatePath('/investment-plans')
+    revalidatePath('/month-close')
     return { ok: true }
   } catch (e) {
     return fail(e)
@@ -433,6 +615,11 @@ async function requireWrite(): Promise<FamilyCtx> {
 }
 
 function fail(e: unknown): ActionResult<never> {
+  // 校验失败不能把 ZodError 的 JSON 原文交给用户
+  if (e instanceof ZodError) {
+    const { text, fieldErrors } = describeZodError(e)
+    return { ok: false, error: text, fieldErrors }
+  }
   const msg = e instanceof Error ? e.message : String(e)
   return { ok: false, error: msg }
 }
@@ -459,6 +646,8 @@ async function audit(
 async function refresh(ctx: FamilyCtx, affectedSince?: Date): Promise<string | undefined> {
   const warning = await rebuildSnapshotsForFamily(prisma, ctx.familyId, affectedSince)
   revalidatePath('/')
+  // 账本写入后必须同时失效流水页的客户端路由缓存，否则刷新可能被去重而留下已作废行
+  revalidatePath('/transactions')
   return warning
 }
 
@@ -489,13 +678,50 @@ export async function savePortfolioReview(input: unknown): Promise<ActionResult<
 
 // ---------- 流水 ----------
 
-export async function createTransaction(input: unknown): Promise<ActionResult<{ id: string }>> {
+export async function createTransaction(
+  input: unknown,
+  clientRequestKey?: string,
+): Promise<ActionResult<{ id: string; replayed: boolean }>> {
   try {
     const ctx = await requireWrite()
     const data = txInputSchema.parse(input)
-    const { id: txId, affectedSince } = await auditedTransaction(prisma, ctx.familyId, (txDb) => createTransactionRecord(txDb, ctx, data))
-    const warning = await refresh(ctx, affectedSince)
-    return { ok: true, data: { id: txId }, warning }
+    // 幂等键复用 APP 写入通道的语义：同键同体视为重放，同键异体拒绝
+    const requestKey = normalizeRequestKey(clientRequestKey)
+    const requestHash = requestKey ? requestHashOf(data) : null
+    if (requestKey) {
+      const existing = await prisma.transaction.findFirst({
+        where: { familyId: ctx.familyId, clientRequestId: requestKey },
+        select: { id: true, clientRequestHash: true },
+      })
+      if (existing) {
+        if (existing.clientRequestHash !== requestHash) {
+          return { ok: false, error: '这次提交已在账本中记录过，但内容与本次不同；请刷新页面后重新录入' }
+        }
+        return { ok: true, data: { id: existing.id, replayed: true } }
+      }
+    }
+    try {
+      const { id: txId, affectedSince } = await auditedTransaction(prisma, ctx.familyId, (txDb) =>
+        createTransactionRecord(txDb, ctx, data, {
+          clientRequestId: requestKey ?? undefined,
+          clientRequestHash: requestHash ?? undefined,
+        }),
+      )
+      const warning = await refresh(ctx, affectedSince)
+      return { ok: true, data: { id: txId, replayed: false }, warning }
+    } catch (e) {
+      // 并发重复提交撞唯一约束时按重放处理，不向用户报错
+      if (requestKey && isUniqueViolation(e)) {
+        const existing = await prisma.transaction.findFirst({
+          where: { familyId: ctx.familyId, clientRequestId: requestKey },
+          select: { id: true, clientRequestHash: true },
+        })
+        if (existing?.clientRequestHash === requestHash) {
+          return { ok: true, data: { id: existing.id, replayed: true } }
+        }
+      }
+      throw e
+    }
   } catch (e) {
     return fail(e)
   }
@@ -1112,6 +1338,39 @@ function canonicalSavingsPeriod(periodType: 'WEEK' | 'MONTH', value: Date): Date
   const daysSinceMonday = (date.getUTCDay() + 6) % 7
   date.setUTCDate(date.getUTCDate() - daysSinceMonday)
   return date
+}
+
+/**
+ * FIRE 情景预览：不写库、不取行情，直接用与页面同源的引擎输入重算候选方案。
+ * 这样“预览值”与“应用后的引擎值”必然一致，不会出现两套模型两个答案。
+ */
+export async function previewGoalScenario(input: unknown): Promise<ActionResult<{
+  accumulationSuccessProb: number
+  projectedMedian: number
+  fireNumberAtRetirement: number
+  fundedRatio: number
+}>> {
+  try {
+    await getSessionOrThrow()
+    const data = goalScenarioPreviewSchema.parse(input)
+    const projection = projectFireGoal({
+      ...data.base,
+      portfolioWeights: data.base.portfolioWeights as ClassWeights | undefined,
+      monthlyContribution: data.monthlyContribution,
+      monthsToRetirement: data.base.monthsToRetirement + data.delayMonths,
+    })
+    return {
+      ok: true,
+      data: {
+        accumulationSuccessProb: projection.accumulationSuccessProb,
+        projectedMedian: projection.projectedMedian,
+        fireNumberAtRetirement: projection.fireNumberAtRetirement,
+        fundedRatio: projection.fundedRatio,
+      },
+    }
+  } catch (e) {
+    return fail(e)
+  }
 }
 
 export async function upsertSavingsEntry(input: unknown): Promise<ActionResult<{ id: string }>> {

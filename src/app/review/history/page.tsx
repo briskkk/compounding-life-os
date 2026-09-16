@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 export default async function InvestmentHistoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ scope?: string }>
+  searchParams: Promise<{ scope?: string; month?: string }>
 }) {
   const params = await searchParams
   const data = await getInvestmentHistoryPageData({ scope: params.scope })
@@ -22,7 +22,7 @@ export default async function InvestmentHistoryPage({
 
   return (
     <main className="page-shell review-shell">
-      <ReviewModeNav current="history" />
+      <ReviewModeNav current="history" month={params.month} />
       <HistoryClient data={data} scopes={scopes} />
     </main>
   )

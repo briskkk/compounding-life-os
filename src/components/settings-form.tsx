@@ -270,45 +270,82 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
 function SessionsList() {
   const [sessions, setSessions] = useState<SessionRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  useEffect(() => {
-    let alive = true
-    fetch('/api/account/sessions', { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((d) => { if (alive && d.ok) setSessions(d.sessions) })
-      .catch(() => { if (alive) setError('加载失败') })
-    return () => { alive = false }
-  }, [])
-  async function revoke(sessionId: string) {
-    await fetch('/api/account/sessions/revoke', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sessionId }),
-    })
-    setSessions((prev) => prev?.filter((s) => s.id !== sessionId) ?? null)
+  const [pendingId, setPendingId] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
+
+  async function refresh() {
+    try {
+      const res = await fetch('/api/account/sessions', { cache: 'no-store' })
+      const data = (await res.json()) as { ok: boolean; sessions?: SessionRow[] }
+      if (data.ok) {
+        setSessions(data.sessions ?? [])
+        setError(null)
+      }
+    } catch {
+      setError('加载失败')
+    }
   }
-  if (error) return <p className="text-sm text-down">{error}</p>
+  useEffect(() => { void refresh() }, [])
+
+  async function revoke(sessionId: string) {
+    if (!window.confirm('吊销后该设备需要重新登录，确定继续？')) return
+    setPendingId(sessionId)
+    setNotice(null)
+    try {
+      const res = await fetch('/api/account/sessions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      })
+      let data: { ok?: boolean; error?: string } = {}
+      try {
+        data = (await res.json()) as { ok?: boolean; error?: string }
+      } catch {}
+      if (!res.ok || !data.ok) {
+        setNotice({ ok: false, text: data.error ?? '吊销失败，请稍后重试' })
+        return
+      }
+      setSessions((prev) => prev?.filter((s) => s.id !== sessionId) ?? null)
+      setNotice({ ok: true, text: '已吊销该会话，该设备需重新登录' })
+      void refresh()
+    } catch {
+      setNotice({ ok: false, text: '网络错误，请重试' })
+    } finally {
+      setPendingId(null)
+    }
+  }
+
+  if (error) return <p role="alert" className="text-sm text-down">{error}</p>
   if (sessions == null) return <p className="text-sm text-ink-faint">加载中…</p>
   if (sessions.length === 0) return <p className="text-sm text-ink-faint">暂无其他会话</p>
   return (
-    <ul className="flex flex-col gap-2">
-      {sessions.map((s) => (
-        <li key={s.id} className="flex items-center justify-between gap-4 rounded-lg border border-line px-3 py-2.5 text-[13px]">
-          <span className="num text-ink-dim">
-            登录于 {fmtDateTime(s.createdAt)}
-            {s.current && <span className="ml-2 text-up">当前设备</span>}
-          </span>
-          {!s.current && (
-            <button
-              type="button"
-              onClick={() => revoke(s.id)}
-              className="min-h-11 rounded-lg px-2 text-[13px] text-amber transition-opacity hover:opacity-70"
-            >
-              吊销
-            </button>
-          )}
-        </li>
-      ))}
-    </ul>
+    <>
+      {notice && (
+        <p role={notice.ok ? 'status' : 'alert'} className={cx('mb-2 text-[13px]', notice.ok ? 'text-up' : 'text-down')}>
+          {notice.text}
+        </p>
+      )}
+      <ul className="flex flex-col gap-2">
+        {sessions.map((s) => (
+          <li key={s.id} className="flex items-center justify-between gap-4 rounded-lg border border-line px-3 py-2.5 text-[13px]">
+            <span className="num text-ink-dim">
+              登录于 {fmtDateTime(s.createdAt)} · 到期 {fmtDateTime(s.expiresAt)}
+              {s.current && <span className="ml-2 text-up">当前设备</span>}
+            </span>
+            {!s.current && (
+              <button
+                type="button"
+                onClick={() => revoke(s.id)}
+                disabled={pendingId !== null}
+                className="min-h-11 rounded-lg px-2 text-[13px] text-amber transition-opacity hover:opacity-70 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {pendingId === s.id ? '吊销中…' : '吊销'}
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </>
   )
 }
 

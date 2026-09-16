@@ -21,3 +21,10 @@ next-env.d.ts
 .env.*.local
 !.env.example
 e2e/.auth
+
+# 临时交付/导入产物（截图、原型、本地 venv 等），不入库
+outputs/
+# 代理工具临时目录
+.agents/
+.workbuddy/
+skills-lock.json

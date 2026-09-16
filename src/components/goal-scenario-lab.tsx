@@ -1,43 +1,35 @@
 'use client'
 
+// FIRE 情景实验室：候选方案一律交回服务端用同一投影引擎重算，
+// 客户端不再自造近似概率模型（预览值必须等于应用后的引擎值）。
 import { useRouter } from 'next/navigation'
-import { useMemo, useState } from 'react'
-import { applyGoalScenario } from '@/lib/actions'
+import { useEffect, useRef, useState } from 'react'
+import { applyGoalScenario, previewGoalScenario } from '@/lib/actions'
 import { FormMsg, btnCls, btnGhostCls } from './fields'
 
 interface GoalScenarioLabProps {
   goalId: string
-  fireNumberToday: number
-  monthsLeft: number
   monthlyContribution: number
   sustainableMonthlySavings: number
-  expectedReturn: number
-  inflationRate: number
-  projectedMedian: number
-  projectedP10: number
-  projectedP90: number
   accumulationSuccessProbability: number
+  projectedMedian: number
+  fireNumberAtRetirement: number
+  /** 服务端装配好的引擎基准输入（含 seed 与组合权重） */
+  projectionInput: {
+    current: number
+    fireNumberToday: number
+    monthsToRetirement: number
+    withdrawalRate: number
+    inflationRate: number
+    retirementYears: number
+    annualReturn: number
+    volatility: number
+    seed: number
+    portfolioWeights?: Partial<Record<string, number>>
+  }
 }
 
-const money = (value: number) => `¥${Math.max(0, value).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`
-
-function erf(value: number): number {
-  const sign = value < 0 ? -1 : 1
-  const x = Math.abs(value)
-  const t = 1 / (1 + 0.3275911 * x)
-  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x)
-  return sign * y
-}
-
-function normalCdf(value: number): number {
-  return (1 + erf(value / Math.sqrt(2))) / 2
-}
-
-function annuity(monthlyRate: number, months: number): number {
-  if (months <= 0) return 0
-  if (Math.abs(monthlyRate) < 1e-9) return months
-  return (Math.pow(1 + monthlyRate, months) - 1) / monthlyRate
-}
+const money = (value: number) => `¥${Math.max(0, Math.round(value)).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`
 
 export function GoalScenarioLab(props: GoalScenarioLabProps) {
   const router = useRouter()
@@ -45,25 +37,52 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
   const [monthly, setMonthly] = useState(suggested)
   const [delayMonths, setDelayMonths] = useState(0)
   const [pending, setPending] = useState(false)
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [computing, setComputing] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string; tone?: 'ok' | 'warn' | 'error' } | null>(null)
+  // 初值即服务端引擎结果，避免首屏出现“客户端算出的另一个数”
+  const [preview, setPreview] = useState({
+    accumulationSuccessProb: props.accumulationSuccessProbability,
+    projectedMedian: props.projectedMedian,
+    fireNumberAtRetirement: props.fireNumberAtRetirement,
+  })
+  const base = props.projectionInput
+  const requestId = useRef(0)
 
-  const result = useMemo(() => {
-    const monthlyRate = Math.pow(1 + props.expectedReturn, 1 / 12) - 1
-    const growthDelay = Math.pow(1 + monthlyRate, delayMonths)
-    const extraMonthly = monthly - props.monthlyContribution
-    const median = props.projectedMedian * growthDelay
-      + extraMonthly * annuity(monthlyRate, props.monthsLeft + delayMonths)
-      + monthly * annuity(monthlyRate, delayMonths)
-    const target = props.fireNumberToday * Math.pow(1 + props.inflationRate, (props.monthsLeft + delayMonths) / 12)
-    const baseSigma = Math.max(1, (props.projectedP90 - props.projectedP10) / (2 * 1.28155))
-    const sigma = baseSigma * growthDelay
-    const probability = Math.max(0.01, Math.min(0.99, 1 - normalCdf((target - median) / sigma)))
-    return { probability, median, target, gap: Math.max(0, target - median) }
-  }, [delayMonths, monthly, props])
+  useEffect(() => {
+    const id = requestId.current + 1
+    requestId.current = id
+    setComputing(true)
+    const timer = setTimeout(async () => {
+      const res = await previewGoalScenario({
+        monthlyContribution: monthly,
+        delayMonths,
+        base,
+      })
+      if (requestId.current !== id) return
+      setComputing(false)
+      if (res.ok && res.data) {
+        setPreview({
+          accumulationSuccessProb: res.data.accumulationSuccessProb,
+          projectedMedian: res.data.projectedMedian,
+          fireNumberAtRetirement: res.data.fireNumberAtRetirement,
+        })
+      } else if (!res.ok) {
+        setMsg({ ok: false, tone: 'error', text: res.error })
+      }
+    }, 180)
+    return () => clearTimeout(timer)
+  }, [monthly, delayMonths, base])
 
   const maxMonthly = Math.max(15000, Math.ceil(Math.max(props.monthlyContribution, props.sustainableMonthlySavings) * 1.6 / 500) * 500)
+  const gap = Math.max(0, preview.fireNumberAtRetirement - preview.projectedMedian)
+  const changed = monthly !== props.monthlyContribution || delayMonths !== 0
 
   async function apply() {
+    // 应用会改写主方案的月投入与退休日期，必须先确认
+    const confirmed = window.confirm(
+      `应用此方案？\n每月投入 ${money(props.monthlyContribution)} → ${money(monthly)}\n退休日期延后 ${delayMonths} 个月\n应用后主方案与预测将按新假设重算。`,
+    )
+    if (!confirmed) return
     setPending(true)
     setMsg(null)
     const response = await applyGoalScenario(props.goalId, {
@@ -73,10 +92,11 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
     })
     setPending(false)
     if (response.ok) {
-      setMsg({ ok: true, text: '方案已应用，FIRE 路径已重新计算' })
+      setDelayMonths(0)
+      setMsg({ ok: true, tone: 'ok', text: response.warning ? `方案已应用；${response.warning}` : '方案已应用，FIRE 路径已重新计算' })
       router.refresh()
     } else {
-      setMsg({ ok: false, text: response.error })
+      setMsg({ ok: false, tone: 'error', text: response.error })
     }
   }
 
@@ -94,10 +114,16 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
         <div className="goal-scenario-copy">
           <span className="goal-status">推荐动作</span>
           <h3>让 FIRE 投入与真实储蓄能力一致</h3>
-          <p>优先使用近三个月可持续净储蓄。这里预估积累期变化，应用后会用完整蒙特卡洛路径重新验证退休期不断供概率。</p>
+          <p>优先使用近三个月可持续净储蓄。这里的预览与服务端引擎同源，应用后会得到相同口径的完整蒙特卡洛结果。</p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className={btnGhostCls} onClick={() => setMonthly(Math.max(0, Math.round(props.sustainableMonthlySavings / 500) * 500))}>
-              采用储蓄能力 {money(props.sustainableMonthlySavings)}
+            <button
+              type="button"
+              className={btnGhostCls}
+              disabled={props.sustainableMonthlySavings <= 0}
+              title={props.sustainableMonthlySavings <= 0 ? '尚无月度收支记录，无法校准可持续投入' : undefined}
+              onClick={() => setMonthly(Math.max(0, Math.round(props.sustainableMonthlySavings / 500) * 500))}
+            >
+              {props.sustainableMonthlySavings > 0 ? `采用储蓄能力 ${money(props.sustainableMonthlySavings)}` : '尚无可校准的储蓄能力'}
             </button>
           </div>
         </div>
@@ -119,14 +145,19 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
           </div>
 
           <div className="goal-scenario-results" aria-live="polite">
-            <div><span>新积累达标概率</span><strong>{(result.probability * 100).toFixed(1)}%</strong></div>
-            <div><span>预计退休资产</span><strong>{money(result.median)}</strong></div>
-            <div><span>退休时资金缺口</span><strong>{money(result.gap)}</strong></div>
+            <div><span>新积累达标概率</span><strong>{(preview.accumulationSuccessProb * 100).toFixed(1)}%</strong></div>
+            <div><span>预计退休资产</span><strong>{money(preview.projectedMedian)}</strong></div>
+            <div><span>退休时资金缺口</span><strong>{money(gap)}</strong></div>
           </div>
+          <p className="mt-3 text-[12px] text-ink-faint">
+            {computing
+              ? '引擎重算中…'
+              : `按 ${(props.projectionInput.annualReturn * 100).toFixed(1)}% 年化 · ${(props.projectionInput.volatility * 100).toFixed(1)}% 波动率 · 1500 次路径模拟`}
+          </p>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
             <FormMsg msg={msg} />
-            <button type="button" onClick={apply} disabled={pending} className={btnCls}>
-              {pending ? '应用中…' : '应用此方案'}
+            <button type="button" onClick={apply} disabled={pending || !changed} className={btnCls}>
+              {pending ? '应用中…' : changed ? '应用此方案' : '方案未变化'}
             </button>
           </div>
         </div>

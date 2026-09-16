@@ -291,7 +291,13 @@ export default async function DataHealthPage() {
           <div><strong className="num">{warnings}</strong><span>需核对</span></div>
           <div><strong className="num">{infos}</strong><span>提醒</span></div>
         </div>
-        <div className="health-status-rail"><i /><i /><i /></div>
+        <div className="health-status-rail" aria-hidden="true">
+          {/* 按真实计数渲染：没有该项时不显示对应色段 */}
+          {blocking > 0 && <i className="is-blocking" style={{ flexGrow: blocking }} />}
+          {warnings > 0 && <i className="is-warning" style={{ flexGrow: warnings }} />}
+          {infos > 0 && <i className="is-info" style={{ flexGrow: infos }} />}
+          {issues.length === 0 && <i className="is-empty" style={{ flexGrow: 1 }} />}
+        </div>
       </section>
 
       {dashboard.ctx.role !== 'VIEWER' && (

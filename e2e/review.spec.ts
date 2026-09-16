@@ -143,7 +143,7 @@ test('决策库：事件表、资格与 1280/1440 无溢出', async ({ page }) =
     await expect(page.getByText('买入事件')).toBeVisible()
     await expect(page.getByLabel('复盘模式').getByText('决策库')).toHaveClass(/is-active/)
     await expect(page.getByLabel('决策事件分页')).toContainText('当前显示')
-    const visibleRows = await page.locator('table.ii tbody tr').count()
+    const visibleRows = await page.locator('table.ii-dec-table tbody tr').count()
     expect(visibleRows).toBeGreaterThan(0)
     expect(visibleRows).toBeLessThanOrEqual(50)
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)

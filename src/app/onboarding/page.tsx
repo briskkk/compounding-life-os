@@ -94,7 +94,7 @@ export default function OnboardingPage() {
         <button type="submit" disabled={pending != null} className={btnCls}>{pending === 'create' ? '创建中…' : '创建家庭（你将成为 OWNER）'}</button>
       </form>
 
-      {notice && <p role="alert" className={cx('text-sm', notice.ok ? 'text-up' : 'text-down')}>{notice.text}</p>}
+      {notice && <p role="alert" className={cx('text-sm', notice.ok ? 'text-accent' : 'text-danger')}>{notice.text}</p>}
 
       <button type="button" onClick={logout} className={btnGhostCls}>切换账号（登出）</button>
     </div>

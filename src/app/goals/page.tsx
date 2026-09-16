@@ -183,16 +183,12 @@ export default async function GoalsPage() {
           <div id="scenario-lab" className="scroll-mt-6">
             <GoalScenarioLab
               goalId={primary.goal.id}
-              fireNumberToday={primary.goal.targetAmount}
-              monthsLeft={primary.goal.monthsLeft}
               monthlyContribution={primary.goal.monthlyContribution}
               sustainableMonthlySavings={sustainable}
-              expectedReturn={primary.goal.expectedReturn}
-              inflationRate={primary.goal.inflationRate}
               projectedMedian={primary.goal.projection.projectedMedian}
-              projectedP10={finalPoint.p10}
-              projectedP90={finalPoint.p90}
+              fireNumberAtRetirement={primary.goal.projection.fireNumberAtRetirement}
               accumulationSuccessProbability={primary.goal.projection.accumulationSuccessProb}
+              projectionInput={primary.goal.projectionInput}
             />
           </div>
         )

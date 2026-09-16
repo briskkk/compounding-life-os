@@ -44,6 +44,8 @@ test('资金日历可添加和移除计划事项', async ({ page }) => {
 
   await expect(page.getByText('计划事项已加入日历')).toBeVisible()
   await expect(page.getByText('E2E 年度保费').first()).toBeVisible()
+  // 移除计划事项现在需要确认（仅影响计划层，不改动账本）
+  page.once('dialog', (dialog) => dialog.accept())
   await page.getByRole('button', { name: '移除' }).click()
   await expect(page.getByText('E2E 年度保费')).toHaveCount(0)
 })

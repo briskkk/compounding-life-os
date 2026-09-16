@@ -45,6 +45,7 @@ async function main() {
   await prisma.$transaction([
     prisma.auditLog.deleteMany(),
     prisma.investmentPlanAsset.deleteMany(),
+    prisma.investmentPlanDayReview.deleteMany(),
     prisma.investmentPlan.deleteMany(),
     prisma.cashPlan.deleteMany(),
     prisma.allocationTarget.deleteMany(),

@@ -50,6 +50,7 @@ model FamilySpace {
   cashPlans         CashPlan[]
   investmentPlans   InvestmentPlan[]
   investmentPlanAssets InvestmentPlanAsset[]
+  investmentPlanDayReviews InvestmentPlanDayReview[]
   corporateActions  CorporateAction[]
   fundTradePolicies FundTradePolicy[]
   auditLogs        AuditLog[]
@@ -514,6 +515,7 @@ model InvestmentPlan {
   endedAt     DateTime?
   note        String?
   assets      InvestmentPlanAsset[]
+  dayReviews  InvestmentPlanDayReview[]
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
 
@@ -535,6 +537,21 @@ model InvestmentPlanAsset {
   @@unique([planId, assetId])
   @@index([familyId])
   @@index([assetId])
+}
+
+// 用户明确核对“计划日未买入”的计划层证据；不代表交易或余额。
+model InvestmentPlanDayReview {
+  id            String         @id @default(cuid())
+  familyId      String
+  family        FamilySpace    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  planId        String
+  plan          InvestmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  scheduledDate DateTime
+  reviewedAt    DateTime       @default(now())
+  revokedAt     DateTime?
+
+  @@unique([planId, scheduledDate])
+  @@index([familyId, scheduledDate])
 }
 
 model Snapshot {

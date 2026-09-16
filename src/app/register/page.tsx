@@ -55,7 +55,7 @@ export default function RegisterPage() {
           <span className="text-[13px] text-ink-dim">邀请码（可选）</span>
           <input value={inviteCode} onChange={(e) => setInviteCode(e.target.value.toUpperCase())} placeholder="有家庭邀请码可直接加入" className={inputCls} />
         </label>
-        {error && <p role="alert" className="text-sm text-down">{error}</p>}
+        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <button type="submit" disabled={pending} className={btnCls}>{pending ? '注册中…' : '注册'}</button>
       </form>
       <p className="text-sm text-ink-faint">

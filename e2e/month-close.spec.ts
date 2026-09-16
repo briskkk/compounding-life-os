@@ -15,6 +15,15 @@ test('月结中心：按月展示四步证据并深链到既有工作流', async
   await expect(page.getByRole('link', { name: '查看计划与账本 →' })).toHaveAttribute('href', '/investment-plans?month=2026-07')
   await expect(page.getByRole('link', { name: /月度复盘/ })).toHaveAttribute('href', '/review?period=THIS_MONTH&month=2026-07')
 
+  const modes = page.getByRole('navigation', { name: '复盘模式' })
+  await expect(modes.getByRole('link', { name: '周期复盘' })).toHaveAttribute('href', '/review?period=THIS_MONTH&month=2026-07')
+  await modes.getByRole('link', { name: '周期复盘' }).click()
+  await expect(page).toHaveURL(/\/review\?period=THIS_MONTH&month=2026-07/)
+  await page.getByRole('navigation', { name: '复盘模式' }).getByRole('link', { name: '长期复盘' }).click()
+  await expect(page).toHaveURL(/\/review\/history\?month=2026-07/)
+  await page.getByRole('navigation', { name: '复盘模式' }).getByRole('link', { name: '月结中心' }).click()
+  await expect(page).toHaveURL(/\/month-close\?month=2026-07/)
+
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   expect(overflow).toBeLessThanOrEqual(1)
 })

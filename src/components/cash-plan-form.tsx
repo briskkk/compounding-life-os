@@ -98,13 +98,26 @@ export function CashPlanForm({ accounts }: { accounts: { id: string; name: strin
 export function DeleteCashPlanButton({ id }: { id: string }) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string; tone?: 'ok' | 'warn' | 'error' } | null>(null)
 
   async function remove() {
+    if (!window.confirm('移除该计划事项？仅影响计划层，不会改动账本流水。')) return
     setPending(true)
+    setMsg(null)
     const result = await deleteCashPlan(id)
     setPending(false)
-    if (result.ok) router.refresh()
+    if (result.ok) {
+      router.refresh()
+      return
+    }
+    // 失败必须可见，此前只有成功分支，用户会以为已经移除
+    setMsg({ ok: false, tone: 'error', text: result.error })
   }
 
-  return <button type="button" onClick={remove} disabled={pending} className={`${btnGhostCls} min-h-8 px-2.5 py-1 text-[12px]`}>{pending ? '移除中…' : '移除'}</button>
+  return (
+    <span className="inline-flex flex-col items-end gap-1">
+      <button type="button" onClick={remove} disabled={pending} className={`${btnGhostCls} min-h-8 px-2.5 py-1 text-[12px]`}>{pending ? '移除中…' : '移除'}</button>
+      <FormMsg msg={msg} />
+    </span>
+  )
 }

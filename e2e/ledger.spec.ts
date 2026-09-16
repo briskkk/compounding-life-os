@@ -11,6 +11,8 @@ test.afterAll(async () => {
 test('流水页：表格、筛选、冲正入口与导出链接', async ({ page }) => {
   await page.goto('/transactions')
   await expect(page.getByRole('heading', { name: '交易流水' })).toBeVisible()
+  await expect(page.locator('#new-entry')).not.toHaveAttribute('open')
+  await page.locator('#new-entry summary').click()
   await expect(page.getByText('录入流水')).toBeVisible()
   await expect(page.getByText('CSV 导入')).toBeVisible()
 
@@ -26,10 +28,15 @@ test('流水页：表格、筛选、冲正入口与导出链接', async ({ page 
   await expect(page).toHaveURL(/type=BUY/)
   // 筛选结果中表格内只出现「买入」标签（排除下拉框选项干扰）
   await expect(page.locator('tbody').getByText('卖出', { exact: true })).toHaveCount(0)
+  await page.getByLabel('每页流水条数').selectOption('25')
+  await expect(page).toHaveURL(/type=BUY/)
+  await expect(page).toHaveURL(/size=25/)
+  expect(await page.locator('tbody tr').count()).toBeLessThanOrEqual(25)
 })
 
 test('资产选择器：打开不闪关、搜索过滤、键盘选中', async ({ page }) => {
   await page.goto('/transactions')
+  await page.locator('#new-entry summary').click()
   // 打开选择器（历史 bug：label 激活行为导致下拉闪开闪关）
   await page.locator('form div.cursor-text').first().click()
   await expect(page.locator('form div.cursor-text input')).toBeVisible()
@@ -47,6 +54,7 @@ test('场外基金：净值份额未知时先按金额记录，并进入当日�
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ quotes: [] }) })
   })
   await page.goto('/transactions')
+  await page.locator('#new-entry summary').click()
 
   const form = page.locator('#new-entry form')
   await form.locator('select[name="accountId"]').selectOption({ label: '天天基金' })

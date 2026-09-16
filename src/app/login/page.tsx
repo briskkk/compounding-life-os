@@ -66,7 +66,7 @@ export default function LoginPage() {
             className={inputCls}
           />
         </label>
-        {error && <p role="alert" className="text-sm text-down">{error}</p>}
+        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <button type="submit" disabled={pending} className={btnCls}>
           {pending ? '登录中…' : '登录'}
         </button>

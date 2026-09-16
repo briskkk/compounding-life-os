@@ -6,6 +6,7 @@ import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { Empty, PageHeader, Panel, SetupScreen, Tag } from '@/components/ui'
 import { TxForm } from '@/components/tx-form'
+import { HashOpenDetails } from '@/components/hash-open-details'
 import { foldTransactions, holdingsIndex } from '@/lib/engine/ledger'
 import { TxFilters } from '@/components/tx-filters'
 import { CsvImport } from '@/components/csv-import'
@@ -24,12 +25,12 @@ const TONE_BY_TYPE: Partial<Record<TxType, 'up' | 'down' | 'accent' | 'info' | '
   VALUATION: 'info',
 }
 
-const PAGE_SIZE = 100
+const PAGE_SIZES = [25, 50, 100] as const
 
 export default async function TransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ account?: string; type?: string; q?: string; page?: string; batch?: string; history?: string }>
+  searchParams: Promise<{ account?: string; type?: string; q?: string; page?: string; size?: string; batch?: string; history?: string }>
 }) {
   const sp = await searchParams
   const ctx = await getSession()
@@ -76,13 +77,15 @@ export default async function TransactionsPage({
     ...(showHistory ? {} : { voidedAt: null }),
   }
   const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1)
+  const requestedSize = Number(sp.size)
+  const pageSize = PAGE_SIZES.find((size) => size === requestedSize) ?? 50
   const [txs, total, hiddenHistoryCount] = await Promise.all([
     db.transaction.findMany({
       where,
       include: { account: true, asset: true },
       orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
     }),
     db.transaction.count({ where }),
     showHistory
@@ -96,11 +99,12 @@ export default async function TransactionsPage({
         },
       }),
   ])
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const filterParams = new URLSearchParams()
   if (sp.account) filterParams.set('account', sp.account)
   if (sp.type) filterParams.set('type', sp.type)
   if (sp.batch) filterParams.set('batch', sp.batch)
+  if (pageSize !== 50) filterParams.set('size', String(pageSize))
   if (showHistory) filterParams.set('history', 'all')
   const pageHref = (target: number) => {
     const params = new URLSearchParams(filterParams)
@@ -132,12 +136,56 @@ export default async function TransactionsPage({
         )}
       />
 
+      {canWrite && (
+        <HashOpenDetails
+          id="new-entry"
+          className="ledger-entry-workspace"
+          summary={<><span>录入与导入</span><small>按需展开，不必穿过整页流水</small></>}
+        >
+          <div className="grid gap-6 p-4 xl:grid-cols-2">
+            <Panel title="录入流水" en="NEW ENTRY">
+              <TxForm
+                initialAccountId={sp.account}
+                holdings={holdings}
+                accounts={accounts.map((a) => ({
+                  id: a.id,
+                  name: a.name,
+                  currency: a.currency,
+                  settlementAccountId: a.settlementAccountId,
+                  settlementAccountName: a.settlementAccount?.name ?? null,
+                }))}
+                assets={assets.map((a) => ({
+                  id: a.id,
+                  symbol: a.symbol,
+                  name: a.name,
+                  cls: a.cls,
+                  currency: a.currency,
+                  fundPolicy: a.fundTradePolicy ? {
+                    purchaseFeeRate: a.fundTradePolicy.purchaseFeeRate,
+                    redemptionFeeRules: a.fundTradePolicy.redemptionFeeRules,
+                    purchaseSuspendedFrom: a.fundTradePolicy.purchaseSuspendedFrom?.toISOString() ?? null,
+                    purchaseSuspendedUntil: a.fundTradePolicy.purchaseSuspendedUntil?.toISOString() ?? null,
+                    sourceName: a.fundTradePolicy.sourceName,
+                  } : null,
+                }))}
+              />
+            </Panel>
+            <Panel title="CSV 导入" en="BULK IMPORT">
+              <CsvImport
+                accounts={accounts.map((a) => ({ id: a.id, name: a.name }))}
+                assets={assets.map((a) => ({ id: a.id, symbol: a.symbol, name: a.name }))}
+              />
+            </Panel>
+          </div>
+        </HashOpenDetails>
+      )}
+
       {/* 流水表 */}
       <Panel
         title="交易流水"
         en="LEDGER · SOURCE OF TRUTH"
         bodyClassName="p-0"
-        right={<span className="num text-[12px] text-ink-faint">{total > 0 ? `第 ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} 条 / 共 ${total} 条` : '共 0 条'}</span>}
+        right={<span className="num text-[12px] text-ink-faint">{total > 0 ? `第 ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} 条 / 共 ${total} 条` : '共 0 条'}</span>}
       >
         {/* 筛选 */}
         <TxFilters
@@ -147,6 +195,8 @@ export default async function TransactionsPage({
           type={sp.type ?? ''}
           showHistory={showHistory}
           hiddenHistoryCount={hiddenHistoryCount}
+          pageSize={pageSize}
+          batch={sp.batch ?? ''}
         />
 
         {txs.length === 0 ? (
@@ -156,7 +206,7 @@ export default async function TransactionsPage({
             <Empty
               action={sp.account || sp.type
                 ? { href: '/transactions', label: '清除筛选' }
-                : { href: '#new-entry', label: '录入第一笔流水' }}
+                : canWrite ? { href: '#new-entry', label: '录入第一笔流水' } : undefined}
             >
               {sp.account || sp.type ? '无匹配流水' : showHistory ? '暂无流水' : '暂无有效流水'}
             </Empty>
@@ -229,7 +279,7 @@ export default async function TransactionsPage({
           </table>
           </div>
         )}
-        {(total > PAGE_SIZE || page > 1) && (
+        {(total > pageSize || page > 1) && (
           <div className="flex items-center justify-between gap-4 border-t border-line px-4 py-3 text-[13px]">
             {page > 1 ? (
               <Link href={pageHref(page - 1)} className="text-ink-dim transition-colors hover:text-accent">← 上一页</Link>
@@ -246,42 +296,6 @@ export default async function TransactionsPage({
         )}
       </Panel>
 
-      {/* 录入 + 导入 */}
-      <div id="new-entry" className="grid gap-12 xl:grid-cols-2">
-        <Panel title="录入流水" en="NEW ENTRY">
-          <TxForm
-            initialAccountId={sp.account}
-            holdings={holdings}
-            accounts={accounts.map((a) => ({
-              id: a.id,
-              name: a.name,
-              currency: a.currency,
-              settlementAccountId: a.settlementAccountId,
-              settlementAccountName: a.settlementAccount?.name ?? null,
-            }))}
-            assets={assets.map((a) => ({
-              id: a.id,
-              symbol: a.symbol,
-              name: a.name,
-              cls: a.cls,
-              currency: a.currency,
-              fundPolicy: a.fundTradePolicy ? {
-                purchaseFeeRate: a.fundTradePolicy.purchaseFeeRate,
-                redemptionFeeRules: a.fundTradePolicy.redemptionFeeRules,
-                purchaseSuspendedFrom: a.fundTradePolicy.purchaseSuspendedFrom?.toISOString() ?? null,
-                purchaseSuspendedUntil: a.fundTradePolicy.purchaseSuspendedUntil?.toISOString() ?? null,
-                sourceName: a.fundTradePolicy.sourceName,
-              } : null,
-            }))}
-          />
-        </Panel>
-        <Panel title="CSV 导入" en="BULK IMPORT">
-          <CsvImport
-            accounts={accounts.map((a) => ({ id: a.id, name: a.name }))}
-            assets={assets.map((a) => ({ id: a.id, symbol: a.symbol, name: a.name }))}
-          />
-        </Panel>
-      </div>
     </div>
   )
 }

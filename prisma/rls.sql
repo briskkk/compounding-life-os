@@ -12,7 +12,7 @@ BEGIN
     'Member', 'Account', 'Asset', 'Transaction',
     'Liability', 'LiabilityEntry', 'Goal', 'SavingsEntry',
     'Snapshot', 'PortfolioReview', 'ImportBatch',
-    'AllocationTarget', 'CashPlan', 'InvestmentPlan', 'InvestmentPlanAsset',
+    'AllocationTarget', 'CashPlan', 'InvestmentPlan', 'InvestmentPlanAsset', 'InvestmentPlanDayReview',
     'CorporateAction', 'FundTradePolicy', 'AuditLog'
   ]
   LOOP
