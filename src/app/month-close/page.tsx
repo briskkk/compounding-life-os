@@ -174,7 +174,7 @@ export default async function MonthClosePage({
   const isCurrentMonth = selectedMonth === currentMonth()
 
   return (
-    <main className="page-shell month-close-page">
+    <div className="page-shell month-close-page">
       <ReviewModeNav current="month-close" month={selectedMonth} />
       <PageHeader
         kicker="Monthly close"
@@ -257,6 +257,6 @@ export default async function MonthClosePage({
       </section>
 
       <p className="month-close-footnote">月结是工作流，不是冻结账本。后续补录、确认或冲正会更新这些派生状态，审计链与已保存复盘继续保留当时证据。</p>
-    </main>
+    </div>
   )
 }

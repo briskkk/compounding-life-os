@@ -10,6 +10,22 @@ test('组合复盘：归因切换、周期深链与草稿保存', async ({ page 
   await expect(page.getByLabel('收益对账状态')).toBeVisible()
   await expect(page.getByLabel('当前在途资产')).toContainText('不作为利润贡献')
 
+  // B8：页面不得嵌套 <main>（外壳已提供唯一 main），且复盘章节条停在顶栏下方不遮挡顶栏控件
+  await expect(page.locator('main')).toHaveCount(1)
+  await expect(page.locator('.review-section-nav')).toHaveCSS('top', '68px')
+  await page.evaluate(() => window.scrollTo(0, 1200))
+  await page.waitForTimeout(300)
+  const occluded = await page.evaluate(() => {
+    // 顶栏的页面搜索触发器：滚动后必须仍是该位置最上层元素（不被章节条盖住）
+    const trigger = document.querySelector('.terminal-search-trigger')
+    if (!trigger) return 'missing'
+    const box = trigger.getBoundingClientRect()
+    const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+    return top === trigger || trigger.contains(top) ? 'ok' : (top?.className ?? 'unknown')
+  })
+  expect(occluded).toBe('ok')
+  await page.evaluate(() => window.scrollTo(0, 0))
+
   await page.getByRole('tab', { name: '按来源' }).click()
   await expect(page.getByText('市场价格与汇率')).toBeVisible()
   await expect(page.locator('.review-contribution-list').getByText('待对账差额')).toHaveCount(0)

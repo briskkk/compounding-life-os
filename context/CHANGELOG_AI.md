@@ -612,3 +612,11 @@ last_verified: 2026-09-10
 - CSS：聚焦环 + `.table-scroll thead th` 粘性表头。
 - E2E：交易流水表容器可聚焦、表头 sticky。
 - 验证：npm test 503/503、build 通过、Playwright 92/92。
+
+# 2026-09-16 迭代 B 之 B8：结构性 HTML 与遮挡
+
+- 去掉 4 个页面的嵌套 <main>；移除 review-client 重复的 page-shell/review-shell（双层 page-shell 与三重 main 的来源）。
+- .review-section-nav 改为 top: var(--terminal-topbar) / z-index: 15，章节条不再盖住顶栏。
+- 修正表头粘性：.table-scroll 自身是滚动容器，top 必须为 0（写成顶栏高度会盖住前几行，曾导致「核对份额」点击超时）。
+- E2E：main 数量为 1、章节条 top=68px、滚动 1200px 后顶栏搜索触发器仍最上层。
+- 验证：npm test 503/503、build 通过、Playwright 92/92。

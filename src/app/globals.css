@@ -2917,6 +2917,8 @@ button.returns-cal-cell:hover {
 /* 粘性表头：长表滚动时列名不丢（背景取面板色，避免透出下方内容） */
 .table-scroll thead th {
   position: sticky;
+  /* 相对本容器（.table-scroll 是滚动容器）粘在顶部；写成 top: var(--terminal-topbar)
+     会把表头推到容器内下方，反而盖住前几行。顶栏遮挡由 z-index 低于顶栏保证。 */
   top: 0;
   z-index: 1;
   background: var(--color-panel);
@@ -3963,6 +3965,14 @@ nav[aria-label="主导航"] a {
   }}
 
 /* Portfolio review — evidence-first analytical narrative */
+/* 复盘内容主体：外层 .page-shell 已提供内边距，这里只负责内部间距，避免双层 page-shell */
+.review-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  min-width: 0;
+}
+
 .review-shell {
   gap: 2.75rem;
 }
@@ -4129,8 +4139,9 @@ nav[aria-label="主导航"] a {
 
 .review-section-nav {
   position: sticky;
-  z-index: 20;
-  top: 0;
+  /* 停在顶栏下方：原先与 .terminal-topbar 同为 top:0/z-index:20，DOM 靠后者会盖住顶栏控件 */
+  z-index: 15;
+  top: var(--terminal-topbar);
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   border-block: 1px solid var(--color-line);

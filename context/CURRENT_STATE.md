@@ -28,6 +28,7 @@ last_verified: 2026-09-15
 
 ## 最近完成
 
+- B8 结构性 HTML 与遮挡：`/review`、`/review/decisions`、`/review/history`、`/month-close` 去掉嵌套 `<main>`，并移除 `review-client.tsx` 里重复的 `page-shell/review-shell`（双层 page-shell 与三重 main 的真正来源），每页 main 数量为 1；`.review-section-nav` 改为 `top: var(--terminal-topbar); z-index: 15`，修复滚动时章节条盖住顶栏搜索/刷新/家庭切换。E2E 断言 main 唯一、章节条 top=68px、滚动后顶栏搜索触发器仍是最上层元素。验证：`npm test` 503/503、构建通过、Playwright 92/92。
 - B5 表格基础设施（第 1 片）：新增 `src/components/table-scroll.tsx`，把 12 处宽表格容器统一为 `role="region" + tabIndex={0} + aria-label`（键盘可聚焦并横向滚动），并加 `.table-scroll:focus-visible` 聚焦环与 `.table-scroll thead th` 粘性表头；E2E 断言交易流水表容器 `tabindex="0"`、表头 `position: sticky`。验证：`npm test` 503/503、构建通过、Playwright 92/92。第 2 片（交易流水服务端排序与 `aria-sort`、净值日/结算日列、冲正墓碑行）待做。
 - B4 统一确认对话框：新增 `src/components/confirm-dialog.tsx`（`ConfirmProvider` + `useConfirm()`，原生 `<dialog>`：Esc/遮罩关闭、焦点归还、默认焦点在「取消」、影响面清单、danger 语气、可选确认词 `requireText`），取代 7 处 `window.confirm` 与 4 处内联两段式确认（冲正、公司行动冲正、资产删除、家庭清空）；为「完整补齐行情历史」「重建派生快照」补确认与耗时预期。E2E 断言冲正/删除对话框的影响面清单与「取消不写入」，3 处 `page.once('dialog')` 改为点击确认按钮。验证：`npm test` 503/503、构建通过、Playwright 92/92。
 - B3 浅色主题补全：`src/lib/colors.ts` 14 个取值全部改为 `var(--color-*)`，图表/渐变/内联样式随 `data-theme` 切换；`.chart-surface` 底纹与 3 处「白 1.2–6%」改用 `--surface-1/2` 与 `color-mix(accent)`（原先在浅色主题下不可见）；`globals.css` 53 处硬编码色收敛为 token（30 处品牌色 tint + 23 处中性白 tint 与色值变体），仅保留 4 处黑色遮罩/阴影；图表 tooltip 光标随主题。守卫测试 30 例（新增 colors.ts 无硬编码、界面样式无深色专用残留）。验证：`npm test` 503/503、构建通过、Playwright 92/92，深浅两套主题截图复核总览/持仓/看盘/长期复盘。迭代 B 的 B1–B3 与 P1-26 至此完成。

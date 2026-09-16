@@ -204,7 +204,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
   }
 
   return (
-    <main className="page-shell review-shell">
+    <div className="review-body">
       <header className="review-header">
         <div>
           <div className="page-kicker">PORTFOLIO REVIEW · {range.startDate} — {range.endDate}</div>
@@ -472,6 +472,6 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
         </div>
         {readOnly && <p className="review-readonly">你当前是只读成员，可以查看复盘证据，但不能保存笔记。</p>}
       </section>
-    </main>
+    </div>
   )
 }

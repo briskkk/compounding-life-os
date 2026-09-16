@@ -28,9 +28,9 @@ export default async function InvestmentHistoryPage({
   if (params.month) viewQuery.set('month', params.month)
 
   return (
-    <main className="page-shell review-shell">
+    <div className="page-shell review-shell">
       <ReviewModeNav current="history" month={params.month} />
       <HistoryClient data={data} scopes={scopes} view={view} query={viewQuery.toString()} />
-    </main>
+    </div>
   )
 }

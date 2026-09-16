@@ -472,6 +472,13 @@
 
 **B5 第 2 片（待做）**：交易流水表的服务端排序（参照 `holding-sort`：URL 参数 + `aria-sort`）、「净值日 / 结算日」列，以及冲正墓碑行的显式呈现；同样按 `<caption>`/`scope` 补齐列语义。
 
+**B8 结构性 HTML 与遮挡：已完成**
+
+- 消除嵌套 `<main>`：`/review`、`/review/decisions`、`/review/history`、`/month-close` 的页面根改为 `<div className="page-shell …">`；并修掉 `review-client.tsx` 里额外的 `<main className="page-shell review-shell">`——它是「双层 page-shell + 三重 main」的真正来源。现在每页 `document.querySelectorAll('main').length === 1`（E2E 断言）。
+- 修章节条遮挡顶栏：`.review-section-nav` 原先与 `.terminal-topbar` 同为 `top: 0; z-index: 20`，DOM 靠后者会盖住搜索/刷新/家庭切换；改为 `top: var(--terminal-topbar); z-index: 15`。E2E 用 `elementFromPoint` 断言滚动 1200px 后顶栏搜索触发器仍是最上层元素。
+- **顺带修掉一个自伤**：表头粘性最初写成 `top: var(--terminal-topbar)`，但 `.table-scroll` 自身是滚动容器，表头会因此被推到容器内下方、盖住前几行（`核对份额` 链接点击超时 30s 即由此而来）。改为 `top: 0` 并加注释说明原因；顶栏遮挡由 `z-index: 1 < 20` 保证。
+- 验证：`npm test` 503/503、构建通过、Playwright 92/92。
+
 ### 7.3 未完成与阻塞
 
 - P0-11 已按 PRG 思路修复并验证（见该条与 7.2）。

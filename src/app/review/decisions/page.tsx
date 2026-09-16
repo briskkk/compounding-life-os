@@ -15,9 +15,9 @@ export default async function DecisionLibraryPage({
   if (!data) redirect('/login')
 
   return (
-    <main className="page-shell review-shell">
+    <div className="page-shell review-shell">
       <ReviewModeNav current="decisions" month={params.month} />
       <DecisionLibraryClient data={data} />
-    </main>
+    </div>
   )
 }
