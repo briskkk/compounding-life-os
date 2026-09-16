@@ -713,3 +713,10 @@ last_verified: 2026-09-10
 - 新增 src/test/design-tokens.test.ts（3 例守卫）。
 - 验证：npm test 525/525、build 通过、Playwright 96/96（无溢出/换行回归）。
 - 圆角/阴影/断点收敛留下一轮（清点：圆角 10 种、阴影 20 种、断点 14 个）。
+
+# 2026-09-16 迭代 C 之 C4（圆角收敛）：10 种 → 5 档 token
+
+- 新增 --radius-xs/sm/md/lg/pill；globals.css 与 decisions.css 的圆角与多值简写全部 token 化。
+- 守卫新增圆角白名单一例（例外：50%/inherit/1px/2px 细线）。
+- 验证：npm test 526/526、build 通过、Playwright 96/96。
+- 阴影（20 种）与断点（14 个）留下一轮。

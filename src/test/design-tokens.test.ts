@@ -40,6 +40,22 @@ describe('设计 token：字号下限', () => {
     expect(hits).toEqual([])
   })
 
+  it('圆角只用登记的档位 token（1px/2px 细线除外）', () => {
+    const allowed = new Set(['var(--radius-xs)', 'var(--radius-sm)', 'var(--radius-md)', 'var(--radius-lg)', 'var(--radius-pill)', 'var(--terminal-radius)', '50%', 'inherit', '0', '1px', '2px'])
+    const hits: string[] = []
+    for (const file of CSS_FILES) {
+      readFileSync(file, 'utf8').split('\n').forEach((line, index) => {
+        const match = line.match(/border-radius:\s*([^;]+);/)
+        if (!match) return
+        // 多值简写逐段检查（如 var(--radius-sm) 0 0 var(--radius-sm)）
+        for (const part of match[1].trim().split(/\s+/)) {
+          if (!allowed.has(part)) hits.push(`${file}:${index + 1} ${line.trim()}`)
+        }
+      })
+    }
+    expect(hits).toEqual([])
+  })
+
   it('最小一级字号有 token 且被使用', () => {
     const theme = readFileSync('src/app/globals.css', 'utf8')
     expect(theme).toContain('--font-size-micro: 12px')
