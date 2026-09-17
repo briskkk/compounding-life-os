@@ -177,3 +177,17 @@ export async function latestNav(symbol: string): Promise<{ nav: number; date: Da
 export function cnDayKey(d: Date): string {
   return new Date(d.getTime() + 8 * 3600_000).toISOString().slice(0, 10)
 }
+
+/** 基金简称：用于按名称解析跟踪指数（估值/持仓报文都带名称，这里取估值报文） */
+export async function fundShortName(symbol: string): Promise<string | null> {
+  try {
+    const qs = `FCODES=${symbol}&FIELDS=FCODE,SHORTNAME&deviceid=12332&plat=Iphone&product=EFund&version=6.2.8`
+    const json = await fetchJson<{ data?: { SHORTNAME?: string | null }[] }>(
+      `https://fundcomapi.tiantianfunds.com/mm/newCore/FundValuationLast?${qs}`,
+    )
+    const name = json?.data?.[0]?.SHORTNAME
+    return typeof name === 'string' && name.trim() ? name.trim() : null
+  } catch {
+    return null
+  }
+}

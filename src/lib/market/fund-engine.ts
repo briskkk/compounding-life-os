@@ -10,6 +10,13 @@ import { parseSymbol, toTencentCode } from './symbols'
 import { bestFitIndex, closesToReturns } from '@/lib/engine/benchmark'
 import { CANDIDATE_INDICES, indexHistory, INDEX_SYMBOL } from './index-candidates'
 import { QDII_INDEX_MAP } from '@/lib/engine/fund-order'
+import {
+  INDEX_PROXY_CONFIDENCE_CAP,
+  INDEX_PROXY_WEIGHT_PCT,
+  pickConsistentProxyChange,
+  resolveIndexProxy,
+} from '@/lib/engine/index-proxy'
+import { fundShortName } from './fund-holdings'
 import { prisma } from '@/lib/db'
 
 /** 内部模型估值的置信度下限（%）：低于此值视为不可靠，不产出盘中估值 */
@@ -162,7 +169,40 @@ export async function fundEstimate(symbol: string): Promise<FundEstimateResult |
     estimateCache.set(symbol, { at: Date.now(), result })
     return result
   } catch {
-    return null
+    // 无持仓报文（FOF 等）：若名称能解析出登记过的指数、且代理行情一致，给一条**代理估值**。
+    // 约束见 index-proxy.ts：不猜基准、代理不一致即放弃、置信度封顶、仓位是显式假设值。
+    const proxy = await estimateByIndexProxy(symbol)
+    if (proxy) estimateCache.set(symbol, { at: Date.now(), result: proxy })
+    return proxy
+  }
+}
+
+/**
+ * 指数代理估值：只对**名称能匹配登记指数**的基金生效（当前登记标普500 / 纳斯达克100）。
+ * 仓位是假设值（FOF 无披露），因此置信度封顶；任何一步不满足即返回 null（宁可「—」）。
+ */
+async function estimateByIndexProxy(symbol: string): Promise<FundEstimateResult | null> {
+  const [name, nav] = await Promise.all([fundShortName(symbol), latestNav(symbol).catch(() => null)])
+  const rule = resolveIndexProxy(name)
+  if (!rule || !nav) return null
+  const changes = await stockChangesBatch(rule.proxies)
+  const changePct = pickConsistentProxyChange(changes, rule.proxies)
+  if (changePct == null) return null
+  const linked = estimateLinkedFund({
+    etfCode: rule.proxies[0],
+    etfName: rule.label,
+    etfChangePct: changePct,
+    weightPct: INDEX_PROXY_WEIGHT_PCT,
+    prevNav: nav.nav,
+  })
+  return {
+    estimate: {
+      ...linked,
+      confidencePct: Math.min(linked.confidencePct, INDEX_PROXY_CONFIDENCE_CAP),
+    },
+    prevNav: nav.nav,
+    prevNavDate: nav.date,
+    reportDate: '',
   }
 }
 

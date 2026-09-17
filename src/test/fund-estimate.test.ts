@@ -202,7 +202,7 @@ describe('官方盘中估值（FundValuationLast）', () => {
 
 describe('盘中估值通道选择', () => {
   it('官方估值可用 → OFFICIAL，即使模型置信度达标', () => {
-    const official: OfficialFundEstimate = { symbol: '012348', gsz: 0.6517, gszzlPct: -1.04, gztime: '2026-08-12 11:13', nav: 0.6586, pdate: '2026-08-11' }
+    const official: OfficialFundEstimate = { symbol: '012348', shortName: null, gsz: 0.6517, gszzlPct: -1.04, gztime: '2026-08-12 11:13', nav: 0.6586, pdate: '2026-08-11' }
     expect(pickEstimateChannel(official, 94, CONFIDENCE_FLOOR, CONFIDENCE_MIN)).toBe('OFFICIAL')
   })
 

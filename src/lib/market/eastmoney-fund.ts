@@ -31,6 +31,8 @@ export const CONFIDENCE_MIN = 30
 // ---------- 官方盘中估值（FundValuationLast，天天基金 H5 新接口；旧 fundgz 已下线） ----------
 export interface OfficialFundEstimate {
   symbol: string
+  /** 基金简称（用于按名称解析跟踪指数，例如「天弘标普500发起(QDII-FOF)A」） */
+  shortName?: string | null
   /** 估算净值（部分主动型基金数据侧不再提供，为 null） */
   gsz: number | null
   /** 估算涨跌幅 % */
@@ -48,14 +50,16 @@ const officialEstimateCache = new Map<string, { at: number; data: OfficialFundEs
 
 /** 解析 FundValuationLast 报文（纯函数，可测试） */
 export function parseOfficialEstimate(json: unknown, symbol: string): OfficialFundEstimate | null {
-  const row = (json as { data?: { GSZ?: number | null; GSZZL?: number | null; GZTIME?: string | null; NAV?: number; PDATE?: string }[] })
+  const row = (json as { data?: { GSZ?: number | null; GSZZL?: number | null; GZTIME?: string | null; NAV?: number; PDATE?: string; SHORTNAME?: string | null }[] })
     ?.data?.[0]
   if (!row) return null
   const gsz = typeof row.GSZ === 'number' && Number.isFinite(row.GSZ) ? row.GSZ : null
   const gszzl = typeof row.GSZZL === 'number' && Number.isFinite(row.GSZZL) ? row.GSZZL : null
   const nav = Number(row.NAV)
+  const shortName = (row.SHORTNAME ?? '').trim()
   return {
     symbol,
+    ...(shortName ? { shortName } : {}),
     gsz,
     gszzlPct: gszzl,
     gztime: row.GZTIME ?? null,
