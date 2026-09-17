@@ -203,6 +203,9 @@ export function WatchClient({
       confidencePct: quote?.confidencePct ?? holding.confidencePct ?? null,
     }
   }), [holdings, quotes, seriesMap, todayKey])
+  // 今日盈亏的计入范围：只有「数据日 = 该市场当日」且有报价的标的才计入
+  const includedRows = rows.filter((row) => row.currentPortfolioDay && row.dayPnlCny != null).length
+  const excludedRows = rows.length - includedRows
 
   const { chartData, totalValue, totalPnl, dayPct, marketStatus } = useMemo(() => {
     const curveHoldings: CurveHolding[] = rows.map((holding) => ({
@@ -316,6 +319,9 @@ export function WatchClient({
           <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-ink-faint">
             <span><ScopeLabel scope="PORTFOLIO_ASSETS_LIVE" /> <strong className="num ml-1 font-normal text-ink">{fmtCNY(totalValue)}</strong></span>
             <span>覆盖 <strong className="num ml-1 font-normal text-ink">{rows.length}</strong> 个标的</span>
+            <span title="只有数据日为当天的标的才计入今日盈亏；未计入不等于零盈亏">
+              今日盈亏已计入 <strong className="num ml-1 font-normal text-ink">{includedRows}</strong> 只 · 未计入 <strong className="num ml-1 font-normal text-ink">{excludedRows}</strong> 只
+            </span>
             <span>{provider} · 30 秒刷新</span>
           </div>
         </div>
@@ -384,9 +390,11 @@ export function WatchClient({
                   {r.dayPnlCny != null ? fmtCNY(r.dayPnlCny, { sign: true }) : '—'}
                   {/* 数据日不是今天时必须说清楚：此时该行不计入今日盈亏（旧条件是
                       dayPnlCny != null && !currentPortfolioDay，互斥因而永远不显示） */}
-                  {!r.currentPortfolioDay && r.tradingDate && (
+                  {!r.currentPortfolioDay && (r.tradingDate || r.price == null) && (
                     <div className="mt-0.5 text-[12px] font-normal text-ink-faint">
-                      数据日 {r.tradingDate}
+                      {r.price == null
+                        ? '无行情 · 不计入今日盈亏'
+                        : `${r.cls === 'FUND' ? '净值日' : '行情日'} ${r.tradingDate} · 非当日不计入${r.changePct != null ? `（该日涨跌 ${fmtPct(r.changePct, { sign: true })}）` : ''}`}
                     </div>
                   )}
                 </td>

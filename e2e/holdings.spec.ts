@@ -59,7 +59,8 @@ test('看盘页：数据日不是今天时，当日盈亏显示「—」并说�
   await page.goto('/watch')
   const row = page.locator('tbody tr').filter({ hasText: '110022' }).first()
   await expect(row).toBeVisible()
-  await expect(row.getByText('数据日 2026-09-14')).toBeVisible()
-  // 该行不应有今日盈亏数字（只有「—」与数据日说明）
+  await expect(page.getByText(/今日盈亏已计入 \d+ 只 · 未计入 \d+ 只/)).toBeVisible()
+  await expect(row.getByText(/净值日 2026-09-14 · 非当日不计入/)).toBeVisible()
+  // 该行不应有今日盈亏数字（只有「—」与口径说明）
   await expect(row.locator('td').nth(5)).toContainText('—')
 })
