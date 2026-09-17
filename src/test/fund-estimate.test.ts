@@ -139,6 +139,10 @@ describe('东财基金报文解析', () => {
           { GPDM: '600519', GPJC: '贵州茅台', JZBL: '9.77', NEWTEXCH: '1' },
           { GPDM: '000333', GPJC: '美的集团', JZBL: '9.31', NEWTEXCH: '0' },
           { GPDM: '01818', GPJC: '招金矿业', JZBL: '8.66', TEXCH: '5', NEWTEXCH: '116' },
+          // 美股重仓股报文里是裸代码（NVDA）；行情源要带市场前缀，否则批量取数返回空，
+          // QDII 的模型估值会因拿不到重仓股涨跌而回落官方净值（看盘显示「—」）
+          { GPDM: 'NVDA', GPJC: '英伟达', JZBL: '7.5', NEWTEXCH: '105' },
+          { GPDM: 'NVDA', GPJC: '英伟达（重复）', JZBL: '7.5', NEWTEXCH: '105' },
         ],
       },
     })
@@ -146,6 +150,8 @@ describe('东财基金报文解析', () => {
       { code: '600519', name: '贵州茅台', weightPct: 9.77 },
       { code: '000333', name: '美的集团', weightPct: 9.31 },
       { code: 'HK01818', name: '招金矿业', weightPct: 8.66 },
+      { code: 'USNVDA', name: '英伟达', weightPct: 7.5 },
+      { code: 'USNVDA', name: '英伟达（重复）', weightPct: 7.5 },
     ])
     expect(parseHoldings({ Datas: {} })).toEqual([])
   })

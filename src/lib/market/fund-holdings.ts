@@ -51,8 +51,12 @@ export function parseHoldings(json: InverstPositionResponse): FundHolding[] {
     .map((s) => {
       const rawCode = s.GPDM.trim().toUpperCase()
       const isHongKong = /^\d{5}$/.test(rawCode) || s.TEXCH === '5' || s.NEWTEXCH === '116'
+      // 美股重仓股在报文里是**裸代码**（NVDA / AAPL），而行情源要带市场前缀
+      // （应用约定 USNVDA）。QDII 此前因此批量取数返回空 → 模型拿不到重仓股涨跌 →
+      // 置信度不足 → 回落官方净值 → 看盘显示「—」。这里是唯一解析点，统一在此规范化。
+      const isUnitedStates = !isHongKong && /^[A-Z]{1,6}(\.[A-Z])?$/.test(rawCode)
       return {
-        code: isHongKong ? `HK${rawCode.padStart(5, '0')}` : rawCode,
+        code: isHongKong ? `HK${rawCode.padStart(5, '0')}` : isUnitedStates ? `US${rawCode}` : rawCode,
         name: s.GPJC,
         weightPct: Number(s.JZBL),
       }
