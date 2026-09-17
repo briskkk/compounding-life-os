@@ -4,6 +4,7 @@ import type { Bar, MarketDataProvider, QuoteData } from './provider'
 import { parseSymbol } from './symbols'
 import { fundEstimate, CONFIDENCE_FLOOR } from './fund-engine'
 import { cnDayKey, fetchNavSeries, latestNav } from './fund-holdings'
+import { sinaFundEstimate } from './sina-fund-estimate'
 
 /**
  * 盘中估值通道选择（纯函数，可测试）：
@@ -179,6 +180,24 @@ export const eastmoneyFundProvider: MarketDataProvider = {
           : 'STALE',
       }
     }
+    // 新浪估值通道（候选）：对东财没有估值的 QDII/FOF 也有返回。
+    // 语义证实前 SINA_FUND_ESTIMATE_ENABLED=false → sinaFundEstimate 恒为 null，此处不生效。
+    const sina = await sinaFundEstimate(symbol)
+    if (sina) {
+      return {
+        symbol,
+        price: Math.round(sina.candidateEstimatedNav * 10000) / 10000,
+        prevClose: sina.nav,
+        changePct: sina.candidateEstimatedNav / sina.nav - 1,
+        asOf: receivedAt.toISOString(),
+        receivedAt: receivedAt.toISOString(),
+        tradingDate: cnDayKey(receivedAt),
+        source: 'SINA-ESTIMATE',
+        kind: 'SINA_ESTIMATE',
+        freshness: 'UNKNOWN',
+      }
+    }
+
     if ((channel === 'MODEL' || channel === 'MODEL_LOW') && modelEstimate) {
       return {
         symbol,

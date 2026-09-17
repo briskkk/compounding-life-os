@@ -4,6 +4,7 @@ export type ValuationSourceKind =
   | 'REAL_MARKET'
   | 'OFFICIAL_NAV'
   | 'MODEL_ESTIMATE'
+  | 'SINA_ESTIMATE'
   | 'MANUAL'
   | 'COST_FALLBACK'
   | 'SIMULATED'
@@ -23,6 +24,7 @@ export interface ValuationSourceMeta {
 }
 
 const PROVIDER_NAMES: Record<string, string> = {
+  'SINA-ESTIMATE': '新浪财经',
   TENCENT: '腾讯',
   SINA: '新浪',
   YAHOO: 'Yahoo',
@@ -55,6 +57,16 @@ export function marketValuationSource(source: string | null | undefined): Valuat
       label: '官方估值',
       provider: PROVIDER_NAMES[normalized],
       description: '东方财富基于基金持仓模型的盘中估算，非基金管理人公布的正式净值。',
+      tone: 'amber',
+      quality: 'estimated',
+    }
+  }
+  if (normalized === 'SINA-ESTIMATE') {
+    return {
+      kind: 'MODEL_ESTIMATE',
+      label: '盘中估值',
+      provider: PROVIDER_NAMES[normalized] ?? '新浪财经',
+      description: '新浪财经提供的基金盘中估算净值，不是基金管理人公布的正式净值。',
       tone: 'amber',
       quality: 'estimated',
     }

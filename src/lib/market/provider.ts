@@ -12,6 +12,7 @@ export type QuoteKind =
   | 'OFFICIAL_NAV'
   | 'OFFICIAL_ESTIMATE'
   | 'MODEL_ESTIMATE'
+  | 'SINA_ESTIMATE'
   | 'SIMULATED'
 
 export type QuoteFreshness = 'LIVE' | 'DELAYED' | 'STALE' | 'CLOSED' | 'UNKNOWN'
