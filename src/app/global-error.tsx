@@ -37,7 +37,6 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
             background: '#1a1d1f',
           }}
         >
-          <div style={{ color: '#8d959d', fontSize: '12px', letterSpacing: '0.14em' }}>SYSTEM ERROR</div>
           <h1 style={{ margin: '0.6rem 0 0', color: '#f3f5f7', fontSize: '20px', fontWeight: 500 }}>
             应用暂时无法启动
           </h1>

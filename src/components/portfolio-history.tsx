@@ -126,7 +126,6 @@ export function PortfolioHistory({
     <section className="portfolio-history" aria-labelledby="portfolio-history-title">
       <header className="portfolio-history-header">
         <div>
-          <div className="eyebrow">HISTORICAL PERFORMANCE</div>
           <h2 id="portfolio-history-title">组合历史收益</h2>
           <p>仅统计可投资组合，华为股票、房产与负债不参与历史收益计算。</p>
         </div>

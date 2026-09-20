@@ -550,10 +550,12 @@ export interface IntradayDatum {
   time: string
   pnl: number
   value: number
+  /** 选中标的在该分钟的当日盈亏（人民币）；该标的此时没有分钟数据时为 null。 */
+  assetPnl?: number | null
 }
 
-/** 当日盈亏 tooltip（含组合市值） */
-function IntradayTooltip({ active, payload, label }: any) {
+/** 当日盈亏 tooltip（含选中标的与组合市值） */
+function IntradayTooltip({ active, payload, label, assetName }: any) {
   if (!active || !payload?.length) return null
   const d = payload[0].payload as IntradayDatum
   return (
@@ -563,6 +565,12 @@ function IntradayTooltip({ active, payload, label }: any) {
         <span className="text-ink-dim">当日盈亏</span>
         <span className={`num ml-auto pl-3 ${d.pnl >= 0 ? 'text-up' : 'text-down'}`}>{fmtCNY(d.pnl, { sign: true })}</span>
       </div>
+      {assetName && d.assetPnl != null && (
+        <div className="flex items-center gap-2 py-0.5">
+          <span className="text-ink-dim">{assetName}</span>
+          <span className={`num ml-auto pl-3 ${d.assetPnl >= 0 ? 'text-up' : 'text-down'}`}>{fmtCNY(d.assetPnl, { sign: true })}</span>
+        </div>
+      )}
       <div className="flex items-center gap-2 py-0.5">
         <span className="text-ink-dim">组合市值</span>
         <span className="num ml-auto pl-3 text-ink">{fmtCNY(d.value)}</span>
@@ -571,16 +579,39 @@ function IntradayTooltip({ active, payload, label }: any) {
   )
 }
 
-/** 当日收益曲线（相对昨收的组合盈亏；Y 域 = 当日盈亏极值 + 15% 余量） */
-export function IntradayChart({ data }: { data: IntradayDatum[] }) {
+/** 图例色板：组合与选中标的都用财务涨跌色，靠虚实线区分。 */
+function pnlColor(value: number): string {
+  return value >= 0 ? C.up : C.down
+}
+
+/**
+ * 当日收益曲线（相对昨收的组合盈亏；Y 域 = 当日盈亏极值 + 15% 余量）。
+ * 选中单个标的后叠加该标的同口径曲线：点表格行即可看清「今天是谁在拖累组合」。
+ */
+export function IntradayChart({
+  data,
+  assetName,
+  showAsset = false,
+}: {
+  data: IntradayDatum[]
+  assetName?: string
+  showAsset?: boolean
+}) {
   const last = data.length > 0 ? data[data.length - 1].pnl : 0
-  const color = last >= 0 ? C.up : C.down
-  // 以当日盈亏极值定坐标上下限（含 0 轴），波动不再被总资产量级压平
+  const color = pnlColor(last)
+  const assetLast = data.length > 0 ? data[data.length - 1].assetPnl : null
+  const assetColor = assetLast == null ? C.info : pnlColor(assetLast)
+  // 以当日盈亏极值定坐标上下限（含 0 轴），波动不再被总资产量级压平；
+  // 叠加标的时把它的极值也纳入，否则小仓位标的会被组合量级压成一条直线。
   let lo = 0
   let hi = 0
   for (const d of data) {
     if (d.pnl < lo) lo = d.pnl
     if (d.pnl > hi) hi = d.pnl
+    if (showAsset && d.assetPnl != null) {
+      if (d.assetPnl < lo) lo = d.assetPnl
+      if (d.assetPnl > hi) hi = d.assetPnl
+    }
   }
   const span = hi - lo
   const pad = span > 0 ? span * 0.15 : Math.max(Math.abs(hi || lo) * 0.1, 100)
@@ -606,9 +637,23 @@ export function IntradayChart({ data }: { data: IntradayDatum[] }) {
           ticks={ticks}
           tickFormatter={(v: number) => fmtCNY(v, { compact: true })}
         />
-        <Tooltip content={<IntradayTooltip />} />
+        <Tooltip content={<IntradayTooltip assetName={showAsset ? assetName : undefined} />} />
         <ReferenceLine y={0} stroke={C.line} />
         <Area type="monotone" dataKey="pnl" name="当日盈亏" stroke={color} strokeWidth={2.25} fill="url(#gDay)" dot={false} isAnimationActive={false} />
+        {showAsset && (
+          <Line
+            type="monotone"
+            dataKey="assetPnl"
+            name={assetName ?? '选中标的'}
+            className="watch-asset-curve"
+            stroke={assetColor}
+            strokeWidth={1.75}
+            strokeDasharray="5 3"
+            dot={false}
+            /* 不 connectNulls：该标的没有分钟数据的时段必须断开，不能被画成连续走势 */
+            isAnimationActive={false}
+          />
+        )}
       </ComposedChart>
     </ResponsiveContainer>
   )

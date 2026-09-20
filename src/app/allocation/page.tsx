@@ -57,7 +57,6 @@ export default async function AllocationPage() {
   return (
     <div className="page-shell allocation-page">
       <PageHeader
-        kicker="Portfolio policy · factual drift"
         title="目标配置偏离"
         description="把当前可投资资产与自己设定的资产大类目标对照。偏离只用于观察，不会生成自动买卖或改写账本。"
         right={<Link href="/positions" className="allocation-back-link">返回持仓 →</Link>}
@@ -65,7 +64,6 @@ export default async function AllocationPage() {
 
       <section className={cx('allocation-status-hero', !drift.configured && 'is-unconfigured')}>
         <div className="allocation-status-copy">
-          <span className="eyebrow">Policy status</span>
           <h2>{!drift.configured ? '尚未建立配置基准' : drift.outOfRangeCount === 0 ? '配置处于目标范围' : `${drift.outOfRangeCount} 类资产超出容忍带`}</h2>
           <p>{!drift.configured
             ? '下方已用当前配置预填，确认或调整为你的长期目标后即可开始追踪。'
@@ -88,7 +86,7 @@ export default async function AllocationPage() {
       <section className="allocation-workbench">
         <div className="allocation-drift-panel">
           <header>
-            <div><span className="eyebrow">Current vs target</span><h2>当前与目标</h2></div>
+            <div><h2>当前与目标</h2></div>
             {drift.configured && <Tag tone={drift.outOfRangeCount > 0 ? 'amber' : 'down'}>{drift.outOfRangeCount > 0 ? '需要核对' : '范围内'}</Tag>}
           </header>
           <div className="allocation-drift-rows">
@@ -116,7 +114,7 @@ export default async function AllocationPage() {
         </div>
 
         <aside className="allocation-editor-panel">
-          <header><span className="eyebrow">Set policy</span><h2>设置目标</h2></header>
+          <header><h2>设置目标</h2></header>
           {canWrite ? (
             <AllocationTargetEditor initial={initialWeights} tolerancePct={tolerancePct} />
           ) : (

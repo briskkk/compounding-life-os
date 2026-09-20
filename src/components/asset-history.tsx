@@ -116,7 +116,6 @@ export function AssetHistory({
     <section className="portfolio-history asset-history" aria-labelledby="asset-history-title">
       <header className="portfolio-history-header">
         <div>
-          <div className="eyebrow">ASSET PERFORMANCE</div>
           <h2 id="asset-history-title">资产历史收益</h2>
           <p>
             按流水回放 {assetName} 的每日持仓，以历史净值或价格计算收益。

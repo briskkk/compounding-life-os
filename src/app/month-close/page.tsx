@@ -177,7 +177,6 @@ export default async function MonthClosePage({
     <div className="page-shell month-close-page">
       <ReviewModeNav current="month-close" month={selectedMonth} />
       <PageHeader
-        kicker="Monthly close"
         title="这个月，不靠记忆收尾。"
         description="月结中心只编排已有证据：先确认估值与在途状态，再核对账户和定投，最后把判断写入月度复盘。这里不会创建第二套余额。"
         right={(
@@ -211,7 +210,7 @@ export default async function MonthClosePage({
 
       <section className="month-close-stages">
         <article className={`month-close-stage ${STATUS_META[close.data.status].className}`}>
-          <header><span className="num">01</span><div><small>DATA CONFIRMATION</small><h2>确认数据</h2></div><b>{STATUS_META[close.data.status].label}</b></header>
+          <header><span className="num">01</span><div><h2>确认数据</h2></div><b>{STATUS_META[close.data.status].label}</b></header>
           <p className="month-close-stage-summary">{close.data.summary}</p>
           <dl>
             <div><dt>最近快照</dt><dd className="num">{snapshot ? fmtDate(snapshot.date) : '—'}</dd></div>
@@ -223,7 +222,7 @@ export default async function MonthClosePage({
         </article>
 
         <article className={`month-close-stage ${STATUS_META[close.reconciliation.status].className}`}>
-          <header><span className="num">02</span><div><small>ACCOUNT RECONCILIATION</small><h2>账户对账</h2></div><b>{STATUS_META[close.reconciliation.status].label}</b></header>
+          <header><span className="num">02</span><div><h2>账户对账</h2></div><b>{STATUS_META[close.reconciliation.status].label}</b></header>
           <p className="month-close-stage-summary">{close.reconciliation.summary}</p>
           <div className="month-close-account-count"><strong className="num">{activeAccountIds.filter((id) => reconciledSet.has(id)).length}</strong><span>/ {activeAccountIds.length} 个本月活跃账户</span></div>
           {missingAccounts.length > 0 ? (
@@ -245,7 +244,7 @@ export default async function MonthClosePage({
         </article>
 
         <article className={`month-close-stage ${STATUS_META[close.review.status].className}`}>
-          <header><span className="num">04</span><div><small>PERIOD REVIEW</small><h2>完成复盘</h2></div><b>{STATUS_META[close.review.status].label}</b></header>
+          <header><span className="num">04</span><div><h2>完成复盘</h2></div><b>{STATUS_META[close.review.status].label}</b></header>
           <p className="month-close-stage-summary">{close.review.summary}</p>
           <div className="month-close-review-state">
             <span>{savedReview ? '保存状态' : '本月记录'}</span>

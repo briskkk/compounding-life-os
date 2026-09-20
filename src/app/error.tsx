@@ -27,7 +27,6 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
         role="alert"
         aria-labelledby="route-error-title"
       >
-        <div className="eyebrow">ERROR</div>
         <h1 id="route-error-title" className="mt-2 text-[20px] font-medium text-ink">
           这一页没能算出来
         </h1>

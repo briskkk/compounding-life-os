@@ -100,7 +100,7 @@ export function AssetMetaForm({
     <div className="asset-settings-stack">
       <div className={cx('asset-ledger-lock', hasHistory ? 'is-bound' : 'is-empty')}>
         <div>
-          <span>{hasHistory ? 'LEDGER BOUND' : 'EMPTY LEDGER'}</span>
+          <span>{hasHistory ? '已绑定账本' : '未入账'}</span>
           <strong>{hasHistory ? `已绑定 ${transactionCount} 条流水` : '尚未产生流水'}</strong>
         </div>
         <p>

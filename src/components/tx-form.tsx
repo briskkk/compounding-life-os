@@ -527,12 +527,11 @@ export function TxForm({
         {fundPreview && (
           <aside className="tx-form-preview" aria-label="基金确认摘要">
             <div className="tx-form-preview-head">
-              <span>CONFIRMATION</span>
               <strong>确认摘要</strong>
             </div>
           {fundQuoteState === 'loading' && <p className="text-ink-faint">正在获取对应净值…</p>}
           {fundQuoteState === 'error' && (
-            <p className="text-amber">净值尚未取得。可先按申购金额写入账本；份额保持待确认，不会用估算数混入持仓。</p>
+            <p className="text-amber">净值尚未取得；可先按金额写入账本，份额保持待确认。</p>
           )}
           {purchaseSuspended && (
             <p className="text-down">该日期处于暂停申购窗口，普通申购不能写入账本。</p>

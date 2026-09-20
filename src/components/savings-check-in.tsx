@@ -70,7 +70,6 @@ export function SavingsCheckIn({ month, income: initialIncome, spending: initial
   return (
     <form onSubmit={onSubmit} className="savings-entry-form">
       <div>
-        <div className="eyebrow text-info">Monthly check-in</div>
         <h3 className="mt-2 text-[22px] font-medium tracking-[-0.03em] text-ink">记录本月收支</h3>
         <p className="mt-2 text-[14px] leading-7 text-ink-faint">净储蓄由收入减消费自动计算；已转入储蓄或投资单独记录资金去向。</p>
       </div>

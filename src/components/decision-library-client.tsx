@@ -58,7 +58,6 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
       <>
         <header className="review-header">
           <div>
-            <div className="page-kicker">DECISION LIBRARY · INVESTABLE PORTFOLIO</div>
             <h1 className="page-title">决策库</h1>
             <p className="page-description">当前没有可投资资产买卖流水，暂无法派生决策事件。</p>
           </div>
@@ -74,11 +73,10 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
     <>
       <header className="review-header">
         <div>
-          <div className="page-kicker">DECISION LIBRARY · INVESTABLE PORTFOLIO · {data.rangeStart} — {data.rangeEnd}</div>
+          <div className="page-kicker">决策库 · 可投资组合 · {data.rangeStart} — {data.rangeEnd}</div>
           <h1 className="page-title">决策库：每笔买卖的确定性回看</h1>
           <p className="page-description">
-            从账本 BUY/SELL 主腿派生事件，展示事件前后交易窗口与样本资格。观察期不足标记删失、不计为 0；
-            份额待确认（PENDING）事件不进入收益窗口。当前版本只呈现派生事实，不写决策记录。
+            从账本买卖主腿派生事件，回看事件前后的确定性窗口：观察期不足记删失，份额待确认的申购不进入收益窗口。
           </p>
         </div>
       </header>
@@ -96,9 +94,7 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
         <div className="review-section-heading">
           <div>
             <span>02</span>
-            <div><h2>盈亏持有与卖出后路径</h2>
-              <p>完整持仓段 0→正→0 的持有天数不对称是处置效应的代理观察；卖出后收益仅统计合格窗口样本。</p>
-            </div>
+            <div><h2 title="完整持仓段 0→正→0 的持有天数不对称是处置效应的代理观察；卖出后收益仅统计合格窗口样本">盈亏持有与卖出后路径</h2></div>
           </div>
         </div>
         <div className="review-risk-layout">
@@ -137,9 +133,7 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
         <div className="review-section-heading">
           <div>
             <span>04</span>
-            <div><h2>决策事件</h2>
-              <p>点击不做推断；事件前特征只用事件日之前数据，事件后窗口不足即删失。语境补录入口将在数据模型确认后开放。</p>
-            </div>
+            <div><h2 title="点击不做推断；事件前特征只用事件日之前数据，事件后窗口不足即删失。语境补录入口将在数据模型确认后开放">决策事件</h2></div>
           </div>
         </div>
         <div

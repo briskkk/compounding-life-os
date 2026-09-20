@@ -6,7 +6,6 @@ export default function NotFound() {
     <div className="page-shell">
       <header className="page-header">
         <div>
-          <div className="eyebrow">404</div>
           <h1 className="page-title">找不到这个页面或记录。</h1>
           <p className="page-description">
             它可能已被删除、已合并到别的账户，或者链接已经过期。你可以从下面的入口重新进入。

@@ -69,25 +69,24 @@ export function HistoryClient({
   if (metrics.length === 0) {
     verdict = '当前没有可评估的指标。'
   } else if (blockedMetrics.length === metrics.length) {
-    verdict = '当前区间数据不足：所有指标都标记 BLOCKED，无法确定性计算，页面不展示任何估算值。'
+    verdict = '当前区间数据不足，所有指标均不可计算，页面不展示估算值。'
   } else if (blockedMetrics.length > 0) {
-    verdict = `结论受限：${blockedMetrics.map((metric) => metric.label).join('、')} 标记为 BLOCKED，具体原因见资格矩阵；其余指标按各自真实截止日展示，不掺入估算。`
+    verdict = `结论受限：${blockedMetrics.map((metric) => metric.label).join('、')} 不可计算，原因见下方资格矩阵。`
   } else if (partialMetrics.length > 0) {
     const list = partialMetrics.map((metric) => `${metric.label}（截至 ${metric.asOf ?? '真实截止日'}）`).join('、')
-    verdict = `结论可限定使用：${list} 为 PARTIAL。期末金额采用各资产最近可得价格，不等于同一截止日的完整估值；引用时必须保留覆盖率和限制说明。`
+    verdict = `结论可限定使用：${list} 为部分数据。期末金额采用各资产最近可得价格，引用时须保留覆盖率与限制说明。`
   } else {
-    verdict = '结论可信：全部指标满足确定性计算条件，可直接按页面日期引用，不使用估算。'
+    verdict = '结论可信：全部指标满足确定性计算条件，可直接按页面日期引用。'
   }
 
   return (
     <>
       <header className="review-header">
         <div>
-          <div className="page-kicker">INVESTMENT HISTORY · INVESTABLE PORTFOLIO · {range.startDate} — {range.endDate}</div>
+          <div className="page-kicker">长期复盘 · 可投资组合 · {range.startDate} — {range.endDate}</div>
           <h1 className="page-title">长期复盘：可投资组合是怎么走过来的</h1>
           <p className="page-description">
-            从全部可投资资产的账本与历史价格重放结果：现金、基金、ETF、股票与黄金统一进入结果桥；房产与长期持股不进入。
-            范围默认成立以来，可切换近五年或自然年。历史价格缺失时相关指标按资格展示，不使用估算值。
+            从全部可投资资产的账本与历史价格重放：现金、基金、ETF、股票与黄金统一进入结果桥，房产与长期持股不进入。
           </p>
         </div>
         <div className="ii-scope-panel">
@@ -135,8 +134,8 @@ export function HistoryClient({
               <div className="review-return-pills">
                 <span>TWR <b className={twr.pct == null ? 'num text-ink-faint' : `num ${toneClass(twr.pct)}`}>{twr.pct == null ? '—' : fmtPct(twr.pct, { sign: true })}</b></span>
                 <span>TWR 真实截止日 <b className="num">{twr.asOf ?? '—'}</b></span>
-                <span>TWR 状态 <b>{twr.status}</b></span>
-                <span>结果桥状态 <b>{bridgeMetric?.status ?? 'BLOCKED'}</b></span>
+                <span>TWR 状态 <b>{publishWord(twr.status)}</b></span>
+                <span>结果桥状态 <b>{bridgeMetric ? publishWord(bridgeMetric.status) : '不可计算'}</b></span>
               </div>
             </div>
             <div className="review-bridge" aria-label="期初期末资金桥">
@@ -161,28 +160,26 @@ export function HistoryClient({
             <div className="ii-return-risk-grid" aria-label="资金体验与风险证据">
               <article className="ii-return-risk-card">
                 <div className="ii-return-risk-label">
-                  <span title="XIRR 为年化内部收益率（含出入金时点），与区间口径的 MWR 不同">XIRR · 年化资金体验</span>
-                  <span className={`review-status-chip ${xirr.status.toLowerCase()}`}>{xirr.status}</span>
+                  <span title="按真实外部存入、取出、区间期初与期末可投资资产计算；内部买卖不重复计作资金流，也不等同于 TWR">XIRR · 年化资金体验</span>
+                  <span className={`review-status-chip ${xirr.status.toLowerCase()}`}>{publishWord(xirr.status)}</span>
                 </div>
                 <strong className={xirr.pct == null ? 'num text-ink-faint' : `num ${toneClass(xirr.pct)}`}>
                   {xirr.pct == null ? '—' : fmtPct(xirr.pct, { sign: true })}
                 </strong>
-                <p>按真实外部存入、取出、区间期初与期末可投资资产计算；内部买卖不重复计作资金流，也不等同于 TWR。</p>
               </article>
               <article className="ii-return-risk-card">
                 <div className="ii-return-risk-label">
-                  <span>年化波动率</span>
-                  <span className={`review-status-chip ${(riskMetric?.status ?? 'BLOCKED').toLowerCase()}`}>{riskMetric?.status ?? 'BLOCKED'}</span>
+                  <span title="有效日收益的样本标准差按 252 个交易日年化；缺净值日不作为零收益样本">年化波动率</span>
+                  <span className={`review-status-chip ${(riskMetric?.status ?? 'BLOCKED').toLowerCase()}`}>{publishWord(riskMetric?.status ?? 'BLOCKED')}</span>
                 </div>
                 <strong className={drawdown.annualizedVolatility == null ? 'num text-ink-faint' : 'num'}>
                   {drawdown.annualizedVolatility == null ? '—' : fmtPct(drawdown.annualizedVolatility)}
                 </strong>
-                <p>有效日收益的样本标准差按 252 个交易日年化；缺净值日不作为零收益样本。</p>
               </article>
               <article className="ii-return-risk-card">
                 <div className="ii-return-risk-label">
                   <span>最大回撤 · TWR 路径</span>
-                  <span className={`review-status-chip ${drawdown.status.toLowerCase()}`}>{drawdown.status}</span>
+                  <span className={`review-status-chip ${drawdown.status.toLowerCase()}`}>{publishWord(drawdown.status)}</span>
                 </div>
                 <strong className={drawdown.maxDrawdown == null ? 'num text-ink-faint' : 'num text-down'}>
                   {drawdown.maxDrawdown == null ? '—' : fmtPct(drawdown.maxDrawdown)}
@@ -195,18 +192,17 @@ export function HistoryClient({
               </article>
               <article className="ii-return-risk-card">
                 <div className="ii-return-risk-label">
-                  <span>收益回撤比 · Calmar</span>
-                  <span className={`review-status-chip ${(riskMetric?.status ?? 'BLOCKED').toLowerCase()}`}>{riskMetric?.status ?? 'BLOCKED'}</span>
+                  <span title="年化 TWR ÷ 最大回撤绝对值；只衡量历史收益与回撤的比例，不代表未来回报">收益回撤比 · Calmar</span>
+                  <span className={`review-status-chip ${(riskMetric?.status ?? 'BLOCKED').toLowerCase()}`}>{publishWord(riskMetric?.status ?? 'BLOCKED')}</span>
                 </div>
                 <strong className={drawdown.returnDrawdownRatio == null ? 'num text-ink-faint' : `num ${toneClass(drawdown.returnDrawdownRatio)}`}>
                   {drawdown.returnDrawdownRatio == null ? '—' : drawdown.returnDrawdownRatio.toFixed(2)}
                 </strong>
-                <p>年化 TWR ÷ 最大回撤绝对值；只衡量历史收益与回撤的比例，不代表未来回报。</p>
               </article>
               <article className="ii-return-risk-card">
                 <div className="ii-return-risk-label">
                   <span>{drawdown.longestUnderwaterRecovered === false ? '最长未恢复区间' : '最长回本周期'}</span>
-                  <span className={`review-status-chip ${drawdown.status.toLowerCase()}`}>{drawdown.status}</span>
+                  <span className={`review-status-chip ${drawdown.status.toLowerCase()}`}>{publishWord(drawdown.status)}</span>
                 </div>
                 <strong className="num">
                   {drawdown.longestUnderwaterDays == null ? '—' : `${drawdown.longestUnderwaterDays} 天`}
@@ -220,7 +216,7 @@ export function HistoryClient({
             </div>
             {benchmarkMetric && (
               <div className="ii-benchmark-boundary">
-                <span className={`review-status-chip ${benchmarkMetric.status.toLowerCase()}`}>{benchmarkMetric.status}</span>
+                <span className={`review-status-chip ${benchmarkMetric.status.toLowerCase()}`}>{publishWord(benchmarkMetric.status)}</span>
                 <p><b>政策基准对比暂不可计算。</b>{benchmarkMetric.limitations[0]}</p>
               </div>
             )}
@@ -231,15 +227,13 @@ export function HistoryClient({
             <div className="review-section-heading">
               <div>
                 <span>02</span>
-                <div><h2>每一年，钱从哪里来、又去了哪里</h2>
-                  <p>把可投资组合日序列按自然年切片：年度区间内外部净投入、投资收益与期末价值逐年对账；年度 TWR 遵循与整体相同的真实截止日资格。</p>
-                </div>
+                <div><h2 title="按自然年切片：年度区间内外部净投入、投资收益与期末价值逐年对账；年度 TWR 遵循与整体相同的真实截止日资格">每一年，钱从哪里来、又去了哪里</h2></div>
               </div>
             </div>
             <div className="ii-annual-grid">
               {data.annual.map((row) => (
                 <article key={row.year} className="ii-annual-card">
-                  <div className="yr"><b>{row.year}</b><span className="badge neutral">{row.twr.status}</span></div>
+                  <div className="yr"><b>{row.year}</b><span className="badge neutral">{publishWord(row.twr.status)}</span></div>
                   <strong className={`num ${row.investGain == null ? 'text-ink-faint' : toneClass(row.investGain)}`}>
                     {row.investGain == null ? '—' : fmtCNY(row.investGain, { sign: true })}
                   </strong>
@@ -254,8 +248,7 @@ export function HistoryClient({
             </div>
             <div className="ii-monthly-block">
               <div className="ii-monthly-heading">
-                <h3>月度路径</h3>
-                <p>百分比为当月 TWR，金额为当月投资收益；首尾月可能只覆盖部分月份，空白月份表示不在当前范围。</p>
+                <h3 title="百分比为当月 TWR，金额为当月投资收益；首尾月可能只覆盖部分月份，空白月份表示不在当前范围">月度路径</h3>
               </div>
               <div className="ii-monthly-scroll">
                 <table className="ii-monthly-table" aria-label="月度可投资组合收益路径">
@@ -276,7 +269,7 @@ export function HistoryClient({
                             if (!row) return <td key={index} className="is-empty">—</td>
                             const tone = row.twr.pct == null ? 'is-blocked' : row.twr.pct >= 0 ? 'is-positive' : 'is-negative'
                             return (
-                              <td key={index} className={`${tone} ${row.twr.status === 'PARTIAL' ? 'is-partial' : ''}`} title={`${row.month} · ${row.startDate} — ${row.endDate} · ${row.twr.status}`}>
+                              <td key={index} className={`${tone} ${row.twr.status === 'PARTIAL' ? 'is-partial' : ''}`} title={`${row.month} · ${row.startDate} — ${row.endDate} · ${publishWord(row.twr.status)}`}>
                                 <b className="num">{row.twr.pct == null ? '—' : fmtPct(row.twr.pct, { sign: true })}</b>
                                 <small className="num">{row.investGain == null ? '—' : fmtCNY(row.investGain, { sign: true })}</small>
                               </td>
@@ -319,9 +312,7 @@ export function HistoryClient({
             <div className="review-section-heading">
               <div>
                 <span>05</span>
-                <div><h2>数据资格与证据水位</h2>
-                  <p>每个指标都回答同一件事：这个结果能不能直接引用？ELIGIBLE 可直接引用；PARTIAL 必须带真实数据日期、覆盖率和限制说明；BLOCKED 无法计算。页面不用缺失数据造结论。</p>
-                </div>
+                <div><h2>数据资格与证据水位</h2></div>
               </div>
             </div>
 
@@ -341,9 +332,10 @@ export function HistoryClient({
                 <div className="ii-evidence-row" role="row" key={metric.key}>
                   <span role="cell" className="ii-evidence-name">
                     <b>{metric.label}</b>
-                    <span className={`review-status-chip ${metric.status.toLowerCase()}`}>{metric.status}</span>
                   </span>
-                  <span role="cell" className="ii-evidence-pub">{publishWord(metric.status)}</span>
+                  <span role="cell" className="ii-evidence-pub">
+                    <span className={`review-status-chip ${metric.status.toLowerCase()}`}>{publishWord(metric.status)}</span>
+                  </span>
                   <span role="cell" className="ii-evidence-reason">{reasonWord(metric)}</span>
                   <span role="cell" className="ii-evidence-basis">
                     <code className="num">样本 {metric.eligibleCount}/{metric.totalCount}</code>
@@ -362,7 +354,6 @@ export function HistoryClient({
                 <span>结果日期 <code className="num">{result.watermark.asOf}</code></span>
                 <span>方法版本 <code className="num">{result.watermark.methodVersion}</code></span>
               </div>
-              <p className="ii-watermark-note">证据水位记录“结果基于哪个账本/行情快照生成”，用于复核而非日常阅读；默认折叠，不打断结论。</p>
             </details>
           </section>
         </>

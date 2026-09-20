@@ -246,9 +246,9 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
     <div className="review-body">
       <header className="review-header">
         <div>
-          <div className="page-kicker">PORTFOLIO REVIEW · {range.startDate} — {range.endDate}</div>
+          <div className="page-kicker">复盘区间 · {range.startDate} — {range.endDate}</div>
           <h1 className="page-title">这段时间，钱从哪里赚来</h1>
-          <p className="page-description">从结果、贡献、时点、决策和风险五个视角复核组合。所有数字由流水与历史估值重放，复盘笔记由你自己判断。</p>
+          <p className="page-description">从结果、贡献、时点、决策、风险和笔记六个视角复核这段时间的组合。</p>
         </div>
         <div className="review-range-controls">
           <div className="review-periods" aria-label="复盘周期">
@@ -345,7 +345,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
 
       <section id="contribution" className="section-panel review-section">
         <div className="review-section-heading">
-          <div><span>02</span><h2>利润和亏损由谁贡献</h2><p>金额贡献与 TWR 百分点分别对账，不把在途或估值差额摊给任何标的。</p></div>
+          <div><span>02</span><h2 title="金额贡献与 TWR 百分点分别对账，不把在途或估值差额摊给任何标的">利润和亏损由谁贡献</h2></div>
           <div className="review-tabs" role="tablist" aria-label="贡献维度">
             {([['asset', '按标的'], ['source', '按来源'], ['class', '按资产类别']] as const).map(([key, label]) => (
               <button key={key} type="button" role="tab" aria-selected={dimension === key} className={dimension === key ? 'is-active' : ''} onClick={() => setDimension(key)}>{label}</button>
@@ -357,7 +357,6 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
           <aside className="review-detail-card">
             {dimension === 'asset' && selected ? (
               <>
-                <span className="page-kicker">SELECTED CONTRIBUTOR</span>
                 <h3>{selected.name}</h3>
                 <p>{selected.code} · {CLASS_LABELS[selected.cls ?? ''] ?? '差异项'}</p>
                 <div className="review-detail-grid">
@@ -373,18 +372,16 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
                 </div>
               </>
             ) : (
-              <><span className="page-kicker">ATTRIBUTED RESULT</span><h3>当前维度已归属</h3><p>这里只比较真实收益来源；待对账差额不参与排名，也不会伪装成资产类别。</p></>
+              <><h3 title="这里只比较真实收益来源；待对账差额不参与排名">当前维度已归属</h3></>
             )}
           </aside>
         </div>
         <div className="review-reconciliation-grid">
           <article className={cx('review-reconciliation-card', reconciliation.className)} aria-label="收益对账状态">
             <header>
-              <span className="page-kicker">RECONCILIATION</span>
               <b>{reconciliation.label}</b>
             </header>
-            <h3>待对账差额</h3>
-            <p>这是组合收益与已归属标的收益之间的残差，不是一个持仓，也不代表额外赚取的收益。</p>
+            <h3 title="组合收益与已归属标的收益之间的残差，不是一个持仓，也不代表额外赚取的收益">待对账差额</h3>
             <div className="review-reconciliation-bridge">
               <Metric label="组合总收益" value={result.performance.amount == null ? '—' : fmtCNY(result.performance.amount, { sign: true })} />
               <i>−</i>
@@ -400,7 +397,6 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
 
           <article className="review-transit-card" aria-label={isHistoricalMonth || isHistoricalDate ? '期末在途资产' : '当前在途资产'}>
             <header>
-              <span className="page-kicker">ASSET STATUS</span>
               <b>{pendingFundEventCount > 0 ? `${pendingFundEventCount} 笔待确认` : isHistoricalMonth || isHistoricalDate ? '期末无在途' : '当前无在途'}</b>
             </header>
             <h3>{isHistoricalMonth ? '月末基金在途资产' : isHistoricalDate ? '当日基金在途资产' : '基金在途资产'}</h3>
@@ -428,7 +424,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
 
       <section id="timing" className="section-panel review-section">
         <div className="review-section-heading">
-          <div><span>03</span><h2>收益发生在什么时候</h2><p>只统计有效收益观察日；休市、纯资金流和无更新日不会被当作涨跌。</p></div>
+          <div><span>03</span><h2 title="只统计有效收益观察日；休市、纯资金流和无更新日不会被当作涨跌">收益发生在什么时候</h2></div>
         </div>
         <div className="review-stat-grid">
           <Metric label="盈利日 / 观察日" value={`${result.timing.positiveDays} / ${result.timing.observedDays}`} />
@@ -450,7 +446,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
 
       <section id="decisions" className="section-panel review-section">
         <div className="review-section-heading">
-          <div><span>04</span><h2>本期做过什么决定</h2><p>把建仓、加仓、减仓和清仓放回当时的账本记录，区间后收益仅作事实回看。</p></div>
+          <div><span>04</span><h2 title="把建仓、加仓、减仓和清仓放回当时的账本记录，区间后收益仅作事实回看">本期做过什么决定</h2></div>
         </div>
         <div className="review-stat-grid review-stat-grid-four">
           <Metric label="买入金额" value={fmtCNY(result.behavior.buyAmount)} />
@@ -475,7 +471,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
 
       <section id="risk" className="section-panel review-section">
         <div className="review-section-heading">
-          <div><span>05</span><h2>风险结构如何变化</h2><p>复核集中度、现金、外币暴露和估值完整性，不生成自动化投资建议。</p></div>
+          <div><span>05</span><h2 title="复核集中度、现金、外币暴露和估值完整性，不生成自动化投资建议">风险结构如何变化</h2></div>
         </div>
         <div className="review-risk-layout">
           <div className="review-risk-table">
@@ -500,7 +496,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
 
       <section id="notes" className="section-panel review-section review-notes">
         <div className="review-section-heading">
-          <div><span>06</span><h2>写下自己的判断</h2><p>记录哪些判断被验证、哪些只是运气，以及下一周期要继续观察的事实。</p></div>
+          <div><span>06</span><h2 title="记录哪些判断被验证、哪些只是运气，以及下一周期要继续观察的事实">写下自己的判断</h2></div>
           {data.savedReview && (
             <div className="review-saved-state">
               <b>{data.savedReview.status === 'COMPLETED' ? '已完成' : '草稿'}</b>

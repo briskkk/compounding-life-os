@@ -56,9 +56,7 @@ export function InvestmentHistoryContribution({
       <div className="review-section-heading">
         <div>
           <span>04</span>
-          <div><h2>收益贡献与对账</h2>
-            <p>单项资产收益金额由账本与历史价格重放（期末 − 期初 − 区间净投入）；资产类别、市场与策略桶只做确定性聚合，不把未归属残差摊入任何桶（ADR-014）。</p>
-          </div>
+          <div><h2 title="单项资产收益金额由账本与历史价格重放（期末 − 期初 − 区间净投入）；资产类别、市场与策略桶只做确定性聚合，不把未归属残差摊入任何桶">收益贡献与对账</h2></div>
         </div>
         <nav className="ii-contrib-dim-tabs" aria-label="归因维度">
           {CONTRIBUTION_VIEWS.map((item) => (
@@ -89,7 +87,7 @@ export function InvestmentHistoryContribution({
           <div className="ii-contrib-residual">
             <span>{reconciliationAmount == null
               ? `归因对账暂不可发布：${byAsset.blockedCount} 项资产缺少足够价格，未把缺口写成 0。`
-              : <>待对账差额 = 组合总收益 − 已归属资产合计：<b>{fmtCNY(reconciliationAmount, { sign: true })}</b>（独立展示，不进入排名；ADR-014）</>}</span>
+              : <>待对账差额 = 组合总收益 − 已归属资产合计：<b>{fmtCNY(reconciliationAmount, { sign: true })}</b>（不进入排名）</>}</span>
             <span>已归属合计 <b className="num">{fmtCNY(attributedAmount, { sign: true })}</b></span>
           </div>
         </div>

@@ -32,6 +32,11 @@ const ROLE_LABEL: Record<string, string> = {
   VIEWER: '只读 · 仅可查看',
 }
 
+/** 枚举不直接上屏：只取角色名，不带上权限说明。 */
+function shortRole(role: string): string {
+  return ROLE_LABEL[role]?.split(' · ')[0] ?? role
+}
+
 type Tab = 'account' | 'family' | 'data'
 
 const TABS: { key: Tab; label: string }[] = [
@@ -92,10 +97,9 @@ export function SettingsForm({
   return (
     <div className="mx-auto w-full max-w-2xl">
       <header className="mb-8">
-        <div className="eyebrow">SETTINGS</div>
         <h1 className="mt-2 text-3xl font-medium tracking-tight text-ink">设置</h1>
         <p className="mt-1.5 text-sm text-ink-faint">
-          <span className="num">{memberName}</span> · {role}
+          <span className="num">{memberName}</span> · {shortRole(role)}
         </p>
       </header>
 
@@ -156,7 +160,7 @@ function AccountPanel({ email, defaultRange }: { email: string; defaultRange: st
         )}
       </Card>
 
-      <Card title="登录设备" desc="当前账号的活跃会话，可吊销其他设备的登录">
+      <Card title="登录设备" desc="可吊销其他设备的登录">
         <SessionsList />
       </Card>
 
@@ -534,7 +538,7 @@ function MemberManageRow({ member, isOwner }: { member: MemberRow; isOwner: bool
                 className="min-h-9 rounded-lg border border-line bg-panel2 px-2 text-[13px] text-ink-dim outline-none"
                 aria-label={`${member.name} 角色`}
               >
-                {['OWNER', 'ADMIN', 'MEMBER', 'VIEWER'].map((r) => <option key={r} value={r}>{r}</option>)}
+                {['OWNER', 'ADMIN', 'MEMBER', 'VIEWER'].map((r) => <option key={r} value={r}>{shortRole(r)}</option>)}
               </select>
               {member.email && (
                 <button type="button" onClick={() => setResetOpen((v) => !v)} className="text-ink-dim transition-colors hover:text-ink">重置密码</button>
@@ -542,7 +546,7 @@ function MemberManageRow({ member, isOwner }: { member: MemberRow; isOwner: bool
               <button type="button" onClick={removeMember} className="text-amber transition-opacity hover:opacity-70">移除</button>
             </>
           ) : (
-            <span className="text-ink-dim">{member.role}{member.email ? ` · ${member.email}` : ' · 未绑定'}</span>
+            <span className="text-ink-dim">{shortRole(member.role)}{member.email ? ` · ${member.email}` : ' · 未绑定'}</span>
           )}
         </span>
       </div>
@@ -597,10 +601,10 @@ function InviteSection() {
   }
 
   return (
-    <Card title="邀请成员" desc="生成 7 天有效的一次性邀请码，发给家人注册或登录后加入">
+    <Card title="邀请成员" desc="7 天有效，一次性使用">
       <div className="flex flex-wrap items-center gap-3">
         <select value={role} onChange={(e) => setRole(e.target.value)} className="min-h-11 rounded-lg border border-line bg-panel2 px-2 text-[13px] text-ink-dim outline-none" aria-label="邀请角色">
-          {['MEMBER', 'ADMIN', 'VIEWER'].map((r) => <option key={r} value={r}>{r}</option>)}
+          {['MEMBER', 'ADMIN', 'VIEWER'].map((r) => <option key={r} value={r}>{shortRole(r)}</option>)}
         </select>
         <button type="button" onClick={createInvite} className={btnCls}>生成邀请码</button>
       </div>

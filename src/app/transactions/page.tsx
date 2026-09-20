@@ -132,7 +132,6 @@ export default async function TransactionsPage({
   return (
     <div className="page-shell">
       <PageHeader
-        kicker="Ledger"
         title="每一笔变化，都有出处。"
         description="默认只展示当前有效流水；已冲正记录与系统冲正标记折叠到变更历史，需要审计时可随时展开。"
         right={(
@@ -160,7 +159,7 @@ export default async function TransactionsPage({
           summary={<><span>录入与导入</span><small>按需展开，不必穿过整页流水</small></>}
         >
           <div className="grid gap-6 p-4 xl:grid-cols-2">
-            <Panel title="录入流水" en="NEW ENTRY">
+            <Panel title="录入流水">
               <TxForm
                 initialAccountId={sp.account}
                 holdings={holdings}
@@ -187,7 +186,7 @@ export default async function TransactionsPage({
                 }))}
               />
             </Panel>
-            <Panel title="CSV 导入" en="BULK IMPORT">
+            <Panel title="CSV 导入">
               <CsvImport
                 accounts={accounts.map((a) => ({ id: a.id, name: a.name }))}
                 assets={assets.map((a) => ({ id: a.id, symbol: a.symbol, name: a.name }))}
@@ -200,7 +199,6 @@ export default async function TransactionsPage({
       {/* 流水表 */}
       <Panel
         title="交易流水"
-        en="LEDGER · SOURCE OF TRUTH"
         bodyClassName="p-0"
         right={<span className="num text-[12px] text-ink-faint">{total > 0 ? `第 ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} 条 / 共 ${total} 条` : '共 0 条'}</span>}
       >

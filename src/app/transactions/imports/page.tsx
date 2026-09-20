@@ -41,9 +41,9 @@ export default async function ImportBatchesPage() {
   const failed = batches.reduce((sum, batch) => sum + batch.failedCount, 0)
 
   return <div className="page-shell">
-    <PageHeader kicker="Import provenance" title="导入前看清楚，导入后找得到。" description="每个文件保留来源、字段映射、有效行、重复行和异常行；只有确认后的有效行进入交易账本。" right={<Link href="/transactions#new-entry" className="inline-flex min-h-11 items-center text-[14px] text-accent">返回 CSV 导入 →</Link>} />
+    <PageHeader title="导入前看清楚，导入后找得到。" description="每个文件保留来源、字段映射、有效行、重复行和异常行；只有确认后的有效行进入交易账本。" right={<Link href="/transactions#new-entry" className="inline-flex min-h-11 items-center text-[14px] text-accent">返回 CSV 导入 →</Link>} />
     <section className="mb-10 grid grid-cols-4 overflow-hidden rounded-xl border border-line bg-panel"><div className="p-6"><div className="text-[12px] text-ink-faint">批次</div><div className="num mt-3 text-[28px] text-ink">{batches.length}</div></div><div className="border-l border-line p-6"><div className="text-[12px] text-ink-faint">已入账</div><div className="num mt-3 text-[28px] text-ink">{imported}</div></div><div className="border-l border-line p-6"><div className="text-[12px] text-ink-faint">跳过重复</div><div className="num mt-3 text-[28px] text-amber">{duplicates}</div></div><div className="border-l border-line p-6"><div className="text-[12px] text-ink-faint">异常</div><div className="num mt-3 text-[28px] text-danger">{failed}</div></div></section>
-    <Panel title="导入批次" en="BATCH TRACE" bodyClassName="p-0">
+    <Panel title="导入批次" bodyClassName="p-0">
       {batches.length === 0 ? <Empty action={{ href: '/transactions#new-entry', label: '导入第一个文件' }}>尚无导入批次</Empty> : <div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-[14px]"><thead><tr className="border-b border-line text-left text-[12px] tracking-[0.12em] text-ink-faint"><th className="px-5 py-3 font-normal">时间 / 来源</th><th className="px-5 py-3 font-normal">预检结果</th><th className="px-5 py-3 font-normal">金额核对</th><th className="px-5 py-3 font-normal">处理规则</th><th className="px-5 py-3 text-right font-normal">追溯</th></tr></thead><tbody>{batches.map((batch) => {
         const issues = issuesOf(batch.issuesJson)
         const mappingCount = mappingCountOf(batch.mappingJson)

@@ -38,7 +38,6 @@ export default function LoginPage() {
   return (
     <div className="mx-auto flex min-h-[55vh] w-full max-w-sm flex-col justify-center gap-7">
       <div>
-        <div className="eyebrow">FAMILY WEALTH OS</div>
         <h1 className="mt-3 text-3xl font-medium tracking-tight text-ink">登录</h1>
         <p className="mt-2 text-sm text-ink-faint">使用家庭账号登录，数据按家庭隔离</p>
       </div>

@@ -97,7 +97,6 @@ export function FundPolicyForm({ funds, policies }: { funds: FundOption[]; polic
   return (
     <div className="grid gap-8 xl:grid-cols-[340px_minmax(0,1fr)]">
       <div>
-        <div className="eyebrow">RULE SUBJECT</div>
         <h3 className="mt-3 text-[22px] text-ink">选择要维护的基金</h3>
         <p className="mt-2 text-[13px] leading-6 text-ink-faint">只记录基金公司或销售平台披露的规则。费率作为录入参考，暂停申购窗口会在写入账本前硬性校验。</p>
         <select value={assetId} onChange={(event) => { setAssetId(event.target.value); setMsg(null) }} className={`${inputCls} mt-5`}>

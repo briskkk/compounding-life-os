@@ -89,7 +89,6 @@ export default async function MarketQualityPage() {
   return (
     <div className="page-shell">
       <PageHeader
-        kicker="Market source quality"
         title="行情可用，不等于行情可信。"
         description="长期留存每个来源的成功率、延迟与错误；按需对当前持仓逐源取价，价差超过 30bp 才进入人工关注。"
         right={(
@@ -102,7 +101,7 @@ export default async function MarketQualityPage() {
       />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]">
-        <Panel title="30 日来源表现" en="PERSISTED PROVIDER OBSERVATIONS" bodyClassName="p-0">
+        <Panel title="30 日来源表现" bodyClassName="p-0">
           {providerRows.length === 0 ? <Empty>尚无持久化行情调用记录；刷新行情后会自动积累。</Empty> : (
             <TableScroll label="行情数据源证据表">
               <table className="w-full text-[13px] whitespace-nowrap">
@@ -124,7 +123,7 @@ export default async function MarketQualityPage() {
           )}
         </Panel>
 
-        <Panel title="最近一次逐源检查" en="CROSS-SOURCE CHECK" right={<Link href="/health" className="text-[12px] text-accent">返回健康中心 →</Link>}>
+        <Panel title="最近一次逐源检查" right={<Link href="/health" className="text-[12px] text-accent">返回健康中心 →</Link>}>
           {!evidence ? <Empty>尚未执行持仓逐源检查</Empty> : (
             <>
               <div className="grid grid-cols-4 gap-3 border-b border-line pb-5">
@@ -140,7 +139,7 @@ export default async function MarketQualityPage() {
       </div>
 
       {evidence && (
-        <Panel title="持仓价差明细" en="QUOTE DISPERSION" bodyClassName="p-0">
+        <Panel title="持仓价差明细" bodyClassName="p-0">
           <TableScroll label="行情数据源证据表"><table className="w-full text-[13px] whitespace-nowrap">
             <thead><tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
               <th className="px-5 py-3 font-normal">资产</th><th className="px-3 py-3 font-normal">来源报价</th><th className="px-3 py-3 text-right font-normal">价差</th><th className="px-5 py-3 font-normal">判断</th>

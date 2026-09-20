@@ -6,12 +6,10 @@ import { cx, fmtCNY, fmtPct, toneOf } from '@/lib/format'
 import { WEALTH_SCOPES, type WealthScopeKey } from '@/lib/wealth-scope'
 
 export function PageHeader({
-  kicker,
   title,
   description,
   right,
 }: {
-  kicker?: string
   title: string
   description?: ReactNode
   right?: ReactNode
@@ -19,7 +17,6 @@ export function PageHeader({
   return (
     <header className="page-header">
       <div>
-        {kicker && <div className="page-kicker">{kicker}</div>}
         <h1 className="page-title">{title}</h1>
         {description && <div className="page-description">{description}</div>}
       </div>
@@ -30,14 +27,12 @@ export function PageHeader({
 
 export function Panel({
   title,
-  en,
   right,
   className,
   bodyClassName,
   children,
 }: {
   title: string
-  en?: string
   right?: ReactNode
   className?: string
   bodyClassName?: string
@@ -48,7 +43,6 @@ export function Panel({
       <header className="flex min-h-14 items-center justify-between gap-4 pb-5">
         <div className="flex items-baseline gap-2.5">
           <h2 className="text-[19px] font-medium text-ink">{title}</h2>
-          {en && <span className="text-[13px] tracking-[0.18em] text-ink-faint">{en}</span>}
         </div>
         {right}
       </header>
@@ -59,13 +53,11 @@ export function Panel({
 
 export function Stat({
   label,
-  en,
   value,
   sub,
   hint,
 }: {
   label: string
-  en?: string
   value: ReactNode
   sub?: ReactNode
   hint?: ReactNode
@@ -74,7 +66,6 @@ export function Stat({
     <div>
       <div className="flex items-baseline justify-between">
         <span className="text-sm text-ink-faint">{label}</span>
-        {en && <span className="text-[13px] tracking-[0.18em] text-ink-faint">{en}</span>}
       </div>
       <div className="num mt-2 whitespace-nowrap text-[28px] leading-none font-medium tracking-[-0.045em]">{value}</div>
       {sub && <div className="mt-2 text-sm">{sub}</div>}

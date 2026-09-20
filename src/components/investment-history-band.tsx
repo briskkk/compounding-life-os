@@ -117,11 +117,7 @@ export function InvestmentHistoryBand({
   }
 
   return (
-    <div className="ii-band-surface" aria-label="决策时间带">
-      <div className="ii-band-takeaway">
-        <b>怎么读这张图</b>
-        <p>曲线＝全部可投资资产的每日价值；柱条＝季度买卖笔数；灰带＝沿用旧值的时段。柱条与灰带不代表盈亏方向。</p>
-      </div>
+    <div className="ii-band-surface" aria-label="决策时间带" title="曲线＝全部可投资资产的每日价值；柱条＝季度买卖笔数（按账本主腿，内部结算与分红不单独计事件）；灰带＝沿用旧值的时段。更细的逐笔行为与前后窗口见决策库。">
       <p className="ii-band-summary">{parts.length > 0 ? parts.join('；') : '区间数据不足，无法生成一句话结论。'}</p>
       <div className="ii-band-legend" aria-hidden="true">
         <span><i className="l-line" />净值价值</span>
@@ -222,10 +218,6 @@ export function InvestmentHistoryBand({
           </text>
         </svg>
       </div>
-      <p className="ii-band-note">
-        买入/卖出沿用账本主腿笔数（内部结算与分红不作单独事件）；季度内多笔叠加为柱，不再逐点堆叠。
-        更细的逐笔行为与前后窗口见“决策库”。
-      </p>
     </div>
   )
 }

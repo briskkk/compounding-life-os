@@ -67,7 +67,6 @@ export default function OnboardingPage() {
   return (
     <div className="mx-auto flex min-h-[60vh] w-full max-w-sm flex-col justify-center gap-8">
       <div>
-        <div className="eyebrow">WELCOME</div>
         <h1 className="mt-3 text-3xl font-medium tracking-tight text-ink">加入你的家庭</h1>
         <p className="mt-2 text-sm text-ink-faint">凭 OWNER 发出的邀请码加入家庭，或创建自己的家庭</p>
       </div>

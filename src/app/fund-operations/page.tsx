@@ -34,7 +34,6 @@ export default async function FundOperationsPage() {
   return (
     <div className="page-shell">
       <PageHeader
-        kicker="Fund operations"
         title="基金交易，不再靠记忆补规则。"
         description="把申购费率、赎回阶梯、暂停窗口与分红方式放在同一条证据链里；真实成交费用仍以账单为准。"
         right={(
@@ -47,7 +46,7 @@ export default async function FundOperationsPage() {
       />
 
       {funds.length > 0 && ctx.role !== 'VIEWER' && (
-        <Panel title="基金规则台" en="DISCLOSED TERMS · VERIFIED BY USER">
+        <Panel title="基金规则台">
           <FundPolicyForm
             funds={funds.map((fund) => ({ id: fund.id, symbol: fund.symbol, name: fund.name }))}
             policies={policies.map((policy) => ({
@@ -66,7 +65,7 @@ export default async function FundOperationsPage() {
       )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(420px,0.7fr)]">
-        <Panel title="已核验规则" en="POLICY REGISTER" bodyClassName="p-0">
+        <Panel title="已核验规则" bodyClassName="p-0">
           {policies.length === 0 ? <Empty>尚未登记基金交易规则</Empty> : (
             <TableScroll label="基金操作记录表">
               <table className="w-full text-[13px] whitespace-nowrap">
@@ -89,7 +88,7 @@ export default async function FundOperationsPage() {
           )}
         </Panel>
 
-        <Panel title="分红处理记录" en="DISTRIBUTION EVIDENCE" right={<Link href="/corporate-actions" className="text-[12px] text-accent">全部事件 →</Link>}>
+        <Panel title="分红处理记录" right={<Link href="/corporate-actions" className="text-[12px] text-accent">全部事件 →</Link>}>
           {events.length === 0 ? <Empty>暂无现金分红或红利再投事件</Empty> : (
             <div className="divide-y divide-line/70">{events.map((event) => (
               <div key={event.id} className="grid grid-cols-[1fr_auto] gap-4 py-4 first:pt-0 last:pb-0">

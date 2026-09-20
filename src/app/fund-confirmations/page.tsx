@@ -43,7 +43,6 @@ export default async function FundConfirmationsPage({
   return (
     <div className="page-shell fund-confirm-page">
       <PageHeader
-        kicker="Fund confirmation desk"
         title="先对上份额，再写进持仓。"
         description="逐笔读取成交日官方净值，和基金平台的确认份额交叉核对。预览不会改账；只有份额一致并再次确认后，才以冲正链替换原流水。"
         right={<Link href="/transactions" className="fund-confirm-back">查看全部流水 →</Link>}
@@ -58,7 +57,7 @@ export default async function FundConfirmationsPage({
 
       <section className="fund-confirm-queue">
         <header>
-          <div><span className="eyebrow">Verification queue</span><h2>逐笔核对</h2></div>
+          <div><h2>逐笔核对</h2></div>
           <span>{transactions.length} 笔待处理</span>
         </header>
         {transactions.length === 0 ? (

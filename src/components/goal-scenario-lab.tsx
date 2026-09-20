@@ -114,7 +114,6 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
     <section className="goal-scenario">
       <div className="goal-section-head">
         <div>
-          <div className="eyebrow">Scenario lab</div>
           <h2>调整投入与退休时间</h2>
         </div>
         <span>当前月投入 {money(props.monthlyContribution)}</span>

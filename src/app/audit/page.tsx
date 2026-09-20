@@ -20,7 +20,7 @@ export default async function AuditPage() {
 
   return (
     <div className="page-shell">
-      <PageHeader kicker="Audit" title="所有资产，都能追溯到一笔真实流水。" description="验证结论基于当前家庭空间的审计哈希链快照。" />
+      <PageHeader title="所有资产，都能追溯到一笔真实流水。" description="验证结论基于当前家庭空间的审计哈希链快照。" />
 
       <section className="grid gap-10 border-b border-line pb-10 md:grid-cols-[0.65fr_1fr] md:items-end">
         <div>
@@ -37,7 +37,7 @@ export default async function AuditPage() {
         </div>
       </section>
 
-      <Panel title="审计日志" en="AUDIT TRAIL · 最新优先" bodyClassName="p-0" right={chain.ok ? <Tag tone="info">哈希链完整</Tag> : <Tag tone="danger">需要检查</Tag>}>
+      <Panel title="审计日志" bodyClassName="p-0" right={chain.ok ? <Tag tone="info">哈希链完整</Tag> : <Tag tone="danger">需要检查</Tag>}>
       {logs.length === 0 ? (
         <Empty>暂无审计记录</Empty>
       ) : (
@@ -81,11 +81,6 @@ export default async function AuditPage() {
         每条记录通过 SHA-256 与前一条串联（prevHash），任何历史篡改都会破坏链条并在上方标记；所有写操作（含 CSV 导入、成员切换）自动留痕。
       </p>
       </Panel>
-
-      <details className="border-y border-line py-4">
-        <summary className="flex list-none items-center justify-between text-[15px] text-ink-dim [&::-webkit-details-marker]:hidden"><span>技术链路说明</span><span>＋</span></summary>
-        <p className="mt-5 max-w-3xl text-[14px] leading-7 text-ink-faint">每条记录通过 SHA-256 与前一条串联（prevHash）；任何历史篡改都会破坏链条。所有写操作，包括 CSV 导入和成员切换，都会自动留痕。</p>
-      </details>
     </div>
   )
 }

@@ -276,7 +276,7 @@ export default async function DataHealthPage() {
   return (
     <div className="page-shell health-page">
       <header className="health-header">
-        <div><span className="eyebrow">Data confidence center</span><h1>数据健康中心</h1><p>集中查看哪些数字可以直接使用、哪些仍依赖成本回落、手工估值或待确认事件。</p></div>
+        <div><h1>数据健康中心</h1></div>
         <div className="flex gap-6"><Link href="/health/market">行情质量 →</Link><Link href="/audit">审计记录 →</Link></div>
       </header>
 
@@ -302,14 +302,14 @@ export default async function DataHealthPage() {
 
       {dashboard.ctx.role !== 'VIEWER' && (
         <section className="health-repair-strip">
-          <div><span className="eyebrow">Safe repair</span><strong>行情与派生快照维护</strong><p>服务器按市场收盘时段自动增量刷新；这里保留完整补齐与重建作为人工修复，不会改写交易流水。</p></div>
+          <div><strong title="服务器按市场收盘时段自动增量刷新；这里保留完整补齐与重建作为人工修复，不会改写交易流水">行情与派生快照维护</strong></div>
           <HealthRepairActions />
         </section>
       )}
 
       <section className="health-layout">
         <div className="health-issue-panel">
-          <header><div><span className="eyebrow">Action queue</span><h2>待办检查</h2></div><span>{issues.length} 项</span></header>
+          <header><div><h2>待办检查</h2></div><span>{issues.length} 项</span></header>
           {issues.length === 0 ? (
             <div className="health-empty"><strong>没有待处理的数据问题</strong><p>账本、估值、账户结算和审计链均通过当前检查。</p></div>
           ) : (
@@ -327,7 +327,7 @@ export default async function DataHealthPage() {
         </div>
 
         <aside className="health-evidence-panel">
-          <header><span className="eyebrow">Evidence</span><h2>检查依据</h2></header>
+          <header><h2>检查依据</h2></header>
           <div className="health-evidence-list">
             <div><span>组合估值覆盖</span><strong className="num">{fmtPct(dashboard.review.valuationCoverage)}</strong><small>{dashboard.review.valuationGapCount} 项缺口</small></div>
             <div><span>最近快照</span><strong className="num">{latestSnapshot ? fmtDate(latestSnapshot.date) : '—'}</strong><small>{latestSnapshotAge == null ? '尚无快照' : latestSnapshotAge === 0 ? '今天已生成' : `${latestSnapshotAge} 天前`}</small></div>
@@ -342,12 +342,11 @@ export default async function DataHealthPage() {
               })}
             </div>
           )}
-          <p className="health-evidence-note">健康中心只诊断并提供修复入口，不会自动修改流水、估值或目标配置。</p>
         </aside>
       </section>
 
       <section className="health-job-center">
-        <header><div><span className="eyebrow">Market job center</span><h2>行情任务中心</h2></div><span>单家庭刷新 · 06:30 / 16:30 / 22:30</span></header>
+        <header><div><h2>行情任务中心</h2></div><span>单家庭刷新 · 06:30 / 16:30 / 22:30</span></header>
         <div className="health-job-grid">
           <div className="health-job-schedule"><div><b className="num">06:30</b><span>美股收盘与外汇回填</span></div><div><b className="num">16:30</b><span>A/H 股收盘落库</span></div><div><b className="num">22:30</b><span>基金官方净值回填</span></div></div>
           <div className="health-job-timeline">
@@ -362,7 +361,7 @@ export default async function DataHealthPage() {
       </section>
 
       <section id="fund-confirmation" className="health-confirmation-center">
-        <header><div><span className="eyebrow">Fund closure</span><h2>基金确认闭环</h2></div><Link href="/fund-confirmations">进入份额核对 →</Link></header>
+        <header><div><h2>基金确认闭环</h2></div><Link href="/fund-confirmations">进入份额核对 →</Link></header>
         <div className="health-confirmation-list">
           {actionableFundEvents.length === 0 ? <div className="health-empty"><strong>没有待确认的基金事件</strong><p>估算净值与赎回到账均已闭环。</p></div> : actionableFundEvents.map((tx) => {
             const isEstimate = tx.navSource === 'ESTIMATE' || tx.navSource === 'PENDING'
