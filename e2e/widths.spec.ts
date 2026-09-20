@@ -12,6 +12,7 @@ const PAGES = [
   ['/review/history', '长期复盘'],
   ['/goals', 'FIRE'],
   ['/health/market', '行情质量'],
+  ['/investment-plans', '定投'],
 ] as const
 
 const WIDTHS = [560, 640, 700, 800, 1100, 1280, 1300, 1350, 1440] as const

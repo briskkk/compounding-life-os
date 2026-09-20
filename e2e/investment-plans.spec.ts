@@ -19,12 +19,15 @@ test('定投管理：创建计划、核对既有 BUY 并结束计划', async ({ 
   await page.goto('/investment-plans?month=2026-07')
   const plan = page.getByRole('article').filter({ hasText: '沪深 300 月定投' })
   await expect(plan).toBeVisible()
-  await expect(plan.getByText('本月计划', { exact: true })).toBeVisible()
-  await expect(plan.getByText('实际投入')).toBeVisible()
+  // 一行式轨道：指标合并为「实际 / 到期」，本月计划额与完成率并排呈现
+  await expect(plan.locator('.investment-plan-row-metrics')).toContainText('本月计划')
+  await expect(plan.locator('.investment-plan-row-metrics')).toContainText('实际 / 到期')
+  await expect(plan.locator('.investment-plan-row-metrics')).toContainText('截至今日完成率')
   await expect(page.getByText('1 笔有效 BUY')).toBeVisible()
-  await expect(plan.getByText('本月计划日 · 1')).toBeVisible()
+  await expect(plan.locator('.investment-plan-row-detail > summary')).toContainText('本月计划日 1')
   await expect(plan.locator('.investment-plan-day')).toContainText('07/15')
-  await expect(plan.locator('.investment-plan-execution')).toContainText('已录入 1')
+  // 计数并入折叠区摘要行，逐日格子本体只保留当天状态
+  await expect(plan.locator('.investment-plan-row-detail > summary')).toContainText('已录入 1')
   for (const width of [1280, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
@@ -63,12 +66,11 @@ test('定投管理：核对平台实际申购后快速录入，计划节点不�
   const day = page.locator('.investment-plan-entry-day').filter({ hasText: '2026-07-20' }).first()
   await expect(day).toBeVisible()
   await expect(day).toContainText('1 个待核对节点')
-  await day.locator('summary').click()
-  await day.getByLabel('易方达消费行业已实际申购').check()
-  await day.getByLabel('易方达消费行业实际申购金额').fill('123')
-  await day.getByLabel(/我已核对平台记录/).check()
-  await day.getByRole('button', { name: /录入 1 笔/ }).click()
-  await expect(page.getByTestId('write-flash')).toContainText('1 笔实际申购已录入')
+  await day.getByLabel('易方达消费行业 已实际申购').check()
+  await day.getByLabel('易方达消费行业 实际申购金额').fill('123')
+  await page.getByLabel('所选申购与平台记录一致').check()
+  await page.getByRole('button', { name: /一次提交 1 笔/ }).click()
+  await expect(page.getByTestId('write-flash')).toContainText('1 笔已录入')
   await expect(page.getByText('1 笔 / ¥123.00 待官方净值确认')).toBeVisible()
   await expect(page.getByRole('article').filter({ hasText: '易方达消费定投' }).locator('.investment-plan-day').first()).toContainText('份额待确认')
 
@@ -78,8 +80,7 @@ test('定投管理：核对平台实际申购后快速录入，计划节点不�
   expect(assetId).toBeTruthy()
   expect(accountId).toBeTruthy()
 
-  const staleDay = page.locator('.investment-plan-entry-day').filter({ hasText: '2026-07-21' }).first()
-  await expect(staleDay).toBeVisible()
+  // 同日已有有效 BUY 的节点不再出现在待核对队列：即使账本被外部写入，界面也不会提示重复录入
   const existingBuy = await page.request.post('/api/transactions', { data: {
     accountId,
     assetId,
@@ -95,15 +96,10 @@ test('定投管理：核对平台实际申购后快速录入，计划节点不�
     settleCash: true,
   } })
   expect(existingBuy.ok()).toBe(true)
-  await staleDay.locator('summary').click()
-  await staleDay.getByLabel('易方达消费行业已实际申购').check()
-  await staleDay.getByLabel(/我已核对平台记录/).check()
-  await staleDay.getByRole('button', { name: /录入 1 笔/ }).click()
-  await expect(staleDay.getByRole('alert')).toContainText('已有有效买入流水')
-  await staleDay.getByLabel('易方达消费行业已实际申购').uncheck()
-  await staleDay.getByLabel(/未勾选的 1 只基金.*确实没有买入/).check()
-  await staleDay.getByRole('button', { name: /确认 1 只未买/ }).click()
-  await expect(staleDay.getByRole('alert')).toContainText('已有有效买入')
+  await page.goto('/investment-plans?month=2026-07')
+  // 该日已有有效 BUY：队列里不应再提示补录，逐日格直接显示已录入
+  await expect(page.locator('.investment-plan-entry-day').filter({ hasText: '2026-07-21' })).toHaveCount(0)
+  await expect(page.getByRole('article').filter({ hasText: '易方达消费定投' }).locator('.investment-plan-day').filter({ hasText: '07/21' })).toContainText('已录入')
 
   // 种子账本已有 9/15 的同账户同基金 BUY，9/14 漏录日仍须可从计划格直接进入并录入。
   await page.goto('/investment-plans?month=2026-09')
@@ -112,35 +108,165 @@ test('定投管理：核对平台实际申购后快速录入，计划节点不�
   await expect(missingSep14).toContainText('去核对本日')
   await missingSep14.click()
   const sep14Entry = page.locator('#quick-entry-2026-09-14-CNY')
-  await expect(sep14Entry).toHaveAttribute('open', '')
-  await sep14Entry.getByLabel('易方达消费行业已实际申购').check()
-  await sep14Entry.getByLabel('易方达消费行业实际申购金额').fill('125')
-  await sep14Entry.getByLabel(/我已核对平台记录/).check()
-  await sep14Entry.getByRole('button', { name: /录入 1 笔/ }).click()
-  await expect(page.getByTestId('write-flash')).toContainText('1 笔实际申购已录入')
+  await expect(sep14Entry).toBeVisible()
+  await sep14Entry.getByLabel('易方达消费行业 已实际申购').check()
+  await sep14Entry.getByLabel('易方达消费行业 实际申购金额').fill('125')
+  await page.getByLabel('所选申购与平台记录一致').check()
+  await page.getByRole('button', { name: /一次提交 1 笔/ }).click()
+  await expect(page.getByTestId('write-flash')).toContainText('1 笔已录入')
   await expect(septemberPlan.locator('.investment-plan-day').filter({ hasText: '09/14' })).toContainText('已录入')
 })
 
 test('定投管理：整日未买一次核对、计划状态可撤销，历史日期仍可直达', async ({ page }) => {
   await page.goto('/investment-plans?month=2026-09')
   const plan = page.getByRole('article').filter({ hasText: '易方达消费定投' })
-  const beforeActual = await plan.locator('.investment-plan-amounts > div').nth(2).locator('b').textContent()
+  const beforeActual = await plan.locator('.investment-plan-row-metrics > div').filter({ hasText: '实际 / 到期' }).locator('b').textContent()
   const noBuyDay = plan.locator('.investment-plan-day').filter({ hasText: '09/11' })
   await noBuyDay.click()
   const entry = page.locator('#quick-entry-2026-09-11-CNY')
-  await expect(entry).toHaveAttribute('open', '')
-  await entry.getByLabel(/未勾选的 1 只基金.*确实没有买入/).check()
-  await entry.getByRole('button', { name: /确认 1 只未买/ }).click()
-  await expect(page.getByTestId('write-flash')).toContainText('1 只已核对未买入')
+  await expect(entry).toBeVisible()
+  await entry.getByRole('button', { name: '本日未买' }).click()
+  await expect(entry).toContainText('已标记未买')
+  // 批量条只按「未选的已标记未买」计数，按钮文案带只数（无勾选时不再回落到「一次确认未买」）
+  await page.getByRole('button', { name: '确认 1 只未买' }).click()
+  await expect(page.getByTestId('write-flash')).toContainText('1 只已核对未买')
   await expect(plan.locator('.investment-plan-day').filter({ hasText: '09/11' })).toContainText('未买入')
   await expect(page.locator('#quick-entry-2026-09-11-CNY')).toHaveCount(0)
-  expect(await plan.locator('.investment-plan-amounts > div').nth(2).locator('b').textContent()).toBe(beforeActual)
+  expect(await plan.locator('.investment-plan-row-metrics > div').filter({ hasText: '实际 / 到期' }).locator('b').textContent()).toBe(beforeActual)
 
   await plan.locator('.investment-plan-day').filter({ hasText: '09/11' }).getByRole('button', { name: '撤销未买确认' }).click()
   await expect(plan.locator('.investment-plan-day').filter({ hasText: '09/11' })).toContainText('待核对')
   await expect(page.locator('#quick-entry-2026-09-11-CNY')).toBeVisible()
 
   await plan.locator('.investment-plan-day').filter({ hasText: '09/01' }).click()
-  await expect(page.locator('#quick-entry-history')).toHaveAttribute('open', '')
-  await expect(page.locator('#quick-entry-2026-09-01-CNY')).toHaveAttribute('open', '')
+  // 历史日期直达：按日核对区仍直接渲染该日（批量核对重构后不再有折叠的「历史日期」区）
+  const sep01Entry = page.locator('#quick-entry-2026-09-01-CNY')
+  await expect(sep01Entry).toBeVisible()
+  await expect(sep01Entry).toContainText('2026-09-01')
+  await expect(sep01Entry.locator('tbody tr')).toHaveCount(1)
+})
+
+test('定投管理：跨日跨基金一次提交，未勾选的节点留待下次核对', async ({ page }) => {
+  // 复用上一条用例建立的计划「易方达消费定投」（天天基金 · 110022，2026-07-20 起每个工作日）。
+  // 07/20 与 07/21 在同一条用例里已录入，因此这两个日期不再出现在待核对队列。
+  await page.goto('/investment-plans?month=2026-07')
+  const jul22 = page.locator('#quick-entry-2026-07-22-CNY')
+  const jul23 = page.locator('#quick-entry-2026-07-23-CNY')
+  const jul24 = page.locator('#quick-entry-2026-07-24-CNY')
+  await expect(jul22).toBeVisible()
+  await expect(page.locator('#quick-entry-2026-07-20-CNY')).toHaveCount(0)
+
+  // 提交按钮不做禁用拦截：未勾选确认声明时点击，给出可读提示并把焦点送到复选框
+  const submit = page.getByRole('button', { name: /一次提交/ })
+  const confirm = page.getByLabel('所选申购与平台记录一致')
+  await expect(confirm).toBeDisabled()
+  await jul22.getByLabel('易方达消费行业 已实际申购').check()
+
+  await jul23.getByLabel('易方达消费行业 已实际申购').check()
+  await jul24.getByLabel('易方达消费行业 实际申购金额').fill('120')
+  await jul24.getByLabel('易方达消费行业 已实际申购').check()
+  await expect(page.locator('.investment-plan-batch-total')).toContainText('3 笔 · ¥320.00')
+  await expect(submit).toBeEnabled()
+  await submit.click()
+  await expect(page.locator('.investment-plan-batch-error')).toContainText('请先确认')
+  await expect(confirm).toBeFocused()
+
+  await confirm.check()
+  await submit.click()
+
+  // 三天一次提交，只有该日未勾选的日期仍留在队列里
+  await expect(page.getByTestId('write-flash')).toContainText('3 笔已录入')
+  await expect(page.locator('#quick-entry-2026-07-22-CNY')).toHaveCount(0)
+  await expect(page.locator('#quick-entry-2026-07-23-CNY')).toHaveCount(0)
+  await expect(page.locator('#quick-entry-2026-07-24-CNY')).toHaveCount(0)
+
+  const plan = page.getByRole('article').filter({ hasText: '易方达消费定投' })
+  await expect(plan.locator('.investment-plan-day').filter({ hasText: '07/22' })).toContainText('已录入')
+  await expect(plan.locator('.investment-plan-day').filter({ hasText: '07/24' })).toContainText('¥120.00')
+})
+
+test('定投管理：轨道按待核对/落后/已结束筛选，状态写在 URL 上', async ({ page }) => {
+  // 复用前面用例建立并编辑过的「易方达消费定投」（天天基金 · 110022）
+  await page.goto('/investment-plans?month=2026-07')
+  const filter = page.locator('.investment-plan-view-filter')
+  await expect(filter).toBeVisible()
+  await expect(filter.getByRole('link', { name: /^全部/ })).toHaveAttribute('aria-current', 'page')
+
+  // 待核对筛选：该计划在 7 月仍有未核对节点
+  await filter.getByRole('link', { name: /^待核对/ }).click()
+  await expect(page).toHaveURL(/view=pending/)
+  await expect(page.getByRole('article').filter({ hasText: '易方达消费定投' })).toBeVisible()
+  await expect(filter.getByRole('link', { name: /^待核对/ })).toHaveAttribute('aria-current', 'page')
+
+  // 已结束筛选：7 月的沪深 300 计划在首条用例里已结束，应出现在这里
+  await filter.getByRole('link', { name: /^已结束/ }).click()
+  await expect(page).toHaveURL(/view=ended/)
+  await expect(page.getByRole('article').filter({ hasText: '沪深 300 月定投' })).toBeVisible()
+  await expect(page.getByRole('article').filter({ hasText: '易方达消费定投' })).toHaveCount(0)
+
+  // 回到全部：筛选可前进后退
+  await page.goBack()
+  await expect(page).toHaveURL(/view=pending/)
+  await filter.getByRole('link', { name: /^全部/ }).click()
+  await expect(page).not.toHaveURL(/view=/)
+})
+
+test('定投管理：区间未买一次确认连续几天没有执行', async ({ page }) => {
+  await page.goto('/investment-plans?month=2026-09')
+  const window = page.locator('.investment-plan-window')
+  await expect(window).toBeVisible()
+  await window.locator('summary').click()
+  await expect(window).toContainText('区间未买')
+
+  // 09/16–09/17 是本月末两个待核对日，不受前面用例已录入的日期影响
+  await window.getByLabel('起始日期').fill('2026-09-16')
+  await window.getByLabel('结束日期').fill('2026-09-17')
+  const preview = window.locator('.investment-plan-window-preview')
+  await expect(preview).toContainText('已核对未买入')
+  const markedText = await preview.locator('p').first().innerText()
+  const marked = Number(/(\d+)/.exec(markedText)?.[1] ?? '0')
+  const coveredDays = Number(/覆盖 (\d+) 个计划日/.exec(markedText)?.[1] ?? '0')
+  expect(marked, `预览应给出可标记节点数：${markedText}`).toBeGreaterThan(0)
+  // 预告的覆盖天数必须与实际可标记节点一致（每天至少一个节点）
+  expect(coveredDays).toBeGreaterThan(0)
+  expect(marked).toBeGreaterThanOrEqual(coveredDays)
+
+  const submit = window.getByRole('button', { name: /^确认 \d+ 个节点未买入$/ })
+  await expect(submit).toBeDisabled()
+  await window.getByLabel(/我确认这些计划日/).check()
+  await expect(submit).toBeEnabled()
+  await submit.click()
+
+  await expect(page.getByTestId('write-flash')).toContainText('已核对未买入')
+  // 逐日格变为未买入，且不再出现在待核对队列
+  const plan = page.getByRole('article').filter({ hasText: '易方达消费定投' })
+  for (const day of ['09/16', '09/17']) {
+    await expect(plan.locator('.investment-plan-day').filter({ hasText: day })).toContainText('未买入')
+  }
+  await expect(page.locator('#quick-entry-2026-09-16-CNY')).toHaveCount(0)
+  // 未买不改账本投入
+  await expect(plan.locator('.investment-plan-row-metrics')).toContainText('实际 / 到期')
+})
+
+test('定投管理：编辑计划只影响未来节点，历史已录入日不变', async ({ page }) => {
+  await page.goto('/investment-plans?month=2026-09')
+  const plan = page.getByRole('article').filter({ hasText: '易方达消费定投' })
+  const beforeRecorded = await plan.locator('.investment-plan-row-detail > summary').innerText()
+
+  await plan.getByRole('button', { name: /编辑计划/ }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('编辑定投计划')
+  await dialog.getByLabel('每期金额').fill('300')
+  await dialog.getByRole('button', { name: '保存变更' }).click()
+
+  await expect(page.getByTestId('write-flash')).toContainText('计划已更新')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+
+  const updated = page.getByRole('article').filter({ hasText: '易方达消费定投' })
+  await expect(updated.locator('.investment-plan-row-id')).toContainText('¥300.00')
+  // 计划参数变了，但历史节点的已录入条数不受影响
+  await expect(updated.locator('.investment-plan-row-detail > summary')).toContainText(
+    /已录入 \d+/.exec(beforeRecorded)?.[0] ?? '已录入',
+  )
 })

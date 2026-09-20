@@ -307,7 +307,7 @@ export const cashPlanInputSchema = z.object({
   }
 })
 
-export const investmentPlanInputSchema = z.object({
+const investmentPlanFields = {
   name: z.string().trim().min(1, '计划名称必填').max(60),
   amount: z.number().positive('每期金额必须大于 0'),
   cadence: z.enum(['WEEKDAY', 'WEEKLY', 'MONTHLY']),
@@ -317,7 +317,16 @@ export const investmentPlanInputSchema = z.object({
   accountId: z.string().min(1).nullable().default(null),
   assetIds: z.array(z.string().min(1)).min(1, '至少选择一只执行资产').max(12),
   note: z.string().trim().max(300).nullable().default(null),
-}).superRefine((value, ctx) => {
+}
+
+/** 创建与编辑共用的计划字段校验。 */
+function refineInvestmentPlan(value: {
+  cadence: 'WEEKDAY' | 'WEEKLY' | 'MONTHLY'
+  scheduleDay: number | null
+  startDate: Date
+  endDate: Date | null
+  assetIds: string[]
+}, ctx: z.RefinementCtx) {
   if (new Set(value.assetIds).size !== value.assetIds.length) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: '执行资产不能重复', path: ['assetIds'] })
   }
@@ -333,9 +342,23 @@ export const investmentPlanInputSchema = z.object({
   if (value.endDate && value.endDate.getTime() < value.startDate.getTime()) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: '结束日期不能早于开始日期', path: ['endDate'] })
   }
-})
+}
+
+export const investmentPlanInputSchema = z.object(investmentPlanFields).superRefine(refineInvestmentPlan)
 
 const investmentPlanEntryDate = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/, '日期格式必须为 YYYY-MM-DD')
+
+/** 区间未买：一次确认连续日期区间内没有执行，只写可撤销的计划层证据。 */
+export const investmentPlanNoBuyWindowSchema = z.object({
+  from: investmentPlanEntryDate,
+  to: investmentPlanEntryDate,
+  planIds: z.array(z.string().min(1)).min(1, '至少选择一条计划').max(50),
+  confirmedNoBuy: z.literal(true, { errorMap: () => ({ message: '需要明确确认这些计划日没有执行' }) }),
+}).superRefine((value, ctx) => {
+  if (value.to < value.from) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '结束日期不能早于开始日期', path: ['to'] })
+  }
+})
 
 export const investmentPlanBuysInputSchema = z.object({
   confirmedActual: z.boolean().default(false),
@@ -389,3 +412,6 @@ export const fundTradePolicyInputSchema = z.object({
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: '暂停结束日不能早于开始日', path: ['purchaseSuspendedUntil'] })
   }
 })
+
+/** 计划编辑：与创建同一套字段约束，另需计划 id。 */
+export const investmentPlanEditSchema = z.object({ ...investmentPlanFields, id: z.string().min(1) }).superRefine(refineInvestmentPlan)

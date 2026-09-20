@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildInvestmentPlanMonth,
   scheduledDatesInMonth,
+  scheduledDatesInMonthByPlan,
   unrecordedScheduledDatesInMonth,
   type InvestmentPlanInput,
   type InvestmentPlanDayReviewInput,
@@ -85,6 +86,24 @@ describe('定投计划', () => {
     ], now, [{ ...reviews[0], revokedAt: null }])
     expect(bought.rows[0].days.find((day) => day.date.getDate() === 14)?.status).toBe('RECORDED')
     expect(bought.rows[0].days.find((day) => day.date.getDate() === 14)?.hasNoBuyReviewConflict).toBe(true)
+  })
+
+  it('待核对队列按计划日分组：同日多只基金合并，且不受已录入影响', () => {
+    const first = plan({ id: 'plan-a', accountId: 'jd', assetIds: ['fund-a'] })
+    const second = plan({ id: 'plan-b', accountId: 'jd', assetIds: ['fund-b'] })
+    const byPlan = scheduledDatesInMonthByPlan('2026-09', [first, second])
+    expect(byPlan.get('plan-a')).toHaveLength(22)
+    expect(byPlan.get('plan-b')).toHaveLength(22)
+    expect(byPlan.get('plan-a')!.map((date) => date.getDate())).toEqual(byPlan.get('plan-b')!.map((date) => date.getDate()))
+
+    // 已录入不影响分组本身：分组只回答「这天有哪些计划节点」，是否待核对由 unrecorded 决定
+    const now = new Date(2026, 8, 2, 18)
+    const target = plan({ id: 'plan-c', accountId: 'jd', assetIds: ['fund-a'] })
+    const pending = unrecordedScheduledDatesInMonth('2026-09', target, [
+      { id: 'b1', accountId: 'jd', assetId: 'fund-a', amount: 100, occurredAt: new Date(2026, 8, 1, 12), navSource: 'PENDING' },
+    ], now)
+    expect(byPlan.get('plan-c') ?? scheduledDatesInMonthByPlan('2026-09', [target]).get('plan-c')).toHaveLength(22)
+    expect(pending.map((date) => date.getDate())).toEqual([2])
   })
 
   it('月度日期按月末收口，并尊重计划结束日', () => {

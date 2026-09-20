@@ -147,6 +147,11 @@ export function unrecordedScheduledDatesInMonth(
   ))
 }
 
+/** 该月的计划节点，不做「是否已录入」过滤；用于待核对队列按计划日分组展示。 */
+export function scheduledDatesInMonthByPlan(month: string, plans: InvestmentPlanInput[]): Map<string, Date[]> {
+  return new Map(plans.map((plan) => [plan.id, scheduledDatesInMonth(month, plan)]))
+}
+
 function nextScheduledDate(plan: InvestmentPlanInput, now: Date): Date | null {
   const start = Math.max(dayStart(now), dayStart(plan.startDate))
   for (let offset = 0; offset <= 370; offset++) {

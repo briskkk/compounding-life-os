@@ -4,10 +4,11 @@ import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { Empty, PageHeader, SetupScreen, Tag, ReadOnlyNotice } from '@/components/ui'
 import { InvestmentPlanForm, EndInvestmentPlanButton } from '@/components/investment-plan-form'
-import { InvestmentPlanQuickEntry, type QuickEntryDay } from '@/components/investment-plan-quick-entry'
+import { InvestmentPlanEditDialog } from '@/components/investment-plan-edit-dialog'
+import { InvestmentPlanQuickEntry, type QuickEntryDay, type NoBuyWindowPlan } from '@/components/investment-plan-batch-entry'
 import { RevokeInvestmentPlanNoBuyButton } from '@/components/investment-plan-no-buy-button'
 import { HashOpenDetails } from '@/components/hash-open-details'
-import { buildInvestmentPlanMonth, unrecordedScheduledDatesInMonth, type InvestmentPlanPace } from '@/lib/engine/investment-plan'
+import { buildInvestmentPlanMonth, scheduledDatesInMonth, unrecordedScheduledDatesInMonth, type InvestmentPlanPace } from '@/lib/engine/investment-plan'
 import { dateKeyAt } from '@/lib/engine/watch-market'
 import { cx, fmtDate, fmtMoney, fmtPct } from '@/lib/format'
 
@@ -46,6 +47,11 @@ const PACE: Record<InvestmentPlanPace, { label: string; tone: 'down' | 'amber' |
   ENDED: { label: '已结束', tone: 'dim' },
 }
 
+function dateInput(value: Date | null | undefined): string {
+  if (!value) return ''
+  return value.toISOString().slice(0, 10)
+}
+
 function scheduleLabel(cadence: keyof typeof CADENCE_LABEL, scheduleDay: number | null): string {
   if (cadence === 'WEEKDAY') return CADENCE_LABEL[cadence]
   if (cadence === 'WEEKLY') return `${CADENCE_LABEL[cadence]}${['日', '一', '二', '三', '四', '五', '六'][scheduleDay ?? 1]}`
@@ -55,7 +61,7 @@ function scheduleLabel(cadence: keyof typeof CADENCE_LABEL, scheduleDay: number 
 export default async function InvestmentPlansPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>
+  searchParams: Promise<{ month?: string; view?: string }>
 }) {
   const sp = await searchParams
   const ctx = await getSession()
@@ -138,14 +144,57 @@ export default async function InvestmentPlansPage({
     }
   }
   const quickEntryDays = [...quickEntryByDay.values()].sort((a, b) => a.date.localeCompare(b.date) || a.currency.localeCompare(b.currency))
+  // 区间未买需要知道每个计划在该月的全部计划日；已限定账户 + 单只场外基金的计划才参与
+  const quickEntryPlanIds = new Set(plans
+    .filter((plan) => plan.accountId && plan.assets.length === 1 && plan.assets[0].asset.cls === 'FUND')
+    .map((plan) => plan.id))
+  const windowPlans: NoBuyWindowPlan[] = plans
+    .filter((plan) => quickEntryPlanIds.has(plan.id))
+    .map((plan) => ({
+      id: plan.id,
+      name: plan.name,
+      amount: Number(plan.amount),
+      currency: plan.currency,
+      dates: scheduledDatesInMonth(selectedMonth, enginePlans.find((item) => item.id === plan.id)!)
+        .map((date) => dateKeyAt(date))
+        .filter((date) => date <= dateKeyAt(new Date())),
+    }))
+    .filter((plan) => plan.dates.length > 0)
   const quickEntryPlanDates = new Set(quickEntryDays.flatMap((day) => day.rows.map((row) => `${row.planId}|${day.date}`)))
+  const pendingNodes = quickEntryDays.reduce((sum, day) => sum + day.rows.length, 0)
+  const earliestPending = quickEntryDays[0] ? quickEntryDays[0].date.slice(5).replace('-', '/') : null
+  // 批量核对只支持「已限定账户 + 单只场外基金」（ADR-024 第 5 条）；其余计划的待核对节点必须有出口。
+  const cannotBatchEnter = plans.flatMap((plan) => {
+    if (plan.accountId && plan.assets.length === 1 && plan.assets[0].asset.cls === 'FUND') return []
+    const entryPlan = enginePlans.find((item) => item.id === plan.id)!
+    const count = unrecordedScheduledDatesInMonth(selectedMonth, entryPlan, engineBuys, new Date(), engineReviews).length
+    if (count === 0) return []
+    const reason = plan.assets.length !== 1 ? `${plan.assets.length} 只候选资产` : !plan.accountId ? '未限定账户' : '非场外基金'
+    return [{ name: plan.name, reason, count }]
+  })
 
   const planById = new Map(plans.map((plan) => [plan.id, plan]))
   const currentMonth = monthKey()
-  const visibleRows = report.rows.filter((row) => (
+  const monthRows = report.rows.filter((row) => (
     row.scheduledDates.length > 0
     || row.transactionCount > 0
     || (selectedMonth === currentMonth && planById.get(row.id)?.status === 'ACTIVE')
+  ))
+  // 本轮仍有待核对节点的计划：用于「待核对」筛选，不受已勾选状态影响
+  const plansWithPending = new Set(quickEntryDays.flatMap((day) => day.rows.map((row) => row.planId)))
+  const PLAN_VIEWS = ['all', 'pending', 'behind', 'ended'] as const
+  const view = (PLAN_VIEWS as readonly string[]).includes(sp.view ?? '') ? sp.view as typeof PLAN_VIEWS[number] : 'all'
+  const viewCount = (key: typeof PLAN_VIEWS[number]) => monthRows.filter((row) => (
+    key === 'all' ? true
+      : key === 'pending' ? plansWithPending.has(row.id)
+        : key === 'behind' ? row.pace === 'BEHIND'
+          : row.pace === 'ENDED'
+  )).length
+  const visibleRows = monthRows.filter((row) => (
+    view === 'all' ? true
+      : view === 'pending' ? plansWithPending.has(row.id)
+        : view === 'behind' ? row.pace === 'BEHIND'
+          : row.pace === 'ENDED'
   ))
   const totalsByCurrency = new Map<string, { planned: number; due: number; actual: number }>()
   for (const row of visibleRows) {
@@ -163,9 +212,8 @@ export default async function InvestmentPlansPage({
   return (
     <div className="page-shell investment-plans-page">
       <PageHeader
-        kicker="Plan × ledger"
         title="定投不是一串提醒，而是一条可核对的轨道。"
-        description="计划定义节奏，账本记录实际投入。可在下方批量核对并录入平台已发生的申购；计划本身不会自动下单或写入交易。"
+        description="计划定义节奏，账本记录实际投入。"
         right={(
           <div className="flex flex-wrap items-center justify-end gap-4">
             <Link href="/accounts?view=calendar" className="text-[13px] text-ink-dim transition-colors hover:text-accent">资金日历 →</Link>
@@ -176,7 +224,7 @@ export default async function InvestmentPlansPage({
 
       <section className="investment-plan-console" aria-label="定投月度执行摘要">
         <header>
-          <div><span className="eyebrow">Execution month</span><h2>{year} 年 {month} 月</h2></div>
+          <div><h2>{year} 年 {month} 月</h2></div>
           <nav aria-label="定投月份">
             <Link href={`/investment-plans?month=${shiftMonth(selectedMonth, -1)}`}>← 上月</Link>
             <Link href="/investment-plans">本月</Link>
@@ -184,120 +232,159 @@ export default async function InvestmentPlansPage({
           </nav>
         </header>
         <div className="investment-plan-summary">
+          <div className="is-pending"><span>待核对</span><strong className="num text-amber">{pendingNodes}</strong><small title={earliestPending ? `最早待核对计划日 ${earliestPending}` : '本月没有待核对节点'}>{earliestPending ? `最早 ${earliestPending}` : '本月已核对完'} →</small></div>
           <div><span>有效计划</span><strong className="num">{report.activePlans}</strong><small>只统计未结束策略</small></div>
           <div><span>本月计划</span><strong className="num">{amountList('planned')}</strong><small>{report.scheduledOccurrences} 个计划节点</small></div>
           <div><span>截至今日应投</span><strong className="num">{amountList('due')}</strong><small>{report.dueOccurrences} 个已到期节点</small></div>
           <div><span>账本实际投入</span><strong className="num text-accent">{amountList('actual')}</strong><small>{report.transactionCount} 笔有效 BUY</small></div>
-          <div><span>净值待确认</span><strong className="num text-amber">{report.pendingCount}</strong><small>金额已计入实际投入</small></div>
+          <div><span>净值待确认</span><strong className="num text-amber">{report.pendingCount}</strong><small><Link href="/fund-confirmations">去基金确认 →</Link></small></div>
         </div>
       </section>
 
-      <section className="investment-plan-quick-entry" aria-label="定投实际申购快速录入">
+      <section className="investment-plan-quick-entry" id="confirm-actual-buys" aria-label="定投实际申购批量核对">
         <header>
-          <div><span className="eyebrow">Confirm actual buys</span><h2>核对并快速录入</h2></div>
-          <p>按日核对：勾选实际买入的基金；若未勾选的当天确实没买，可一次确认未执行。两种结果均由你明确确认，未买入不会生成流水。</p>
+          <div><h2>核对并快速录入</h2></div>
+          <p title="按日核对：勾选实际买入的基金，未勾选的当天确实没买时可用「本日未买」一次确认。两种结果都由你明确确认，未买入不会生成流水。">{pendingNodes > 0 ? `${quickEntryDays.length} 个待核对日 · ${pendingNodes} 个节点` : '本月没有待核对节点'}</p>
         </header>
-        {canWrite ? <InvestmentPlanQuickEntry days={quickEntryDays} foldBefore={selectedMonth === monthKey() ? dateKeyAt(new Date(Date.now() - 7 * 86400000)) : undefined} /> : <ReadOnlyNotice what="可以查看计划与执行记录，但不能录入实际申购" className="investment-plan-entry-empty" />}
+        {canWrite ? <InvestmentPlanQuickEntry days={quickEntryDays} windowPlans={windowPlans} /> : <ReadOnlyNotice what="可以查看计划与执行记录，但不能录入实际申购" className="investment-plan-entry-empty" />}
+        {cannotBatchEnter.length > 0 && (
+          <p className="investment-plan-entry-limit">
+            另有 {cannotBatchEnter.reduce((sum, item) => sum + item.count, 0)} 个节点需在
+            {' '}<Link href="/transactions?type=BUY">流水页录入</Link>：{cannotBatchEnter.map((item) => `${item.name}（${item.reason}）`).join('、')}
+          </p>
+        )}
       </section>
 
       <section className="investment-plan-workbench">
         <div className="investment-plan-ledger">
           <header>
-            <div><span className="eyebrow">Plan × ledger</span><h2>逐日执行</h2></div>
-            <p>每个计划日直接标明账本是否已有买入；净值待确认的买入仍计入实际投入。</p>
+            <div><h2 title="每个计划日直接标明账本是否已有买入；净值待确认的买入仍计入实际投入">逐日执行</h2></div>
+            <nav className="investment-plan-view-filter" aria-label="计划筛选">
+              {([['all', '全部'], ['pending', '待核对'], ['behind', '落后'], ['ended', '已结束']] as const).map(([key, label]) => (
+                <Link
+                  key={key}
+                  href={key === 'all' ? `/investment-plans?month=${selectedMonth}` : `/investment-plans?month=${selectedMonth}&view=${key}`}
+                  aria-current={view === key ? 'page' : undefined}
+                >
+                  {label} <span className="num">{viewCount(key)}</span>
+                </Link>
+              ))}
+            </nav>
           </header>
 
           {visibleRows.length === 0 ? (
             <Empty action={canWrite ? { href: '#new-investment-plan', label: '建立第一条定投计划' } : undefined}>
-              {plans.length === 0 ? '还没有定投计划' : '所选月份没有计划或实际买入'}
+              {plans.length === 0 ? '还没有定投计划' : view === 'all' ? '所选月份没有计划或实际买入' : '当前筛选下没有计划'}
             </Empty>
           ) : (
             <div className="investment-plan-rows">
               {visibleRows.map((row) => {
                 const plan = planById.get(row.id)!
                 const pace = PACE[row.pace]
-                const difference = row.actualAmount - row.dueAmount
+                const completion = row.dueAmount > 0 ? row.actualAmount / row.dueAmount : null
                 const recordedDays = row.days.filter((day) => day.status === 'RECORDED').length
                 const confirmedNoBuyDays = row.days.filter((day) => day.status === 'CONFIRMED_NO_BUY').length
                 const unrecordedDays = row.days.filter((day) => day.status === 'UNRECORDED_DUE').length
                 const upcomingDays = row.days.filter((day) => day.status === 'UPCOMING').length
-                const firstDayOffset = plan.cadence === 'WEEKDAY' && row.days.length > 0
-                  ? (row.days[0].date.getDay() + 6) % 7
+                // 7 列真实月历：按该月 1 日的星期定位，不再假定「周一开工、周末无节点」
+                const firstDayOffset = row.days.length > 0
+                  ? (new Date(row.days[0].date.getFullYear(), row.days[0].date.getMonth(), 1).getDay() + 6) % 7
                   : 0
+                // 进度条颜色跟「是否落后于到期计划」走，而不是按百分比阈值；
+                // 定投早期完成率天然很低，按阈值上色会把正常进度画成告警。
+                const behind = row.pace === 'BEHIND'
+                const progressTone = row.pace === 'ENDED' ? 'is-dim' : behind ? 'is-behind' : 'is-on-track'
                 return (
                   <article key={row.id} className={cx('investment-plan-row', row.pace === 'ENDED' && 'is-ended')}>
-                    <header>
-                      <div>
+                    <div className="investment-plan-row-main">
+                      <div className="investment-plan-row-id">
                         <div className="flex flex-wrap items-center gap-2"><h3>{plan.name}</h3><Tag tone={pace.tone}>{pace.label}</Tag></div>
-                        <p>{scheduleLabel(plan.cadence, plan.scheduleDay)} · 每期 {fmtMoney(Number(plan.amount), plan.currency)} · {plan.account?.name ?? '全部同币种账户'}</p>
+                        <p>{scheduleLabel(plan.cadence, plan.scheduleDay)} · 每期 {fmtMoney(Number(plan.amount), plan.currency)} · {plan.account?.name ?? '全部同币种账户'} · {plan.assets.map((item) => item.asset.symbol).join(' + ')}</p>
                       </div>
-                      <div className="investment-plan-row-actions">
-                        <Link href={plan.accountId ? `/transactions?account=${plan.accountId}&type=BUY` : '/transactions?type=BUY'}>查看流水</Link>
-                        {canWrite && plan.status === 'ACTIVE' && row.pace !== 'ENDED' && <EndInvestmentPlanButton id={plan.id} name={plan.name} />}
-                      </div>
-                    </header>
-
-                    <div className="investment-plan-amounts">
-                      <div><span>本月计划</span><b className="num">{fmtMoney(row.plannedAmount, row.currency)}</b></div>
-                      <div><span>截至今日</span><b className="num">{fmtMoney(row.dueAmount, row.currency)}</b></div>
-                      <div><span>实际投入</span><b className="num text-accent">{fmtMoney(row.actualAmount, row.currency)}</b></div>
-                      <div><span>相对到期计划</span><b className={cx('num', difference >= -0.01 ? 'text-down' : 'text-amber')}>{fmtMoney(difference, row.currency, { sign: true })}</b></div>
-                      <div><span>截至今日金额完成率</span><b className="num">{fmtPct(row.dueAmount > 0 ? row.actualAmount / row.dueAmount : null)}</b></div>
-                    </div>
-
-                    <div className="investment-plan-execution" aria-label={`${plan.name}本月逐日执行情况`}>
-                      <div className="investment-plan-execution-heading">
-                        <strong>本月计划日 · {row.days.length}</strong>
-                        <div className="investment-plan-execution-counts">
-                          <span className="is-recorded">已录入 {recordedDays}</span>
-                          <span className="is-no-buy">已核对未买 {confirmedNoBuyDays}</span>
-                          <span className="is-unrecorded">到期未录 {unrecordedDays}</span>
-                          <span className="is-upcoming">未到期 {upcomingDays}</span>
+                      <div className="investment-plan-row-metrics">
+                        <div className="investment-plan-completion">
+                          <span>{row.pace === 'ENDED' ? '结束前完成率' : '截至今日完成率'}</span>
+                          <b className={cx('num', row.pace === 'ENDED' ? 'text-dim' : behind ? 'text-amber' : undefined)}>{fmtPct(completion)}</b>
+                          <div className="investment-plan-completion-bar" aria-hidden="true"><i className={progressTone} style={{ width: `${Math.min(100, Math.max(0, (completion ?? 0) * 100))}%` }} /></div>
+                        </div>
+                        <div><span>实际 / 到期</span><b className="num">{fmtMoney(row.actualAmount, row.currency)} <small>/ {fmtMoney(row.dueAmount, row.currency)}</small></b></div>
+                        <div><span>本月计划</span><b className="num text-dim">{fmtMoney(row.plannedAmount, row.currency)}</b></div>
+                        <div><span>下一计划日</span><b className="num text-dim">{row.nextDate ? fmtDate(row.nextDate).slice(5) : '—'}</b></div>
+                        <div className="investment-plan-row-actions">
+                          <Link href={plan.accountId ? `/transactions?account=${plan.accountId}&type=BUY` : '/transactions?type=BUY'}>查看流水</Link>
+                          {canWrite && plan.status === 'ACTIVE' && row.pace !== 'ENDED' && (
+                            <InvestmentPlanEditDialog
+                              initial={{
+                                id: plan.id,
+                                name: plan.name,
+                                amount: Number(plan.amount),
+                                cadence: plan.cadence,
+                                scheduleDay: plan.scheduleDay,
+                                startDate: dateInput(plan.startDate),
+                                endDate: plan.endDate ? dateInput(plan.endDate) : null,
+                                accountId: plan.accountId,
+                                assetIds: plan.assets.map((item) => item.assetId),
+                                note: plan.note,
+                              }}
+                              assets={assets.map((asset) => ({ id: asset.id, symbol: asset.symbol, name: asset.name, cls: asset.cls, currency: asset.currency }))}
+                              accounts={accounts.map((account) => ({ id: account.id, name: account.name, currency: account.currency }))}
+                            />
+                          )}
+                          {canWrite && plan.status === 'ACTIVE' && row.pace !== 'ENDED' && <EndInvestmentPlanButton id={plan.id} name={plan.name} />}
                         </div>
                       </div>
-                      {row.days.length > 0 ? (
-                        <div className={cx('investment-plan-day-grid', plan.cadence === 'WEEKDAY' && 'is-weekday')}>
-                          {plan.cadence === 'WEEKDAY' && ['周一', '周二', '周三', '周四', '周五'].map((day) => <span key={day} className="investment-plan-weekday-label">{day}</span>)}
-                          {Array.from({ length: firstDayOffset }, (_, index) => <span key={`empty-${index}`} className="investment-plan-day-empty" aria-hidden="true" />)}
-                          {row.days.map((day) => {
-                            const dateKey = dateKeyAt(day.date)
-                            const canQuickEnter = canWrite && day.status === 'UNRECORDED_DUE' && quickEntryPlanDates.has(`${plan.id}|${dateKey}`)
-                            const dayClass = cx('investment-plan-day', `is-${day.status.toLowerCase().replace('_', '-')}`, canQuickEnter && 'is-actionable')
-                            const dayLabel = `${fmtDate(day.date)}：${day.status === 'RECORDED' ? `账本已录入 ${fmtMoney(day.actualAmount, row.currency)}${day.pendingCount ? '，份额待确认' : ''}` : day.status === 'CONFIRMED_NO_BUY' ? '已核对当天未买入' : day.status === 'UNRECORDED_DUE' ? canQuickEnter ? '到期但账本未录入，前往按日核对' : '到期但账本未录入' : '尚未到期'}`
-                            const dayContent = <>
-                              <span className="investment-plan-day-date num">{String(day.date.getMonth() + 1).padStart(2, '0')}/{String(day.date.getDate()).padStart(2, '0')}</span>
-                              <strong>{day.status === 'RECORDED' ? '已录入' : day.status === 'CONFIRMED_NO_BUY' ? '未买入' : day.status === 'UNRECORDED_DUE' ? '待核对' : '未到期'}</strong>
-                              <small>{day.status === 'RECORDED' ? fmtMoney(day.actualAmount, row.currency) : `计划 ${fmtMoney(Number(plan.amount), row.currency)}`}</small>
-                              {day.pendingCount > 0 && <em>份额待确认</em>}
-                              {day.hasNoBuyReviewConflict && <em className="investment-plan-day-review-conflict">账本已有买入，此前未买确认需撤销</em>}
-                              {canQuickEnter && <em className="investment-plan-day-action">去核对本日 →</em>}
-                              {canWrite && (day.status === 'CONFIRMED_NO_BUY' || day.hasNoBuyReviewConflict) && reviewByPlanDay.has(`${plan.id}|${dateKey}`) && <RevokeInvestmentPlanNoBuyButton id={reviewByPlanDay.get(`${plan.id}|${dateKey}`)!} />}
-                            </>
-                            return canQuickEnter
-                              ? <a key={day.date.getTime()} href={`#quick-entry-${dateKey}-${row.currency}`} className={dayClass} aria-label={dayLabel}>{dayContent}</a>
-                              : <div key={day.date.getTime()} className={dayClass} aria-label={dayLabel}>{dayContent}</div>
-                          })}
-                        </div>
-                      ) : <p className="investment-plan-day-none">本月没有计划日；实际买入仍在金额和流水中显示。</p>}
-                      {row.offScheduleDates.length > 0 && <p className="investment-plan-off-schedule">另有 {row.offScheduleDates.length} 个非计划日买入：{row.offScheduleDates.map((date) => `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`).join('、')}，已计入实际投入。</p>}
                     </div>
 
-                    <footer>
-                      <div>{plan.assets.map((item) => <span key={item.id}><b>{item.asset.symbol}</b>{item.asset.name}</span>)}</div>
-                      <p>{row.pendingCount > 0 ? `${row.pendingCount} 笔 / ${fmtMoney(row.pendingAmount, row.currency)} 待官方净值确认` : row.nextDate ? `下一计划日 ${fmtDate(row.nextDate)}` : '本计划没有后续节点'}</p>
-                    </footer>
+                    <details className="investment-plan-row-detail" open={unrecordedDays > 0}>
+                      <summary>
+                        <span>逐日证据</span>
+                        <span className="is-recorded">已录入 {recordedDays}</span>
+                        <span className="is-no-buy">已核对未买 {confirmedNoBuyDays}</span>
+                        <span className="is-unrecorded">待核对 {unrecordedDays}</span>
+                        <span className="is-upcoming">未到期 {upcomingDays}</span>
+                        <em>本月计划日 {row.days.length}</em>
+                      </summary>
+                      <div className="investment-plan-execution" aria-label={`${plan.name}本月逐日执行情况`}>
+                        {row.days.length > 0 ? (
+                          <div className="investment-plan-day-grid">
+                            {['一', '二', '三', '四', '五', '六', '日'].map((day) => <span key={day} className="investment-plan-weekday-label">{day}</span>)}
+                            {Array.from({ length: firstDayOffset }, (_, index) => <span key={`empty-${index}`} className="investment-plan-day-empty" aria-hidden="true" />)}
+                            {row.days.map((day) => {
+                              const dateKey = dateKeyAt(day.date)
+                              const canQuickEnter = canWrite && day.status === 'UNRECORDED_DUE' && quickEntryPlanDates.has(`${plan.id}|${dateKey}`)
+                              const dayClass = cx('investment-plan-day', `is-${day.status.toLowerCase().replace('_', '-')}`, canQuickEnter && 'is-actionable')
+                              const dayLabel = `${fmtDate(day.date)}：${day.status === 'RECORDED' ? `账本已录入 ${fmtMoney(day.actualAmount, row.currency)}${day.pendingCount ? '，份额待确认' : ''}` : day.status === 'CONFIRMED_NO_BUY' ? '已核对当天未买入' : day.status === 'UNRECORDED_DUE' ? canQuickEnter ? '到期但账本未录入，前往按日核对' : '到期但账本未录入' : '尚未到期'}`
+                              const dayContent = <>
+                                <span className="investment-plan-day-date num">{String(day.date.getMonth() + 1).padStart(2, '0')}/{String(day.date.getDate()).padStart(2, '0')}</span>
+                                <strong>{day.status === 'RECORDED' ? '已录入' : day.status === 'CONFIRMED_NO_BUY' ? '未买入' : day.status === 'UNRECORDED_DUE' ? '待核对' : '未到期'}</strong>
+                                <small>{day.status === 'RECORDED' ? fmtMoney(day.actualAmount, row.currency) : `计划 ${fmtMoney(Number(plan.amount), row.currency)}`}</small>
+                                {day.pendingCount > 0 && <em>份额待确认</em>}
+                                {day.hasNoBuyReviewConflict && <em className="investment-plan-day-review-conflict">账本已有买入，此前未买确认需撤销</em>}
+                                {canQuickEnter && <em className="investment-plan-day-action">去核对本日 →</em>}
+                                {canWrite && (day.status === 'CONFIRMED_NO_BUY' || day.hasNoBuyReviewConflict) && reviewByPlanDay.has(`${plan.id}|${dateKey}`) && <RevokeInvestmentPlanNoBuyButton id={reviewByPlanDay.get(`${plan.id}|${dateKey}`)!} />}
+                              </>
+                              return canQuickEnter
+                                ? <a key={day.date.getTime()} href={`#quick-entry-${dateKey}-${row.currency}`} className={dayClass} aria-label={dayLabel}>{dayContent}</a>
+                                : <div key={day.date.getTime()} className={dayClass} aria-label={dayLabel}>{dayContent}</div>
+                            })}
+                          </div>
+                        ) : <p className="investment-plan-day-none">本月没有计划日；实际买入仍在金额和流水中显示。</p>}
+                        {row.offScheduleDates.length > 0 && <p className="investment-plan-off-schedule">另有 {row.offScheduleDates.length} 个非计划日买入：{row.offScheduleDates.map((date) => `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`).join('、')}，已计入实际投入。</p>}
+                        <p className="investment-plan-row-note">{row.pendingCount > 0 ? `${row.pendingCount} 笔 / ${fmtMoney(row.pendingAmount, row.currency)} 待官方净值确认` : '本月无待确认份额'}</p>
+                      </div>
+                    </details>
                   </article>
                 )
               })}
             </div>
           )}
-          <p className="investment-plan-boundary">实际投入按“候选资产＋可选账户＋当月有效 BUY”合并。它用于执行核对，不证明每一笔买入都由计划触发；收益仍以组合复盘为准。</p>
+          <p className="investment-plan-boundary">实际投入按“候选资产 + 账户 + 当月有效 BUY”合并，用于执行核对；收益仍以组合复盘为准。</p>
         </div>
 
         {canWrite ? <HashOpenDetails
           id="new-investment-plan"
           className="investment-plan-editor"
-          summary={<><span><span className="eyebrow">Start a plan</span><strong>建立定投轨道</strong></span><small>按需展开计划编辑</small></>}
+          summary={<><span><strong>建立定投轨道</strong></span><small>按需展开计划编辑</small></>}
         >
           {assets.length > 0 ? (
             <InvestmentPlanForm

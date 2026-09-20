@@ -31,6 +31,8 @@ import {
   fundTradePolicyInputSchema,
   investmentPlanInputSchema,
   investmentPlanBuysInputSchema,
+  investmentPlanEditSchema,
+  investmentPlanNoBuyWindowSchema,
   liabilityEntryInputSchema,
   liabilityInputSchema,
   portfolioReviewInputSchema,
@@ -219,6 +221,96 @@ export async function createInvestmentPlan(input: unknown): Promise<ActionResult
   }
 }
 
+/** 编辑计划：ADR-028 —— 只影响未来计划节点，历史流水与未买证据不动。 */
+export async function updateInvestmentPlan(input: unknown): Promise<ActionResult<{ id: string }>> {
+  try {
+    const ctx = await requireWrite()
+    const data = investmentPlanEditSchema.parse(input)
+    const summary = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      const plan = await txDb.investmentPlan.findFirst({
+        where: { id: data.id, familyId: ctx.familyId },
+        include: { assets: true, account: true },
+      })
+      if (!plan) throw new Error('定投计划不存在')
+
+      const assets = await txDb.asset.findMany({
+        where: { familyId: ctx.familyId, id: { in: data.assetIds } },
+        orderBy: { symbol: 'asc' },
+      })
+      if (assets.length !== data.assetIds.length) throw new Error('部分执行资产不存在或不属于当前家庭')
+      const invalid = assets.filter((asset) => !['STOCK', 'FUND', 'ETF', 'GOLD'].includes(asset.cls))
+      if (invalid.length > 0) throw new Error('定投计划只支持股票、基金、ETF 或黄金')
+      const currencies = new Set(assets.map((asset) => asset.currency))
+      if (currencies.size !== 1) throw new Error('同一计划的候选资产必须使用相同币种')
+      const currency = assets[0].currency
+
+      let accountName = '全部账户'
+      if (data.accountId) {
+        const account = await txDb.account.findFirst({ where: { id: data.accountId, familyId: ctx.familyId } })
+        if (!account) throw new Error('所选账户不存在或不属于当前家庭')
+        if (account.currency !== currency) throw new Error('计划账户与候选资产的币种必须一致')
+        accountName = account.name
+      }
+
+      // 资产占用冲突：排除本计划自身
+      const occupied = await txDb.investmentPlanAsset.findMany({
+        where: {
+          familyId: ctx.familyId,
+          assetId: { in: data.assetIds },
+          planId: { not: plan.id },
+          plan: { status: 'ACTIVE', OR: [{ endDate: null }, { endDate: { gte: new Date() } }] },
+        },
+        include: { asset: true, plan: true },
+      })
+      if (occupied.length > 0) {
+        const conflict = occupied[0]
+        throw new Error(`${conflict.asset.symbol} 已属于有效计划「${conflict.plan.name}」，请先结束原计划`)
+      }
+
+      const changes = [
+        plan.name !== data.name ? `名称 ${plan.name} → ${data.name}` : null,
+        Number(plan.amount) !== data.amount ? `每期 ${Number(plan.amount)} → ${data.amount}` : null,
+        plan.cadence !== data.cadence ? `节奏 ${plan.cadence} → ${data.cadence}` : null,
+        plan.scheduleDay !== data.scheduleDay ? `执行日 ${plan.scheduleDay ?? '—'} → ${data.scheduleDay ?? '—'}` : null,
+        plan.accountId !== data.accountId ? `账户 ${plan.account?.name ?? '全部'} → ${accountName}` : null,
+      ].filter((item): item is string => item != null)
+      const assetChanged = plan.assets.map((item) => item.assetId).sort().join(',') !== assets.map((asset) => asset.id).sort().join(',')
+      const detail = `${data.name} · ${changes.length > 0 ? changes.join('；') : '仅更新说明'}${assetChanged ? '；候选资产已更新' : ''}`
+        + `\n历史流水与已核对证据不变；新节奏自 ${data.startDate.toISOString().slice(0, 10)} 起生效`
+
+      await txDb.investmentPlan.update({
+        where: { id: plan.id },
+        data: {
+          name: data.name,
+          amount: data.amount,
+          currency,
+          cadence: data.cadence,
+          scheduleDay: data.scheduleDay,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          accountId: data.accountId,
+          note: data.note,
+        },
+      })
+      if (assetChanged) {
+        await txDb.investmentPlanAsset.deleteMany({ where: { planId: plan.id } })
+        await txDb.investmentPlanAsset.createMany({
+          data: assets.map((asset) => ({ familyId: ctx.familyId, planId: plan.id, assetId: asset.id })),
+        })
+      }
+      await audit(ctx, 'UPDATE', 'InvestmentPlan', plan.id, detail, txDb)
+      return detail
+    })
+    void summary
+    revalidatePath('/investment-plans')
+    revalidatePath('/accounts')
+    revalidatePath('/month-close')
+    return { ok: true, data: { id: data.id } }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
 export async function endInvestmentPlan(id: string): Promise<ActionResult> {
   try {
     const ctx = await requireWrite()
@@ -388,6 +480,92 @@ export async function recordInvestmentPlanBuys(input: unknown): Promise<ActionRe
     revalidatePath('/month-close')
     revalidatePath('/review')
     return { ok: true, data: { count: result.count, noBuyCount: result.noBuyCount }, warning }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/**
+ * 区间未买：一次确认连续日期区间内没有执行，只写可撤销的计划层证据。
+ * 与逐日核对同一口径（ADR-026）：不改现金、持仓、收益、计划额；已有有效 BUY 或已核对的节点跳过并如实报告。
+ */
+export async function recordInvestmentPlanNoBuyWindow(
+  input: unknown,
+): Promise<ActionResult<{ count: number; created: number; refreshed: number; skipped: number }>> {
+  try {
+    const ctx = await requireWrite()
+    const data = investmentPlanNoBuyWindowSchema.parse(input)
+    const today = dateKeyAt(new Date())
+    if (data.to > today) throw new Error('未到期的计划日不能确认未买入')
+
+    const result = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      const plans = await txDb.investmentPlan.findMany({
+        where: { id: { in: data.planIds }, familyId: ctx.familyId },
+        include: { assets: { include: { asset: true } } },
+      })
+      if (plans.length !== data.planIds.length) throw new Error('部分计划不存在或不属于当前家庭')
+
+      let created = 0
+      let refreshed = 0
+      let skipped = 0
+      for (const plan of plans) {
+        const enginePlan = {
+          id: plan.id,
+          name: plan.name,
+          amount: Number(plan.amount),
+          currency: plan.currency,
+          cadence: plan.cadence,
+          scheduleDay: plan.scheduleDay,
+          startDate: plan.startDate,
+          endDate: plan.endDate,
+          status: plan.status,
+          endedAt: plan.endedAt,
+          accountId: plan.accountId,
+          assetIds: plan.assets.map((item) => item.assetId),
+        }
+        const dates = scheduledDatesInMonth(data.from.slice(0, 7), enginePlan)
+          .filter((date) => dateKeyAt(date) >= data.from && dateKeyAt(date) <= data.to)
+        for (const date of dates) {
+          const dayKey = dateKeyAt(date)
+          if (dayKey > today) { skipped++; continue }
+          const scheduledDate = new Date(`${dayKey}T12:00:00+08:00`)
+          const dayStart = new Date(`${dayKey}T00:00:00+08:00`)
+          const dayEnd = new Date(dayStart.getTime() + 86400000)
+          // 账本已有有效买入（同一候选资产 + 计划限定账户）时不能标未买，如实跳过
+          const existingBuy = await txDb.transaction.findFirst({
+            where: {
+              familyId: ctx.familyId,
+              assetId: { in: plan.assets.map((item) => item.assetId) },
+              ...(plan.accountId ? { accountId: plan.accountId } : {}),
+              type: 'BUY',
+              voidedAt: null,
+              occurredAt: { gte: dayStart, lt: dayEnd },
+            },
+          })
+          if (existingBuy) { skipped++; continue }
+          const existingReview = await txDb.investmentPlanDayReview.findUnique({
+            where: { planId_scheduledDate: { planId: plan.id, scheduledDate } },
+          })
+          if (existingReview && !existingReview.revokedAt) { skipped++; continue }
+          const review = existingReview
+            ? await txDb.investmentPlanDayReview.update({
+              where: { id: existingReview.id },
+              data: { reviewedAt: new Date(), revokedAt: null },
+            })
+            : await txDb.investmentPlanDayReview.create({
+              data: { familyId: ctx.familyId, planId: plan.id, scheduledDate },
+            })
+          if (existingReview) refreshed++
+          else created++
+          await audit(ctx, existingReview ? 'UPDATE' : 'CREATE', 'InvestmentPlanDayReview', review.id, `${plan.name} · ${dayKey} · 区间确认未买入`, txDb)
+        }
+      }
+      return { count: created + refreshed, created, refreshed, skipped }
+    }, { timeout: 60000 })
+
+    revalidatePath('/investment-plans')
+    revalidatePath('/month-close')
+    return { ok: true, data: result }
   } catch (e) {
     return fail(e)
   }
