@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   dateKeyAt,
-  isCurrentPortfolioDay,
-  previousCloseOnPortfolioDay,
   seriesPortfolioDate,
   seriesTradingDate,
   summarizeValuationDate,
@@ -21,12 +19,9 @@ describe('看盘交易日口径', () => {
     expect(seriesPortfolioDate(series)).toBe('2026-08-01')
   })
 
-  it('今日收益严格按交易所交易日归属，不把美股昨日收益带到次日', () => {
-    expect(isCurrentPortfolioDay('2026-07-31', '2026-07-31')).toBe(true)
-    expect(isCurrentPortfolioDay('2026-07-31', '2026-08-01')).toBe(false)
-    expect(isCurrentPortfolioDay(null, '2026-08-01')).toBe(false)
-    expect(previousCloseOnPortfolioDay(280, '2026-07-31', '2026-08-01')).toBeNull()
-    expect(previousCloseOnPortfolioDay(280, '2026-08-01', '2026-08-01')).toBe(280)
+  it('归属判定不在本模块：北京归属日由 engine/portfolio-day 统一计算', () => {
+    // 本模块只读交易所交易日与日期键，避免再出现第二套归属口径（ADR-027）
+    expect(seriesTradingDate({ symbol: 'USQQQM', currency: 'USD', prevClose: 280, source: 'YAHOO', points: [{ t: new Date('2026-08-01T03:59:00Z').getTime(), price: 283 }] }, 'USD', 'ETF')).toBe('2026-07-31')
   })
 
   it('北京时间日期键不受运行机器时区影响', () => {

@@ -25,7 +25,7 @@ import { eastmoneyFundProvider } from './market/eastmoney-fund'
 import type { AssetInfo, TxInput } from './engine/types'
 import { mergePositionsByAsset } from './engine/merge'
 import { dailyQuoteValuation, summarizeDailyPortfolio } from './engine/daily-pnl'
-import { portfolioDayKey } from './engine/portfolio-day'
+import { attributionDateKey } from './engine/portfolio-day'
 import { buildSavingsOverview, type SavingsOverview } from './engine/savings'
 import type { QuoteData } from './market/provider'
 import { isInvestableAsset, isPortfolioAssetClass } from './asset-classification'
@@ -409,7 +409,11 @@ function dataSettlementFor(state: EngineState, series: SeriesPoint[]): DataSettl
     .map((position) => ({
       valueCny: position.value,
       hasQuote: state.quotes.has(position.asset.symbol),
-      tradingDate: state.quotes.get(position.asset.symbol)?.tradingDate ?? null,
+      // 估值日统一到北京归属日（美股 +1），与快照/日历同口径
+      tradingDate: attributionDateKey(
+        { symbol: position.asset.symbol, currency: position.asset.currency, cls: position.asset.cls },
+        state.quotes.get(position.asset.symbol)?.tradingDate ?? null,
+      ),
     }))
   return buildDataSettlementState(series, liveItems, dateKeyAt(new Date()))
 }
@@ -433,14 +437,23 @@ async function extendWatchSeriesFromPrices(
     .map((asset) => asset.symbol)
   if (symbols.length === 0 || state.ledgerTxs.length === 0) return series
 
-  const latestBar = await prisma.priceBar.findFirst({
+  const latestBars = await prisma.priceBar.groupBy({
+    by: ['symbol'],
     where: { symbol: { in: symbols } },
-    orderBy: { date: 'desc' },
-    select: { date: true },
+    _max: { date: true },
   })
-  if (!latestBar) return series
+  // 与快照同口径：行情日期先折算北京归属日（美股 +1）再比较，否则美股日线永远“已被快照覆盖”
+  const latestBarKey = latestBars.reduce<string | null>((latest, row) => {
+    if (!row._max.date) return latest
+    const asset = state.assets.find((item) => item.symbol === row.symbol)
+    const key = attributionDateKey(
+      { symbol: row.symbol, currency: asset?.currency, cls: asset?.cls },
+      dateKeyAt(row._max.date),
+    )
+    return key != null && (latest == null || key > latest) ? key : latest
+  }, null)
+  if (latestBarKey == null) return series
   const latestSnapshotKey = series.at(-1)?.date ?? null
-  const latestBarKey = dateKeyAt(latestBar.date)
   if (latestSnapshotKey != null && latestBarKey <= latestSnapshotKey) return series
 
   const [priceMap, rateAt] = await Promise.all([
@@ -595,15 +608,22 @@ async function loadDashboardReview(
     loadPriceSeries(prisma, symbols),
     fxRateAtFactory(prisma, reviewAssets.map((asset) => asset.currency)),
   ])
+  const reviewTodayKey = dateKeyAt(new Date())
   const assets = reviewAssets.map((asset) => {
     const prices = dashboardNavPoints(asset.symbol, priceMap)
     const liveQuote = state.quotes.get(asset.symbol)
     if (liveQuote && asset.cls !== 'CASH') {
-      const liveDate = liveQuote.tradingDate || dateKeyAt(new Date(liveQuote.asOf))
-      const point = { date: liveDate, nav: liveQuote.price, source: liveQuote.source }
-      const index = prices.findIndex((item) => item.date === liveDate)
-      if (index >= 0) prices[index] = point
-      else prices.push(point)
+      const liveDate = attributionDateKey(
+        { symbol: asset.symbol, currency: asset.currency, cls: asset.cls },
+        liveQuote.tradingDate || dateKeyAt(new Date(liveQuote.asOf)),
+      )
+      // 正在进行、归属明天的场次不写进已结算复盘序列（与看盘同规则）
+      if (liveDate && liveDate <= reviewTodayKey) {
+        const point = { date: liveDate, nav: liveQuote.price, source: liveQuote.source }
+        const index = prices.findIndex((item) => item.date === liveDate)
+        if (index >= 0) prices[index] = point
+        else prices.push(point)
+      }
     }
     prices.sort((a, b) => a.date.localeCompare(b.date))
     return {
@@ -737,7 +757,6 @@ export async function getDashboard(period: ReviewPeriod = 'THIS_MONTH'): Promise
     tradingDate: state.quotes.get(q.symbol)?.tradingDate ?? null,
   }]))
   const now = new Date()
-  const todayKey = dateKeyAt(now)
   const staticValueCny = mergedPositions
     .filter((v) => v.asset.manual || v.asset.cls === 'CASH' || v.asset.cls === 'REAL_ESTATE')
     .reduce((sum, v) => sum + v.value, 0)
@@ -750,8 +769,9 @@ export async function getDashboard(period: ReviewPeriod = 'THIS_MONTH'): Promise
         quantity: v.quantity,
         quote: quote ? { price: quote.price, prevClose: quote.prevClose, tradingDate: quote.tradingDate } : null,
         fallbackValueCny: v.value,
-        // 海外持仓按各自市场的「今天」判定，否则美股在北京白天永远是「非当日」
-        todayKey: portfolioDayKey({ symbol: v.asset.symbol, currency: v.asset.currency, cls: v.asset.cls }, now),
+        // 归属口径统一按北京日（ADR-027）：美股美东 D 日计入北京 D+1
+        asset: { symbol: v.asset.symbol, currency: v.asset.currency, cls: v.asset.cls },
+        now,
       })
     })
   const marketDay = summarizeDailyPortfolio(marketItems, staticValueCny)

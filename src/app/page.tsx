@@ -13,6 +13,7 @@ import { mergePositionsByAsset } from '@/lib/engine/merge'
 import type { AssetClass } from '@/lib/engine/types'
 import type { ReviewPeriod } from '@/lib/engine/review'
 import { compactRecentSeries } from '@/lib/engine/series-sampling'
+import { attributionDateKey } from '@/lib/engine/portfolio-day'
 
 export const dynamic = 'force-dynamic'
 
@@ -110,9 +111,13 @@ export default async function OverviewPage({
     if (d.review.valuationGapCount > 0) {
       return { warning: true, label: `${d.review.valuationGapCount} 项数据待更新` }
     }
-    const heldSymbols = new Set(d.state.valued.map((position) => position.asset.symbol))
-    const quoteDates = [...heldSymbols]
-      .map((symbol) => d.state.quotes.get(symbol)?.tradingDate)
+    // 估值日与行情日都折算成北京归属日再比较（ADR-027），避免跨时区差一天误报
+    const heldAssets = [...new Map(d.state.valued.map((position) => [position.asset.symbol, position.asset])).values()]
+    const quoteDates = heldAssets
+      .map((asset) => attributionDateKey(
+        { symbol: asset.symbol, currency: asset.currency, cls: asset.cls },
+        d.state.quotes.get(asset.symbol)?.tradingDate,
+      ))
       .filter((value): value is string => Boolean(value))
       .sort()
     const newestQuoteDate = quoteDates.length > 0 ? quoteDates[quoteDates.length - 1] : null
@@ -128,7 +133,7 @@ export default async function OverviewPage({
       {!setupDone && (
         <section className="overview-setup" aria-labelledby="overview-setup-title">
           <div className="overview-section-heading">
-            <div><span className="eyebrow">Getting started</span><h2 id="overview-setup-title">起步清单</h2></div>
+            <div><h2 id="overview-setup-title">起步清单</h2></div>
           </div>
           <div className="overview-setup-grid">
             {setupSteps.map((step, index) => (
@@ -211,7 +216,6 @@ export default async function OverviewPage({
             <i>=</i>
             <div className="overview-equation-result"><span><ScopeLabel scope="PERIOD_END_INVESTABLE" /></span><strong className="num">{money(performance.endNetWorth)}</strong></div>
           </div>
-          <p className="overview-bridge-note">上方四个数字按所选周期的复盘证据重放（期末不等于当前）；下方“可投资资产”按当前账本与最新估值展示。</p>
         </div>
       </section>
 
@@ -226,7 +230,7 @@ export default async function OverviewPage({
       <section className="overview-main-grid">
         <div className="overview-chart-surface">
           <div className="overview-section-heading">
-            <div><span className="eyebrow">账本轨迹</span><h2>财富轨迹</h2></div>
+            <div><h2>财富轨迹</h2></div>
             <span>轨迹至 {wealthChartSeries.length ? fmtDate(wealthChartSeries[wealthChartSeries.length - 1].date) : '—'}</span>
           </div>
           <div className="overview-chart-summary">
@@ -239,7 +243,7 @@ export default async function OverviewPage({
 
         <aside className="overview-contributors" aria-labelledby="overview-contributors-title">
           <div className="overview-section-heading">
-            <div><span className="eyebrow">Profit drivers</span><h2 id="overview-contributors-title">{periodLabel}利润从哪里来</h2></div>
+            <div><h2 id="overview-contributors-title">{periodLabel}利润从哪里来</h2></div>
             <Link href={reviewHref}>全部 →</Link>
           </div>
           {contributors.length === 0 ? (
@@ -266,7 +270,7 @@ export default async function OverviewPage({
       <section className="overview-secondary-grid">
         <div className="overview-compact-panel">
           <div className="overview-section-heading">
-            <div><span className="eyebrow">Allocation</span><h2>可投资资产构成</h2></div>
+            <div><h2>可投资资产构成</h2></div>
             <Link href="/positions">查看持仓 →</Link>
           </div>
           {allocationRows.length === 0 && d.state.inTransit <= 0 ? <Empty>暂无可投资资产</Empty> : (
@@ -289,7 +293,7 @@ export default async function OverviewPage({
 
         <div className="overview-compact-panel">
           <div className="overview-section-heading">
-            <div><span className="eyebrow">Portfolio state</span><h2>状态速览</h2></div>
+            <div><h2>状态速览</h2></div>
             <Link href="/health">健康中心 →</Link>
           </div>
           <div className="overview-state-list">
@@ -310,7 +314,7 @@ export default async function OverviewPage({
 
         <div className="overview-compact-panel overview-fire-panel">
           <div className="overview-section-heading">
-            <div><span className="eyebrow">Financial independence</span><h2>FIRE 路径</h2></div>
+            <div><h2>FIRE 路径</h2></div>
             <Link href="/goals">详情 →</Link>
           </div>
           {!primaryGoal ? <Empty action={{ href: '/goals', label: '建立计划' }}>尚未设定 FIRE 计划</Empty> : (

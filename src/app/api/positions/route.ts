@@ -7,7 +7,6 @@ import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { buildPositionItem } from '@/lib/engine/position-view'
 import { apiReadAuthCtx } from '@/lib/services/api-auth'
-import { dateKeyAt } from '@/lib/engine/watch-market'
 import { parseTags } from '@/lib/engine/groups'
 import { marketGroupOf } from '@/lib/engine/market-group'
 
@@ -25,13 +24,13 @@ export async function GET(req: NextRequest) {
     db.asset.findMany({ select: { id: true, symbol: true, name: true, cls: true, currency: true, style: true, tags: true } }),
   ])
   const metaById = new Map(assets.map((asset) => [asset.id, asset]))
-  const todayKey = dateKeyAt(new Date())
+  const now = new Date()
   const positions = mergePositionsByAsset(
     state.valued.filter((v) => isPortfolioAssetClass(v.asset.cls) && v.asset.cls !== 'CASH'),
   )
     .filter((v) => Math.abs(v.quantity) > 1e-9)
     .map((v) => {
-      const item = buildPositionItem(v, state.quotes.get(v.asset.symbol), todayKey)
+      const item = buildPositionItem(v, state.quotes.get(v.asset.symbol), now)
       const meta = metaById.get(v.assetId)
       return {
         ...item,

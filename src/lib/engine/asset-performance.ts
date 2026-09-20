@@ -31,14 +31,24 @@ function currencyRateAt(rate: AssetCurrencyRate, date: Date): number {
   return typeof rate === 'function' ? rate(date) : rate
 }
 
-/** 行情时间统一归属到北京时间自然估值日，避免基金本地零点被 UTC 截成前一天。 */
+/**
+ * 行情时间统一归属到北京时间自然估值日，避免基金本地零点被 UTC 截成前一天。
+ * `offsetDays` 为北京归属偏移（美股 +1，见 ADR-027）：美东 D 日的日线进入北京 D+1 格。
+ */
 export function toAssetNavPoint(
   date: Date,
   nav: number,
   source?: string,
   valuationStatus?: ValuationStatus,
+  offsetDays = 0,
 ): AssetNavPoint {
-  return { date: dateKeyAt(date), nav, source, valuationStatus }
+  const key = dateKeyAt(date)
+  return {
+    date: offsetDays === 0 ? key : shiftDateKey(key, offsetDays),
+    nav,
+    source,
+    valuationStatus,
+  }
 }
 
 function utcDate(key: string): Date {

@@ -69,7 +69,6 @@ export default async function GoalsPage() {
     <div className="page-shell goals-page">
       <header className="goal-page-header">
         <div>
-          <div className="eyebrow">Financial independence</div>
           <h1>FIRE · 财务自由计划</h1>
           <p>从真实可投资资产出发，同时验证积累达标与退休后不断供</p>
         </div>
@@ -130,7 +129,7 @@ export default async function GoalsPage() {
         </section>
       ) : (
         <section className="goal-empty-hero">
-          <div><div className="eyebrow">Your FIRE number</div><h2>先算出你的财务自由数字。</h2><p>可以直接设定 3000 万，也可以用年度退休支出和安全提取率反推。系统会用真实资产与投入节奏验证计划。</p></div>
+          <div><h2 title="可以直接设定 3000 万，也可以用年度退休支出和安全提取率反推">先算出你的财务自由数字。</h2></div>
           <a href="#new-goal">建立 FIRE 计划 →</a>
         </section>
       )}
@@ -138,8 +137,8 @@ export default async function GoalsPage() {
       {primary && (
         <section className="fire-dashboard" aria-labelledby="fire-dashboard-title">
           <div className="goal-section-head">
-            <div><div className="eyebrow">FIRE dashboard</div><h2 id="fire-dashboard-title">一眼看清自由进度与执行缺口</h2></div>
-            <span>路径与目标均为名义口径；目标线已按通胀逐年上调</span>
+            <div><h2 id="fire-dashboard-title">一眼看清自由进度与执行缺口</h2></div>
+            <span>名义口径 · 目标线按通胀逐年上调</span>
           </div>
           <div className="fire-metric-grid">
             <div><span>预计 FIRE 日期</span><strong>{primary.goal.projection.estimatedFireMonths != null ? monthFrom(now, primary.goal.projection.estimatedFireMonths) : '—'}</strong><small>{firePaceNote(primary.goal.projection.estimatedFireMonths, primary.goal.monthsLeft)}</small></div>
@@ -158,13 +157,13 @@ export default async function GoalsPage() {
             <div><span>年度退休支出</span><strong>{fmtCNY(primary.goal.annualSpend ?? 0)}</strong><small>其中组合承担 {fmtCNY(primary.goal.projection.annualPortfolioSpendToday)} / 年</small></div>
             <div><span>关键假设</span><strong>{fmtPct(primary.goal.withdrawalRate)} 提取率</strong><small>{primary.goal.spendYears} 年退休期 · {fmtPct(primary.goal.inflationRate)} 通胀</small></div>
           </div>
-          <p className="fire-method-note">FIRE Number =（年度退休支出 − 年度稳定退休收入）÷ 安全提取率。计划成功概率进一步模拟退休期逐月支取和收益顺序风险，不等同于收益保证。</p>
+          <p className="fire-method-note" title="计划成功概率模拟退休期逐月支取和收益顺序风险，不等同于收益保证">FIRE Number =（年度退休支出 − 年度稳定退休收入）÷ 安全提取率</p>
         </section>
       )}
 
       <section className="savings-rhythm">
         <div className="goal-section-head">
-          <div><div className="eyebrow">Savings rhythm</div><h2>储蓄率决定 FIRE 速度</h2></div>
+          <div><h2>储蓄率决定 FIRE 速度</h2></div>
           <span>收入按月记录 · 消费可按周或按月补录</span>
         </div>
         <div className="savings-layout">
@@ -206,10 +205,10 @@ export default async function GoalsPage() {
 
       <section>
         <div className="goal-section-head">
-          <div><div className="eyebrow">FIRE scenarios</div><h2>全部 FIRE 方案</h2></div>
+          <div><h2>全部 FIRE 方案</h2></div>
           <a href="#new-goal">新建方案</a>
         </div>
-        <p className="mt-2 text-[13px] leading-relaxed text-ink-faint">备选方案与主方案共用同一资产池，用于互斥比较，不会叠加计算。</p>
+        <p className="mt-2 text-[13px] leading-relaxed text-ink-faint">备选方案与主方案共用同一资产池，用于互斥比较。</p>
         {goalViews.length === 0 ? <Empty action={{ href: '#new-goal', label: '新建方案' }}>尚未建立 FIRE 计划</Empty> : (
           <div className="goal-portfolio-list">
             {goalViews.map(({ goal }) => {
@@ -252,7 +251,7 @@ export default async function GoalsPage() {
       <HashOpenDetails
         id="new-goal"
         className="new-goal-section"
-        summary={<span><span className="eyebrow">New FIRE plan</span><strong>新建 FIRE 方案</strong></span>}
+        summary={<span><strong>新建 FIRE 方案</strong></span>}
       >
         <div className="mt-6"><GoalForm mode="create" /></div>
       </HashOpenDetails>

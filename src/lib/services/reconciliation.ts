@@ -2,7 +2,8 @@ import type { PrismaClient } from '@prisma/client'
 import { recordAudit } from '@/lib/audit'
 import type { FamilyCtx } from '@/lib/scoped'
 import { loadEngineState } from '@/lib/queries'
-import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
+import { dateKeyAt } from '@/lib/engine/watch-market'
+import { livePreviousClose } from '@/lib/engine/portfolio-day'
 import { summarizeAccountPositions } from '@/lib/engine/account-summary'
 import type { AccountReconciliationInputData } from '@/lib/schemas'
 
@@ -20,7 +21,13 @@ export async function recordAccountReconciliationEvidence(
   const positions = state.valued.filter((position) => position.accountId === account.id)
   const summary = summarizeAccountPositions(positions, (symbol) => {
     const quote = state.quotes.get(symbol)
-    return previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, todayKey)
+    const asset = positions.find((position) => position.asset.symbol === symbol)?.asset
+    return livePreviousClose({
+      asset: { symbol, currency: asset?.currency, cls: asset?.cls },
+      exchangeTradingDate: quote?.tradingDate,
+      prevClose: quote?.prevCloseCny,
+      now: new Date(),
+    })
   })
   const ledgerValueCny = Math.round(summary.valueCny * 100) / 100
   const differenceCny = Math.round((data.observedValueCny - ledgerValueCny) * 100) / 100

@@ -10,9 +10,15 @@ import { cnyRateFor, fxRateAtFactory } from './market/fx'
 import { isPortfolioAssetClass } from './asset-classification'
 import type { ValuationGap, ValuationStatus } from './engine/valuation-status'
 import { fundConfirmationDate, isQdiiFund } from './engine/fund-order'
+import { dateKeyAt } from './engine/watch-market'
 
 const DAY = 86400000
 const MAX_SUPPORTED_DAYS = 36525
+
+/** 北京日历日的零点（快照格与归属日都以北京日期为准，见 ADR-027）。 */
+function dayStartMs(value: Date): number {
+  return Date.parse(`${dateKeyAt(value)}T00:00:00Z`)
+}
 
 export interface WealthPoint {
   date: Date
@@ -32,7 +38,9 @@ export interface WealthPoint {
 export type PriceAtFn = (symbol: string, date: Date) => number | undefined
 export type PriceObservationAtFn = (symbol: string, date: Date) => PriceObservation | undefined
 
-/** 纯计算：流水 + 负债条目 → 逐日五元组序列（可测试，价格函数注入） */
+/** 纯计算：流水 + 负债条目 → 逐日五元组序列（可测试，价格函数注入）。
+ * 日格按**北京日历日**切分（ADR-027）：价格序列的日期键同样按北京归属日，
+ * 美股美东 D 日的日线出现在北京 D+1 格。 */
 export function computeWealthSeries(
   txs: LedgerTx[],
   assets: AssetInfo[],
@@ -45,8 +53,8 @@ export function computeWealthSeries(
 ): WealthPoint[] {
   const assetMap = new Map(assets.map((a) => [a.id, a]))
   const flows = dailyNetFlows(txs.filter((tx) => isPortfolioAssetClass(tx.assetClass)), currencyRate)
-  const endMs = Math.floor(to.getTime() / DAY) * DAY
-  const requestedStartMs = Math.floor(from.getTime() / DAY) * DAY
+  const endMs = dayStartMs(to)
+  const requestedStartMs = dayStartMs(from)
   if (requestedStartMs > endMs) return []
   const startMs = requestedStartMs
   const days = Math.round((endMs - startMs) / DAY) + 1
@@ -180,9 +188,9 @@ export async function rebuildSnapshots(
     orderBy: { occurredAt: 'asc' },
   })
   const now = new Date()
-  const endMs = Math.floor(now.getTime() / DAY) * DAY
+  const endMs = dayStartMs(now)
   if (opts?.affectedSince) {
-    const since = Math.min(Math.floor(opts.affectedSince.getTime() / DAY) * DAY, endMs)
+    const since = Math.min(dayStartMs(opts.affectedSince), endMs)
     await db.snapshot.deleteMany({ where: { familyId, date: { gte: new Date(since) } } })
   } else {
     await db.snapshot.deleteMany({ where: { familyId } })

@@ -7,6 +7,7 @@ import { providerLabel } from '@/lib/market'
 import { marketChainLabel } from '@/lib/valuation-source'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { parseHoldingSort } from '@/lib/engine/holding-sort'
+import { parseWatchClassFilter } from '@/lib/engine/watch-filter'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
@@ -14,7 +15,11 @@ import { parsePreferences } from '@/lib/preferences'
 
 export const dynamic = 'force-dynamic'
 
-export default async function WatchPage({ searchParams }: { searchParams: Promise<{ sort?: string }> }) {
+export default async function WatchPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string; q?: string; cls?: string; excl?: string }>
+}) {
   const [watchData, sp, session] = await Promise.all([getWatchData(), searchParams, getSession()])
   if (!watchData) return <SetupScreen />
   const defaultRange = session?.userId
@@ -99,6 +104,9 @@ export default async function WatchPage({ searchParams }: { searchParams: Promis
       }))}
       currentContributions={watchData.currentContributions}
       initialSort={parseHoldingSort(sp.sort)}
+      initialQuery={sp.q ?? ''}
+      initialClass={parseWatchClassFilter(sp.cls)}
+      initialOnlyExcluded={sp.excl === '1'}
       defaultRange={defaultRange}
       benchmarks={benchmarks}
       settlement={watchData.settlement}

@@ -7,6 +7,7 @@ import { closeAt } from './simulated'
 import { simulatedAllowed } from './index'
 import { parseSymbol } from './symbols'
 import { dateKeyAt } from '../engine/watch-market'
+import { attributionDateKey, portfolioDayOffset } from '../engine/portfolio-day'
 import type { MarketRoute } from './index'
 
 const DAY = 86400000
@@ -187,6 +188,7 @@ export interface PriceObservation {
 
 /**
  * 读取每个标的最近两个真实日线观测，供 SSR 非阻塞估值。
+ * `tradingDate` 是**交易所交易日**（不做北京归属偏移，由 engine/portfolio-day 判定）。
  * 模拟数据不可作为真实账本的行情回落。
  */
 export async function loadLatestPersistedQuotes(
@@ -227,7 +229,13 @@ export async function loadLatestPersistedQuotes(
   return result
 }
 
-/** 从 PriceBar 读出内存价格表 */
+/**
+ * 从 PriceBar 读出内存价格表。
+ * 日期键按**北京归属日**平移（ADR-027）：美股一场落在北京次日，因此美股日线
+ * 以 `交易所交易日 + 1 天` 进入组合估值、收益日历和资产收益序列；
+ * A 股 / 港股 / 基金净值不变。PriceBar 本身仍保存真实交易所交易日，
+ * 数据健康与跨源核验不经过本函数。
+ */
 export async function loadPriceSeries(db: PrismaClient, symbols: string[]): Promise<Map<string, PriceSeries>> {
   const rows = await db.priceBar.findMany({
     where: { symbol: { in: symbols } },
@@ -235,15 +243,19 @@ export async function loadPriceSeries(db: PrismaClient, symbols: string[]): Prom
     select: { symbol: true, date: true, close: true, source: true },
   })
   const map = new Map<string, PriceSeries>()
+  const offsetBySymbol = new Map<string, 0 | 1>()
   for (const r of rows) {
     let s = map.get(r.symbol)
     if (!s) {
       s = { times: [], closes: [], valuationDates: [], sources: [] }
       map.set(r.symbol, s)
     }
-    s.times.push(r.date.getTime())
+    if (!offsetBySymbol.has(r.symbol)) offsetBySymbol.set(r.symbol, portfolioDayOffset({ symbol: r.symbol }))
+    const offset = offsetBySymbol.get(r.symbol)!
+    const exchangeDateKey = dateKeyAt(r.date)
+    s.times.push(r.date.getTime() + offset * DAY)
     s.closes.push(Number(r.close))
-    s.valuationDates.push(dateKeyAt(r.date))
+    s.valuationDates.push(offset === 0 ? exchangeDateKey : attributionDateKey({ symbol: r.symbol }, exchangeDateKey)!)
     s.sources.push(r.source)
   }
   return map

@@ -1,26 +1,43 @@
 'use client'
 
 // 看盘客户端：30s 轮询分时数据与报价，合成当日组合收益曲线 + 实时估值表
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { buildPortfolioCurve, type CurveHolding } from '@/lib/engine/intraday'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { buildIntradayCurves, type CurveHolding } from '@/lib/engine/intraday'
 import { dailyQuoteValuation, summarizeDailyPortfolio } from '@/lib/engine/daily-pnl'
-import { sortHoldings, type HoldingSort } from '@/lib/engine/holding-sort'
-import { dateKeyAt, isCurrentPortfolioDay, seriesTradingDate, summarizeValuationDate } from '@/lib/engine/watch-market'
+import {
+  HOLDING_SORT_HEADERS,
+  holdingAriaSort,
+  holdingSortKey,
+  parseHoldingSort,
+  sortHoldings,
+  toggleHoldingSort,
+  type HoldingSort,
+  type HoldingSortKey,
+} from '@/lib/engine/holding-sort'
+import { dateKeyAt, seriesTradingDate, summarizeValuationDate } from '@/lib/engine/watch-market'
 import type { IntradaySeries } from '@/lib/market/intraday'
 import { Panel, ScopeLabel } from './ui'
 import { IntradayChart } from './charts'
 import { cx, fmtCNY, fmtDateTime, fmtMoney, fmtPct, fmtQty } from '@/lib/format'
 import type { PriceSource } from '@/lib/engine/types'
+import type { AssetClass } from '@prisma/client'
 import { MarketSourceTag, PositionSourceTag, ValuationLegend } from './valuation-source'
-import { HoldingSortSelect } from './holding-sort-select'
+import { HoldingFilterBar, type HoldingFilterValue } from './holding-filter-bar'
+import {
+  WATCH_OTHER_CLASS,
+  parseWatchClassFilter,
+  type WatchClassFilter,
+} from '@/lib/engine/watch-filter'
 import { PortfolioHistory } from './portfolio-history'
 import type { PerformancePoint } from '@/lib/engine/period-performance'
 import type { LoadedBenchmark } from '@/lib/engine/benchmark'
 import type { DataSettlementState } from '@/lib/engine/data-settlement'
 import { DataSettlementRail } from './data-settlement-rail'
 import { TableScroll } from './table-scroll'
-import { portfolioDayKey } from '@/lib/engine/portfolio-day'
+import { SortHeader } from './sort-header'
+import { attributionDateKey, liveQuoteAttribution } from '@/lib/engine/portfolio-day'
 
 export interface WatchHolding {
   assetId: string
@@ -66,6 +83,12 @@ interface QuoteLite {
 const POLL_MS = 30_000
 const INTRADAY_TIME_FORMATTER = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
+const SORT_HEADERS: { key: HoldingSortKey; label: string }[] = [
+  { key: 'value', label: HOLDING_SORT_HEADERS.value },
+  { key: 'changePct', label: HOLDING_SORT_HEADERS.changePct },
+  { key: 'dayPnl', label: HOLDING_SORT_HEADERS.dayPnl },
+]
+
 export function WatchClient({
   holdings,
   staticValueCny,
@@ -75,6 +98,9 @@ export function WatchClient({
   historySeries,
   currentContributions,
   initialSort,
+  initialQuery,
+  initialClass,
+  initialOnlyExcluded,
   defaultRange,
   benchmarks,
   settlement,
@@ -87,6 +113,9 @@ export function WatchClient({
   historySeries: PerformancePoint[]
   currentContributions: number
   initialSort: HoldingSort
+  initialQuery: string
+  initialClass: WatchClassFilter
+  initialOnlyExcluded: boolean
   defaultRange?: string | null
   benchmarks: LoadedBenchmark[]
   settlement: DataSettlementState
@@ -95,6 +124,17 @@ export function WatchClient({
   const [quotes, setQuotes] = useState<Map<string, QuoteLite>>(new Map())
   const [asOf, setAsOf] = useState<string | null>(null)
   const [sort, setSort] = useState<HoldingSort>(initialSort)
+  const [query, setQuery] = useState(initialQuery)
+  const [classFilter, setClassFilter] = useState<WatchClassFilter>(initialClass)
+  const [onlyExcluded, setOnlyExcluded] = useState(initialOnlyExcluded)
+  const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  // 最近一次由本页写进 URL 的状态：用来区分「浏览器前进/后退」与「服务端重新渲染」，
+  // 避免回退时覆盖用户当前输入，也避免无谓地把 URL 再写一遍。
+  const navSyncRef = useRef(`${initialSort}|${initialQuery}|${initialClass ?? ''}|${initialOnlyExcluded}`)
+  // 最近一次「本页写过 / 已应用到视图」的查询串：用来把 URL 变化与本地输入区分开
+  const appliedUrlRef = useRef(`?${searchParams.toString()}`)
   const now = new Date()
   const todayKey = dateKeyAt(now)
 
@@ -170,7 +210,51 @@ export function WatchClient({
     }
   }, [fundSymbols, localMarketSymbols, overseasSymbols, symbols])
 
-  // 实时估值表行：保留各交易所交易日，组合顶部另按北京时间当前看盘日筛选。
+  /**
+   * 把「显式给出」的排序/筛选写进 URL。
+   *
+   * 两条纪律（都来自踩过的坑）：
+   * 1. 必须走 router.replace，不能用 window.history.replaceState——Next 的 useSearchParams
+   *    不跟着裸 history 变化，下一次更新就会基于旧的查询串重建 URL。
+   * 2. 只能基于**当前渲染的状态**构造（调用点把 state 一起传进来），不能用 useSearchParams /
+   *    自己缓存的查询串：连续点击时它们可能还停在上一轮，导致「切到市值再点一次」算错方向。
+   * 只同步视图状态，watch 页本身是 force-dynamic，重新渲染服务端组件代价可控。
+   */
+  function writeUrl(next: HoldingFilterValue, nextSort: HoldingSort) {
+    const syncKey = `${nextSort}|${next.query}|${next.classFilter ?? ''}|${next.onlyExcluded}`
+    if (syncKey === navSyncRef.current) return
+    // 记成本页刚写过的一份：URL 变化触发的 effect 看到一致就不会再覆盖用户输入
+    navSyncRef.current = syncKey
+    const params = new URLSearchParams()
+    if (nextSort !== 'value-desc') params.set('sort', nextSort)
+    const trimmed = next.query.trim()
+    if (trimmed) params.set('q', trimmed)
+    if (next.classFilter) params.set('cls', next.classFilter)
+    if (next.onlyExcluded) params.set('excl', '1')
+    const search = params.toString()
+    appliedUrlRef.current = search ? `?${search}` : ''
+    router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false })
+  }
+
+  // URL → 视图状态：浏览器前进/后退，以及服务端按 URL 重新渲染后回填。
+  // 本页刚写过的那一份（appliedUrlRef）跳过，避免覆盖用户正在输入的内容。
+  useEffect(() => {
+    const search = searchParams.toString()
+    const nextQueryString = search ? `?${search}` : ''
+    if (nextQueryString === appliedUrlRef.current) return
+    appliedUrlRef.current = nextQueryString
+    const nextSort = parseHoldingSort(searchParams.get('sort') ?? undefined)
+    const nextQuery = searchParams.get('q') ?? ''
+    const nextClass = parseWatchClassFilter(searchParams.get('cls'))
+    const nextExcluded = searchParams.get('excl') === '1'
+    navSyncRef.current = `${nextSort}|${nextQuery}|${nextClass ?? ''}|${nextExcluded}`
+    setSort(nextSort)
+    setQuery(nextQuery)
+    setClassFilter(nextClass)
+    setOnlyExcluded(nextExcluded)
+  }, [searchParams])
+
+  // 实时估值表行：保留各交易所交易日，并单独标注北京归属日（ADR-027）。
   const rows = useMemo(() => holdings.map((holding) => {
     const series = seriesMap.get(holding.symbol)
     const quote = quotes.get(holding.symbol)
@@ -182,12 +266,14 @@ export function WatchClient({
     const price = quote?.rawPrice ?? holding.price
     const prevClose = quote?.rawPrevClose ?? holding.prevClose
     const tradingDate = quote?.tradingDate ?? holding.tradingDate
-    const { currentValueCny, previousValueCny } = dailyQuoteValuation({
+    const asset = { symbol: holding.symbol, currency: holding.currency, cls: holding.cls }
+    const { currentValueCny, previousValueCny, included } = dailyQuoteValuation({
       quantity: holding.qty,
       quote: price == null ? null : { price, prevClose, tradingDate },
       fallbackValueCny: holding.fallbackValueCny,
-      // 海外持仓按各自市场的「今天」判定（与总览/账户同源）
-      todayKey: portfolioDayKey({ symbol: holding.symbol, currency: holding.currency, cls: holding.cls }, now),
+      // 归属口径统一按北京日（ADR-027）：美股美东 D 日计入北京 D+1
+      asset,
+      now,
       rateToCny: holding.rateToCny,
     })
     return {
@@ -198,16 +284,17 @@ export function WatchClient({
       valueCny: currentValueCny,
       dayPnlCny: previousValueCny == null ? null : currentValueCny - previousValueCny,
       tradingDate,
-      currentPortfolioDay: isCurrentPortfolioDay(tradingDate, todayKey),
+      attributionDate: attributionDateKey(asset, tradingDate),
+      currentPortfolioDay: included,
       source: quote?.source ?? series?.source ?? holding.source ?? null,
       confidencePct: quote?.confidencePct ?? holding.confidencePct ?? null,
     }
-  }), [holdings, quotes, seriesMap, todayKey])
-  // 今日盈亏的计入范围：只有「数据日 = 该市场当日」且有报价的标的才计入
+  }), [holdings, quotes, seriesMap, now])
+  // 今日盈亏的计入范围：北京归属日属于实时窗口（今天 / 进行中的明天场次）且有报价的标的
   const includedRows = rows.filter((row) => row.currentPortfolioDay && row.dayPnlCny != null).length
   const excludedRows = rows.length - includedRows
 
-  const { chartData, totalValue, totalPnl, dayPct, marketStatus } = useMemo(() => {
+  const { chartData, totalValue, totalPnl, dayPct, marketStatus, selectedPoints } = useMemo(() => {
     const curveHoldings: CurveHolding[] = rows.map((holding) => ({
       symbol: holding.symbol,
       qty: holding.qty,
@@ -218,7 +305,13 @@ export function WatchClient({
     const holdingBySymbol = new Map(rows.map((row) => [row.symbol, row]))
     const activeSeries = [...seriesMap].filter(([symbol, series]) => {
       const holding = holdingBySymbol.get(symbol)
-      return holding != null && seriesTradingDate(series, holding.currency, holding.cls) === todayKey
+      if (!holding) return false
+      // 北京晚间正在进行的海外场次归属明天，但仍是实时曲线的一部分
+      return liveQuoteAttribution({
+        asset: { symbol: holding.symbol, currency: holding.currency, cls: holding.cls },
+        exchangeTradingDate: seriesTradingDate(series, holding.currency, holding.cls),
+        now,
+      }).included
     })
     const activeSymbols = new Set(activeSeries.map(([symbol]) => symbol))
     const curveSeries = new Map(
@@ -236,12 +329,15 @@ export function WatchClient({
       (sum, row) => sum + (row.currentPortfolioDay ? (row.dayPnlCny ?? 0) : 0),
       0,
     )
-    const curve = buildPortfolioCurve(curveHoldings, curveSeries, constantValueCny, constantPnlCny)
-    const nextChartData = curve.map((point) => ({
-      time: INTRADAY_TIME_FORMATTER.format(new Date(point.t)),
-      pnl: point.pnl,
-      value: point.value,
-    }))
+    // 逐标的序列一次算全，选中不同标的不再重算组合曲线（图中同一时刻只会画一条标的线）
+    const curves = buildIntradayCurves(
+      curveHoldings,
+      curveSeries,
+      constantValueCny,
+      constantPnlCny,
+      new Set(activeSymbols),
+    )
+    const curve = curves.curve
     const lastPoint = curve.at(-1)
     const rowSummary = summarizeDailyPortfolio(
       rows.map((row) => ({
@@ -261,43 +357,115 @@ export function WatchClient({
     )
     const currentLag = latestActivePoint > 0 ? Date.now() - latestActivePoint : Number.POSITIVE_INFINITY
     return {
-      chartData: nextChartData,
+      chartData: curve.map((point) => ({
+        time: INTRADAY_TIME_FORMATTER.format(new Date(point.t)),
+        pnl: point.pnl,
+        value: point.value,
+      })),
       totalValue: nextTotalValue,
       totalPnl: nextTotalPnl,
       dayPct: baseline > 0 ? nextTotalPnl / baseline : null,
       marketStatus: latestActivePoint === 0 ? '休市' : currentLag <= 10 * 60_000 ? '交易中' : '已收市',
+      selectedPoints: curves.series,
     }
-  }, [rows, seriesMap, staticValueCny, todayKey])
+  }, [rows, seriesMap, staticValueCny, todayKey, now])
+
+  // 表格行 ↔ 当日曲线联动：悬停预览、点击（或 Enter/空格）钉住，再点一次取消。
+  const [hoveredSymbol, setHoveredSymbol] = useState<string | null>(null)
+  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null)
+  const activeSymbol = hoveredSymbol ?? selectedSymbol
+  const activeRow = activeSymbol == null ? null : rows.find((row) => row.symbol === activeSymbol) ?? null
+  const chartPoints = useMemo(() => {
+    const points = selectedPoints.get(activeSymbol ?? '')
+    if (activeRow == null || points == null) return chartData
+    // 组合曲线与标的序列共用同一条时间轴、同样长度，按索引一一对齐
+    return chartData.map((point, index) => ({ ...point, assetPnl: points[index]?.pnl ?? null }))
+  }, [activeRow, activeSymbol, chartData, selectedPoints])
 
   const liveInvestableValue = useMemo(
     () => rows.reduce((sum, row) => sum + row.valueCny, 0) + staticInvestableValueCny,
     [rows, staticInvestableValueCny],
   )
+  // 估值日按北京归属日聚合：同一格里既有 A 股当日场次，也有归属当天的美股场次。
+  // 存在归属北京明天的进行中场次时（北京晚间 21:30 后），实时点不落格，
+  // 否则会把明天的场次提前写进今天的财富轨迹与日历。
   const liveValuation = useMemo(
-    () => summarizeValuationDate(rows.map((row) => ({ tradingDate: row.tradingDate, valueCny: row.valueCny }))),
+    () => summarizeValuationDate(rows.map((row) => ({ tradingDate: row.attributionDate, valueCny: row.valueCny }))),
     [rows],
   )
-  const livePerformancePoint = useMemo(() => liveValuation == null ? null : ({
+  const livePerformancePoint = useMemo(() => liveValuation == null || liveValuation.date !== todayKey ? null : ({
     date: liveValuation.date,
     netWorth: liveInvestableValue,
     contributions: currentContributions,
-    valuationStatus: liveValuation.date === todayKey
-      ? 'LIVE' as const
-      : liveValuation.coverage >= 0.999999
-        ? 'SETTLED' as const
-        : 'PARTIAL' as const,
+    valuationStatus: liveValuation.coverage >= 0.999999 ? 'LIVE' as const : 'PARTIAL' as const,
     valuationCoverage: liveValuation.coverage,
     latestValuationDate: liveValuation.date,
     valuationGaps: [],
   }), [currentContributions, liveInvestableValue, liveValuation, todayKey])
-  const liveDayReturn = useMemo(() => livePerformancePoint?.date === todayKey
-    ? { date: todayKey, amount: totalPnl, pct: dayPct }
-    : null, [dayPct, livePerformancePoint?.date, todayKey, totalPnl])
+  const liveDayReturn = useMemo(() => livePerformancePoint == null
+    ? null
+    : { date: todayKey, amount: totalPnl, pct: dayPct }, [dayPct, livePerformancePoint, todayKey, totalPnl])
 
-  const displayRows = useMemo(() => sortHoldings([
-    ...rows.map((row) => ({ ...row, kind: 'market' as const, name: row.name, valueCny: row.valueCny })),
-    ...staticRows.map((row) => ({ ...row, kind: 'static' as const, dayPnlCny: null })),
-  ], sort), [rows, sort, staticRows])
+  // 表格行 = 有行情的标的 + 常量计值项（现金/手工估值/在途）。
+  // 常量项没有行情，因此不参与涨跌幅与当日盈亏排序，恒沉底。
+  const allRows = useMemo(() => [
+    ...rows.map((row) => ({ ...row, kind: 'market' as const, sortable: true as const })),
+    ...staticRows.map((row) => ({ ...row, kind: 'static' as const, sortable: false as const, changePct: null, dayPnlCny: null })),
+  ], [rows, staticRows])
+
+  const shownRows = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    return allRows.filter((row) => {
+      if (needle && !`${row.name} ${row.symbol}`.toLowerCase().includes(needle)) return false
+      if (classFilter) {
+        // 常量计值项（现金/房产/在途）没有资产大类，统一归入「其他」
+        const bucket: WatchClassFilter = row.kind === 'market' ? row.cls as WatchClassFilter : WATCH_OTHER_CLASS
+        if (bucket !== classFilter) return false
+      }
+      if (onlyExcluded && !(row.kind === 'market' && !row.currentPortfolioDay)) return false
+      return true
+    })
+  }, [allRows, classFilter, onlyExcluded, query])
+
+  const displayRows = useMemo(() => {
+    const sortable = shownRows.filter((row) => row.sortable).map((row) => ({
+      ...row,
+      name: row.name,
+      valueCny: row.valueCny,
+      changePct: 'changePct' in row ? row.changePct : null,
+      dayPnlCny: 'dayPnlCny' in row ? row.dayPnlCny : null,
+    }))
+    const pinned = shownRows.filter((row) => !row.sortable)
+    return [...sortHoldings(sortable, sort), ...pinned]
+  }, [shownRows, sort])
+
+  const classCounts = useMemo(() => {
+    const counts = new Map<WatchClassFilter, number>()
+    for (const row of rows) counts.set(row.cls as WatchClassFilter, (counts.get(row.cls as WatchClassFilter) ?? 0) + 1)
+    const other = staticRows.length
+    if (other > 0) counts.set(WATCH_OTHER_CLASS, other)
+    return counts
+  }, [rows, staticRows])
+
+  const hasFilter = query.trim() !== '' || classFilter != null || onlyExcluded
+  const filterValue: HoldingFilterValue = { query, classFilter, onlyExcluded }
+
+  function applyFilter(next: HoldingFilterValue) {
+    setQuery(next.query)
+    setClassFilter(next.classFilter)
+    setOnlyExcluded(next.onlyExcluded)
+    writeUrl(next, sort)
+  }
+
+  /** 列头点击：基于当前状态算下一档，避免用可能滞后的 state 再算一次。 */
+  function applySortKey(key: HoldingSortKey) {
+    applySort(toggleHoldingSort(sort, key))
+  }
+
+  function applySort(next: HoldingSort) {
+    setSort(next)
+    writeUrl({ query, classFilter, onlyExcluded }, next)
+  }
 
   return (
     <div className="page-shell">
@@ -315,11 +483,11 @@ export function WatchClient({
             {dayPct != null ? fmtPct(dayPct, { sign: true }) : '—'}
           </div>
           <p className="mt-6 text-[15px] text-ink-faint">{asOf ? `数据更新于 ${fmtDateTime(asOf)}` : '分钟级行情加载中…'}</p>
-          <p className="mt-2 text-[13px] text-ink-faint">{marketStatus} · 今日口径 {todayKey}</p>
+          <p className="mt-2 text-[13px] text-ink-faint">{marketStatus} · 北京归属口径 {todayKey}</p>
           <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-ink-faint">
             <span><ScopeLabel scope="PORTFOLIO_ASSETS_LIVE" /> <strong className="num ml-1 font-normal text-ink">{fmtCNY(totalValue)}</strong></span>
             <span>覆盖 <strong className="num ml-1 font-normal text-ink">{rows.length}</strong> 个标的</span>
-            <span title="只有数据日为当天的标的才计入今日盈亏；未计入不等于零盈亏">
+            <span title="按北京归属日计入：归属北京今天的场次，以及北京晚间正在进行、归属北京明天的海外场次；未计入不等于零盈亏">
               今日盈亏已计入 <strong className="num ml-1 font-normal text-ink">{includedRows}</strong> 只 · 未计入 <strong className="num ml-1 font-normal text-ink">{excludedRows}</strong> 只
             </span>
             <span>{provider} · 30 秒刷新</span>
@@ -327,7 +495,26 @@ export function WatchClient({
         </div>
         <div className="chart-surface">
         {chartData.length > 1 ? (
-          <IntradayChart data={chartData} />
+          <>
+            {activeRow && (
+              <div className="mb-2 flex items-center gap-2 text-[12px]" data-testid="watch-chart-asset" data-symbol={activeRow.symbol}>
+                <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: (activeRow.dayPnlCny ?? 0) >= 0 ? 'var(--color-up)' : 'var(--color-down)' }} />
+                <span className="text-ink-dim">
+                  {activeRow.name} · 当日 {activeRow.dayPnlCny != null ? fmtCNY(activeRow.dayPnlCny, { sign: true }) : '无数据'}
+                </span>
+                {selectedSymbol === activeRow.symbol && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSymbol(null)}
+                    className="text-ink-faint transition-colors hover:text-ink"
+                  >
+                    取消选中 ×
+                  </button>
+                )}
+              </div>
+            )}
+            <IntradayChart data={chartPoints} assetName={activeRow?.name} showAsset={activeRow != null} />
+          </>
         ) : (
           <div className="flex h-[260px] items-center justify-center text-xs text-ink-faint">
             {rows.length === 0 ? '暂无行情类持仓' : marketStatus === '休市' ? '休市 · 今日暂无分时行情' : '分时数据加载中…'}
@@ -349,35 +536,95 @@ export function WatchClient({
       {/* 实时估值表 */}
       <Panel
         title="实时估值"
-        en="LIVE VALUATION"
         bodyClassName="p-0"
       >
         <div className="border-b border-line px-4 py-2.5">
           <ValuationLegend />
         </div>
-        <TableScroll label="看盘持仓实时估值表">
+        <HoldingFilterBar
+          value={filterValue}
+          classCounts={classCounts}
+          matched={shownRows.length}
+          total={allRows.length}
+          onChange={applyFilter}
+        />
+        <TableScroll label="看盘持仓实时估值表（点列头排序，点行在曲线上叠加该标的）">
         <table className="w-full text-[14px]">
+          <caption className="sr-only">实时估值明细</caption>
           <thead>
             <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
-              <th className="px-4 py-2.5 font-normal" aria-sort="other">
-                <div className="flex items-center gap-2">
-                  <span>资产</span>
-                  <HoldingSortSelect value={sort} ariaLabel="看盘资产排序" navigate onChange={setSort} />
-                </div>
+              <th scope="col" className="px-4 py-2.5 font-normal" aria-sort={holdingAriaSort(sort, 'name')}>
+                <SortHeader label="资产" sortKey="name" sort={sort} onClick={() => applySort('name-asc')} />
               </th>
-              <th className="px-2 py-2.5 text-right font-normal">数量</th>
-              <th className="px-2 py-2.5 text-right font-normal">现价</th>
-              <th className="px-2 py-2.5 text-right font-normal">涨跌幅</th>
-              <th className="px-2 py-2.5 text-right font-normal">市值（¥）</th>
-              <th className="px-2 py-2.5 text-right font-normal">当日盈亏（¥）</th>
-              <th className="px-4 py-2.5 text-right font-normal">来源</th>
+              <th scope="col" className="px-2 py-2.5 text-right font-normal">数量</th>
+              <th scope="col" className="px-2 py-2.5 text-right font-normal">现价</th>
+              {SORT_HEADERS.map((header) => (
+                <th
+                  key={header.key}
+                  scope="col"
+                  aria-sort={holdingAriaSort(sort, header.key)}
+                  className={cx('px-2 py-2.5 text-right font-normal', header.key === 'value' && 'min-w-[7.5rem]')}
+                >
+                  <SortHeader
+                    label={header.label}
+                    sortKey={header.key}
+                    sort={sort}
+                    className="justify-end"
+                    onClick={() => applySortKey(header.key)}
+                  />
+                </th>
+              ))}
+              <th scope="col" className="px-4 py-2.5 text-right font-normal">来源</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line/60">
+            {displayRows.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-[13px] text-ink-faint">
+                  当前筛选下没有标的
+                  {hasFilter && (
+                    <button
+                      type="button"
+                      onClick={() => applyFilter({ query: '', classFilter: null, onlyExcluded: false })}
+                      className="ml-3 text-ink-dim transition-colors hover:text-ink"
+                    >
+                      清除筛选
+                    </button>
+                  )}
+                </td>
+              </tr>
+            )}
             {displayRows.map((r) => r.kind === 'market' ? (
-              <tr key={r.assetId} className="transition-colors hover:bg-panel2/50">
+              <tr
+                key={r.assetId}
+                data-testid="watch-row"
+                data-symbol={r.symbol}
+                aria-selected={selectedSymbol === r.symbol}
+                className={cx(
+                  'cursor-pointer transition-colors hover:bg-panel2/50',
+                  activeSymbol === r.symbol && 'watch-row-active',
+                )}
+                onMouseEnter={() => setHoveredSymbol(r.symbol)}
+                onMouseLeave={() => setHoveredSymbol((current) => (current === r.symbol ? null : current))}
+                onClick={() => setSelectedSymbol((current) => (current === r.symbol ? null : r.symbol))}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    setSelectedSymbol((current) => (current === r.symbol ? null : r.symbol))
+                  }
+                }}
+                tabIndex={0}
+                title="点击在曲线上叠加该标的当日盈亏，再点一次取消"
+              >
                 <td className="px-4 py-2.5">
-                  <Link href={`/positions/${r.assetId}`} className="text-ink transition-colors hover:text-accent">{r.name}</Link>
+                  {/* 资产名仍是详情入口：点链接只跳转，不触发整行的曲线联动 */}
+                  <Link
+                    href={`/positions/${r.assetId}`}
+                    onClick={(event) => event.stopPropagation()}
+                    className="text-ink transition-colors hover:text-accent"
+                  >
+                    {r.name}
+                  </Link>
                   <div className="num text-[12px] text-ink-faint">{r.symbol}</div>
                 </td>
                 <td className="num px-2 py-2.5 text-right text-ink-dim">{fmtQty(r.qty)}</td>
@@ -388,13 +635,19 @@ export function WatchClient({
                 <td className="num px-2 py-2.5 text-right text-ink">{fmtCNY(r.valueCny)}</td>
                 <td className={cx('num px-2 py-2.5 text-right', r.dayPnlCny == null ? 'text-ink-faint' : r.dayPnlCny >= 0 ? 'text-up' : 'text-down')}>
                   {r.dayPnlCny != null ? fmtCNY(r.dayPnlCny, { sign: true }) : '—'}
-                  {/* 数据日不是今天时必须说清楚：此时该行不计入今日盈亏（旧条件是
+                  {/* 归属日不是北京今天时必须说清楚：此时该行不计入今日盈亏（旧条件是
                       dayPnlCny != null && !currentPortfolioDay，互斥因而永远不显示） */}
-                  {!r.currentPortfolioDay && (r.tradingDate || r.price == null) && (
+                  {!r.currentPortfolioDay && (r.attributionDate || r.price == null) && (
                     <div className="mt-0.5 text-[12px] font-normal text-ink-faint">
                       {r.price == null
                         ? '无行情 · 不计入今日盈亏'
-                        : `${r.cls === 'FUND' ? '净值日' : '行情日'} ${r.tradingDate} · 非当日不计入${r.changePct != null ? `（该日涨跌 ${fmtPct(r.changePct, { sign: true })}）` : ''}`}
+                        : `${r.cls === 'FUND' ? '净值日' : '行情归属日'} ${r.attributionDate} · 不计入今日盈亏${r.changePct != null ? `（该场涨跌 ${fmtPct(r.changePct, { sign: true })}）` : ''}`}
+                    </div>
+                  )}
+                  {/* 北京晚间正在进行的海外场次归属北京明天：实时计入，但会落进明天那一格 */}
+                  {r.currentPortfolioDay && r.attributionDate != null && r.attributionDate > todayKey && r.dayPnlCny != null && (
+                    <div className="mt-0.5 text-[12px] font-normal text-ink-faint">
+                      进行中场次 · 归属北京 {r.attributionDate}
                     </div>
                   )}
                 </td>

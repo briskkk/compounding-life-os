@@ -65,7 +65,7 @@ test('组合复盘：按日查看并在历史日之间切换', async ({ page }) 
   await page.goto('/review?period=THIS_DAY&date=2026-08-24&benchmark=sh000300')
 
   await expect(page).toHaveURL(/period=THIS_DAY/)
-  await expect(page.getByText('PORTFOLIO REVIEW · 2026-08-24 — 2026-08-24')).toBeVisible()
+  await expect(page.getByText('复盘区间 · 2026-08-24 — 2026-08-24')).toBeVisible()
   await expect(page.locator('#review-date')).toHaveValue('2026-08-24')
   await expect(page.getByText('2026年8月24日投资收益')).toBeVisible()
   await expect(page.getByRole('link', { name: '回到今天' })).toBeVisible()
@@ -94,7 +94,7 @@ test('组合复盘：可深链查看完整历史自然月', async ({ page }) => 
   await page.goto('/review?period=THIS_MONTH&month=2026-08&benchmark=sh000300')
 
   await expect(page).toHaveURL(/month=2026-08/)
-  await expect(page.getByText('PORTFOLIO REVIEW · 2026-08-01 — 2026-08-31')).toBeVisible()
+  await expect(page.getByText('复盘区间 · 2026-08-01 — 2026-08-31')).toBeVisible()
   await expect(page.getByText('2026年8月投资收益')).toBeVisible()
   await expect(page.locator('#review-month')).toHaveValue('2026-08')
   await expect(page.getByRole('link', { name: '回到本月' })).toBeVisible()
@@ -108,7 +108,7 @@ test('组合复盘：可深链查看完整历史自然月', async ({ page }) => 
 
   await page.getByRole('link', { name: '查看上一个月' }).click()
   await expect(page).toHaveURL(/month=2026-07/)
-  await expect(page.getByText('PORTFOLIO REVIEW · 2026-07-01 — 2026-07-31')).toBeVisible()
+  await expect(page.getByText('复盘区间 · 2026-07-01 — 2026-07-31')).toBeVisible()
   await expect(page.getByLabel('复盘笔记')).not.toHaveValue('E2E：2026 年 8 月独立复盘。')
 })
 
@@ -134,7 +134,7 @@ test('长期复盘：成立以来/近五年/自然年范围切换、桥与数据
   // 自然年切换
   await page.getByRole('link', { name: '2026 年' }).click()
   await expect(page).toHaveURL(/scope=2026/)
-  await expect(page.getByText('INVESTMENT HISTORY · INVESTABLE PORTFOLIO · 2026-01-01 —')).toBeVisible()
+  await expect(page.getByText('长期复盘 · 可投资组合 · 2026-01-01 —')).toBeVisible()
   const historyAugust = (await page.locator('td[title^="2026-08"]').locator('small').textContent())?.trim()
   await page.goto('/review?period=THIS_MONTH&month=2026-08')
   const cyclicalAugust = (await page.locator('.review-outcome-main > strong').textContent())?.trim()

@@ -9,6 +9,7 @@ import { buildAssetPerformanceSeries, type AssetNavPoint } from './engine/asset-
 import { performanceBetween, type PerformanceRange } from './engine/period-performance'
 import { buildReviewResult, reconstructReviewPortfolioSeries, reviewRange, reviewRelevantAssetIds, type ReviewPeriod, type ReviewResult } from './engine/review'
 import { dateKeyAt } from './engine/watch-market'
+import { attributionDateKey } from './engine/portfolio-day'
 import { isInvestableAsset } from './asset-classification'
 import type { ValuationGap } from './engine/valuation-status'
 import { pendingFundPurchasesAt, pendingSettlementsAt, roundMoney } from './engine/ledger'
@@ -124,9 +125,15 @@ function liveValuationFields(
   const pricedValue = marketPositions.reduce((sum, position) => (
     sum + (watch.state.quotes.has(position.asset.symbol) ? Math.abs(position.investable) : 0)
   ), 0)
-  const latestDate = [...watch.state.quotes.values()].reduce<string | null>((latest, quote) => {
-    const date = quote.tradingDate || dateKeyAt(new Date(quote.asOf))
-    return latest == null || date > latest ? date : latest
+  const latestDate = marketPositions.reduce<string | null>((latest, position) => {
+    const quote = watch.state.quotes.get(position.asset.symbol)
+    if (!quote) return latest
+    // 归属口径统一到北京日（ADR-027）：美股美东 D 日计入北京 D+1
+    const date = attributionDateKey(
+      { symbol: position.asset.symbol, currency: position.asset.currency, cls: position.asset.cls },
+      quote.tradingDate || dateKeyAt(new Date(quote.asOf)),
+    )
+    return date != null && (latest == null || date > latest) ? date : latest
   }, null)
   const previousGaps = new Map(
     (watch.series.at(-1)?.valuationGaps ?? []).map((gap) => [gap.symbol, gap]),
@@ -203,12 +210,18 @@ export async function getReviewPageData(options: {
     const prices = navPoints(asset.symbol, priceMap)
     const liveQuote = watch.state.quotes.get(asset.symbol)
     if (isLiveRange && liveQuote && asset.cls !== 'CASH') {
-      const liveDate = liveQuote.tradingDate || dateKeyAt(new Date(liveQuote.asOf))
-      const liveNav = liveQuote.price
-      const index = prices.findIndex((point) => point.date === liveDate)
-      const point = { date: liveDate, nav: liveNav, source: liveQuote.source }
-      if (index >= 0) prices[index] = point
-      else prices.push(point)
+      const liveDate = attributionDateKey(
+        { symbol: asset.symbol, currency: asset.currency, cls: asset.cls },
+        liveQuote.tradingDate || dateKeyAt(new Date(liveQuote.asOf)),
+      )
+      // 正在进行、归属明天的场次不写进已结算复盘序列（与看盘同规则）
+      if (liveDate && liveDate <= today) {
+        const liveNav = liveQuote.price
+        const index = prices.findIndex((point) => point.date === liveDate)
+        const point = { date: liveDate, nav: liveNav, source: liveQuote.source }
+        if (index >= 0) prices[index] = point
+        else prices.push(point)
+      }
     }
     prices.sort((a, b) => a.date.localeCompare(b.date))
     return {

@@ -94,7 +94,8 @@ export async function GET(req: NextRequest) {
     if (!cursorRow) return NextResponse.json({ ok: false, error: '分页游标无效或已过期' }, { status: 400 })
   }
   const rows = await db.transaction.findMany({
-    where: { ...(assetId ? { assetId } : {}), voidedAt: null },
+    // 冲正凭证（type=REVERSAL，金额为 0）属于账本历史，不下发给移动端日常列表
+    where: { ...(assetId ? { assetId } : {}), voidedAt: null, type: { not: 'REVERSAL' } },
     orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
     take: limit + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

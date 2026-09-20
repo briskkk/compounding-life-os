@@ -34,6 +34,7 @@ last_verified: 2026-09-07
 | 定投页可核对后批量录入实际申购 | 用户按平台记录确认实际发生、金额、费用和净值日后，复用账本写入与现金结算；计划节点本身不入账 | [ADR-024](../docs/adr/024-user-confirmed-investment-plan-batch-entry.md) |
 | 较晚定投买入不掩盖较早漏录日 | 快速录入列出所有已到期且同日无有效 BUY 的计划日；未实际买入不生成流水，提交时仍逐笔查重 | [ADR-025](../docs/adr/025-backfill-unrecorded-investment-plan-days.md) |
 | 定投未买入由用户按日核对 | 同日已买入写账本，未买入只存可撤销的计划核对证据；确认状态不改变计划金额或财务口径 | [ADR-026](../docs/adr/026-investment-plan-no-buy-review.md) |
+| 跨市场收益按北京归属日归属 | 一场交易算在北京时间哪一天落定：美股美东 D 日计入北京 D+1；PriceBar 仍存交易所交易日，实时「今日涨跌」与日历/快照同口径 | [ADR-027](../docs/adr/027-beijing-attribution-of-exchange-sessions.md) |
 
 ## 补充已定规则
 

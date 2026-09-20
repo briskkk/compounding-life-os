@@ -17,6 +17,18 @@ export interface CurvePoint {
   pnl: number // 相对昨收的当日盈亏（人民币）
 }
 
+/** 单标的当日盈亏序列（人民币），与组合曲线共用同一条时间轴。 */
+export interface IntradaySeriesPoint {
+  t: number
+  pnl: number | null // 该时刻没有该标的的分钟数据时为 null（前端按断开处理）
+}
+
+export interface IntradayCurves {
+  curve: CurvePoint[]
+  /** symbol → 该标的当日盈亏序列；只在传了 trackSymbols 时计算。 */
+  series: Map<string, IntradaySeriesPoint[]>
+}
+
 /**
  * 合成组合当日曲线：
  * - 时间轴为各标的分钟点的并集（逐标的向前填补价格）
@@ -30,24 +42,45 @@ export function buildPortfolioCurve(
   constantValueCny: number,
   constantPnlCny = 0,
 ): CurvePoint[] {
+  return buildIntradayCurves(holdings, series, constantValueCny, constantPnlCny).curve
+}
+
+/**
+ * 同 buildPortfolioCurve，但额外返回逐标的当日盈亏序列，供看盘表格「点行看该标的曲线」使用。
+ * 盈亏口径与组合曲线完全一致（同一昨收基线、同一汇率、同一分钟点），
+ * 因此选中标的后曲线末点与表格里的当日盈亏必然相等；分钟点缺失处为 null 而不是 0。
+ */
+export function buildIntradayCurves(
+  holdings: CurveHolding[],
+  series: Map<string, IntradayPoint[]>,
+  constantValueCny: number,
+  constantPnlCny = 0,
+  trackSymbols: Set<string> = new Set(),
+): IntradayCurves {
   const withSeries = holdings.filter((h) => (series.get(h.symbol)?.length ?? 0) > 0)
-  if (withSeries.length === 0) return []
+  if (withSeries.length === 0) return { curve: [], series: new Map() }
 
   // 并集时间轴
   const times = new Set<number>()
   for (const h of withSeries) for (const p of series.get(h.symbol)!) times.add(p.t)
   const timeline = [...times].sort((a, b) => a - b)
 
-  // 每标的游标
-  const cursors = new Map<string, { idx: number; last: number | null }>()
-  for (const h of withSeries) cursors.set(h.symbol, { idx: 0, last: null })
+  // 每标的游标；同时记住该标的的基准价（昨收，缺失时取首个分钟价）
+  const cursors = new Map<string, { idx: number; last: number | null; reference: number | null }>()
+  for (const h of withSeries) {
+    cursors.set(h.symbol, {
+      idx: 0,
+      last: null,
+      reference: h.prevClose ?? series.get(h.symbol)?.[0]?.price ?? null,
+    })
+  }
 
   const baseline =
     constantValueCny -
     constantPnlCny +
     withSeries.reduce((s, h) => {
-      const referencePrice = h.prevClose ?? series.get(h.symbol)?.[0]?.price
-      return s + (referencePrice != null ? h.qty * referencePrice * h.rateToCny : 0)
+      const reference = cursors.get(h.symbol)!.reference
+      return s + (reference != null ? h.qty * reference * h.rateToCny : 0)
     }, 0)
 
   const out: CurvePoint[] = []
@@ -69,5 +102,23 @@ export function buildPortfolioCurve(
       pnl: Math.round((value - baseline) * 100) / 100,
     })
   }
-  return out
+
+  const tracked = new Map<string, IntradaySeriesPoint[]>()
+  for (const h of withSeries) {
+    if (!trackSymbols.has(h.symbol)) continue
+    const points = series.get(h.symbol)!
+    const reference = cursors.get(h.symbol)!.reference
+    const at = new Map(points.map((p) => [p.t, p.price]))
+    tracked.set(h.symbol, timeline.map((t) => {
+      const price = at.get(t)
+      return {
+        t,
+        pnl: price == null || reference == null
+          ? null
+          : Math.round((price - reference) * h.qty * h.rateToCny * 100) / 100,
+      }
+    }))
+  }
+
+  return { curve: out, series: tracked }
 }

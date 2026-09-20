@@ -15,10 +15,10 @@ import { C, CLASS_COLORS, SLICE_PALETTE } from '@/lib/colors'
 import type { AssetClass, AssetStyle } from '@/lib/engine/types'
 import { CompositionChart, type CompositionDimension } from '@/components/composition-chart'
 import { PositionSourceTag, ValuationLegend, ValuationSourceSummary } from '@/components/valuation-source'
-import { parseHoldingSort, sortHoldings } from '@/lib/engine/holding-sort'
-import { HoldingSortSelect } from '@/components/holding-sort-select'
+import { DEFAULT_HOLDING_SORT, holdingAriaSort, parseHoldingSort, sortHoldings } from '@/lib/engine/holding-sort'
+import { PositionSortHeader } from '@/components/position-sort-header'
 import { isInvestableAsset, isPortfolioAssetClass } from '@/lib/asset-classification'
-import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
+import { livePreviousClose } from '@/lib/engine/portfolio-day'
 import { marketGroupLabel } from '@/lib/engine/market-group'
 import { TableScroll } from '@/components/table-scroll'
 
@@ -49,10 +49,17 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
   const activeSort = parseHoldingSort(sp.sort)
   const classOrder: AssetClass[] = ['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'REAL_ESTATE']
   const activeClass = classOrder.includes(sp.cls as AssetClass) ? sp.cls as AssetClass : null
-  const todayKey = dateKeyAt(new Date())
+  const now = new Date()
+  // 组合权重（与表格权重列同一分母）先算出来，排序才能按权重重排
+  const totalHeld = mergedRows.reduce((sum, position) => sum + position.value, 0)
   const positionRows = mergedRows.map((position) => {
     const quote = state.quotes.get(position.asset.symbol)
-    const previousCloseCny = previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, todayKey)
+    const previousCloseCny = livePreviousClose({
+      asset: { symbol: position.asset.symbol, currency: position.asset.currency, cls: position.asset.cls },
+      exchangeTradingDate: quote?.tradingDate,
+      prevClose: quote?.prevCloseCny,
+      now,
+    })
     const previousValueCny = previousCloseCny == null ? null : position.quantity * previousCloseCny
     const dayPnlCny = previousValueCny == null ? null : position.value - previousValueCny
     return {
@@ -63,6 +70,8 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
       dayPnlPct: previousValueCny != null && previousValueCny > 0 && dayPnlCny != null
         ? dayPnlCny / previousValueCny
         : null,
+      unrealizedPnlCny: position.unrealized,
+      weight: totalHeld > 0 ? position.value / totalHeld : 0,
     }
   })
   const filteredRows = positionRows.filter((row) => {
@@ -81,7 +90,6 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
   }
 
   const manualAssets = state.assets.filter((a) => isPortfolioAssetClass(a.cls) && (a.manual || a.cls === 'REAL_ESTATE'))
-  const totalHeld = mergedRows.reduce((sum, position) => sum + position.value, 0)
   const totalUnrealized = mergedRows.reduce((sum, position) => sum + position.unrealized, 0)
   const heldClassCount = classOrder.filter((cls) => m.byClass[cls] > 0).length
   const heldAccountCount = new Set(allRows.map((v) => v.accountId)).size
@@ -208,7 +216,6 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
         {/* 持仓明细 */}
         <Panel
           title={activeTag ? `持仓明细 · ${activeTag}` : '持仓明细'}
-          en="HOLDINGS"
           bodyClassName="p-0"
           right={(
             <div className="flex items-center gap-2">
@@ -237,21 +244,26 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
               <table className="w-full text-[14px] whitespace-nowrap">
               <thead>
                 <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
-                  <th className="px-4 py-2.5 font-normal" aria-sort="other">
-                    <div className="flex items-center gap-2">
-                      <span>资产</span>
-                      <HoldingSortSelect value={activeSort} ariaLabel="持仓资产排序" navigate />
-                    </div>
+                  <th scope="col" className="px-4 py-2.5 font-normal" aria-sort={holdingAriaSort(activeSort, 'name')}>
+                    <PositionSortHeader label="资产" sortKey="name" sort={activeSort} />
                   </th>
-                  <th className="px-2 py-2.5 font-normal">账户</th>
-                  <th className="px-2 py-2.5 text-right font-normal">数量</th>
-                  <th className="px-2 py-2.5 text-right font-normal">成本</th>
-                  <th className="px-2 py-2.5 text-right font-normal">现价 / 来源</th>
-                  <th className="px-2 py-2.5 text-right font-normal">市值</th>
-                  <th className="px-2 py-2.5 text-right font-normal">当日盈亏</th>
-                  <th className="px-2 py-2.5 text-right font-normal">未实现盈亏</th>
-                  <th className="px-2 py-2.5 text-right font-normal">权重</th>
-                  <th className="px-4 py-2.5 text-right font-normal">流动性</th>
+                  <th scope="col" className="px-2 py-2.5 font-normal">账户</th>
+                  <th scope="col" className="px-2 py-2.5 text-right font-normal">数量</th>
+                  <th scope="col" className="px-2 py-2.5 text-right font-normal">成本</th>
+                  <th scope="col" className="px-2 py-2.5 text-right font-normal">现价 / 来源</th>
+                  <th scope="col" className="px-2 py-2.5 text-right font-normal" aria-sort={holdingAriaSort(activeSort, 'value')}>
+                    <PositionSortHeader label="市值" sortKey="value" sort={activeSort} className="justify-end" />
+                  </th>
+                  <th scope="col" className="px-2 py-2.5 text-right font-normal" aria-sort={holdingAriaSort(activeSort, 'dayPnl')}>
+                    <PositionSortHeader label="当日盈亏" sortKey="dayPnl" sort={activeSort} className="justify-end" />
+                  </th>
+                  <th scope="col" className="px-2 py-2.5 text-right font-normal" aria-sort={holdingAriaSort(activeSort, 'unrealizedPnl')}>
+                    <PositionSortHeader label="未实现盈亏" sortKey="unrealizedPnl" sort={activeSort} className="justify-end" />
+                  </th>
+                  <th scope="col" className="px-2 py-2.5 text-right font-normal" aria-sort={holdingAriaSort(activeSort, 'weight')}>
+                    <PositionSortHeader label="权重" sortKey="weight" sort={activeSort} className="justify-end" />
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-normal">流动性</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line/60">

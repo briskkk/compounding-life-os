@@ -32,23 +32,22 @@ export default async function CorporateActionsPage() {
 
   return <div className="page-shell">
     <PageHeader
-      kicker="Corporate actions"
       title="不是买卖，也必须算进账本。"
       description="发行方造成的份额、证券身份、成本与现金变化，会展开为可重放流水；事件来源和转换比例单独保留证据。"
       right={<div className="flex items-end gap-8"><div><div className="text-[13px] text-ink-faint">有效事件</div><div className="num mt-2 text-[28px] text-ink">{active.length}</div></div><Link href="/transactions" className="inline-flex min-h-11 items-center text-[14px] text-accent">返回交易流水 →</Link></div>}
     />
 
     <section className="mb-10 grid grid-cols-[1.15fr_0.85fr_0.85fr] overflow-hidden rounded-xl border border-line bg-panel">
-      <div className="p-7"><span className="page-kicker">Evidence rule</span><h2 className="mt-4 text-[24px] font-medium text-ink">事件是证据，流水才改变持仓</h2><p className="mt-3 max-w-xl text-[14px] leading-6 text-ink-dim">拆股不会制造收益，换股不会伪造卖出，红利再投也不会被算成外部入金。所有生成流水可随事件整体冲正。</p></div>
+      <div className="p-7"><h2 className="mt-4 text-[24px] font-medium text-ink">事件是证据，流水才改变持仓</h2><p className="mt-3 max-w-xl text-[14px] leading-6 text-ink-dim">拆股不会制造收益，换股不会伪造卖出，红利再投也不会被算成外部入金。所有生成流水可随事件整体冲正。</p></div>
       <div className="border-l border-line p-7"><div className="text-[13px] text-ink-faint">份额 / 身份事件</div><div className="num mt-4 text-[32px] text-accent">{quantityEvents}</div><div className="mt-2 text-[13px] text-ink-dim">拆分、送股、换股、转托管</div></div>
       <div className="border-l border-line p-7"><div className="text-[13px] text-ink-faint">现金 / 再投事件</div><div className="num mt-4 text-[32px] text-ink">{cashEvents.length}</div><div className="mt-2 text-[13px] text-ink-dim">现金分配与基金红利再投</div></div>
     </section>
 
-    {ctx.role !== 'VIEWER' && <Panel title="记录公司行动" en="EVIDENCE → LEDGER"><CorporateActionForm accounts={accounts.map((account) => ({ id: account.id, name: account.name, currency: account.currency }))} assets={assets.map((asset) => ({ id: asset.id, symbol: asset.symbol, name: asset.name, cls: asset.cls, currency: asset.currency }))} /></Panel>}
+    {ctx.role !== 'VIEWER' && <Panel title="记录公司行动"><CorporateActionForm accounts={accounts.map((account) => ({ id: account.id, name: account.name, currency: account.currency }))} assets={assets.map((asset) => ({ id: asset.id, symbol: asset.symbol, name: asset.name, cls: asset.cls, currency: asset.currency }))} /></Panel>}
 
-    <Panel title="拆分公告核对" en="ANNOUNCEMENTS"><SplitDiscoveryPanel scan={scan} readOnly={ctx.role === 'VIEWER'} /></Panel>
+    <Panel title="拆分公告核对"><SplitDiscoveryPanel scan={scan} readOnly={ctx.role === 'VIEWER'} /></Panel>
 
-    <Panel title="事件历史" en="REPLAYABLE HISTORY" bodyClassName="p-0" right={<span className="num text-[12px] text-ink-faint">最近 {actions.length} 项</span>}>
+    <Panel title="事件历史" bodyClassName="p-0" right={<span className="num text-[12px] text-ink-faint">最近 {actions.length} 项</span>}>
       {actions.length === 0 ? <Empty>尚未记录公司行动；普通买卖仍在交易流水中录入。</Empty> : <div className="overflow-x-auto"><table className="w-full min-w-[1120px] text-[14px]"><thead><tr className="border-b border-line text-left text-[12px] tracking-[0.12em] text-ink-faint"><th className="px-5 py-3 font-normal">生效日 / 类型</th><th className="px-5 py-3 font-normal">来源资产</th><th className="px-5 py-3 font-normal">变化</th><th className="px-5 py-3 font-normal">成本 / 现金</th><th className="px-5 py-3 font-normal">证据</th><th className="px-5 py-3 text-right font-normal">状态</th></tr></thead><tbody>{actions.map((action) => {
         const before = action.quantityBefore == null ? null : Number(action.quantityBefore)
         const after = action.quantityAfter == null ? null : Number(action.quantityAfter)

@@ -41,7 +41,7 @@ test('资产设置：无流水资产可完整修改并安全删除', async ({ pa
   await expect(assetLink).toBeVisible()
   await assetLink.click()
   await expect(page.getByRole('heading', { name: '资产设置', exact: true })).toBeVisible()
-  await expect(page.getByText('EMPTY LEDGER')).toBeVisible()
+  await expect(page.getByText('未入账')).toBeVisible()
 
   const settings = page.locator('.asset-settings-form')
   await settings.getByLabel('代码', { exact: true }).fill('TEMPFIXED')

@@ -31,6 +31,7 @@ import {
   type AssetNavPoint,
 } from '@/lib/engine/asset-performance'
 import { dateKeyAt } from '@/lib/engine/watch-market'
+import { attributionDateKey, portfolioDayOffset } from '@/lib/engine/portfolio-day'
 import type { ValuationStatus } from '@/lib/engine/valuation-status'
 import { TableScroll } from '@/components/table-scroll'
 import { BreadcrumbEntity } from '@/components/app-shell'
@@ -94,6 +95,8 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
   let historyPrices: AssetNavPoint[] = []
   let chartSource: string | null = null
   if (isMarket) {
+    // 收益序列按北京归属日（ADR-027）：美股美东 D 日的日线进入北京 D+1 格；K 线图仍用真实交易所日期
+    const attributionOffset = portfolioDayOffset({ symbol: asset.symbol, currency: asset.currency, cls: asset.cls })
     const assetLedger = state.ledgerTxs.filter((tx) => tx.assetId === asset.id && !tx.voidedAt)
     const earliest = assetLedger[0]?.occurredAt
     const from = new Date(Math.min(
@@ -105,7 +108,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
       const live = await historySmart(asset.symbol, from, to, { route: asset.cls === 'FUND' ? 'FUND' : 'EXCHANGE' })
       if (live.source !== PROVIDER_LABEL && live.bars.length > 0) {
         chartSource = live.source
-        historyPrices = live.bars.map((bar) => toAssetNavPoint(bar.date, bar.close, live.source))
+        historyPrices = live.bars.map((bar) => toAssetNavPoint(bar.date, bar.close, live.source, undefined, attributionOffset))
         const visibleBars = live.bars.slice(-180)
         const hasOhlc = visibleBars.every((b) => b.open != null && b.high != null && b.low != null)
         if (hasOhlc) {
@@ -127,14 +130,14 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
         })
         if (stored.length > 0) {
           chartSource = stored[0].source
-          historyPrices = stored.map((bar) => toAssetNavPoint(bar.date, Number(bar.close), bar.source))
+          historyPrices = stored.map((bar) => toAssetNavPoint(bar.date, Number(bar.close), bar.source, undefined, attributionOffset))
           chartData = stored.slice(-180).map((b) => ({ date: dateKeyAt(b.date), close: Math.round(Number(b.close) * 10000) / 10000 }))
         }
       }
     } else {
       chartSource = PROVIDER_LABEL
       const simulatedBars = dailyCloses(asset.symbol, from, to)
-      historyPrices = simulatedBars.map((bar) => toAssetNavPoint(bar.date, bar.close, PROVIDER_LABEL))
+      historyPrices = simulatedBars.map((bar) => toAssetNavPoint(bar.date, bar.close, PROVIDER_LABEL, undefined, attributionOffset))
       chartData = simulatedBars.slice(-180).map((b) => ({
         date: dateKeyAt(b.date),
         close: Math.round(b.close * 10000) / 10000,
@@ -143,8 +146,12 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
   }
 
   if (quote) {
-    const today = dateKeyAt(new Date())
-    const quoteDate = quote.tradingDate ?? today
+    const now = new Date()
+    const today = dateKeyAt(now)
+    const quoteDate = attributionDateKey(
+      { symbol: asset.symbol, currency: asset.currency, cls: asset.cls },
+      quote.tradingDate ?? today,
+    ) ?? today
     const quoteStatus: ValuationStatus = asset.cls === 'FUND' && quote.source === 'EASTMONEY-FUND'
       ? 'SETTLED'
       : quoteDate === today
@@ -176,10 +183,14 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
   })
 
   const txs = await db.transaction.findMany({
-    where: { assetId: asset.id },
+    // 与流水页默认视图同一口径：冲正历史默认不入列表，需要时到流水页显式打开
+    where: { assetId: asset.id, voidedAt: null, type: { not: 'REVERSAL' } },
     include: { account: true },
     orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
     take: 100,
+  })
+  const hiddenHistoryCount = await db.transaction.count({
+    where: { assetId: asset.id, OR: [{ voidedAt: { not: null } }, { type: 'REVERSAL' }] },
   })
 
   // 买卖点：BUY/SELL 流水 → 行情曲线标记（吸附到图表内的交易日，超出 180 天范围的不显示）
@@ -259,7 +270,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <i className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: CLASS_COLORS[asset.cls] }} />
-            <span className="eyebrow">{isLongTermAsset ? 'LONG-TERM ASSET' : 'ASSET DETAIL'} · {asset.symbol}</span>
+            <span className="eyebrow">{isLongTermAsset ? '长期资产' : '资产详情'} · {asset.symbol}</span>
           </div>
           <h1 className="mt-5 text-4xl font-medium tracking-tight text-ink md:text-5xl">{asset.name}</h1>
           <div className="mt-7 flex flex-wrap items-center gap-2">
@@ -268,7 +279,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
             {tags.map((t) => <Tag key={t} tone="info">{t}</Tag>)}
           </div>
           <div className="mt-10">
-            <div className="eyebrow">{quote ? 'CURRENT PRICE' : 'HOLDING VALUE'}</div>
+            <div className="eyebrow">{quote ? '当前价格' : '持仓市值'}</div>
             <div className="hero-number mt-3">
               {quote ? fmtMoney(quote.price, asset.currency) : combined ? fmtCNYExact(combined.value) : '—'}
             </div>
@@ -300,7 +311,6 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
 
         <div>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-[12px] text-ink-faint">
-            <span className="eyebrow">PRICE · 180D</span>
             {chartSource && (
               <span className="flex items-center gap-2">
                 <MarketSourceTag source={chartSource} showProvider />
@@ -344,7 +354,6 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
       <section className="holding-overview" aria-labelledby="holding-overview-title">
         <header className="holding-overview-header">
           <div>
-            <div className="eyebrow">{isLongTermAsset ? 'LONG-TERM VALUE' : 'POSITION'}</div>
             <h2 id="holding-overview-title">{isLongTermAsset ? '长期资产概览' : '持仓概览'}</h2>
           </div>
           <span>{positions.length} 个账户持有 · 人民币口径</span>
@@ -450,7 +459,6 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
       {asset.cls === 'FUND' && (
         <Panel
           title={fundModelSelected || fundOfficialEstimateSelected ? '盘中估值' : '估值状态'}
-          en={fundModelSelected || fundOfficialEstimateSelected ? 'FUND ESTIMATE' : 'VALUATION STATUS'}
           right={
             fundModelSelected && fundConfidencePct != null ? (
               <Tag tone={fundConfidencePct >= 70 ? 'info' : fundConfidencePct >= 50 ? 'amber' : 'dim'}>
@@ -584,9 +592,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
       <section className="asset-workspace" aria-labelledby="asset-workspace-title">
         <header className="asset-workspace-header">
           <div>
-            <div className="eyebrow">{isLongTermAsset ? 'LONG-TERM RECORDS' : 'LEDGER WORKSPACE'}</div>
             <h2 id="asset-workspace-title">{isLongTermAsset ? '长期资产记录' : '资产流水'}</h2>
-            <p>{isLongTermAsset ? '记录年度购股、分红和内部估值；这些记录不进入通用流水与投资收益率。' : '新增交易会直接写入账本，并据此重新计算持仓、成本和收益。'}</p>
           </div>
           <span>{txs.length} 条{isLongTermAsset ? '历史记录' : '历史流水'}</span>
         </header>
@@ -594,7 +600,6 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
         {ctx.role !== 'VIEWER' && (
           <div className="asset-form-surface" id="new-transaction">
             <div className="asset-form-intro">
-              <span>{isLongTermAsset ? 'NEW RECORD' : 'NEW TRANSACTION'}</span>
               <h3>{isLongTermAsset ? '新增长期资产记录' : '录入一笔新流水'}</h3>
               <p>{isLongTermAsset ? '选择购股、卖出、分红或估值；不会联动投资账户现金。' : '选择日期、类型和账户；买卖流水可由数量与单价自动计算金额。'}</p>
             </div>
@@ -634,7 +639,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
           </div>
         )}
 
-        <Panel title={isLongTermAsset ? '历史记录' : '流水明细'} en={isLongTermAsset ? 'RECORDS' : 'TRANSACTIONS'} bodyClassName="p-0" right={<span className="num text-[13px] text-ink-faint">最近 {txs.length} 条</span>}>
+        <Panel title={isLongTermAsset ? '历史记录' : '流水明细'} bodyClassName="p-0" right={<span className="num text-[13px] text-ink-faint">最近 {txs.length} 条</span>}>
           {txs.length === 0 ? (
             <Empty>暂无流水</Empty>
           ) : (
@@ -678,22 +683,24 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
               </table>
             </TableScroll>
           )}
+          {hiddenHistoryCount > 0 && (
+            <p className="border-t border-line px-4 py-3 text-[12px] text-ink-faint">
+              另有 {hiddenHistoryCount} 条冲正或已作废记录
+              <Link href="/transactions?history=all" className="ml-2 text-accent hover:underline">查看冲正历史 →</Link>
+            </p>
+          )}
         </Panel>
       </section>
 
       <section className="asset-workspace" aria-labelledby="asset-profile-title">
         <header className="asset-workspace-header">
           <div>
-            <div className="eyebrow">ASSET SETTINGS</div>
-            <h2 id="asset-profile-title">资产设置</h2>
-            <p>维护资产身份与跟踪档案。账本一旦产生流水，关键身份将自动锁定。</p>
+            <h2 id="asset-profile-title" title="维护资产身份与跟踪档案。账本一旦产生流水，关键身份将自动锁定">资产设置</h2>
           </div>
         </header>
         <div className="asset-form-surface asset-profile-surface">
           <div className="asset-form-intro">
-            <span>IDENTITY / PROFILE</span>
             <h3>维护资产信息</h3>
-            <p>无流水的误建资产可完整修改或删除；已入账资产仅允许维护不影响历史计算的信息。</p>
           </div>
           <div className="asset-form-body">
             <AssetMetaForm

@@ -1,16 +1,14 @@
-// 组合日（portfolio day）：某只资产的「今日盈亏」到底以哪一天为“今日”。
+// 组合日与「北京归属日」：一场交易算进哪一天，以**北京时间**为准（ADR-027）。
 //
-// 起因：此前所有资产都用**北京日期**判定 `tradingDate === today`。跨市场组合里这会系统性
-// 冤枉海外持仓——美股的一个交易日在北京时间凌晨才结束，北京白天拿到的美股报价其
-// `tradingDate` 是**上一个美股交易日**（如北京 09-16 10:00 → 美股 09-15），字符串不相等，
-// 于是海外资产永远显示「—」，与真实涨跌无关。
+// 起因：此前按交易所交易日归属。美股一场（美东 D 日 09:30–16:00）实际发生在
+// 北京 D 日 21:30 至 D+1 日 04:00/05:00，按美东日期会把北京次日凌晨才落定的
+// 收益记进北京 D 日那一格，跨市场组合的日历、快照与实时口径因此对不上。
 //
-// 规则：按该资产**计价市场的时区**取当天日期。
-// - 美股（USD）：America/New_York —— 北京白天天然落在美股前一交易日 ✔
-// - 港股（HKD）：Asia/Hong_Kong（与北京同日）✔
-// - A 股 / 场外基金 / 黄金（CNY）：Asia/Shanghai ✔
-// 周末或休市时，报价的 tradingDate 是上一个交易日 → 与市场当日不等 → 不计入当日盈亏（正确）。
-import { dateKeyAt, exchangeTimeZone } from './watch-market'
+// 规则：一场交易按「数据在北京时间哪一天落定」归属。
+// - A 股 / 港股 / 场外基金官方净值：北京同日 → 偏移 0。
+// - 美股（US… 代码）：纽约收盘落在北京次日凌晨 → 偏移 +1，美东 D 日计入北京 D+1。
+// PriceBar 仍保存交易所交易日（行情事实不改），偏移只作用于组合估值、收益日历与实时口径。
+import { dateKeyAt } from './watch-market'
 import { parseSymbol } from '@/lib/market/symbols'
 
 export interface PortfolioDayInput {
@@ -19,24 +17,64 @@ export interface PortfolioDayInput {
   cls?: string | null
 }
 
-/** 该资产所在市场的时区 */
-export function portfolioDayZone(input: PortfolioDayInput): string {
-  if (input.currency) return exchangeTimeZone(input.currency, input.cls ?? '')
-  const symbol = input.symbol ?? ''
-  // 无币种信息时退回按代码前缀判断（US… / HK…）
-  if (/^US/i.test(symbol)) return 'America/New_York'
-  if (/^HK/i.test(symbol)) return 'Asia/Hong_Kong'
+function shiftDateKey(key: string, days: number): string {
+  const date = new Date(`${key}T00:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
+/** 该资产一场交易按北京时间归属的日期偏移天数（0 或 1）。 */
+export function portfolioDayOffset(input: PortfolioDayInput): 0 | 1 {
+  const symbol = input.symbol?.trim() ?? ''
+  if (!symbol || input.cls === 'CASH' || input.cls === 'REAL_ESTATE') return 0
   try {
-    const market = parseSymbol(symbol).market
-    if (market === 'US') return 'America/New_York'
-    if (market === 'HK') return 'Asia/Hong_Kong'
+    if (parseSymbol(symbol).market === 'US') return 1
   } catch {
     /* 非法代码按本土处理 */
   }
-  return 'Asia/Shanghai'
+  return /^US[A-Z]/i.test(symbol) ? 1 : 0
 }
 
-/** 该资产「今日」对应的交易日键（YYYY-MM-DD） */
-export function portfolioDayKey(input: PortfolioDayInput, now: Date = new Date()): string {
-  return dateKeyAt(now, portfolioDayZone(input))
+/** 交易所交易日键（YYYY-MM-DD）→ 该场交易归属的北京日期键。 */
+export function attributionDateKey(
+  input: PortfolioDayInput,
+  exchangeTradingDate: string | null | undefined,
+): string | null {
+  if (!exchangeTradingDate || !/^\d{4}-\d{2}-\d{2}$/.test(exchangeTradingDate)) return null
+  const offset = portfolioDayOffset(input)
+  return offset === 0 ? exchangeTradingDate : shiftDateKey(exchangeTradingDate, offset)
+}
+
+/**
+ * 实时「今日涨跌」允许的归属日期键：恒含北京今天。
+ * 美股另含归属北京明天的那一场——北京晚间 21:30 起美股正在进行，
+ * 但按归属只能算进明天，实时口径必须容纳它，否则看盘在北京晚间回到「—」。
+ */
+export function liveAttributionDates(input: PortfolioDayInput, now: Date = new Date()): string[] {
+  const today = dateKeyAt(now)
+  return portfolioDayOffset(input) === 1 ? [today, shiftDateKey(today, 1)] : [today]
+}
+
+/** 报价此刻是否计入实时「今日涨跌」，及其归属的北京日期键。 */
+export function liveQuoteAttribution(input: {
+  asset: PortfolioDayInput
+  exchangeTradingDate: string | null | undefined
+  now?: Date
+}): { attributionDate: string | null; included: boolean } {
+  const attributionDate = attributionDateKey(input.asset, input.exchangeTradingDate)
+  if (!attributionDate) return { attributionDate: null, included: false }
+  const allowed = liveAttributionDates(input.asset, input.now ?? new Date())
+  return { attributionDate, included: allowed.includes(attributionDate) }
+}
+
+/** 实时「今日涨跌」的昨收基线：报价不属于当前口径或昨收无效时返回 null（不虚构基准）。 */
+export function livePreviousClose(input: {
+  asset: PortfolioDayInput
+  exchangeTradingDate: string | null | undefined
+  prevClose: number | null | undefined
+  now?: Date
+}): number | null {
+  if (!liveQuoteAttribution(input).included) return null
+  const prevClose = input.prevClose
+  return prevClose != null && Number.isFinite(prevClose) ? prevClose : null
 }

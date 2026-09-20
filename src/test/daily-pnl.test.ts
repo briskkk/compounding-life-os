@@ -26,32 +26,78 @@ describe('组合当日行情汇总', () => {
 })
 
 describe('行情资产当日盈亏的唯一判定（总览 / 看盘 / 收益日历共用）', () => {
+  // 北京 2026-09-16 白天：美东 09-15 晚间（美股上一场归属北京 09-16）
+  const now = new Date('2026-09-16T02:00:00Z')
   const todayKey = '2026-09-16'
+  const cnAsset = { symbol: '510300', currency: 'CNY', cls: 'ETF' }
+  const usAsset = { symbol: 'USSMH', currency: 'USD', cls: 'ETF' }
 
-  it('报价交易日等于当前组合日时，现价与昨收都取自同一报价', () => {
+  it('A 股报价交易日等于北京当天时，现价与昨收都取自同一报价', () => {
     const result = dailyQuoteValuation({
       quantity: 100,
       quote: { price: 12, prevClose: 10, tradingDate: todayKey },
       fallbackValueCny: 900,
-      todayKey,
+      asset: cnAsset,
+      now,
     })
     expect(result.currentValueCny).toBe(1200)
     expect(result.previousValueCny).toBe(1000)
+    expect(result.included).toBe(true)
   })
 
-  it('报价属于其它交易日时不参与当日盈亏（不再回退成另一个基准）', () => {
+  it('报价属于其它归属日时不参与当日盈亏（不再回退成另一个基准）', () => {
+    const result = dailyQuoteValuation({
+      quantity: 100,
+      quote: { price: 12, prevClose: 10, tradingDate: '2026-09-14' },
+      fallbackValueCny: 900,
+      asset: cnAsset,
+      now,
+    })
+    expect(result.currentValueCny).toBe(1200)
+    expect(result.previousValueCny).toBeNull()
+    expect(result.included).toBe(false)
+  })
+
+  it('美股按北京归属日计入：美东 09-15 收盘落在北京 09-16', () => {
     const result = dailyQuoteValuation({
       quantity: 100,
       quote: { price: 12, prevClose: 10, tradingDate: '2026-09-15' },
       fallbackValueCny: 900,
-      todayKey,
+      asset: usAsset,
+      now,
     })
     expect(result.currentValueCny).toBe(1200)
-    expect(result.previousValueCny).toBeNull()
+    expect(result.previousValueCny).toBe(1000)
+    expect(result.included).toBe(true)
   })
 
-  it('缺少报价时不虚构当日盈亏，并按回退市值计值', () => {
-    const result = dailyQuoteValuation({ quantity: 100, quote: null, fallbackValueCny: 955, todayKey })
+  it('美股美东 09-14 的场次归属北京 09-15，不再算进北京 09-16', () => {
+    const result = dailyQuoteValuation({
+      quantity: 100,
+      quote: { price: 12, prevClose: 10, tradingDate: '2026-09-14' },
+      fallbackValueCny: 900,
+      asset: usAsset,
+      now,
+    })
+    expect(result.previousValueCny).toBeNull()
+    expect(result.included).toBe(false)
+  })
+
+  it('北京晚间 21:30 后美股场次归属明天，实时口径仍计入（否则看盘回到「—」）', () => {
+    const evening = new Date('2026-09-16T14:00:00Z') // 北京 09-16 22:00 / 美东 09-16 10:00
+    const result = dailyQuoteValuation({
+      quantity: 100,
+      quote: { price: 12, prevClose: 10, tradingDate: '2026-09-16' },
+      fallbackValueCny: 900,
+      asset: usAsset,
+      now: evening,
+    })
+    expect(result.previousValueCny).toBe(1000)
+    expect(result.included).toBe(true)
+  })
+
+  it('缺报价时不虚构当日盈亏，并按回退市值计值', () => {
+    const result = dailyQuoteValuation({ quantity: 100, quote: null, fallbackValueCny: 955, asset: cnAsset, now })
     expect(result.currentValueCny).toBe(955)
     expect(result.previousValueCny).toBeNull()
   })
@@ -61,7 +107,8 @@ describe('行情资产当日盈亏的唯一判定（总览 / 看盘 / 收益日�
       quantity: 10,
       quote: { price: 8, prevClose: null, tradingDate: todayKey },
       fallbackValueCny: 1,
-      todayKey,
+      asset: cnAsset,
+      now,
     })
     expect(result.currentValueCny).toBe(80)
     expect(result.previousValueCny).toBeNull()
@@ -72,7 +119,8 @@ describe('行情资产当日盈亏的唯一判定（总览 / 看盘 / 收益日�
       quantity: 10,
       quote: { price: 8, prevClose: 7.5, tradingDate: todayKey },
       fallbackValueCny: 0,
-      todayKey,
+      asset: cnAsset,
+      now,
       rateToCny: 7,
     })
     expect(result.currentValueCny).toBe(560)

@@ -36,31 +36,16 @@ export function seriesPortfolioDate(series: IntradaySeries | undefined): string 
   return last ? dateKeyAt(last.t) : null
 }
 
-/**
- * “今日涨跌”严格按交易所交易日归属。
- * 美股上一交易日即使延续到北京时间次日凌晨，也不能继续算作北京时间次日的今日收益。
- */
-export function isCurrentPortfolioDay(tradingDate: string | null, todayKey: string): boolean {
-  return tradingDate === todayKey
-}
-
-/** 只有报价交易日属于北京时间当前自然日时，昨收才可进入“今日涨跌”基线。 */
-export function previousCloseOnPortfolioDay(
-  previousClose: number | null | undefined,
-  tradingDate: string | null | undefined,
-  todayKey: string,
-): number | null {
-  return previousClose != null && Number.isFinite(previousClose) && isCurrentPortfolioDay(tradingDate ?? null, todayKey)
-    ? previousClose
-    : null
-}
+// “今日涨跌”的归属判定与昨收基线统一由 engine/portfolio-day 提供（ADR-027：
+// 一场交易按“数据在北京时间哪一天落定”归属，美股美东 D 日计入北京 D+1）。
+// 本模块只保留纯日期键与交易所交易日读取，不做归属偏移。
 
 export interface DatedValuation {
   tradingDate: string | null
   valueCny: number
 }
 
-/** 当前估值实际属于哪一个交易日，以及该日价格覆盖了多少行情资产。 */
+/** 当前估值实际落在哪一个北京归属日，以及该日价格覆盖了多少行情资产（调用方传入归属日期键）。 */
 export function summarizeValuationDate(items: DatedValuation[]): { date: string; coverage: number } | null {
   const dated = items.filter((item) => item.tradingDate != null && /^\d{4}-\d{2}-\d{2}$/.test(item.tradingDate))
   const date = dated.reduce<string | null>(

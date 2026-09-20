@@ -16,7 +16,8 @@ import { PositionSourceTag } from '@/components/valuation-source'
 import { positionDayPnlCny, summarizeAccountPositions } from '@/lib/engine/account-summary'
 import { holdingsIndex } from '@/lib/engine/ledger'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
-import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
+import { dateKeyAt } from '@/lib/engine/watch-market'
+import { livePreviousClose } from '@/lib/engine/portfolio-day'
 import { BreadcrumbEntity } from '@/components/app-shell'
 
 export const dynamic = 'force-dynamic'
@@ -51,20 +52,28 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
   if (!ctx) return <SetupScreen />
   const canWrite = ctx.role !== 'VIEWER'
   const db = scopedDb(prisma, ctx)
-  const [account, accounts, assets, state, recentTransactions] = await Promise.all([
+  const [account, accounts, assets, state, recentTransactions, hiddenHistoryCount] = await Promise.all([
     db.account.findFirst({ where: { id: accountId }, include: { settlementAccount: true } }),
     db.account.findMany({ include: { settlementAccount: true }, orderBy: { createdAt: 'asc' } }),
     db.asset.findMany({ include: { fundTradePolicy: true }, orderBy: { createdAt: 'asc' } }),
     loadEngineState(ctx),
     db.transaction.findMany({
-      where: { accountId, asset: { cls: { not: 'HUAWEI_STOCK' } } },
+      // 与流水页默认视图同一口径：冲正历史默认不入列表，需要时走「查看全部」并显式打开
+      where: { accountId, voidedAt: null, type: { not: 'REVERSAL' }, asset: { cls: { not: 'HUAWEI_STOCK' } } },
       include: { asset: true },
       orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
       take: 8,
     }),
+    db.transaction.count({
+      where: {
+        accountId,
+        asset: { cls: { not: 'HUAWEI_STOCK' } },
+        OR: [{ voidedAt: { not: null } }, { type: 'REVERSAL' }],
+      },
+    }),
   ])
   if (!account) return notFound()
-  const todayKey = dateKeyAt(new Date())
+  const now = new Date()
 
   const positions = state.valued
     .filter((position) => position.accountId === account.id
@@ -73,7 +82,13 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
     .sort((a, b) => b.value - a.value)
   const summary = summarizeAccountPositions(positions, (symbol) => {
     const quote = state.quotes.get(symbol)
-    return previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, todayKey)
+    const asset = positions.find((position) => position.asset.symbol === symbol)?.asset
+    return livePreviousClose({
+      asset: { symbol, currency: asset?.currency, cls: asset?.cls },
+      exchangeTradingDate: quote?.tradingDate,
+      prevClose: quote?.prevCloseCny,
+      now,
+    })
   })
   const accountWeight = state.metrics.portfolioValue > 0 ? summary.valueCny / state.metrics.portfolioValue : null
   const cashAccountIds = new Set(
@@ -131,7 +146,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
       </dl>
 
       <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-3">
-        <Panel title="账户持仓" en="ACCOUNT POSITIONS" className="xl:col-span-2" bodyClassName="p-0" right={<span className="num text-[12px] text-ink-faint">{summary.holdingCount} 项</span>}>
+        <Panel title="账户持仓" className="xl:col-span-2" bodyClassName="p-0" right={<span className="num text-[12px] text-ink-faint">{summary.holdingCount} 项</span>}>
           {positions.length === 0 ? (
             <Empty>当前账户暂无持仓</Empty>
           ) : (
@@ -153,7 +168,12 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
                     const quote = state.quotes.get(position.asset.symbol)
                     const dayPnl = positionDayPnlCny(
                       position,
-                      previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, todayKey),
+                      livePreviousClose({
+                        asset: { symbol: position.asset.symbol, currency: position.asset.currency, cls: position.asset.cls },
+                        exchangeTradingDate: quote?.tradingDate,
+                        prevClose: quote?.prevCloseCny,
+                        now,
+                      }),
                     )
                     return (
                       <tr key={position.assetId} className="transition-colors hover:bg-panel2/50">
@@ -189,7 +209,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
         </Panel>
 
         <div className="space-y-3">
-          <Panel title="资金结算" en="CASH ROUTING">
+          <Panel title="资金结算">
             <div className="rounded border border-line bg-panel2 px-3 py-2.5">
               <div className="text-[12px] text-ink-faint">当前关系</div>
               <div className="mt-1.5 text-sm text-ink">
@@ -209,7 +229,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
           </Panel>
 
           {canWrite && (
-            <Panel title="录入账户流水" en="NEW TRANSACTION">
+            <Panel title="录入账户流水">
               <TxForm
                 lockAccount
                 initialAccountId={account.id}
@@ -243,7 +263,6 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
 
       <Panel
         title="最近流水"
-        en="RECENT LEDGER"
         bodyClassName="p-0"
         right={<Link href={`/transactions?account=${account.id}`} className="text-[12px] text-ink-faint hover:text-accent">查看全部 →</Link>}
       >
@@ -276,6 +295,12 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
               </tbody>
             </table>
           </div>
+        )}
+        {hiddenHistoryCount > 0 && (
+          <p className="border-t border-line px-4 py-3 text-[12px] text-ink-faint">
+            另有 {hiddenHistoryCount} 条冲正或已作废记录
+            <Link href={`/transactions?account=${account.id}&history=all`} className="ml-2 text-accent hover:underline">查看冲正历史 →</Link>
+          </p>
         )}
       </Panel>
     </div>

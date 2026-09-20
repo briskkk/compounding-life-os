@@ -4,7 +4,8 @@ import { getWatchData } from '@/lib/queries'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { summarizeAccountPositions } from '@/lib/engine/account-summary'
-import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
+import { dateKeyAt } from '@/lib/engine/watch-market'
+import { livePreviousClose } from '@/lib/engine/portfolio-day'
 import { Empty, PageHeader, Panel, SetupScreen, Tag, ReadOnlyNotice } from '@/components/ui'
 import { ReconciliationForm } from '@/components/reconciliation-form'
 import { cx, fmtCNY, fmtDateTime } from '@/lib/format'
@@ -48,13 +49,19 @@ export default async function ReconciliationPage() {
   ])
   if (!watchData) return <SetupScreen />
   const state = watchData.state
-  const todayKey = dateKeyAt(new Date())
+  const now = new Date()
   const accountRows = accounts.map((account) => {
     const summary = summarizeAccountPositions(
       state.valued.filter((position) => position.accountId === account.id),
       (symbol) => {
         const quote = state.quotes.get(symbol)
-        return previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, todayKey)
+        const asset = state.valued.find((position) => position.asset.symbol === symbol)?.asset
+        return livePreviousClose({
+          asset: { symbol, currency: asset?.currency, cls: asset?.cls },
+          exchangeTradingDate: quote?.tradingDate,
+          prevClose: quote?.prevCloseCny,
+          now,
+        })
       },
     )
     const latestLog = logs.find((log) => log.entityId === account.id)
@@ -76,7 +83,6 @@ export default async function ReconciliationPage() {
   return (
     <div className="page-shell reconciliation-page">
       <PageHeader
-        kicker="Evidence checkpoint"
         title="账户对账"
         description="把券商、银行或基金平台显示的余额与当前账本逐账户核对。核对凭证只追加到审计链，绝不会直接改写资产。"
         right={<Link href="/health" className="text-[14px] text-accent">返回健康中心 →</Link>}
@@ -89,7 +95,7 @@ export default async function ReconciliationPage() {
         <p>差额不等于收益。发现差异后，请回到流水补录遗漏交易或冲正错误记录。</p>
       </section>
 
-      <Panel title="当前账户核对状态" en="ACCOUNT CHECKPOINTS" bodyClassName="p-0">
+      <Panel title="当前账户核对状态" bodyClassName="p-0">
         <TableScroll label="核对凭证表">
           <table className="w-full whitespace-nowrap text-[14px]">
             <thead><tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint"><th className="px-4 py-3 font-normal">账户</th><th className="px-2 py-3 text-right font-normal">当前账本</th><th className="px-2 py-3 text-right font-normal">最近账单</th><th className="px-2 py-3 text-right font-normal">差额</th><th className="px-4 py-3 font-normal">状态</th></tr></thead>
@@ -104,13 +110,13 @@ export default async function ReconciliationPage() {
 
       {ctx.role === 'VIEWER' && <ReadOnlyNotice what="可以查看核对凭证与差额，但不能追加外部凭证" />}
       {ctx.role !== 'VIEWER' && (
-        <Panel title="新增核对凭证" en="APPEND EVIDENCE">
+        <Panel title="新增核对凭证">
           <ReconciliationForm accounts={accountRows.map(({ id, name, ledgerValueCny }) => ({ id, name, ledgerValueCny }))} />
           <p className="mt-4 text-[12px] leading-6 text-ink-faint">凭证是核对时点的证据，不是资产余额字段。提交后如需修正，请新增一条凭证保留历史。</p>
         </Panel>
       )}
 
-      <Panel title="核对历史" en="RECONCILIATION TRAIL" bodyClassName="p-0">
+      <Panel title="核对历史" bodyClassName="p-0">
         {evidenceRows.length === 0 ? <Empty>尚无账户核对凭证</Empty> : <div className="reconciliation-history">{evidenceRows.map((row) => <article key={row.id}><time className="num">{fmtDateTime(row.createdAt)}</time><div><strong>{row.accountName}</strong><span>{row.sourceName} · 账单日 {row.asOfDate}</span></div><b className={Math.abs(row.differenceCny) < 0.01 ? 'text-info' : 'text-amber'}>{fmtCNY(row.differenceCny, { sign: true })}</b><small>{row.actorName}{row.note ? ` · ${row.note}` : ''}</small></article>)}</div>}
       </Panel>
     </div>

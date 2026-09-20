@@ -14,11 +14,10 @@ import { MarketSourceTag, PositionSourceTag } from '@/components/valuation-sourc
 import { summarizeAccountPositions, type AccountPositionSummary } from '@/lib/engine/account-summary'
 import type { ValuedPosition } from '@/lib/engine/valuation'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
-import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
 import { buildCashCalendar } from '@/lib/engine/cash-calendar'
 import { CashPlanForm, DeleteCashPlanButton } from '@/components/cash-plan-form'
 import { TableScroll } from '@/components/table-scroll'
-import { portfolioDayKey } from '@/lib/engine/portfolio-day'
+import { livePreviousClose } from '@/lib/engine/portfolio-day'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,7 +85,7 @@ export default async function AccountsPage({
 
   const now = new Date()
   const positionsByAccount = new Map<string, ValuedPosition[]>()
-  const todayKey = dateKeyAt(now)
+
   const valueByAsset = new Map<string, number>()
   const positionByAsset = new Map<string, ValuedPosition>()
   for (const position of state.valued) {
@@ -103,9 +102,14 @@ export default async function AccountsPage({
     const positions = positionsByAccount.get(account.id) ?? []
     return [account.id, summarizeAccountPositions(positions, (symbol) => {
       const quote = state.quotes.get(symbol)
-      // 海外持仓按各自市场的「今天」判定（与总览/看盘同源）
       const asset = state.assets.find((item) => item.symbol === symbol)
-      return previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, portfolioDayKey({ symbol, currency: asset?.currency, cls: asset?.cls }, now))
+      // 归属口径统一按北京日（与总览/看盘/日历同源，ADR-027）：美股美东 D 日计入北京 D+1
+      return livePreviousClose({
+        asset: { symbol, currency: asset?.currency, cls: asset?.cls },
+        exchangeTradingDate: quote?.tradingDate,
+        prevClose: quote?.prevCloseCny,
+        now,
+      })
     })]
   }))
   const cashAccountIds = new Set(
@@ -172,7 +176,6 @@ export default async function AccountsPage({
   return (
     <div className="page-shell">
       <PageHeader
-        kicker="Custody & cash routing"
         title="账户中心"
         description={activeView === 'calendar'
           ? '把账本派生的在途到账与未来现金计划放在同一时间轴；计划事项不会提前改变真实余额。'
@@ -215,14 +218,12 @@ export default async function AccountsPage({
           <div className="metric-band">
             <Stat
               label="今日盈亏"
-              en="DAY P&L"
               value={<span data-testid="accounts-today-pnl" data-amount={totalDayPnl.toFixed(2)}><DeltaAmount value={totalDayPnl} /></span>}
               hint="仅汇总交易日属于北京时间今日的行情资产"
             />
-            <Stat label="现金余额" en="CASH" value={<span className="text-accent">{fmtCNY(totalCash)}</span>} sub={<span className="text-ink-dim">占资产 {fmtPct(totalAssets > 0 ? totalCash / totalAssets : null)}</span>} />
+            <Stat label="现金余额" value={<span className="text-accent">{fmtCNY(totalCash)}</span>} sub={<span className="text-ink-dim">占资产 {fmtPct(totalAssets > 0 ? totalCash / totalAssets : null)}</span>} />
             <Stat
               label="账户结构"
-              en="STRUCTURE"
               value={<span className="text-info">{accounts.length}</span>}
               sub={<span className="text-ink-dim">{fundingAccountIds.size} 个资金/综合账户</span>}
               hint={unsettledAccounts.length > 0 ? `${unsettledAccounts.length} 个投资账户未配置结算` : '资金结算关系完整'}
@@ -232,7 +233,6 @@ export default async function AccountsPage({
           <div className="space-y-3">
             <Panel
               title="账户资产分布"
-              en="ACCOUNT HOLDINGS"
               bodyClassName="p-0"
               right={<span className="text-[12px] text-ink-faint">点击账户查看明细</span>}
             >
@@ -301,7 +301,7 @@ export default async function AccountsPage({
             </Panel>
 
             <div className={cx('grid grid-cols-1 items-start gap-3', canWrite && 'xl:grid-cols-2')}>
-              <Panel title="资金结算关系" en="CASH ROUTING">
+              <Panel title="资金结算关系">
                 <div className="space-y-2.5">
                   {accounts.filter((account) => account.type === 'BROKERAGE' || account.type === 'FUND').map((account) => (
                     <Link key={account.id} href={`/accounts/${account.id}`} className="flex items-center justify-between gap-3 rounded border border-line bg-panel2 px-3 py-2 transition-colors hover:border-ink-faint">
@@ -316,7 +316,7 @@ export default async function AccountsPage({
               </Panel>
 
               {canWrite && (
-                <Panel title="新建账户" en="ADD ACCOUNT" className="scroll-mt-6" >
+                <Panel title="新建账户" className="scroll-mt-6" >
                   <div id="new-account" />
                   <AccountForm />
                   <p className="mt-4 border-t border-line pt-3 text-[13px] leading-relaxed text-ink-faint">创建后进入账户详情配置同币种资金结算账户。</p>
@@ -329,7 +329,7 @@ export default async function AccountsPage({
 
       {activeView === 'assets' && (
         <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-3">
-          <Panel title="资产目录" en="ASSET UNIVERSE" className="xl:col-span-2" bodyClassName="p-0" right={<span className="num text-[12px] text-ink-faint">{assets.length} 项</span>}>
+          <Panel title="资产目录" className="xl:col-span-2" bodyClassName="p-0" right={<span className="num text-[12px] text-ink-faint">{assets.length} 项</span>}>
             <div className="overflow-x-auto">
               <table className="w-full text-[14px] whitespace-nowrap">
                 <thead>
@@ -378,7 +378,7 @@ export default async function AccountsPage({
             </div>
           </Panel>
           {canWrite && (
-            <Panel title="登记资产" en="ADD ASSET" className="scroll-mt-6">
+            <Panel title="登记资产" className="scroll-mt-6">
               <div id="new-asset" />
               <AssetForm />
               <p className="mt-4 border-t border-line pt-3 text-[13px] leading-relaxed text-ink-faint">资产是全局标的目录；实际归属账户由交易流水决定。</p>
@@ -390,11 +390,11 @@ export default async function AccountsPage({
       {activeView === 'liabilities' && (
         <>
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-            <Stat label="负债余额" en="LIABILITIES" value={<span className="text-up">−{fmtCNY(state.liabilitiesTotal)}</span>} hint="从家庭净资产中扣减" />
-            <Stat label="负债项目" en="ITEMS" value={<span className="text-ink">{state.liabilities.length}</span>} hint="余额同样由负债条目推导" />
+            <Stat label="负债余额" value={<span className="text-up">−{fmtCNY(state.liabilitiesTotal)}</span>} hint="从家庭净资产中扣减" />
+            <Stat label="负债项目" value={<span className="text-ink">{state.liabilities.length}</span>} hint="余额同样由负债条目推导" />
           </div>
           <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-3">
-            <Panel title="负债列表" en="LIABILITY BOOK" className="xl:col-span-2" bodyClassName="p-0">
+            <Panel title="负债列表" className="xl:col-span-2" bodyClassName="p-0">
               {state.liabilities.length === 0 ? (
                 <Empty action={{ href: '#new-liability', label: '登记负债' }}>暂无负债项目</Empty>
               ) : (
@@ -416,11 +416,11 @@ export default async function AccountsPage({
             </Panel>
             {canWrite && (
               <div className="space-y-3">
-                <Panel title="登记负债" en="ADD LIABILITY" className="scroll-mt-6">
+                <Panel title="登记负债" className="scroll-mt-6">
                   <div id="new-liability" />
                   <LiabilityForm />
                 </Panel>
-                <Panel title="放款 / 还款 / 调整" en="LIABILITY ENTRY">
+                <Panel title="放款 / 还款 / 调整">
                   <LiabilityEntryForm liabilities={state.liabilities.map((liability) => ({ id: liability.id, name: liability.name }))} />
                 </Panel>
               </div>
@@ -444,7 +444,7 @@ export default async function AccountsPage({
           <section className="cash-calendar-layout">
             <div className="cash-calendar-board">
               <header>
-                <div><span className="eyebrow">Cash timeline</span><h2>{calendarYear} 年 {calendarMonth} 月</h2></div>
+                <div><h2>{calendarYear} 年 {calendarMonth} 月</h2></div>
                 <nav aria-label="资金日历月份">
                   <Link href={`/accounts?view=calendar&month=${shiftMonth(selectedMonth, -1)}`}>← 上月</Link>
                   <Link href="/accounts?view=calendar">本月</Link>
@@ -480,12 +480,12 @@ export default async function AccountsPage({
 
             <aside className="cash-calendar-sidebar">
               {canWrite && (
-                <Panel title="添加计划事项" en="ADD PLAN" className="scroll-mt-6">
+                <Panel title="添加计划事项" className="scroll-mt-6">
                   <div id="new-cash-plan" />
                   <CashPlanForm accounts={accounts.map((account) => ({ id: account.id, name: account.name }))} />
                 </Panel>
               )}
-              <Panel title="本月事项" en="MONTH EVENTS" bodyClassName="p-0">
+              <Panel title="本月事项" bodyClassName="p-0">
                 {cashCalendar.events.length === 0 ? <Empty>本月暂无资金安排</Empty> : (
                   <div className="cash-calendar-agenda">
                     {cashCalendar.events.map((event) => (

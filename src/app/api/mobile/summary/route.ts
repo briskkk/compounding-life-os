@@ -6,7 +6,8 @@ import { scopedDb } from '@/lib/scoped'
 import { loadEngineState } from '@/lib/queries'
 import { apiReadAuthCtx } from '@/lib/services/api-auth'
 import { projectGoalViews } from '@/lib/engine/goal-views'
-import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
+import { dateKeyAt } from '@/lib/engine/watch-market'
+import { livePreviousClose } from '@/lib/engine/portfolio-day'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
   ])
 
   const assetById = new Map(state.assets.map((a) => [a.id, a]))
-  const todayKey = dateKeyAt(new Date())
+  const quoteNow = new Date()
 
   // ── 总资产 / 现金流动性 / 当日盈亏（与 positions 口径一致）──
   let totalAssets = 0
@@ -43,7 +44,12 @@ export async function GET(req: NextRequest) {
     totalAssets += value
     if (a?.cls === 'CASH') cashLiquidity += value
     const quote = state.quotes.get(a?.symbol ?? '')
-    const prev = previousCloseOnPortfolioDay(quote?.prevCloseCny, quote?.tradingDate, todayKey)
+    const prev = livePreviousClose({
+      asset: { symbol: a?.symbol ?? '', currency: a?.currency, cls: a?.cls },
+      exchangeTradingDate: quote?.tradingDate,
+      prevClose: quote?.prevCloseCny,
+      now: quoteNow,
+    })
     if (prev != null && prev > 0) {
       const prior = p.quantity * prev
       dayPnl += value - prior

@@ -1,10 +1,58 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-09-10
+last_verified: 2026-09-17
 ---
 
 # AI 工作变更记录
+
+## 2026-09-17 · 定投用例对齐：全量 E2E 回到 112/112
+
+- `e2e/investment-plans.spec.ts` 的「整日未买一次核对」用例仍是批量核对重构前的写法，两处断言与现状不符：
+  - 提交按钮文案：实现按未选行计数渲染 `确认 N 只未买`（`investment-plan-batch-entry.tsx:174`），用例仍等 `/一次确认未买/`。用例改为等 `确认 1 只未买`；保留「无勾选且无未买标记时才显示 `一次确认未买`」这一兜底文案。
+  - 历史日期直达：实现已把所有待核对日直接渲染为 `#quick-entry-YYYY-MM-DD-CNY` 区块（`投资计划批量核对` 重构后不再有折叠的 `#quick-entry-history`），用例仍断言那个已删除的 details 的 `open`。改为点击 09/01 计划格后断言 `#quick-entry-2026-09-01-CNY` 可见、含该日期且只有一行。
+- 诊断记录：这两个用例必须与同文件第 2 个用例连跑（它负责创建 `易方达消费定投` 计划），单独 `-g` 运行会因缺计划在更早的断言处超时；本次失败一开始被这个假象盖住。
+- 验证：`npm run db:e2e` 重新播种后 `npx playwright test` 全量 **112/112**（37.9s），`npm test` 569/569（83 文件），`npx tsc --noEmit` 无错误，`git diff --check` 干净。未改动任何产品代码与财务口径。
+
+## 2026-09-17 · 持仓页列头排序 + 看盘行与分时曲线联动
+
+- 持仓页排序收口（审计 P1-14 的另一半）：删掉「资产」列头里的原生排序下拉与写死 `aria-sort="other"`，市值 / 当日盈亏 / 未实现盈亏 / 权重 / 名称五列各自带列头排序按钮，`aria-sort` 如实标注当前列；新增 `unrealizedPnl-desc|asc`、`weight-desc|asc` 两个排序键（引擎新增 `SortableHolding.unrealizedPnlCny/weight`），默认市值降序不进 URL，切换排序保留大类/分组筛选并回到第一页。至此全仓不再有 `HoldingSortSelect`，`src/components/holding-sort-select.tsx` 已删除（它是最后两个调用点唯一的原生下拉 + 无人读取的 localStorage 死写入）。
+- 列头排序控件抽成 `src/components/sort-header.tsx`（看盘与持仓共用），文案与 `aria-sort` 全部来自 `holding-sort.ts` 唯一来源 `HOLDING_SORT_HEADERS`（带单位，与列名一致）。列头无障碍名约定为**描述当前状态**（「按市值（¥）降序排序」），点下去切到相反方向——描述「下一步动作」会让同一个控件上的「升序」同时意味两件事，读屏与测试都会读错（实现与 E2E 各踩过一轮）。
+- 看盘行 ↔ 分时曲线联动：点表格行（或 Enter/空格）在当日曲线上叠加该标的的当日盈亏虚线，再点一次取消；悬停即预览，鼠标移开回到选中态。曲线区显示当前标的、其当日盈亏与取消入口；该标的没有分钟数据的时段**断开而不插值**，Y 域同时纳入标的与组合极值，避免小仓位被组合量级压平。
+- 引擎新增 `buildIntradayCurves`（`src/lib/engine/intraday.ts`）：在原组合曲线之上额返回逐标的当日盈亏序列，与组合共用同一时间轴、同一昨收基线，因此选中标的末点必然等于表格里的当日盈亏；`buildPortfolioCurve` 保留为它的薄包装（既有单测与调用点不变）。
+- 验证：`npm test` **569/569**（83 文件；`holding-sort` 10 例、`intraday` 10 例）、`npx tsc --noEmit` 无错误、`npm run build` 与 `npm run build:e2e` 通过、Playwright 全量 **111/112**（新增 5 例持仓/看盘排序与行联动用例，`e2e/holdings.spec.ts` 共 9 例；唯一失败仍是 `investment-plans.spec.ts:117` 的「一次确认未买」按钮文案与本地未提交的快速录入改造不一致）。1280/1440 持仓与看盘页 `scrollWidth === innerWidth`，深色主题截图复核列头按钮、选中行与叠加曲线。
+- 未改动财务口径（今日盈亏判定、成本/收益重放）、账本边界、权限与审计；全部为展示层与派生展示序列。
+
+## 2026-09-17 · 看盘实时估值表：排序上移列头 + 补齐筛选
+
+- 问题（用户反馈「排序筛选非常不好用」）：排序控件塞在「资产」列头里、`aria-sort` 写死 `other`，页面只有排序没有筛选；`HoldingSortSelect` 每次写 `localStorage['portfolio:asset-sort']` 但全仓无人读取（死写入），且只有市值/当日盈亏/名称三键，缺看盘最需要的涨跌幅。
+- 排序：新增列头排序按钮（市值 / 涨跌幅 / 当日盈亏 + 名称），点击在升降序之间切换，`aria-sort` 如实标注当前列（`holdingAriaSort`），默认市值降序不进 URL；「资产」列不再承载排序下拉。
+- 引擎（`src/lib/engine/holding-sort.ts`）：新增 `changePct-desc|asc`；`SortableHolding.changePct`；新增 `holdingSortKey` / `toggleHoldingSort` / `holdingAriaSort`；缺失值（无行情 / 无昨收）恒沉底；主键相等时按名称兜底，消除轮询改价时同值行互换造成的抖动。`holding-sort-select.tsx` 同步补上两个新选项并删掉死写入。
+- 筛选（新增 `src/components/holding-filter-bar.tsx`）：名称/代码搜索、资产大类 chip（股票/ETF/基金/黄金/其他，带计数）、「未计入今日盈亏」开关、`显示 n / N 个标的` 与清除入口；空态给出口径与「清除筛选」。
+- 状态进 URL（`sort` / `q` / `cls` / `excl`）并支持深链与浏览器前进后退；写入走 `history.replaceState` + `popstate`，避免每敲一个字符就重新渲染服务端组件（这张表本来就每 30 秒自轮询报价）。`parseWatchClassFilter` 放在纯引擎模块 `src/lib/engine/watch-filter.ts`——`'use client'` 模块的导出在服务端会被编译成客户端引用，服务端页面直接调用会 500（构建期不报错，靠 E2E 抓到）。
+- 表格：常量计值项（现金/房产/在途）不参与涨跌幅与当日盈亏排序、恒沉底；「非北京今天不计入」文案改为「不计入今日盈亏」（同一行会同时显示该场涨跌，原标题与数字并列易被读成矛盾）；补 `<caption>` 与 4 个 `scope="col"`。
+- 验证：`npm test` **563/563**（83 文件，新增 `watch-filter` 2 例、`holding-sort` 8 例）、`npx tsc --noEmit` 无错误、`npm run build` 与 `npm run build:e2e` 通过、Playwright **109/110**（新增 3 例看盘排序/筛选/深链用例；唯一失败为 `investment-plans.spec.ts:117` 的「一次确认未买」按钮文案与本地未提交的快速录入改造不一致，属既有未完成改动，与本次无关）。1280/1440 看盘页 `scrollWidth === innerWidth`，深色主题截图复核筛选条与列头排序。
+- 未改动财务口径与「今日盈亏」判定、账本边界、权限与审计；`/watch` 只新增展示层状态。
+
+## 2026-09-17 · 界面文案降噪（迭代 D，分三批）
+
+- 问题：界面把 ADR 里的证据边界与口径约束直接抄成正文，并给每个面板配一行同义英文标签，近一半中文字符是说明句。普查基线（剔除注释与属性型文案）：可见中文 15,743 字，其中 306 处 / 7,705 字是 ≥12 字的连续散文。
+- 第一批（纯删除）：移除 `Panel`/`Stat` 的 `en=` 装饰性英文 40 处、纯英文 `eyebrow`/`page-kicker` 39 处、`PageHeader kicker=` 12 处、`eyebrow text-info` 1 处；`ui.tsx` 删除 `Panel.en` / `Stat.en` / `PageHeader.kicker` 三个 prop 防止回流。删除审计页与表格底部逐字重复的「技术链路说明」折叠块、与口径徽标重复的 `overview-bridge-note`、`health-evidence-note` 及对应 CSS。`EMPTY LEDGER`/`LEDGER BOUND` 改中文，`NEW RECORD`/`NEW TRANSACTION`/`IDENTITY / PROFILE`/`CONFIRMATION`/`DATA CONFIRMATION`/`ACCOUNT RECONCILIATION`/`PERIOD REVIEW`/`SYSTEM ERROR` 一并移除。
+- 第二批（口径下沉）：复盘三页（`/review`、`/review/history`、`/review/decisions`）的章节方法说明下沉为标题 `title`；`ELIGIBLE`/`PARTIAL`/`BLOCKED` 不再直接上屏，统一走已有 `publishWord()` 输出中文，删掉为此写的 91 字图例，资格矩阵的英文 chip 与「可发布」列合并。决策时间带删掉与图例逐条重复的「怎么读这张图」。
+- 第三批（表单与其余页面）：`investment-plans`、`goals`、`positions/[assetId]`、`tx-form`、`settings-form` 的方法说明下沉或压缩；设置页角色下拉与页头不再直接渲染 `OWNER`/`ADMIN`/`MEMBER`/`VIEWER`（走本地 `shortRole()`）。**破坏性操作警告、校验错误、只读提示、空态与估值状态说明一律保留**——它们不是废话。
+- 新增 `src/test/copy-budget.test.ts`（6 例）：①`en=` prop 必须为 0；②`eyebrow`/`page-kicker` 不得只写英文；③正文不得出现全大写英文标签（`TWR`/`SHA-256`/`ESC` 除外）；④每个文件的 ≥30 字正文说明不超过登记上限，未登记的新文件直接失败；⑤可见长散文总量不超过水位；⑥不得把 `.status`/`.severity` 直接渲染给用户。预算只允许下降，升高必须登记说明。
+- 结果：可见中文 15,743 → **14,317** 字（−9.1%）；可见长散文 306 处/7,705 字 → **273 处/6,257 字**（−18.8%）。
+- 验证：`npm test` **555/555**（82 文件，含新增 6 例文案预算守卫）、`npx tsc --noEmit` 无错误、`npm run build` 与 `npm run build:e2e` 通过、Playwright **107/107**。同步的 e2e 断言：`EMPTY LEDGER`/`LEDGER BOUND`、`PORTFOLIO REVIEW · …`→`复盘区间 · …`、`INVESTMENT HISTORY …`→`长期复盘 · …`，并删掉 `terminal.spec.ts` 中断言已删除副注的一行（同一双口径语义由 `复盘口径` 徽标断言继续覆盖）。
+- 未改动财务口径、账本边界、权限与审计行为；全部为展示层文案与结构，未动 `src/lib/engine/`。
+
+## 2026-09-17 · 跨市场收益按北京归属日归属（ADR-027）
+
+- 用户确认口径：不再按交易所交易日归属。美股一场（美东 D 日）实际落在北京 D 日 21:30 至 D+1 日 04:00/05:00，收益日历、快照与区间收益原先把这一场记在北京 D 日，与用户在北京 D+1 上午看到的页面不一致。
+- 新增唯一判定 `src/lib/engine/portfolio-day.ts`（`portfolioDayOffset` / `attributionDateKey` / `liveAttributionDates` / `liveQuoteAttribution` / `livePreviousClose`），删除看盘与各页各自实现的「今日」判定（`portfolioDayKey`、`isCurrentPortfolioDay`、`previousCloseOnPortfolioDay`）。
+- `loadPriceSeries` 返回按北京归属日平移的序列（PriceBar 与行情健康仍是真实交易所日期）；`computeWealthSeries` 日格与 `rebuildSnapshots` 终点改按北京日历日；`toAssetNavPoint` 支持归属偏移；实时「今日涨跌」在看盘（行、曲线、实时点）、总览、持仓、账户、对账、移动端 API 与 `buildPositionItem` 全部同源；看盘明确标注「进行中场次 · 归属北京 D+1」。
+- 日界改按北京日后，06:30（北京）的美股刷新在 UTC 日界下也不会把美东 D 日错误并进 UTC D 日格；实时叠加只在最新归属日 = 北京今天时落格，避免把归属明天的场次提前写进今天的财富轨迹与日历。
+- 验证：`npm test` 549/549（81 文件，新增 `beijing-attribution` 真实 PriceBar→快照→收益日历→单资产链路）、`npm run build` 通过、Playwright 107/107（原「数据日不是今天」用例随口径文案改为「非北京今天不计入」）。
+- 未迁移数据：`PriceBar`/`Snapshot` 结构不变，快照在下次刷新或写入时按新口径增量重建，也可在健康中心手动全量重建。E2E 种子无美股资产（新增会牵动全量金额断言），美股归属链路由 DB 级单测覆盖。
 
 ## 2026-09-15 · 定投按日核对未买入
 

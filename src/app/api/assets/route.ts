@@ -7,7 +7,8 @@ import { apiReadAuthCtx } from '@/lib/services/api-auth'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { summarizeDailyPortfolio } from '@/lib/engine/daily-pnl'
-import { dateKeyAt, previousCloseOnPortfolioDay } from '@/lib/engine/watch-market'
+import { dateKeyAt } from '@/lib/engine/watch-market'
+import { livePreviousClose } from '@/lib/engine/portfolio-day'
 import { groupByMarket, groupByStyle, UNCLASSIFIED_STYLE_KEY } from '@/lib/engine/composition'
 import { ASSET_STYLE_LABEL, UNCLASSIFIED_STYLE_LABEL } from '@/lib/labels'
 import { marketGroupLabel } from '@/lib/engine/market-group'
@@ -114,7 +115,7 @@ export async function GET(req: NextRequest) {
       tradingDate: q.tradingDate ?? null,
     }]),
   )
-  const todayKey = dateKeyAt(new Date())
+  const now = new Date()
   const mergedPositions = mergePositionsByAsset(
     state.valued.filter((v) => isPortfolioAssetClass(v.asset.cls)),
   ).filter((v) => Math.abs(v.quantity) > 1e-9)
@@ -126,7 +127,12 @@ export async function GET(req: NextRequest) {
     .map((v) => {
       const quote = quoteBySymbol.get(v.asset.symbol)
       const previousClose = quote
-        ? previousCloseOnPortfolioDay(quote.prevClose, quote.tradingDate, todayKey)
+        ? livePreviousClose({
+            asset: { symbol: v.asset.symbol, currency: v.asset.currency, cls: v.asset.cls },
+            exchangeTradingDate: quote.tradingDate,
+            prevClose: quote.prevClose,
+            now,
+          })
         : null
       return {
         currentValueCny: quote ? v.quantity * quote.price : v.value,
