@@ -11,9 +11,16 @@ import { cx, fmtCNY, fmtDateTime, fmtPct, toneOf } from '@/lib/format'
 import type { ReactNode } from 'react'
 import { ScopeLabel, ReadOnlyNotice } from '@/components/ui'
 import { useConfirm } from '@/components/confirm-dialog'
-import { SectionNav } from '@/components/section-nav'
 
 type Dimension = 'asset' | 'source' | 'class'
+type ReviewStep = 'outcome' | 'attribution' | 'behavior' | 'conclusion'
+
+const REVIEW_STEPS: { value: ReviewStep; label: string; description: string }[] = [
+  { value: 'outcome', label: '1 · 结果', description: '发生了什么' },
+  { value: 'attribution', label: '2 · 归因', description: '为什么发生' },
+  { value: 'behavior', label: '3 · 行为与风险', description: '做得怎么样' },
+  { value: 'conclusion', label: '4 · 结论', description: '下期看什么' },
+]
 
 const PERIODS = [
   { value: 'THIS_DAY', label: '按日' },
@@ -125,6 +132,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
   const router = useRouter()
   const navigateAfterWrite = useNavigateAfterWrite()
   const confirmDialog = useConfirm()
+  const [step, setStep] = useState<ReviewStep>('outcome')
   const [dimension, setDimension] = useState<Dimension>('asset')
   const [selectedAsset, setSelectedAsset] = useState(data.result.assets[0]?.key ?? null)
   const [note, setNote] = useState(data.savedReview?.note ?? '')
@@ -145,6 +153,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
   const isHistoricalMonth = data.period === 'THIS_MONTH' && selectedMonth < data.currentMonth
   const isHistoricalDate = data.period === 'THIS_DAY' && selectedDate < data.currentDate
   const pendingFundEventCount = data.pendingPurchases.length + data.pendingSettlements.length
+  const stepIndex = REVIEW_STEPS.findIndex((item) => item.value === step)
 
   const rows = useMemo<ReviewContribution[]>(() => {
     if (dimension === 'asset') return result.assets
@@ -242,13 +251,18 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
     })
   }
 
+  function selectStep(next: ReviewStep) {
+    setStep(next)
+    requestAnimationFrame(() => document.querySelector('.review-workflow-nav')?.scrollIntoView({ block: 'start' }))
+  }
+
   return (
     <div className="review-body">
       <header className="review-header">
         <div>
           <div className="page-kicker">复盘区间 · {range.startDate} — {range.endDate}</div>
-          <h1 className="page-title">这段时间，钱从哪里赚来</h1>
-          <p className="page-description">从结果、贡献、时点、决策、风险和笔记六个视角复核这段时间的组合。</p>
+          <h1 className="page-title">这段时间，钱为什么变了</h1>
+          <p className="page-description">按结果、归因、行为与风险、结论四步完成一次复盘。</p>
         </div>
         <div className="review-range-controls">
           <div className="review-periods" aria-label="复盘周期">
@@ -301,19 +315,21 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
         </div>
       </header>
 
-      <SectionNav
-        ariaLabel="复盘章节"
-        items={[
-          { id: 'outcome', label: '01 结果' },
-          { id: 'contribution', label: '02 贡献' },
-          { id: 'timing', label: '03 时点' },
-          { id: 'decisions', label: '04 决策' },
-          { id: 'risk', label: '05 风险' },
-          { id: 'notes', label: '06 笔记' },
-        ]}
-      />
+      <nav className="review-workflow-nav" aria-label="复盘步骤">
+        {REVIEW_STEPS.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            aria-current={step === item.value ? 'step' : undefined}
+            onClick={() => selectStep(item.value)}
+          >
+            <strong>{item.label}</strong>
+            <span>{item.description}</span>
+          </button>
+        ))}
+      </nav>
 
-      <section id="outcome" className="review-outcome chart-surface">
+      <section id="outcome" className="review-outcome chart-surface" hidden={step !== 'outcome'}>
         <div className="review-outcome-main">
           <span>{range.label}投资收益</span>
           <strong className={cx('num', tone(result.performance.amount))}>
@@ -341,11 +357,17 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
           <span className="num">基准 {fmtPct(result.benchmarkPct, { sign: true })}</span>
           <span className={cx('num', tone(result.alphaPct))}>超额 {fmtPct(result.alphaPct, { sign: true })}</span>
         </div>
+        <div className="review-outcome-status" aria-label="结果可用性">
+          <span>收益对账 <b>{reconciliation.label}</b></span>
+          <span>估值覆盖 <b className="num">{fmtPct(result.valuationCoverage)}</b></span>
+          <span>基金在途 <b className="num">{fmtCNY(data.inTransit)}</b></span>
+          <span>{pendingFundEventCount > 0 ? `${pendingFundEventCount} 笔等待确认` : '没有待确认事项'}</span>
+        </div>
       </section>
 
-      <section id="contribution" className="section-panel review-section">
+      <section id="contribution" className="section-panel review-section" hidden={step !== 'attribution'}>
         <div className="review-section-heading">
-          <div><span>02</span><h2 title="金额贡献与 TWR 百分点分别对账，不把在途或估值差额摊给任何标的">利润和亏损由谁贡献</h2></div>
+          <div><span>2.1</span><h2 title="金额贡献与 TWR 百分点分别对账，不把在途或估值差额摊给任何标的">利润和亏损由谁贡献</h2></div>
           <div className="review-tabs" role="tablist" aria-label="贡献维度">
             {([['asset', '按标的'], ['source', '按来源'], ['class', '按资产类别']] as const).map(([key, label]) => (
               <button key={key} type="button" role="tab" aria-selected={dimension === key} className={dimension === key ? 'is-active' : ''} onClick={() => setDimension(key)}>{label}</button>
@@ -422,9 +444,9 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
         </div>
       </section>
 
-      <section id="timing" className="section-panel review-section">
+      <section id="timing" className="section-panel review-section" hidden={step !== 'attribution'}>
         <div className="review-section-heading">
-          <div><span>03</span><h2 title="只统计有效收益观察日；休市、纯资金流和无更新日不会被当作涨跌">收益发生在什么时候</h2></div>
+          <div><span>2.2</span><h2 title="只统计有效收益观察日；休市、纯资金流和无更新日不会被当作涨跌">收益发生在什么时候</h2></div>
         </div>
         <div className="review-stat-grid">
           <Metric label="盈利日 / 观察日" value={`${result.timing.positiveDays} / ${result.timing.observedDays}`} />
@@ -444,9 +466,9 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
         </div>
       </section>
 
-      <section id="decisions" className="section-panel review-section">
+      <section id="decisions" className="section-panel review-section" hidden={step !== 'behavior'}>
         <div className="review-section-heading">
-          <div><span>04</span><h2 title="把建仓、加仓、减仓和清仓放回当时的账本记录，区间后收益仅作事实回看">本期做过什么决定</h2></div>
+          <div><span>3.1</span><h2 title="把建仓、加仓、减仓和清仓放回当时的账本记录，区间后收益仅作事实回看">本期做过什么决定</h2></div>
         </div>
         <div className="review-stat-grid review-stat-grid-four">
           <Metric label="买入金额" value={fmtCNY(result.behavior.buyAmount)} />
@@ -469,9 +491,9 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
         </div>
       </section>
 
-      <section id="risk" className="section-panel review-section">
+      <section id="risk" className="section-panel review-section" hidden={step !== 'behavior'}>
         <div className="review-section-heading">
-          <div><span>05</span><h2 title="复核集中度、现金、外币暴露和估值完整性，不生成自动化投资建议">风险结构如何变化</h2></div>
+          <div><span>3.2</span><h2 title="复核集中度、现金、外币暴露和估值完整性，不生成自动化投资建议">风险结构如何变化</h2></div>
         </div>
         <div className="review-risk-layout">
           <div className="review-risk-table">
@@ -494,9 +516,9 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
         </div>
       </section>
 
-      <section id="notes" className="section-panel review-section review-notes">
+      <section id="notes" className="section-panel review-section review-notes" hidden={step !== 'conclusion'}>
         <div className="review-section-heading">
-          <div><span>06</span><h2 title="记录哪些判断被验证、哪些只是运气，以及下一周期要继续观察的事实">写下自己的判断</h2></div>
+          <div><span>4</span><h2 title="记录哪些判断被验证、哪些只是运气，以及下一周期要继续观察的事实">写下自己的判断</h2></div>
           {data.savedReview && (
             <div className="review-saved-state">
               <b>{data.savedReview.status === 'COMPLETED' ? '已完成' : '草稿'}</b>
@@ -520,6 +542,14 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
         </div>
         {readOnly && <ReadOnlyNotice what="可以查看复盘证据，但不能保存笔记" />}
       </section>
+
+      <footer className="review-step-footer">
+        <span>第 {stepIndex + 1} / {REVIEW_STEPS.length} 步 · {REVIEW_STEPS[stepIndex].description}</span>
+        <div>
+          <button type="button" onClick={() => selectStep(REVIEW_STEPS[Math.max(0, stepIndex - 1)].value)} disabled={stepIndex === 0}>上一步</button>
+          <button type="button" onClick={() => selectStep(REVIEW_STEPS[Math.min(REVIEW_STEPS.length - 1, stepIndex + 1)].value)} disabled={stepIndex === REVIEW_STEPS.length - 1}>下一步</button>
+        </div>
+      </footer>
     </div>
   )
 }

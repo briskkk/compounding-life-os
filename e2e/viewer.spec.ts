@@ -45,6 +45,8 @@ test('只读账号：写入入口一律以统一提示说明，不静默消失',
   await page.goto('/review')
   await expect(notice).toHaveCount(1)
   await expect(notice).toContainText('不能保存笔记')
+  // 保存入口在「4 · 结论」步骤内，VIEWER 也需要先进到该步才能看到
+  await page.getByRole('navigation', { name: '复盘步骤' }).getByRole('button', { name: /4 · 结论/ }).click()
   // 复盘页采用「显示但禁用」而不是隐藏：按钮仍在，但不可用，并且有只读提示
   await expect(page.getByRole('button', { name: '保存草稿' })).toBeDisabled()
   await expect(page.getByRole('button', { name: '完成本期复盘' })).toBeDisabled()
