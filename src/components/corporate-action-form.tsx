@@ -120,14 +120,14 @@ export function CorporateActionForm({ accounts, assets }: { accounts: AccountOpt
       {type === 'SPINOFF' && <label className="block"><span className={labelCls}>分配给新资产的成本比例（%）</span><input name="costAllocation" type="number" min="0.01" max="100" step="any" className={inputCls} required /></label>}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <label><span className={labelCls}>事件来源</span><input name="sourceName" className={inputCls} placeholder="券商月结单 / 基金公告 / 交易所公告" required /></label>
+        <label><span className={labelCls}>事件来源</span><input name="sourceName" className={inputCls} placeholder="券商账单 / 官方公告" required /></label>
         <label><span className={labelCls}>公告链接或凭证编号</span><input name="sourceReference" className={inputCls} placeholder="可选，但建议填写" /></label>
       </div>
-      <label className="block"><span className={labelCls}>备注</span><textarea name="note" rows={2} className={inputCls} placeholder="记录税费口径、零碎股处理或人工核对结论" /></label>
+      <label className="block"><span className={labelCls}>备注</span><textarea name="note" rows={2} className={inputCls} placeholder="税费、零碎股或核对说明" /></label>
 
       <div className="flex items-center justify-between gap-6 border-t border-line pt-5">
-        <p className="max-w-2xl text-[13px] leading-6 text-ink-faint">保存后会生成关联流水并重建生效日起的快照；若录错，请冲正整个事件，不要单独修改生成的流水。</p>
-        <button type="submit" disabled={pending || assets.length === 0} className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-accent px-5 text-[14px] font-medium text-bg disabled:opacity-50">{pending ? '处理中…' : '记录公司行动'}</button>
+        <p className="max-w-2xl text-[13px] leading-6 text-ink-faint">保存后生成关联流水并重算历史；录错时请冲正整个事件。</p>
+        <button type="submit" disabled={pending || assets.length === 0} className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-accent px-5 text-[14px] font-medium text-bg disabled:opacity-50">{pending ? '处理中…' : '记录事件'}</button>
       </div>
       <FormMsg msg={msg} />
     </form>

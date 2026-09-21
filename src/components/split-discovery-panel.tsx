@@ -13,7 +13,7 @@ export function SplitDiscoveryPanel({ scan, readOnly }: Props) {
   const navigateAfterWrite = useNavigateAfterWrite()
   const inputClass = 'rounded border border-line bg-panel px-3 py-2 text-ink'
   return <div className="space-y-5">
-    <p className="text-sm leading-6 text-ink-dim">检查境内 ETF / 基金的拆分线索。核对官方除权日与券商新增份额后，ETF 可自动生成调整流水并刷新完整历史行情。登记日和除权日分别保存；尚未接入券商账户自动核对。</p>
+    <p className="text-sm leading-6 text-ink-dim">检查境内 ETF 与基金的拆分公告。发现线索后，仍需按官方日期和券商新增份额确认。</p>
     <div className="flex items-center gap-4"><button disabled={pending || readOnly} className="rounded border border-line px-4 py-2 text-accent disabled:opacity-40" onClick={() => start(async () => { const result = await checkSplitAnnouncements(); if (result.ok) { navigateAfterWrite({ message: result.warning ?? '拆分检查完成' }) } else { setMessage(result.error) } })}>检查拆分公告</button><span className="text-xs text-ink-faint">{scan.checkedAt ? `最近检查 ${fmtDateTime(scan.checkedAt)}` : '尚未检查'}</span></div>
     {scan.errors.length > 0 && <details className="text-sm text-ink-dim"><summary>{scan.errors.length} 个标的检查失败，结果不完整</summary>{scan.errors.map(e => <p key={e}>{e}</p>)}</details>}
     {scan.unsupported.length > 0 && <p className="text-xs text-ink-faint">暂不支持自动发现：{scan.unsupported.join('、')}</p>}

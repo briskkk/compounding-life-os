@@ -43,21 +43,20 @@ export default async function FundConfirmationsPage({
   return (
     <div className="page-shell fund-confirm-page">
       <PageHeader
-        title="先对上份额，再写进持仓。"
-        description="逐笔读取成交日官方净值，和基金平台的确认份额交叉核对。预览不会改账；只有份额一致并再次确认后，才以冲正链替换原流水。"
+        title="基金份额确认"
+        description="核对官方净值与平台份额。预览不改账，确认后才替换待确认流水。"
         right={<Link href="/transactions" className="fund-confirm-back">查看全部流水 →</Link>}
       />
 
       <section className="fund-confirm-overview" aria-label="基金确认概览">
-        <div><span>待确认申购</span><strong className="num">{pendingShares}</strong><small>自动预填，回车确认</small></div>
-        <div><span>待确认赎回</span><strong className="num">{pendingNav}</strong><small>只修正官方净值</small></div>
-        <div><span>申购在途金额</span><strong className="num">{pendingAmountLabel}</strong><small>未计入持仓份额与收益</small></div>
-        <p><b>核对边界</b> 系统按官方净值推算并预填份额；平台记录一致时可直接回车确认，不一致请修改为平台份额，系统会停止写入并提示核对。</p>
+        <div><span>待确认申购</span><strong className="num">{pendingShares}</strong><small>核对平台份额</small></div>
+        <div><span>待确认赎回</span><strong className="num">{pendingNav}</strong><small>核对官方净值</small></div>
+        <div><span>申购在途</span><strong className="num">{pendingAmountLabel}</strong><small>尚未计入持仓</small></div>
       </section>
 
       <section className="fund-confirm-queue">
         <header>
-          <div><h2>逐笔核对</h2></div>
+          <div><h2>待确认</h2></div>
           <span>{transactions.length} 笔待处理</span>
         </header>
         {transactions.length === 0 ? (
@@ -95,11 +94,14 @@ export default async function FundConfirmationsPage({
         )}
       </section>
 
-      <section className="fund-confirm-footnote">
-        <div><span className="num">01</span><p><b>官方净值</b>只取流水所标记成交净值日的官方记录，不回落到最新净值。</p></div>
-        <div><span className="num">02</span><p><b>平台份额</b>按官方净值推算后自动预填；你用回车确认一致，或按平台记录修改后再核对。</p></div>
-        <div><span className="num">03</span><p><b>确认写入</b>保留原流水和现金腿的冲正链，再生成正式 OFFICIAL 流水。</p></div>
-      </section>
+      <details className="fund-confirm-notes">
+        <summary>确认规则 <span>查看净值、份额与入账边界</span></summary>
+        <section className="fund-confirm-footnote">
+          <div><span className="num">01</span><p><b>官方净值</b>只取成交净值日的官方记录，不使用最新净值代替。</p></div>
+          <div><span className="num">02</span><p><b>平台份额</b>会按官方净值预填；不一致时请按平台记录修改并继续核对。</p></div>
+          <div><span className="num">03</span><p><b>确认入账</b>保留原流水与现金记录的变更链，再生成正式流水。</p></div>
+        </section>
+      </details>
     </div>
   )
 }

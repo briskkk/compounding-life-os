@@ -90,8 +90,8 @@ export function FundConfirmationCard({ transaction, canWrite, initialOpen = fals
     }
     // 确认成功后队列项应消失、持仓与流水应更新：走真实导航（P0-11）
     navigateAfterWrite(result.warning
-      ? { message: `份额已核对，正式流水已写入；${result.warning}`, tone: 'warn' }
-      : { message: '份额已核对，正式流水已写入', tone: 'ok' })
+      ? { message: `份额已确认；${result.warning}`, tone: 'warn' }
+      : { message: '份额已确认并入账', tone: 'ok' })
   })
 
   return (
@@ -102,7 +102,7 @@ export function FundConfirmationCard({ transaction, canWrite, initialOpen = fals
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        <span className="fund-confirm-state">{transaction.navSource === 'PENDING' ? '份额待确认' : '净值待确认'}</span>
+        <span className="fund-confirm-state">{transaction.navSource === 'PENDING' ? '待确认份额' : '待确认净值'}</span>
         <span className="fund-confirm-identity">
           <strong>{transaction.assetName}</strong>
           <small className="num">{transaction.assetSymbol} · {transaction.accountName}</small>
@@ -162,7 +162,7 @@ export function FundConfirmationCard({ transaction, canWrite, initialOpen = fals
 
               {canWrite ? (
                 <button type="submit" className="fund-confirm-submit" disabled={pending || !sharesMatch}>
-                  {pending ? '正在写入…' : '确认并替换流水'}
+                  {pending ? '正在写入…' : '确认份额并入账'}
                 </button>
               ) : <ReadOnlyNotice what="可以核对该笔流水，但不能替换流水号或份额" className="fund-confirm-readonly" />}
             </form>

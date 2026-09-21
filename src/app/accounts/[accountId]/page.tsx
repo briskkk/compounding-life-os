@@ -19,6 +19,7 @@ import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { dateKeyAt } from '@/lib/engine/watch-market'
 import { livePreviousClose } from '@/lib/engine/portfolio-day'
 import { BreadcrumbEntity } from '@/components/app-shell'
+import { HashOpenDetails } from '@/components/hash-open-details'
 
 export const dynamic = 'force-dynamic'
 
@@ -132,6 +133,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
           </p>
         </div>
         <div className="flex gap-2">
+          {canWrite && <a href="#account-actions" className="rounded bg-accent px-3 py-2 text-xs font-medium text-bg">录入流水</a>}
           <Link href={`/transactions?account=${account.id}`} className="rounded border border-line bg-panel px-3 py-2 text-xs text-ink-dim hover:border-ink-faint hover:text-ink">查看全部流水</Link>
           <Link href="/accounts?view=assets" className="rounded border border-line bg-panel px-3 py-2 text-xs text-ink-dim hover:border-ink-faint hover:text-ink">资产目录</Link>
         </div>
@@ -145,8 +147,65 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
         <AccountMetric label="投资组合占比" value={<span className="text-info">{fmtPct(accountWeight)}</span>} hint={`${summary.holdingCount} 项当前持仓`} />
       </dl>
 
-      <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-3">
-        <Panel title="账户持仓" className="xl:col-span-2" bodyClassName="p-0" right={<span className="num text-[12px] text-ink-faint">{summary.holdingCount} 项</span>}>
+      {canWrite && (
+        <HashOpenDetails
+          id="account-actions"
+          className="action-workspace"
+          summary={<><span>账户操作</span><small>录入流水、设置资金结算</small></>}
+        >
+          <div className="action-workspace-grid">
+            <section>
+              <h2>录入流水</h2>
+              <TxForm
+                lockAccount
+                initialAccountId={account.id}
+                holdings={holdingsIndex(state.valued)}
+                accounts={[{
+                  id: account.id,
+                  name: account.name,
+                  currency: account.currency,
+                  settlementAccountId: account.settlementAccountId,
+                  settlementAccountName: account.settlementAccount?.name ?? null,
+                }]}
+                assets={assets.filter((asset) => asset.currency === account.currency && isPortfolioAssetClass(asset.cls)).map((asset) => ({
+                  id: asset.id,
+                  symbol: asset.symbol,
+                  name: asset.name,
+                  cls: asset.cls,
+                  currency: asset.currency,
+                  fundPolicy: asset.fundTradePolicy ? {
+                    purchaseFeeRate: asset.fundTradePolicy.purchaseFeeRate,
+                    redemptionFeeRules: asset.fundTradePolicy.redemptionFeeRules,
+                    purchaseSuspendedFrom: asset.fundTradePolicy.purchaseSuspendedFrom?.toISOString() ?? null,
+                    purchaseSuspendedUntil: asset.fundTradePolicy.purchaseSuspendedUntil?.toISOString() ?? null,
+                    sourceName: asset.fundTradePolicy.sourceName,
+                  } : null,
+                }))}
+              />
+            </section>
+            <section>
+              <h2>资金结算</h2>
+              <div className="rounded border border-line bg-panel2 px-3 py-2.5">
+                <div className="text-[12px] text-ink-faint">当前关系</div>
+                <div className="mt-1.5 text-sm text-ink">
+                  {account.name} <span className="mx-1 text-ink-faint">→</span> {account.settlementAccount?.name ?? '不自动联动现金'}
+                </div>
+                {account.settlementAccountId && account.settlementAccountId !== account.id && (
+                  <p className="mt-2 text-[12px] leading-relaxed text-ink-faint">共享资金 {fmtCNY(sharedCashCny)}，仅计入 {account.settlementAccount?.name}。</p>
+                )}
+              </div>
+              <SettlementAccountForm
+                accountId={account.id}
+                currentId={account.settlementAccountId}
+                accounts={settlementCandidates.map((candidate) => ({ id: candidate.id, name: candidate.name }))}
+              />
+            </section>
+          </div>
+        </HashOpenDetails>
+      )}
+
+      <div>
+        <Panel title="账户持仓" bodyClassName="p-0" right={<span className="num text-[12px] text-ink-faint">{summary.holdingCount} 项</span>}>
           {positions.length === 0 ? (
             <Empty>当前账户暂无持仓</Empty>
           ) : (
@@ -207,58 +266,6 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
             </div>
           )}
         </Panel>
-
-        <div className="space-y-3">
-          <Panel title="资金结算">
-            <div className="rounded border border-line bg-panel2 px-3 py-2.5">
-              <div className="text-[12px] text-ink-faint">当前关系</div>
-              <div className="mt-1.5 text-sm text-ink">
-                {account.name} <span className="mx-1 text-ink-faint">→</span> {account.settlementAccount?.name ?? '不自动联动现金'}
-              </div>
-              {account.settlementAccountId && account.settlementAccountId !== account.id && (
-                <p className="mt-2 text-[12px] leading-relaxed text-ink-faint">共享资金余额 {fmtCNY(sharedCashCny)}，仅计入 {account.settlementAccount?.name}，不重复计入本账户。</p>
-              )}
-            </div>
-            {canWrite && (
-              <SettlementAccountForm
-                accountId={account.id}
-                currentId={account.settlementAccountId}
-                accounts={settlementCandidates.map((candidate) => ({ id: candidate.id, name: candidate.name }))}
-              />
-            )}
-          </Panel>
-
-          {canWrite && (
-            <Panel title="录入账户流水">
-              <TxForm
-                lockAccount
-                initialAccountId={account.id}
-                holdings={holdingsIndex(state.valued)}
-                accounts={[{
-                  id: account.id,
-                  name: account.name,
-                  currency: account.currency,
-                  settlementAccountId: account.settlementAccountId,
-                  settlementAccountName: account.settlementAccount?.name ?? null,
-                }]}
-                assets={assets.filter((asset) => asset.currency === account.currency && isPortfolioAssetClass(asset.cls)).map((asset) => ({
-                  id: asset.id,
-                  symbol: asset.symbol,
-                  name: asset.name,
-                  cls: asset.cls,
-                  currency: asset.currency,
-                  fundPolicy: asset.fundTradePolicy ? {
-                    purchaseFeeRate: asset.fundTradePolicy.purchaseFeeRate,
-                    redemptionFeeRules: asset.fundTradePolicy.redemptionFeeRules,
-                    purchaseSuspendedFrom: asset.fundTradePolicy.purchaseSuspendedFrom?.toISOString() ?? null,
-                    purchaseSuspendedUntil: asset.fundTradePolicy.purchaseSuspendedUntil?.toISOString() ?? null,
-                    sourceName: asset.fundTradePolicy.sourceName,
-                  } : null,
-                }))}
-              />
-            </Panel>
-          )}
-        </div>
       </div>
 
       <Panel

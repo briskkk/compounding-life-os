@@ -97,13 +97,13 @@ export function FundPolicyForm({ funds, policies }: { funds: FundOption[]; polic
   return (
     <div className="grid gap-8 xl:grid-cols-[340px_minmax(0,1fr)]">
       <div>
-        <h3 className="mt-3 text-[22px] text-ink">选择要维护的基金</h3>
-        <p className="mt-2 text-[13px] leading-6 text-ink-faint">只记录基金公司或销售平台披露的规则。费率作为录入参考，暂停申购窗口会在写入账本前硬性校验。</p>
+        <h3 className="mt-3 text-[22px] text-ink">选择基金</h3>
+        <p className="mt-2 text-[13px] leading-6 text-ink-faint">只记录基金公司或销售平台披露的规则。暂停申购期间，系统会阻止新增申购。</p>
         <select value={assetId} onChange={(event) => { setAssetId(event.target.value); setMsg(null) }} className={`${inputCls} mt-5`}>
           {funds.map((fund) => <option key={fund.id} value={fund.id}>{fund.name} · {fund.symbol}</option>)}
         </select>
         <div className="mt-4 border-l-2 border-accent/60 pl-4 text-[12px] leading-5 text-ink-faint">
-          红利再投与现金分红不是普通买卖，请通过公司行动账本录入，系统会生成可冲正的分红、份额和现金结算腿。
+          红利再投与现金分红请在公司行动中记录。
         </div>
       </div>
 
@@ -113,7 +113,7 @@ export function FundPolicyForm({ funds, policies }: { funds: FundOption[]; polic
         </Field>
         <Field label="赎回费率阶梯">
           <input name="redemptionFeeRules" defaultValue={selected ? rulesText(selected.redemptionFeeRules) : ''} className={inputCls} placeholder="7:1.5, 30:0.5, 365:0" />
-          <span className="mt-1 block text-[12px] text-ink-faint">格式：持有天数上限:费率%，逗号分隔；实际费用仍以成交单为准。</span>
+          <span className="mt-1 block text-[12px] text-ink-faint">格式：持有天数上限:费率%，逗号分隔。</span>
         </Field>
         <Field label="暂停申购开始">
           <input name="purchaseSuspendedFrom" type="date" defaultValue={dateInput(selected?.purchaseSuspendedFrom ?? null)} className={inputCls} />

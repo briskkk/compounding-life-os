@@ -121,6 +121,13 @@ test('看盘页：点表格行在曲线上叠加该标的当日盈亏', async ({
   const firstRow = page.getByTestId('watch-row').first()
   await expect(firstRow).toBeVisible()
 
+  const canCompare = await firstRow.getAttribute('data-chart-enabled') === 'true'
+  if (!canCompare) {
+    await expect(page.getByTestId('watch-chart-empty')).toBeVisible()
+    await expect(firstRow).toHaveAttribute('tabindex', '-1')
+    return
+  }
+
   // 悬停预览
   await firstRow.hover()
   await expect(page.getByTestId('watch-chart-asset')).toBeVisible()
@@ -179,9 +186,9 @@ test('看盘页：资产排序、详情跳转与当前资产流水录入', async
   await expect(page.getByRole('columnheader', { name: '当日持仓' })).toBeVisible()
   await expect(page.getByRole('columnheader', { name: '当日净值/价格' })).toBeVisible()
   await expect(page.getByRole('columnheader', { name: '当日市值' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '录入一笔新流水' })).toBeVisible()
+  await page.locator('#new-transaction > summary').click()
   await expect(page.getByRole('button', { name: '写入账本' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '资产设置', exact: true })).toBeVisible()
+  await page.locator('#asset-settings > summary').click()
   await expect(page.getByText('已绑定账本')).toBeVisible()
   await expect(page.getByText(/已绑定 \d+ 条流水/)).toBeVisible()
   await expect(page.getByRole('button', { name: '删除资产' })).toHaveCount(0)

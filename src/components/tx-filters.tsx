@@ -14,6 +14,7 @@ export function TxFilters({
   hiddenHistoryCount,
   pageSize,
   batch,
+  date,
 }: {
   accounts: { id: string; name: string }[]
   types: [string, string][]
@@ -23,11 +24,13 @@ export function TxFilters({
   hiddenHistoryCount: number
   pageSize: number
   batch: string
+  date: string
 }) {
   const historyParams = new URLSearchParams()
   if (account) historyParams.set('account', account)
   if (type && type !== 'REVERSAL') historyParams.set('type', type)
   if (batch) historyParams.set('batch', batch)
+  if (date) historyParams.set('date', date)
   if (pageSize !== 50) historyParams.set('size', String(pageSize))
   if (!showHistory) historyParams.set('history', 'all')
   const historyQuery = historyParams.toString()
@@ -37,6 +40,12 @@ export function TxFilters({
     <form className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3" method="GET">
       {showHistory && <input type="hidden" name="history" value="all" />}
       {batch && <input type="hidden" name="batch" value={batch} />}
+      {date && <input type="hidden" name="date" value={date} />}
+      {date && (
+        <span className="inline-flex min-h-11 items-center rounded-lg border border-accent/40 bg-accent/5 px-3 text-[13px] text-accent">
+          {date} 当日
+        </span>
+      )}
       <select
         name="account"
         defaultValue={account}
@@ -75,7 +84,7 @@ export function TxFilters({
       <button type="submit" className="min-h-11 rounded-lg border border-line bg-panel2 px-4 text-[14px] text-ink-dim transition-colors hover:text-ink">
         筛选
       </button>
-      {(account || type) && (
+      {(account || type || date) && (
         <Link href="/transactions" className="text-[13px] text-ink-faint transition-colors hover:text-ink">
           清除
         </Link>

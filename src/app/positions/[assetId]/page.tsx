@@ -35,6 +35,7 @@ import { attributionDateKey, portfolioDayOffset } from '@/lib/engine/portfolio-d
 import type { ValuationStatus } from '@/lib/engine/valuation-status'
 import { TableScroll } from '@/components/table-scroll'
 import { BreadcrumbEntity } from '@/components/app-shell'
+import { HashOpenDetails } from '@/components/hash-open-details'
 
 export const dynamic = 'force-dynamic'
 
@@ -266,7 +267,12 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
         ← {isLongTermAsset ? '返回长期资产目录' : '返回持仓'}
       </Link>
 
-      <section className="grid gap-12 border-b border-line pb-12 xl:grid-cols-[0.55fr_1fr] xl:items-end">
+      <section className={cx(
+        'grid border-b border-line xl:items-end',
+        ohlcData.length > 0 || chartData.length > 0
+          ? 'gap-12 pb-12 xl:grid-cols-[0.55fr_1fr]'
+          : 'gap-6 pb-8 xl:grid-cols-[1fr_0.7fr]',
+      )}>
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <i className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: CLASS_COLORS[asset.cls] }} />
@@ -323,7 +329,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
           ) : chartData.length > 0 ? (
             <PriceLineChart data={chartData} color={C.info} markers={tradeMarkers} />
           ) : (
-            <div className="flex min-h-64 items-center border-y border-line">
+            <div className="flex min-h-32 items-center border-y border-line">
               <Empty>
                 {asset.cls === 'CASH'
                   ? '现金资产无价格走势'
@@ -598,12 +604,12 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
         </header>
 
         {ctx.role !== 'VIEWER' && (
-          <div className="asset-form-surface" id="new-transaction">
-            <div className="asset-form-intro">
-              <h3>{isLongTermAsset ? '新增长期资产记录' : '录入一笔新流水'}</h3>
-              <p>{isLongTermAsset ? '选择购股、卖出、分红或估值；不会联动投资账户现金。' : '选择日期、类型和账户；买卖流水可由数量与单价自动计算金额。'}</p>
-            </div>
-            <div className="asset-form-body">
+          <HashOpenDetails
+            id="new-transaction"
+            className="action-workspace"
+            summary={<><span>{isLongTermAsset ? '添加记录' : '录入流水'}</span><small>{isLongTermAsset ? '购股、卖出、分红或估值' : '默认收起，需要时展开'}</small></>}
+          >
+            <div className="action-workspace-body">
               {compatibleAccounts.length > 0 ? (
                 <TxForm
                   layout="wide"
@@ -636,7 +642,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
                 <p className="text-sm text-ink-faint">请先创建 {asset.currency} 账户后再录入流水。</p>
               )}
             </div>
-          </div>
+          </HashOpenDetails>
         )}
 
         <Panel title={isLongTermAsset ? '历史记录' : '流水明细'} bodyClassName="p-0" right={<span className="num text-[13px] text-ink-faint">最近 {txs.length} 条</span>}>
@@ -692,17 +698,13 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
         </Panel>
       </section>
 
-      <section className="asset-workspace" aria-labelledby="asset-profile-title">
-        <header className="asset-workspace-header">
-          <div>
-            <h2 id="asset-profile-title" title="维护资产身份与跟踪档案。账本一旦产生流水，关键身份将自动锁定">资产设置</h2>
-          </div>
-        </header>
-        <div className="asset-form-surface asset-profile-surface">
-          <div className="asset-form-intro">
-            <h3>维护资产信息</h3>
-          </div>
-          <div className="asset-form-body">
+      <section className="asset-workspace" aria-label="资产设置">
+        <HashOpenDetails
+          id="asset-settings"
+          className="action-workspace"
+          summary={<><span>资产设置</span><small>名称、分类、币种和标签</small></>}
+        >
+          <div className="action-workspace-body">
             <AssetMetaForm
               assetId={asset.id}
               initialSymbol={asset.symbol}
@@ -717,7 +719,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
               canWrite={ctx.role !== 'VIEWER'}
             />
           </div>
-        </div>
+        </HashOpenDetails>
       </section>
     </div>
   )

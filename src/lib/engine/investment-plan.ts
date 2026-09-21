@@ -104,6 +104,16 @@ function isInPlanWindow(date: Date, plan: InvestmentPlanInput): boolean {
   return !end || stamp <= dayStart(end)
 }
 
+/**
+ * 判断一笔真实 BUY 是否落在计划的账户、候选资产与有效时间窗口内。
+ * 这里只建立核对关系，不声称交易由计划自动触发。
+ */
+export function investmentPlanMatchesBuy(plan: InvestmentPlanInput, buy: InvestmentPlanBuy): boolean {
+  return plan.assetIds.includes(buy.assetId)
+    && (!plan.accountId || buy.accountId === plan.accountId)
+    && isInPlanWindow(buy.occurredAt, plan)
+}
+
 function isScheduled(date: Date, plan: InvestmentPlanInput): boolean {
   if (!isInPlanWindow(date, plan)) return false
   if (plan.cadence === 'WEEKDAY') return date.getDay() !== 0 && date.getDay() !== 6
@@ -131,11 +141,8 @@ export function unrecordedScheduledDatesInMonth(
   now = new Date(),
   reviews: InvestmentPlanDayReviewInput[] = [],
 ): Date[] {
-  const allowedAssets = new Set(plan.assetIds)
   const matching = buys.filter((buy) => (
-    allowedAssets.has(buy.assetId)
-    && (!plan.accountId || buy.accountId === plan.accountId)
-    && isInPlanWindow(buy.occurredAt, plan)
+    investmentPlanMatchesBuy(plan, buy)
   ))
   const recordedDays = new Set(matching.map((buy) => dayStart(buy.occurredAt)))
   const reviewedDays = new Set(reviews.filter((review) => review.planId === plan.id && !review.revokedAt)
@@ -187,13 +194,10 @@ export function buildInvestmentPlanMonth(
   const rows = plans.map((plan): InvestmentPlanMonthRow => {
     const scheduledDates = scheduledDatesInMonth(month, plan)
     const dueDates = scheduledDates.filter((date) => dayStart(date) <= dayStart(comparisonDate))
-    const allowedAssets = new Set(plan.assetIds)
     const planBuys = buys.filter((buy) => (
-      allowedAssets.has(buy.assetId)
-      && (!plan.accountId || buy.accountId === plan.accountId)
+      investmentPlanMatchesBuy(plan, buy)
       && dayStart(buy.occurredAt) >= dayStart(window.start)
       && dayStart(buy.occurredAt) <= dayStart(window.end)
-      && isInPlanWindow(buy.occurredAt, plan)
     ))
     const actualAmount = planBuys.reduce((sum, buy) => sum + buy.amount, 0)
     const pendingBuys = planBuys.filter((buy) => buy.navSource === 'PENDING')

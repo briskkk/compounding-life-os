@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildInvestmentPlanMonth,
+  investmentPlanMatchesBuy,
   scheduledDatesInMonth,
   scheduledDatesInMonthByPlan,
   unrecordedScheduledDatesInMonth,
@@ -27,6 +28,15 @@ function plan(overrides: Partial<InvestmentPlanInput> = {}): InvestmentPlanInput
 }
 
 describe('定投计划', () => {
+  it('只在候选资产、限定账户和计划窗口同时匹配时关联真实买入', () => {
+    const target = plan({ accountId: 'jd', startDate: new Date(2026, 8, 1), endDate: new Date(2026, 8, 30) })
+    const buy = { id: 'b1', accountId: 'jd', assetId: 'fund-a', amount: 100, occurredAt: new Date(2026, 8, 15), navSource: null }
+    expect(investmentPlanMatchesBuy(target, buy)).toBe(true)
+    expect(investmentPlanMatchesBuy(target, { ...buy, accountId: 'other' })).toBe(false)
+    expect(investmentPlanMatchesBuy(target, { ...buy, assetId: 'other' })).toBe(false)
+    expect(investmentPlanMatchesBuy(target, { ...buy, occurredAt: new Date(2026, 9, 1) })).toBe(false)
+  })
+
   it('按工作日生成计划，并合并候选资产的真实 BUY 流水', () => {
     const result = buildInvestmentPlanMonth('2026-09', [plan()], [
       { id: 'b1', accountId: 'a1', assetId: 'fund-a', amount: 100, occurredAt: new Date(2026, 8, 1, 10), navSource: 'OFFICIAL' },

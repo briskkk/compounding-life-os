@@ -449,6 +449,7 @@ export function WatchClient({
 
   const hasFilter = query.trim() !== '' || classFilter != null || onlyExcluded
   const filterValue: HoldingFilterValue = { query, classFilter, onlyExcluded }
+  const canCompareIntraday = chartData.length > 1
 
   function applyFilter(next: HoldingFilterValue) {
     setQuery(next.query)
@@ -494,7 +495,7 @@ export function WatchClient({
           </div>
         </div>
         <div className="chart-surface">
-        {chartData.length > 1 ? (
+        {canCompareIntraday ? (
           <>
             {activeRow && (
               <div className="mb-2 flex items-center gap-2 text-[12px]" data-testid="watch-chart-asset" data-symbol={activeRow.symbol}>
@@ -516,7 +517,10 @@ export function WatchClient({
             <IntradayChart data={chartPoints} assetName={activeRow?.name} showAsset={activeRow != null} />
           </>
         ) : (
-          <div className="flex h-[260px] items-center justify-center text-xs text-ink-faint">
+          <div
+            data-testid="watch-chart-empty"
+            className="flex min-h-28 items-center justify-center border-y border-line text-xs text-ink-faint"
+          >
             {rows.length === 0 ? '暂无行情类持仓' : marketStatus === '休市' ? '休市 · 今日暂无分时行情' : '分时数据加载中…'}
           </div>
         )}
@@ -600,21 +604,24 @@ export function WatchClient({
                 data-testid="watch-row"
                 data-symbol={r.symbol}
                 aria-selected={selectedSymbol === r.symbol}
+                data-chart-enabled={canCompareIntraday ? 'true' : 'false'}
                 className={cx(
-                  'cursor-pointer transition-colors hover:bg-panel2/50',
+                  'transition-colors hover:bg-panel2/50',
+                  canCompareIntraday ? 'cursor-pointer' : 'cursor-default',
                   activeSymbol === r.symbol && 'watch-row-active',
                 )}
-                onMouseEnter={() => setHoveredSymbol(r.symbol)}
+                onMouseEnter={() => { if (canCompareIntraday) setHoveredSymbol(r.symbol) }}
                 onMouseLeave={() => setHoveredSymbol((current) => (current === r.symbol ? null : current))}
-                onClick={() => setSelectedSymbol((current) => (current === r.symbol ? null : r.symbol))}
+                onClick={() => { if (canCompareIntraday) setSelectedSymbol((current) => (current === r.symbol ? null : r.symbol)) }}
                 onKeyDown={(event) => {
+                  if (!canCompareIntraday) return
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault()
                     setSelectedSymbol((current) => (current === r.symbol ? null : r.symbol))
                   }
                 }}
-                tabIndex={0}
-                title="点击在曲线上叠加该标的当日盈亏，再点一次取消"
+                tabIndex={canCompareIntraday ? 0 : -1}
+                title={canCompareIntraday ? '点击在曲线上叠加该标的当日盈亏，再点一次取消' : '今日没有可对比的分时曲线'}
               >
                 <td className="px-4 py-2.5">
                   {/* 资产名仍是详情入口：点链接只跳转，不触发整行的曲线联动 */}

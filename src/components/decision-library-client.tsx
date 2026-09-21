@@ -35,12 +35,12 @@ function soldToneStyle(soldAtProfit: boolean | null): CSSProperties {
 function windowCell(window?: { status: string; pct: number | null; asOf: string | null }) {
   if (!window) return <span className="text-ink-faint">—</span>
   if (window.status === 'BLOCKED') {
-    return <span className="ii-dec-badge ii-dec-badge-err" title="该观察窗口内没有可用净值点">无净值</span>
+    return <span className="ii-dec-badge ii-dec-badge-err" title="该观察窗口内没有可用价格或净值">无数据</span>
   }
   if (window.status === 'CENSORED') {
     return (
       <span className="ii-dec-badge ii-dec-badge-warn" title={`观察窗口未走完，最后可用净值点 ${window.asOf ?? '—'}`}>
-        不足 {window.asOf ?? ''}
+        观察中
       </span>
     )
   }
@@ -48,7 +48,7 @@ function windowCell(window?: { status: string; pct: number | null; asOf: string 
 }
 
 export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData }) {
-  const pageSize = 50
+  const pageSize = 25
   const [page, setPage] = useState(1)
   const newestFirst = useMemo(() => [...data.events].reverse(), [data.events])
   const pageCount = Math.max(1, Math.ceil(newestFirst.length / pageSize))
@@ -74,19 +74,17 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
       <header className="review-header">
         <div>
           <div className="page-kicker">决策库 · 可投资组合 · {data.rangeStart} — {data.rangeEnd}</div>
-          <h1 className="page-title">决策库：每笔买卖的确定性回看</h1>
-          <p className="page-description">
-            从账本买卖主腿派生事件，回看事件前后的确定性窗口：观察期不足记删失，份额待确认的申购不进入收益窗口。
-          </p>
+          <h1 className="page-title">每笔买卖，后来发生了什么</h1>
+          <p className="page-description">按账本还原买卖及其后续表现；数据不足时只显示“观察中”，不补估算值。</p>
         </div>
       </header>
 
       {/* 01 样本与行为概览 */}
       <section className="review-stat-grid review-stat-grid-four" aria-label="决策库概览">
-        <div className="review-metric"><span>买入事件</span><strong className="num">{buys.length}</strong><small>建仓 + 加仓主腿</small></div>
-        <div className="review-metric"><span>卖出事件</span><strong className="num">{sells.length}</strong><small>减仓 + 清仓主腿</small></div>
-        <div className="review-metric"><span>待确认申购</span><strong className="num">{data.pendingCount}</strong><small>不计入收益窗口</small></div>
-        <div className="review-metric"><span>交易费用（CNY）</span><strong className="num">{fmtCNY(data.tradingFees)}</strong><small>主腿 fee + 独立 FEE</small></div>
+        <div className="review-metric"><span>买入</span><strong className="num">{buys.length}</strong><small>建仓与加仓</small></div>
+        <div className="review-metric"><span>卖出</span><strong className="num">{sells.length}</strong><small>减仓与清仓</small></div>
+        <div className="review-metric"><span>待确认</span><strong className="num">{data.pendingCount}</strong><small>暂不计算后续表现</small></div>
+        <div className="review-metric"><span>交易费用</span><strong className="num">{fmtCNY(data.tradingFees)}</strong><small>账本已记录费用</small></div>
       </section>
 
       {/* 02 行为统计（样本不足不贴标签） */}
@@ -94,7 +92,7 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
         <div className="review-section-heading">
           <div>
             <span>02</span>
-            <div><h2 title="完整持仓段 0→正→0 的持有天数不对称是处置效应的代理观察；卖出后收益仅统计合格窗口样本">盈亏持有与卖出后路径</h2></div>
+            <div><h2 title="只比较完整持仓段；卖出后的表现只统计数据完整的观察窗口">持有多久，卖出后怎么走</h2></div>
           </div>
         </div>
         <div className="review-risk-layout">
@@ -104,9 +102,7 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
             <div className="ii-dec-asym-row"><span className="ii-dec-lb">亏损持仓段</span><span className="ii-dec-asym-track"><i className="ii-dec-lose" style={{ width: `${data.behavior.asymmetry ? Math.min(100, data.behavior.asymmetry.loss.count * 12) : 0}%` }} /></span>
               <span className="ii-dec-val num">{data.behavior.asymmetry ? `${data.behavior.asymmetry.loss.count} 段 · 中位 ${data.behavior.asymmetry.loss.medianDays ?? '—'} 天` : '—'}</span></div>
             <p className="footnote" style={{ marginTop: '1rem' }}>
-              <span title="年化换手率 = min(区间买入, 区间卖出) × 2 ÷ 日均占用资本；分母取区间内每日快照的可投资口径均值">
-                年化换手率（min(买,卖)×2 ÷ 日均占用资本）
-              </span>：
+              <span title="取买入与卖出较小值的两倍，再除以区间日均可投资资产">年化换手率</span>：
               <b className="num">{data.behavior.turnoverRate == null ? '不可计算' : fmtPct(data.behavior.turnoverRate)}</b>
               {data.behavior.turnoverRate == null
                 ? <span className="text-ink-faint"> · 区间内没有可用的每日快照（快照缺口不会被当成 0）</span>
@@ -118,7 +114,7 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
               const bucket = data.behavior.sells[window]
               return (
                 <div key={window} className="review-metric">
-                  <span title="按该资产的净值点计数，不是自然日或交易日">卖出后 {window} 净值点</span>
+                  <span title="按该资产实际取得价格或净值的日期计数，不等同于自然日">卖出后 {window} 个有效估值日</span>
                   <strong className={toneClass(bucket.meanPct)}>{bucket.meanPct == null ? '—' : fmtPct(bucket.meanPct, { sign: true })}</strong>
                   <small>合格 {bucket.eligible} · 删失 {bucket.censored} · 无净值 {bucket.blocked}</small>
                 </div>
@@ -146,10 +142,10 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
             <thead>
               <tr>
                 <th>日期</th><th>事件</th><th>资产</th><th className="num">金额（CNY）</th>
-                <th className="num ii-dec-col-tail">前 20 净值点</th><th className="num ii-dec-col-tail">前 60 净值点</th>
-                <th className="num ii-dec-col-tail">后 30 净值点</th>
-                <th className="num">后 90 净值点</th><th className="num">后 180 净值点</th>
-                <th>资格</th>
+                <th className="num ii-dec-col-tail">此前 20 个估值日</th><th className="num ii-dec-col-tail">此前 60 个估值日</th>
+                <th className="num ii-dec-col-tail">此后 30 个估值日</th>
+                <th className="num">此后 90 个估值日</th><th className="num">此后 180 个估值日</th>
+                <th>数据</th>
               </tr>
             </thead>
             <tbody>
@@ -175,7 +171,7 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
                   <td className="num">{windowCell(event.post180)}</td>
                   <td>
                     {event.pending ? <span className="ii-dec-badge ii-dec-badge-err">待确认</span>
-                      : eligibleWindows === windows.length ? <span className="ii-dec-badge ii-dec-badge-ok">5/5 合格</span>
+                      : eligibleWindows === windows.length ? <span className="ii-dec-badge ii-dec-badge-ok">5/5 完整</span>
                       : eligibleWindows > 0 ? <span className="ii-dec-badge ii-dec-badge-warn">{eligibleWindows}/5 可用</span>
                       : <span className="ii-dec-badge ii-dec-badge-warn">0/5 可用</span>}
                   </td>
@@ -187,7 +183,7 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
         </div>
         <div className="ii-decision-pagination" aria-label="决策事件分页">
           <p className="footnote">
-        默认按最新事件排序；“不足”表示观察期未完成，不计为 0。窗口以<b>净值点</b>计数（该资产每个估值日记 1 点，QDII 等稀疏净值资产的一个点可能跨多日），不是自然日或交易日。当前显示 {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, newestFirst.length)} / {newestFirst.length}。
+        默认显示最新事件；“不足”表示仍在观察，不计为 0。窗口以<b>有效估值日</b>计数，QDII 等净值更新较慢的资产可能跨多个自然日。当前显示 {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, newestFirst.length)} / {newestFirst.length}。
       </p>
           <div>
             <button type="button" disabled={page === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>上一页</button>

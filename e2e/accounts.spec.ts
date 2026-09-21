@@ -17,7 +17,8 @@ test('账户中心：概览、详情和账户级流水录入', async ({ page }) 
   await expect(page).toHaveURL(/\/accounts\//)
   if (accountName) await expect(page.getByRole('heading', { level: 1 })).toHaveText(accountName)
   await expect(page.getByRole('heading', { name: '账户持仓' })).toBeVisible()
-  await expect(page.getByText('当前账户', { exact: true })).toBeVisible()
+  await expect(page.getByText('账户操作', { exact: true })).toBeVisible()
+  await expect(page.getByText('当前账户', { exact: true })).toBeHidden()
   await expect(page.getByRole('heading', { name: '最近流水' })).toBeVisible()
 })
 
@@ -40,7 +41,7 @@ test('资产设置：无流水资产可完整修改并安全删除', async ({ pa
   const assetLink = page.getByRole('link', { name: '临时错误资产', exact: true })
   await expect(assetLink).toBeVisible()
   await assetLink.click()
-  await expect(page.getByRole('heading', { name: '资产设置', exact: true })).toBeVisible()
+  await page.getByText('资产设置', { exact: true }).click()
   await expect(page.getByText('未入账')).toBeVisible()
 
   const settings = page.locator('.asset-settings-form')

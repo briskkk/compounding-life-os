@@ -28,7 +28,7 @@ export function MarketQualityCheckButton() {
     <div className="flex items-center gap-4">
       {message && <span className="max-w-[360px] text-right text-[12px] leading-5 text-ink-faint">{message}</span>}
       <button type="button" onClick={run} disabled={pending} className={cx('min-h-11 rounded-lg border border-accent/50 px-5 text-[13px] text-accent hover:bg-accent/10 disabled:opacity-50')}>
-        {pending ? '逐源核验中…' : '检查当前持仓'}
+        {pending ? '正在核对…' : '核对当前持仓'}
       </button>
     </div>
   )

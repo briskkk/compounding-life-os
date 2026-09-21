@@ -14,6 +14,9 @@ test('账户对账只追加外部凭证，不改写账本余额', async ({ page 
   await page.goto('/reconciliation')
   await expect(page.getByRole('heading', { level: 1, name: '账户对账' })).toBeVisible()
   const ledgerBefore = await page.locator('tbody tr').first().locator('td').nth(1).textContent()
+  await expect(page.locator('#new-reconciliation')).not.toHaveAttribute('open', '')
+  await page.getByRole('link', { name: '新增凭证' }).click()
+  await expect(page.locator('#new-reconciliation')).toHaveAttribute('open', '')
   await page.locator('select[name="accountId"]').selectOption({ index: 1 })
   await page.locator('input[name="observedValueCny"]').fill('1')
   await page.locator('input[name="sourceName"]').fill('E2E 券商月结单')
@@ -36,7 +39,8 @@ test('目标配置以当前权重预填并可保存为观察基准', async ({ pa
 
 test('资金日历可添加和移除计划事项', async ({ page }) => {
   await page.goto('/accounts?view=calendar')
-  await expect(page.getByRole('heading', { name: '添加计划事项' })).toBeVisible()
+  await page.getByText('添加其他资金计划', { exact: true }).click()
+  await expect(page.getByPlaceholder('例如：保险缴费 / 奖金到账')).toBeVisible()
   await page.getByPlaceholder('例如：保险缴费 / 奖金到账').fill('E2E 年度保费')
   await page.getByLabel('金额（人民币）').fill('12000')
   await page.getByLabel('重复').selectOption('YEARLY')
@@ -48,4 +52,17 @@ test('资金日历可添加和移除计划事项', async ({ page }) => {
   await page.getByTestId('confirm-accept').click()
   await expect(page.getByTestId('write-flash')).toContainText('计划事项已移除')
   await expect(page.getByText('E2E 年度保费')).toHaveCount(0)
+})
+
+test('资金日历联动账本买卖并可下钻到当日流水', async ({ page }) => {
+  await page.goto('/accounts?view=calendar&month=2026-06&day=2026-06-15')
+  await expect(page.getByText('账本实际买入').first()).toBeVisible()
+  await expect(page.getByRole('heading', { name: '6 月 15 日明细' })).toBeVisible()
+  await expect(page.getByText('沪深300ETF').first()).toBeVisible()
+  await expect(page.getByText('易方达消费行业').first()).toBeVisible()
+
+  await page.getByRole('link', { name: '沪深300ETF' }).click()
+  await expect(page).toHaveURL(/\/transactions\?date=2026-06-15&type=BUY/)
+  await expect(page.getByText('2026-06-15 当日')).toBeVisible()
+  await expect(page.getByRole('cell', { name: /沪深300ETF.*510300/ })).toBeVisible()
 })

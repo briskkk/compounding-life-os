@@ -132,7 +132,7 @@ test('场外基金：净值份额未知时先按金额记录，并进入当日�
   await expect(row).toContainText('份额待确认')
   await row.getByRole('link', { name: '核对份额' }).click()
   await expect(page).toHaveURL(/\/fund-confirmations\?transaction=/)
-  await expect(page.getByRole('heading', { level: 1, name: '先对上份额，再写进持仓。' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '基金份额确认' })).toBeVisible()
   await expect(page.getByRole('button', { name: '读取官方净值并核对' })).toBeVisible()
   await expect(page.getByText('这一步只做预览，不写入账本。')).toBeVisible()
 
@@ -213,4 +213,3 @@ test('基金份额核对：官方份额自动预填，按 Enter 完成确认', a
   expect(official.navSource).toBe('OFFICIAL')
   expect(Number(official.quantity)).toBe(1000)
 })
-

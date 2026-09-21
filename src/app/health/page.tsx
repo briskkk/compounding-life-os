@@ -300,13 +300,6 @@ export default async function DataHealthPage() {
         </div>
       </section>
 
-      {dashboard.ctx.role !== 'VIEWER' && (
-        <section className="health-repair-strip">
-          <div><strong title="服务器按市场收盘时段自动增量刷新；这里保留完整补齐与重建作为人工修复，不会改写交易流水">行情与派生快照维护</strong></div>
-          <HealthRepairActions />
-        </section>
-      )}
-
       <section className="health-layout">
         <div className="health-issue-panel">
           <header><div><h2>待办检查</h2></div><span>{issues.length} 项</span></header>
@@ -345,20 +338,33 @@ export default async function DataHealthPage() {
         </aside>
       </section>
 
-      <section className="health-job-center">
-        <header><div><h2>行情任务中心</h2></div><span>单家庭刷新 · 06:30 / 16:30 / 22:30</span></header>
-        <div className="health-job-grid">
-          <div className="health-job-schedule"><div><b className="num">06:30</b><span>美股收盘与外汇回填</span></div><div><b className="num">16:30</b><span>A/H 股收盘落库</span></div><div><b className="num">22:30</b><span>基金官方净值回填</span></div></div>
-          <div className="health-job-timeline">
-            {refreshLogs.length === 0 ? <p>尚无持久化刷新记录。手动刷新或定时任务完成后会显示在这里。</p> : refreshLogs.map((log) => {
-              const failed = (log.detail ?? '').includes('JOB_FAILED')
-                ? 1
-                : [...(log.detail ?? '').matchAll(/:FAILED:/g)].length
-              return <article key={log.id}><i className={failed > 0 ? 'is-warning' : 'is-ok'} /><time className="num">{fmtDateTime(log.createdAt)}</time><strong>{failed > 0 ? `${failed} 个标的失败` : '刷新完成'}</strong><span>{log.actorName}</span></article>
-            })}
-          </div>
+      <details id="market-jobs" className="health-maintenance">
+        <summary>
+          <div><h2>行情任务中心</h2><span>定时刷新、运行记录与人工修复</span></div>
+          <small className="num">06:30 · 16:30 · 22:30</small>
+        </summary>
+        <div className="health-maintenance-body">
+          {dashboard.ctx.role !== 'VIEWER' && (
+            <section className="health-repair-strip">
+              <div><strong title="服务器按市场收盘时段自动增量刷新；人工修复不会改写交易流水">需要时手动补齐</strong></div>
+              <HealthRepairActions />
+            </section>
+          )}
+          <section className="health-job-center">
+            <div className="health-job-grid">
+              <div className="health-job-schedule"><div><b className="num">06:30</b><span>美股收盘与外汇</span></div><div><b className="num">16:30</b><span>A/H 股收盘</span></div><div><b className="num">22:30</b><span>基金官方净值</span></div></div>
+              <div className="health-job-timeline">
+                {refreshLogs.length === 0 ? <p>尚无刷新记录。</p> : refreshLogs.map((log) => {
+                  const failed = (log.detail ?? '').includes('JOB_FAILED')
+                    ? 1
+                    : [...(log.detail ?? '').matchAll(/:FAILED:/g)].length
+                  return <article key={log.id}><i className={failed > 0 ? 'is-warning' : 'is-ok'} /><time className="num">{fmtDateTime(log.createdAt)}</time><strong>{failed > 0 ? `${failed} 个标的失败` : '刷新完成'}</strong><span>{log.actorName}</span></article>
+                })}
+              </div>
+            </div>
+          </section>
         </div>
-      </section>
+      </details>
 
       <section id="fund-confirmation" className="health-confirmation-center">
         <header><div><h2>基金确认闭环</h2></div><Link href="/fund-confirmations">进入份额核对 →</Link></header>

@@ -116,7 +116,7 @@ test('长期复盘：成立以来/近五年/自然年范围切换、桥与数据
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/review/history')
 
-  await expect(page.getByRole('heading', { level: 1, name: '长期复盘：可投资组合是怎么走过来的' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '长期复盘：钱如何增长，又如何回撤' })).toBeVisible()
   await expect(page.getByLabel('复盘模式').getByText('长期复盘')).toBeVisible()
   await expect(page.getByLabel('长期复盘范围').getByText('成立以来')).toBeVisible()
 
@@ -129,7 +129,12 @@ test('长期复盘：成立以来/近五年/自然年范围切换、桥与数据
   await expect(page.getByLabel('资金体验与风险证据').getByText('收益回撤比 · Calmar')).toBeVisible()
   await expect(page.getByLabel('资金体验与风险证据').getByText(/最长回本周期|最长未恢复区间/)).toBeVisible()
   await expect(page.getByText('政策基准对比暂不可计算。')).toBeVisible()
-  await expect(page.getByText('数据资格与证据水位')).toBeVisible()
+  const evidenceDetails = page.locator('#ih-data')
+  await expect(evidenceDetails.getByRole('heading', { name: '这些结论能不能直接用' })).toBeVisible()
+  await expect(evidenceDetails).not.toHaveAttribute('open', '')
+  await evidenceDetails.getByRole('heading', { name: '这些结论能不能直接用' }).click()
+  await expect(evidenceDetails).toHaveAttribute('open', '')
+  await expect(page.getByRole('table', { name: '结论可用性明细' })).toBeVisible()
 
   // 自然年切换
   await page.getByRole('link', { name: '2026 年' }).click()
@@ -172,15 +177,15 @@ test('决策库：事件表、资格与 1280/1440 无溢出', async ({ page }) =
   for (const width of [1280, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/review/decisions')
-    await expect(page.getByRole('heading', { name: '决策库：每笔买卖的确定性回看' })).toBeVisible()
-    // C8：核心三列（后 90/后 180 净值点、资格）在任何宽度都要可见；
-    // 低优先列（前 20/60、后 30 净值点）只在 1440px 以上显示，1280px 下隐藏以省出横向空间
-    await expect(page.getByRole('columnheader', { name: '后 90 净值点' })).toBeVisible()
-    await expect(page.getByRole('columnheader', { name: '后 180 净值点' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '每笔买卖，后来发生了什么' })).toBeVisible()
+    // 核心三列（此后 90/180 个估值日、数据状态）在任何宽度都要可见；
+    // 低优先列只在 1440px 以上显示，1280px 下隐藏以省出横向空间
+    await expect(page.getByRole('columnheader', { name: '此后 90 个估值日' })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: '此后 180 个估值日' })).toBeVisible()
     if (width < 1600) {
-      await expect(page.getByRole('columnheader', { name: '前 20 净值点' })).toBeHidden()
+      await expect(page.getByRole('columnheader', { name: '此前 20 个估值日' })).toBeHidden()
     } else {
-      await expect(page.getByRole('columnheader', { name: '前 20 净值点' })).toBeVisible()
+      await expect(page.getByRole('columnheader', { name: '此前 20 个估值日' })).toBeVisible()
     }
     const tableScroll = page.locator('.ii-dec-wrap')
     const tableOverflow = await tableScroll.evaluate((el) => el.scrollWidth - el.clientWidth)
@@ -189,12 +194,12 @@ test('决策库：事件表、资格与 1280/1440 无溢出', async ({ page }) =
     // B6：年化换手率（原先恒为「未计算」）现在按区间快照均值算出，并标注口径
     await expect(page.getByText(/年化换手率/)).toBeVisible()
     await expect(page.getByText(/取自 \d+ 天快照/)).toBeVisible()
-    await expect(page.getByText('买入事件')).toBeVisible()
+    await expect(page.getByLabel('决策库概览').getByText('买入', { exact: true })).toBeVisible()
     await expect(page.getByLabel('复盘模式').getByText('决策库')).toHaveClass(/is-active/)
     await expect(page.getByLabel('决策事件分页')).toContainText('当前显示')
     const visibleRows = await page.locator('table.ii-dec-table tbody tr').count()
     expect(visibleRows).toBeGreaterThan(0)
-    expect(visibleRows).toBeLessThanOrEqual(50)
+    expect(visibleRows).toBeLessThanOrEqual(25)
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     expect(overflow).toBeLessThanOrEqual(1)
   }
@@ -220,9 +225,10 @@ test('复盘章节导航：随滚动更新当前态', async ({ page }) => {
   await page.goto('/review/history')
   const historyNav = page.getByRole('navigation', { name: '长期复盘章节' })
   await expect(historyNav).toBeVisible()
-  await page.locator('#ih-data').scrollIntoViewIfNeeded()
+  await historyNav.getByRole('link', { name: '05 数据说明' }).click()
+  await expect(page.locator('#ih-data')).toHaveAttribute('open', '')
   await page.waitForTimeout(500)
-  await expect(historyNav.getByRole('link', { name: '05 数据资格' })).toHaveAttribute('aria-current', 'location')
+  await expect(historyNav.getByRole('link', { name: '05 数据说明' })).toHaveAttribute('aria-current', 'location')
 })
 
 test('复盘 03 时点：日柱按可用宽度均分，不需要横向滚动且有零轴', async ({ page }) => {

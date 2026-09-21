@@ -6,6 +6,7 @@ import { InvestmentHistoryBand } from './investment-history-band'
 import { InvestmentHistoryContribution, type ContributionViewKey } from './investment-history-contribution'
 import { ScopeLabel } from '@/components/ui'
 import { SectionNav } from '@/components/section-nav'
+import { HashOpenDetails } from '@/components/hash-open-details'
 
 function toneClass(value: number | null): string {
   if (value == null) return 'text-ink-faint'
@@ -84,10 +85,8 @@ export function HistoryClient({
       <header className="review-header">
         <div>
           <div className="page-kicker">长期复盘 · 可投资组合 · {range.startDate} — {range.endDate}</div>
-          <h1 className="page-title">长期复盘：可投资组合是怎么走过来的</h1>
-          <p className="page-description">
-            从全部可投资资产的账本与历史价格重放：现金、基金、ETF、股票与黄金统一进入结果桥，房产与长期持股不进入。
-          </p>
+          <h1 className="page-title">长期复盘：钱如何增长，又如何回撤</h1>
+          <p className="page-description">回看可投资资产的长期结果、资金进出和关键买卖。</p>
         </div>
         <div className="ii-scope-panel">
           <div className="review-periods ii-scope-periods" aria-label="长期复盘范围">
@@ -114,7 +113,7 @@ export function HistoryClient({
           { id: 'ih-path', label: '02 年度路径' },
           { id: 'ih-band', label: '03 决策时间带' },
           { id: 'ih-contribution', label: '04 贡献归因' },
-          { id: 'ih-data', label: '05 数据资格' },
+          { id: 'ih-data', label: '05 数据说明' },
         ]}
       />
 
@@ -125,7 +124,7 @@ export function HistoryClient({
       ) : (
         <>
           {/* 01 结果桥 */}
-          <section className="chart-surface review-outcome" aria-label="可投资组合结果桥">
+          <section id="ih-outcome" className="chart-surface review-outcome" aria-label="可投资组合结果桥">
             <div className="review-outcome-main">
               <span>{range.label}可投资组合收益{bridgeMetric?.asOf ? ` · 最新估值证据 ${bridgeMetric.asOf}` : ''}</span>
               <strong className={bridge.investGain == null ? 'num text-ink-faint' : `num ${toneClass(bridge.investGain)}`}>
@@ -147,16 +146,19 @@ export function HistoryClient({
               <i>=</i>
               <div className="review-metric"><span><ScopeLabel scope="PERIOD_END_INVESTABLE" /></span><strong className="num">{bridge.endingValue == null ? '—' : fmtCNY(bridge.endingValue)}</strong></div>
             </div>
-            <div className="review-benchmark" style={{ justifyContent: 'flex-start', borderTop: '1px solid var(--color-line)', marginTop: '1.2rem', paddingTop: '1rem' }}>
-              <span className="review-metric"><span>外部存入</span><strong className="num">{fmtCNY(flows.deposits)}</strong></span>
-              <span className="review-metric"><span>外部取出</span><strong className="num">{fmtCNY(flows.withdrawals)}</strong></span>
-              <span className="review-metric"><span>累计买入</span><strong className="num">{fmtCNY(flows.buys)}</strong></span>
-              <span className="review-metric"><span>累计卖出到账</span><strong className="num">{fmtCNY(flows.sells)}</strong></span>
-              <span className="review-metric"><span>现金分红</span><strong className="num">{fmtCNY(flows.dividends)}</strong></span>
-              <span className="review-metric"><span>交易与独立费用</span><strong className="num">{fmtCNY(flows.fees)}</strong></span>
-              <span className="review-metric"><span>利息收入</span><strong className="num">{fmtCNY(flows.interestIncome)}</strong></span>
-              <span className="review-metric"><span>待确认申购</span><strong className="num">{data.pendingPurchaseCount} 笔</strong></span>
-            </div>
+            <details className="ii-flow-details">
+              <summary>查看期间资金流明细</summary>
+              <div className="ii-flow-grid">
+                <span className="review-metric"><span>外部存入</span><strong className="num">{fmtCNY(flows.deposits)}</strong></span>
+                <span className="review-metric"><span>外部取出</span><strong className="num">{fmtCNY(flows.withdrawals)}</strong></span>
+                <span className="review-metric"><span>累计买入</span><strong className="num">{fmtCNY(flows.buys)}</strong></span>
+                <span className="review-metric"><span>累计卖出到账</span><strong className="num">{fmtCNY(flows.sells)}</strong></span>
+                <span className="review-metric"><span>现金分红</span><strong className="num">{fmtCNY(flows.dividends)}</strong></span>
+                <span className="review-metric"><span>交易费用</span><strong className="num">{fmtCNY(flows.fees)}</strong></span>
+                <span className="review-metric"><span>利息收入</span><strong className="num">{fmtCNY(flows.interestIncome)}</strong></span>
+                <span className="review-metric"><span>待确认申购</span><strong className="num">{data.pendingPurchaseCount} 笔</strong></span>
+              </div>
+            </details>
             <div className="ii-return-risk-grid" aria-label="资金体验与风险证据">
               <article className="ii-return-risk-card">
                 <div className="ii-return-risk-label">
@@ -307,26 +309,30 @@ export function HistoryClient({
           {/* 04 收益贡献与对账 */}
           <InvestmentHistoryContribution contributions={data.contributions} view={view} query={query} />
 
-          {/* 05 数据资格与证据水位 */}
-          <section id="ih-data" className="section-panel review-section" aria-label="数据资格与证据水位">
-            <div className="review-section-heading">
-              <div>
+          {/* 05 数据说明 */}
+          <HashOpenDetails
+            id="ih-data"
+            className="section-panel review-section ii-evidence-details"
+            summary={(
+              <div className="ii-collapsible-section-summary">
                 <span>05</span>
-                <div><h2>数据资格与证据水位</h2></div>
+                <div><h2>这些结论能不能直接用</h2><p>{verdict}</p></div>
               </div>
-            </div>
+            )}
+          >
+            <div className="ii-evidence-details-body">
 
             <div className="ii-evidence-verdict">
-              <span className="ii-evidence-verdict-label">结论可信度</span>
+              <span className="ii-evidence-verdict-label">当前判断</span>
               <p>{verdict}</p>
             </div>
 
-            <div className="ii-evidence-table" role="table" aria-label="数据资格明细">
+            <div className="ii-evidence-table" role="table" aria-label="结论可用性明细">
               <div className="ii-evidence-row ii-evidence-head" role="row">
-                <span role="columnheader">分析</span>
-                <span role="columnheader">可发布</span>
-                <span role="columnheader">原因</span>
-                <span role="columnheader">依据</span>
+                <span role="columnheader">结论</span>
+                <span role="columnheader">状态</span>
+                <span role="columnheader">为什么</span>
+                <span role="columnheader">数据范围</span>
               </div>
               {metrics.map((metric) => (
                 <div className="ii-evidence-row" role="row" key={metric.key}>
@@ -347,15 +353,16 @@ export function HistoryClient({
             </div>
 
             <details className="ii-watermark">
-              <summary>证据水位与审计元数据</summary>
+              <summary>查看计算版本与数据日期</summary>
               <div className="ii-watermark-grid">
-                <span>账本水位 <code className="num">{result.watermark.ledgerWatermark}</code></span>
-                <span>行情水位 <code className="num">{result.watermark.priceWatermark ?? '—'}</code></span>
+                <span>账本更新 <code className="num">{result.watermark.ledgerWatermark}</code></span>
+                <span>行情更新 <code className="num">{result.watermark.priceWatermark ?? '—'}</code></span>
                 <span>结果日期 <code className="num">{result.watermark.asOf}</code></span>
                 <span>方法版本 <code className="num">{result.watermark.methodVersion}</code></span>
               </div>
             </details>
-          </section>
+            </div>
+          </HashOpenDetails>
         </>
       )}
     </>

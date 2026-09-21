@@ -4,11 +4,12 @@ import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { CORPORATE_ACTION_LABEL, type CorporateActionKind } from '@/lib/corporate-actions'
 import { fmtDate, fmtMoney, fmtQty } from '@/lib/format'
-import { Empty, PageHeader, Panel, SetupScreen, Tag } from '@/components/ui'
+import { Empty, PageHeader, Panel, ReadOnlyNotice, SetupScreen, Tag } from '@/components/ui'
 import { CorporateActionForm } from '@/components/corporate-action-form'
 import { ReverseCorporateActionButton } from '@/components/reverse-corporate-action-button'
 import { splitCandidates } from '@/lib/services/split-discovery'
 import { SplitDiscoveryPanel } from '@/components/split-discovery-panel'
+import { HashOpenDetails } from '@/components/hash-open-details'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,20 +33,34 @@ export default async function CorporateActionsPage() {
 
   return <div className="page-shell">
     <PageHeader
-      title="不是买卖，也必须算进账本。"
-      description="发行方造成的份额、证券身份、成本与现金变化，会展开为可重放流水；事件来源和转换比例单独保留证据。"
-      right={<div className="flex items-end gap-8"><div><div className="text-[13px] text-ink-faint">有效事件</div><div className="num mt-2 text-[28px] text-ink">{active.length}</div></div><Link href="/transactions" className="inline-flex min-h-11 items-center text-[14px] text-accent">返回交易流水 →</Link></div>}
+      title="公司行动"
+      description="记录拆股、换股、分红与转托管。确认后生成关联流水，并保留来源和变更记录。"
+      right={<div className="flex flex-wrap items-end justify-end gap-5"><div><div className="text-[13px] text-ink-faint">有效事件</div><div className="num mt-1 text-[24px] text-ink">{active.length}</div></div><Link href="/transactions" className="inline-flex min-h-11 items-center text-[14px] text-accent">交易流水 →</Link>{ctx.role !== 'VIEWER' && <a href="#new-corporate-action" className="inline-flex min-h-11 items-center rounded-lg bg-accent px-5 text-[14px] font-medium text-bg">记录事件</a>}</div>}
     />
 
-    <section className="mb-10 grid grid-cols-[1.15fr_0.85fr_0.85fr] overflow-hidden rounded-xl border border-line bg-panel">
-      <div className="p-7"><h2 className="mt-4 text-[24px] font-medium text-ink">事件是证据，流水才改变持仓</h2><p className="mt-3 max-w-xl text-[14px] leading-6 text-ink-dim">拆股不会制造收益，换股不会伪造卖出，红利再投也不会被算成外部入金。所有生成流水可随事件整体冲正。</p></div>
-      <div className="border-l border-line p-7"><div className="text-[13px] text-ink-faint">份额 / 身份事件</div><div className="num mt-4 text-[32px] text-accent">{quantityEvents}</div><div className="mt-2 text-[13px] text-ink-dim">拆分、送股、换股、转托管</div></div>
-      <div className="border-l border-line p-7"><div className="text-[13px] text-ink-faint">现金 / 再投事件</div><div className="num mt-4 text-[32px] text-ink">{cashEvents.length}</div><div className="mt-2 text-[13px] text-ink-dim">现金分配与基金红利再投</div></div>
+    <section className="operations-summary operations-summary-3" aria-label="公司行动概览">
+      <div><span>有效事件</span><strong className="num">{active.length}</strong><small>已计入账本</small></div>
+      <div><span>份额与证券变更</span><strong className="num text-accent">{quantityEvents}</strong><small>拆股、换股、转托管</small></div>
+      <div><span>现金与再投</span><strong className="num">{cashEvents.length}</strong><small>分红与红利再投</small></div>
     </section>
 
-    {ctx.role !== 'VIEWER' && <Panel title="记录公司行动"><CorporateActionForm accounts={accounts.map((account) => ({ id: account.id, name: account.name, currency: account.currency }))} assets={assets.map((asset) => ({ id: asset.id, symbol: asset.symbol, name: asset.name, cls: asset.cls, currency: asset.currency }))} /></Panel>}
+    <HashOpenDetails
+      id="split-check"
+      className="action-workspace"
+      initiallyOpen={scan.candidates.length > 0}
+      summary={<><span>拆分公告</span><small>{scan.candidates.length > 0 ? `${scan.candidates.length} 项待核对` : scan.checkedAt ? '没有待核对线索' : '按需检查'}</small></>}
+    >
+      <div className="action-workspace-body"><SplitDiscoveryPanel scan={scan} readOnly={ctx.role === 'VIEWER'} /></div>
+    </HashOpenDetails>
 
-    <Panel title="拆分公告核对"><SplitDiscoveryPanel scan={scan} readOnly={ctx.role === 'VIEWER'} /></Panel>
+    {ctx.role === 'VIEWER' && <ReadOnlyNotice what="可以查看公司行动与拆分线索，但不能记录或确认事件" />}
+    {ctx.role !== 'VIEWER' && <HashOpenDetails
+      id="new-corporate-action"
+      className="action-workspace"
+      summary={<><span>记录公司行动</span><small>有官方公告或账单时再展开</small></>}
+    >
+      <div className="action-workspace-body"><CorporateActionForm accounts={accounts.map((account) => ({ id: account.id, name: account.name, currency: account.currency }))} assets={assets.map((asset) => ({ id: asset.id, symbol: asset.symbol, name: asset.name, cls: asset.cls, currency: asset.currency }))} /></div>
+    </HashOpenDetails>}
 
     <Panel title="事件历史" bodyClassName="p-0" right={<span className="num text-[12px] text-ink-faint">最近 {actions.length} 项</span>}>
       {actions.length === 0 ? <Empty>尚未记录公司行动；普通买卖仍在交易流水中录入。</Empty> : <div className="overflow-x-auto"><table className="w-full min-w-[1120px] text-[14px]"><thead><tr className="border-b border-line text-left text-[12px] tracking-[0.12em] text-ink-faint"><th className="px-5 py-3 font-normal">生效日 / 类型</th><th className="px-5 py-3 font-normal">来源资产</th><th className="px-5 py-3 font-normal">变化</th><th className="px-5 py-3 font-normal">成本 / 现金</th><th className="px-5 py-3 font-normal">证据</th><th className="px-5 py-3 text-right font-normal">状态</th></tr></thead><tbody>{actions.map((action) => {

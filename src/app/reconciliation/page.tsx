@@ -10,6 +10,7 @@ import { Empty, PageHeader, Panel, SetupScreen, Tag, ReadOnlyNotice } from '@/co
 import { ReconciliationForm } from '@/components/reconciliation-form'
 import { cx, fmtCNY, fmtDateTime } from '@/lib/format'
 import { TableScroll } from '@/components/table-scroll'
+import { HashOpenDetails } from '@/components/hash-open-details'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,8 +85,13 @@ export default async function ReconciliationPage() {
     <div className="page-shell reconciliation-page">
       <PageHeader
         title="账户对账"
-        description="把券商、银行或基金平台显示的余额与当前账本逐账户核对。核对凭证只追加到审计链，绝不会直接改写资产。"
-        right={<Link href="/health" className="text-[14px] text-accent">返回健康中心 →</Link>}
+        description="对照外部账单与账本余额；凭证只留核对记录，不改资产。"
+        right={(
+          <div className="flex items-center gap-5">
+            <Link href="/health" className="text-[14px] text-accent">返回健康中心 →</Link>
+            {ctx.role !== 'VIEWER' && <a href="#new-reconciliation" className="inline-flex min-h-11 items-center rounded-lg bg-accent px-5 text-[14px] font-medium text-bg">新增凭证</a>}
+          </div>
+        )}
       />
 
       <section className="reconciliation-summary">
@@ -110,10 +116,16 @@ export default async function ReconciliationPage() {
 
       {ctx.role === 'VIEWER' && <ReadOnlyNotice what="可以查看核对凭证与差额，但不能追加外部凭证" />}
       {ctx.role !== 'VIEWER' && (
-        <Panel title="新增核对凭证">
-          <ReconciliationForm accounts={accountRows.map(({ id, name, ledgerValueCny }) => ({ id, name, ledgerValueCny }))} />
-          <p className="mt-4 text-[12px] leading-6 text-ink-faint">凭证是核对时点的证据，不是资产余额字段。提交后如需修正，请新增一条凭证保留历史。</p>
-        </Panel>
+        <HashOpenDetails
+          id="new-reconciliation"
+          className="action-workspace"
+          summary={<><span>新增核对凭证</span><small>有新账单时再展开</small></>}
+        >
+          <div className="action-workspace-body">
+            <ReconciliationForm accounts={accountRows.map(({ id, name, ledgerValueCny }) => ({ id, name, ledgerValueCny }))} />
+            <p className="mt-4 text-[12px] leading-6 text-ink-faint">如需修正，请新增凭证保留历史。</p>
+          </div>
+        </HashOpenDetails>
       )}
 
       <Panel title="核对历史" bodyClassName="p-0">

@@ -35,7 +35,7 @@ const PAGE_SIZES = [25, 50, 100] as const
 export default async function TransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ account?: string; type?: string; q?: string; page?: string; size?: string; batch?: string; history?: string; sort?: string }>
+  searchParams: Promise<{ account?: string; type?: string; q?: string; page?: string; size?: string; batch?: string; history?: string; sort?: string; date?: string }>
 }) {
   const sp = await searchParams
   const ctx = await getSession()
@@ -72,10 +72,18 @@ export default async function TransactionsPage({
   ))
   const showHistory = sp.history === 'all' || sp.type === 'REVERSAL'
   const todayKey = dateKeyAt(new Date())
+  const requestedDate = sp.date && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : ''
+  const requestedDateValue = requestedDate ? new Date(`${requestedDate}T12:00:00`) : null
+  const selectedDate = requestedDateValue && !Number.isNaN(requestedDateValue.getTime()) && dateKeyAt(requestedDateValue) === requestedDate
+    ? requestedDate
+    : ''
+  const selectedDateStart = selectedDate ? new Date(`${selectedDate}T00:00:00`) : null
+  const selectedDateEnd = selectedDate ? new Date(`${selectedDate}T23:59:59.999`) : null
   const baseWhere: Prisma.TransactionWhereInput = {
     asset: { cls: { not: 'HUAWEI_STOCK' as const } },
     ...(sp.account ? { accountId: sp.account } : {}),
     ...(sp.batch ? { importBatchId: sp.batch } : {}),
+    ...(selectedDateStart && selectedDateEnd ? { occurredAt: { gte: selectedDateStart, lte: selectedDateEnd } } : {}),
   }
   const where: Prisma.TransactionWhereInput = {
     ...baseWhere,
@@ -119,6 +127,7 @@ export default async function TransactionsPage({
   if (sp.account) filterParams.set('account', sp.account)
   if (sp.type) filterParams.set('type', sp.type)
   if (sp.batch) filterParams.set('batch', sp.batch)
+  if (selectedDate) filterParams.set('date', selectedDate)
   if (pageSize !== 50) filterParams.set('size', String(pageSize))
   if (showHistory) filterParams.set('history', 'all')
   if (activeSort !== DEFAULT_TX_SORT) filterParams.set('sort', activeSort)
@@ -212,6 +221,7 @@ export default async function TransactionsPage({
           hiddenHistoryCount={hiddenHistoryCount}
           pageSize={pageSize}
           batch={sp.batch ?? ''}
+          date={selectedDate}
         />
 
         {txs.length === 0 ? (
@@ -219,11 +229,11 @@ export default async function TransactionsPage({
             <Empty action={{ href: pageHref(totalPages), label: '回到末页' }}>这一页没有流水</Empty>
           ) : (
             <Empty
-              action={sp.account || sp.type
+              action={sp.account || sp.type || selectedDate
                 ? { href: '/transactions', label: '清除筛选' }
                 : canWrite ? { href: '#new-entry', label: '录入第一笔流水' } : undefined}
             >
-              {sp.account || sp.type ? '无匹配流水' : showHistory ? '暂无流水' : '暂无有效流水'}
+              {sp.account || sp.type || selectedDate ? '无匹配流水' : showHistory ? '暂无流水' : '暂无有效流水'}
             </Empty>
           )
         ) : (
