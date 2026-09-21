@@ -439,6 +439,17 @@ export function WatchClient({
     return [...sortHoldings(sortable, sort), ...pinned]
   }, [shownRows, sort])
 
+  const dailyLeaders = useMemo(() => {
+    let best: (typeof rows)[number] | null = null
+    let worst: (typeof rows)[number] | null = null
+    for (const row of rows) {
+      if (!row.currentPortfolioDay || row.dayPnlCny == null) continue
+      if (best == null || row.dayPnlCny > (best.dayPnlCny ?? Number.NEGATIVE_INFINITY)) best = row
+      if (worst == null || row.dayPnlCny < (worst.dayPnlCny ?? Number.POSITIVE_INFINITY)) worst = row
+    }
+    return { best, worst }
+  }, [rows])
+
   const classCounts = useMemo(() => {
     const counts = new Map<WatchClassFilter, number>()
     for (const row of rows) counts.set(row.cls as WatchClassFilter, (counts.get(row.cls as WatchClassFilter) ?? 0) + 1)
@@ -469,65 +480,94 @@ export function WatchClient({
   }
 
   return (
-    <div className="page-shell">
-      <section className="hero-grid watch-hero">
+    <div className="page-shell watch-workbench">
+      <header className="watch-workbench-header">
         <div>
-          <div className="eyebrow">今日涨跌（元）</div>
-          <h1
-            className={cx('num hero-number mt-4', totalPnl >= 0 ? 'text-up' : 'text-down')}
+          <div className="page-kicker">今天 · 北京归属日 {todayKey}</div>
+          <h1 className="page-title">组合今天发生了什么</h1>
+          <p className="page-description">只保留今日变化、异常和实时估值；历史趋势进入复盘。</p>
+        </div>
+        <div className="watch-workbench-result">
+          <strong
+            className={cx('num', totalPnl >= 0 ? 'text-up' : 'text-down')}
             data-testid="watch-today-pnl"
             data-amount={totalPnl.toFixed(2)}
           >
             {fmtCNY(totalPnl, { sign: true })}
-          </h1>
-          <div className={cx('num mt-4 text-[18px]', totalPnl >= 0 ? 'text-up' : 'text-down')}>
+          </strong>
+          <span className={cx('num', totalPnl >= 0 ? 'text-up' : 'text-down')}>
             {dayPct != null ? fmtPct(dayPct, { sign: true }) : '—'}
-          </div>
-          <p className="mt-6 text-[15px] text-ink-faint">{asOf ? `数据更新于 ${fmtDateTime(asOf)}` : '分钟级行情加载中…'}</p>
-          <p className="mt-2 text-[13px] text-ink-faint">{marketStatus} · 北京归属口径 {todayKey}</p>
-          <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-ink-faint">
-            <span><ScopeLabel scope="PORTFOLIO_ASSETS_LIVE" /> <strong className="num ml-1 font-normal text-ink">{fmtCNY(totalValue)}</strong></span>
-            <span>覆盖 <strong className="num ml-1 font-normal text-ink">{rows.length}</strong> 个标的</span>
-            <span title="按北京归属日计入：归属北京今天的场次，以及北京晚间正在进行、归属北京明天的海外场次；未计入不等于零盈亏">
-              今日盈亏已计入 <strong className="num ml-1 font-normal text-ink">{includedRows}</strong> 只 · 未计入 <strong className="num ml-1 font-normal text-ink">{excludedRows}</strong> 只
-            </span>
-            <span>{provider} · 30 秒刷新</span>
-          </div>
+          </span>
+          <small>{asOf ? `更新于 ${fmtDateTime(asOf)}` : '分钟级行情加载中…'}</small>
         </div>
-        <div className="chart-surface">
-        {canCompareIntraday ? (
-          <>
-            {activeRow && (
-              <div className="mb-2 flex items-center gap-2 text-[12px]" data-testid="watch-chart-asset" data-symbol={activeRow.symbol}>
-                <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: (activeRow.dayPnlCny ?? 0) >= 0 ? 'var(--color-up)' : 'var(--color-down)' }} />
-                <span className="text-ink-dim">
-                  {activeRow.name} · 当日 {activeRow.dayPnlCny != null ? fmtCNY(activeRow.dayPnlCny, { sign: true }) : '无数据'}
-                </span>
-                {selectedSymbol === activeRow.symbol && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedSymbol(null)}
-                    className="text-ink-faint transition-colors hover:text-ink"
-                  >
-                    取消选中 ×
-                  </button>
-                )}
-              </div>
-            )}
-            <IntradayChart data={chartPoints} assetName={activeRow?.name} showAsset={activeRow != null} />
-          </>
-        ) : (
-          <div
-            data-testid="watch-chart-empty"
-            className="flex min-h-28 items-center justify-center border-y border-line text-xs text-ink-faint"
-          >
-            {rows.length === 0 ? '暂无行情类持仓' : marketStatus === '休市' ? '休市 · 今日暂无分时行情' : '分时数据加载中…'}
-          </div>
-        )}
-        </div>
-      </section>
+      </header>
+
+      <div className="watch-workbench-status" aria-label="今日估值摘要">
+        <span>可投资组合实时估值 <b className="num">{fmtCNY(totalValue)}</b></span>
+        <span>行情标的 <b className="num">{rows.length}</b> 个</span>
+        <span title="未计入不等于零盈亏">今日盈亏已计入 <b className="num">{includedRows}</b> 只 · 未计入 <b className="num">{excludedRows}</b> 只</span>
+        <span>{marketStatus} · {provider} · 30 秒刷新</span>
+      </div>
 
       <DataSettlementRail state={settlement} />
+
+      <section className="watch-monitor-grid" aria-label="今日组合监控">
+        <div className="watch-chart-panel">
+          <div className="watch-panel-heading">
+            <h2>组合当日盈亏</h2>
+            <span>09:30—15:00 · 点选下方持仓可叠加</span>
+          </div>
+          <div className="chart-surface">
+            {canCompareIntraday ? (
+              <>
+                {activeRow && (
+                  <div className="mb-2 flex items-center gap-2 text-[12px]" data-testid="watch-chart-asset" data-symbol={activeRow.symbol}>
+                    <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: (activeRow.dayPnlCny ?? 0) >= 0 ? 'var(--color-up)' : 'var(--color-down)' }} />
+                    <span className="text-ink-dim">
+                      {activeRow.name} · 当日 {activeRow.dayPnlCny != null ? fmtCNY(activeRow.dayPnlCny, { sign: true }) : '无数据'}
+                    </span>
+                    {selectedSymbol === activeRow.symbol && (
+                      <button type="button" onClick={() => setSelectedSymbol(null)} className="text-ink-faint transition-colors hover:text-ink">
+                        取消选中 ×
+                      </button>
+                    )}
+                  </div>
+                )}
+                <IntradayChart data={chartPoints} assetName={activeRow?.name} showAsset={activeRow != null} />
+              </>
+            ) : (
+              <div data-testid="watch-chart-empty" className="flex min-h-28 items-center justify-center border-y border-line text-xs text-ink-faint">
+                {rows.length === 0 ? '暂无行情类持仓' : marketStatus === '休市' ? '休市 · 今日暂无分时行情' : '分时数据加载中…'}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <aside className="watch-attention" aria-label="今天需要留意">
+          <div className="watch-panel-heading"><h2>今天需要留意</h2></div>
+          {dailyLeaders.best ? (
+            <div className="watch-attention-item">
+              <span>贡献最多</span>
+              <strong>{dailyLeaders.best.name}</strong>
+              <small className="num text-up">{fmtCNY(dailyLeaders.best.dayPnlCny ?? 0, { sign: true })}</small>
+            </div>
+          ) : <div className="watch-attention-item"><strong>暂无可用盈利贡献</strong></div>}
+          {dailyLeaders.worst && (dailyLeaders.worst.dayPnlCny ?? 0) < 0 ? (
+            <div className="watch-attention-item">
+              <span>拖累最多</span>
+              <strong>{dailyLeaders.worst.name}</strong>
+              <small className="num text-down">{fmtCNY(dailyLeaders.worst.dayPnlCny ?? 0, { sign: true })}</small>
+            </div>
+          ) : <div className="watch-attention-item"><strong>暂无负贡献标的</strong></div>}
+          <div className={cx('watch-attention-item', excludedRows > 0 && 'is-warning')}>
+            <span>数据范围</span>
+            <strong>{excludedRows > 0 ? `${excludedRows} 只未计入今日盈亏` : '全部行情标的已计入'}</strong>
+            <small>{excludedRows > 0 ? '休市、净值未更新或归属其他日期' : '当前报价归属口径一致'}</small>
+          </div>
+          <Link href="/health" className="watch-attention-link">查看数据状态 →</Link>
+          <Link href="/review" className="watch-attention-link">进入周期复盘 →</Link>
+        </aside>
+      </section>
 
       <PortfolioHistory
         series={historySeries}
@@ -537,68 +577,37 @@ export function WatchClient({
         initialPreset={defaultRange ?? undefined}
       />
 
-      {/* 实时估值表 */}
-      <Panel
-        title="实时估值"
-        bodyClassName="p-0"
-      >
-        <div className="border-b border-line px-4 py-2.5">
-          <ValuationLegend />
-        </div>
-        <HoldingFilterBar
-          value={filterValue}
-          classCounts={classCounts}
-          matched={shownRows.length}
-          total={allRows.length}
-          onChange={applyFilter}
-        />
+      <Panel title="实时估值" bodyClassName="p-0">
+        <div className="border-b border-line px-4 py-2.5"><ValuationLegend /></div>
+        <HoldingFilterBar value={filterValue} classCounts={classCounts} matched={shownRows.length} total={allRows.length} onChange={applyFilter} />
         <TableScroll label="看盘持仓实时估值表（点列头排序，点行在曲线上叠加该标的）">
-        <table className="w-full text-[14px]">
-          <caption className="sr-only">实时估值明细</caption>
-          <thead>
-            <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
-              <th scope="col" className="px-4 py-2.5 font-normal" aria-sort={holdingAriaSort(sort, 'name')}>
-                <SortHeader label="资产" sortKey="name" sort={sort} onClick={() => applySort('name-asc')} />
-              </th>
-              <th scope="col" className="px-2 py-2.5 text-right font-normal">数量</th>
-              <th scope="col" className="px-2 py-2.5 text-right font-normal">现价</th>
-              {SORT_HEADERS.map((header) => (
-                <th
-                  key={header.key}
-                  scope="col"
-                  aria-sort={holdingAriaSort(sort, header.key)}
-                  className={cx('px-2 py-2.5 text-right font-normal', header.key === 'value' && 'min-w-[7.5rem]')}
-                >
-                  <SortHeader
-                    label={header.label}
-                    sortKey={header.key}
-                    sort={sort}
-                    className="justify-end"
-                    onClick={() => applySortKey(header.key)}
-                  />
+          <table className="w-full text-[14px]" data-testid="watch-valuation-table">
+            <caption className="sr-only">实时估值明细</caption>
+            <thead>
+              <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
+                <th scope="col" className="px-4 py-2.5 font-normal" aria-sort={holdingAriaSort(sort, 'name')}>
+                  <SortHeader label="资产" sortKey="name" sort={sort} onClick={() => applySort('name-asc')} />
                 </th>
-              ))}
-              <th scope="col" className="px-4 py-2.5 text-right font-normal">来源</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line/60">
-            {displayRows.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-[13px] text-ink-faint">
-                  当前筛选下没有标的
-                  {hasFilter && (
-                    <button
-                      type="button"
-                      onClick={() => applyFilter({ query: '', classFilter: null, onlyExcluded: false })}
-                      className="ml-3 text-ink-dim transition-colors hover:text-ink"
-                    >
-                      清除筛选
-                    </button>
-                  )}
-                </td>
+                <th scope="col" className="px-2 py-2.5 text-right font-normal">数量</th>
+                <th scope="col" className="px-2 py-2.5 text-right font-normal">现价</th>
+                {SORT_HEADERS.map((header) => (
+                  <th key={header.key} scope="col" aria-sort={holdingAriaSort(sort, header.key)} className={cx('px-2 py-2.5 text-right font-normal', header.key === 'value' && 'min-w-[7.5rem]')}>
+                    <SortHeader label={header.label} sortKey={header.key} sort={sort} className="justify-end" onClick={() => applySortKey(header.key)} />
+                  </th>
+                ))}
+                <th scope="col" className="px-4 py-2.5 text-right font-normal">来源</th>
               </tr>
-            )}
-            {displayRows.map((r) => r.kind === 'market' ? (
+            </thead>
+            <tbody className="divide-y divide-line/60">
+              {displayRows.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-[13px] text-ink-faint">
+                    当前筛选下没有标的
+                    {hasFilter && <button type="button" onClick={() => applyFilter({ query: '', classFilter: null, onlyExcluded: false })} className="ml-3 text-ink-dim transition-colors hover:text-ink">清除筛选</button>}
+                  </td>
+                </tr>
+              )}
+              {displayRows.map((r) => r.kind === 'market' ? (
               <tr
                 key={r.assetId}
                 data-testid="watch-row"
@@ -666,7 +675,7 @@ export function WatchClient({
                   )}
                 </td>
               </tr>
-            ) : (
+              ) : (
               <tr key={r.assetId ?? r.symbol} className="opacity-60 transition-colors hover:bg-panel2/50">
                 <td className="px-4 py-2.5">
                   {r.assetId ? (
@@ -685,15 +694,15 @@ export function WatchClient({
                     : <PositionSourceTag priceSource={r.priceSource} />}
                 </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
         </TableScroll>
+        <div className="watch-table-foot">
+          <span className="num">共 {displayRows.length} 项</span>
+          <Link href="/positions">打开完整持仓 →</Link>
+        </div>
       </Panel>
-
-      <p className="text-[13px] leading-relaxed text-ink-faint">
-        当日曲线会同时纳入真实行情、基金盘中估值和静态资产；无可用分时线时按常量计入，每项实际口径见上表“来源”列。报价可能延迟，模拟数据不代表真实市场成交，盘中估值以官方净值为准。
-      </p>
     </div>
   )
 }

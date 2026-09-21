@@ -1117,6 +1117,61 @@ th {
   white-space: nowrap;
 }
 
+/* 看盘历史收益：收益率曲线与收益日历默认折叠，指标与基准对比始终在首屏可见。
+   与其它折叠工作区（.action-workspace）保持同一套 summary 交互与视觉。 */
+.watch-history-details {
+  margin-top: 1rem;
+  border-block: 1px solid var(--color-line);
+}
+
+.watch-history-details > summary {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 4px;
+  color: var(--color-ink);
+  cursor: pointer;
+  list-style: none;
+}
+
+.watch-history-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.watch-history-details > summary span {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.watch-history-details > summary small {
+  margin-left: auto;
+  color: var(--color-ink-faint);
+  font-size: 12px;
+}
+
+.watch-history-details > summary::after {
+  color: var(--color-ink-faint);
+  content: '⌄';
+}
+
+.watch-history-details[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.watch-history-details > summary:hover,
+.watch-history-details > summary:focus-visible {
+  color: var(--color-accent);
+  outline: none;
+}
+
+/* 折叠体内部的面板已经有自己的表面与内边距，这里只补上下留白 */
+.watch-history-details > .returns-cal {
+  margin-top: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
 .history-chart-surface {
   min-width: 0;
   margin-top: 0.75rem;
@@ -2321,6 +2376,190 @@ button.returns-cal-cell:hover {
 .watch-row-active {
   background: var(--color-panel2);
   box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+/* 看盘工作台：一屏只回答今日变化、异常和实时估值，历史路径进入复盘。 */
+.watch-workbench {
+  gap: 1.25rem;
+  padding-block: 2rem 3rem;
+}
+
+.watch-workbench-header,
+.watch-workbench-status,
+.watch-panel-heading,
+.watch-table-foot {
+  display: flex;
+  align-items: center;
+}
+
+.watch-workbench-header {
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem 3rem;
+}
+
+.watch-workbench-result {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.watch-workbench-result strong,
+.watch-workbench-result span,
+.watch-workbench-result small {
+  display: block;
+}
+
+.watch-workbench-result strong {
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  white-space: nowrap;
+}
+
+.watch-workbench-result span {
+  margin-top: 0.45rem;
+  font-size: 16px;
+}
+
+.watch-workbench-result small {
+  margin-top: 0.35rem;
+  color: var(--color-ink-faint);
+  font-size: 12px;
+}
+
+.watch-workbench-status {
+  flex-wrap: wrap;
+  gap: 0.45rem 1.5rem;
+  min-height: 46px;
+  border-block: 1px solid var(--color-line);
+  color: var(--color-ink-faint);
+  font-size: 13px;
+}
+
+.watch-workbench-status b {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+.watch-monitor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(260px, 0.45fr);
+  gap: 1.5rem;
+}
+
+.watch-chart-panel,
+.watch-attention {
+  min-width: 0;
+}
+
+.watch-panel-heading {
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 38px;
+}
+
+.watch-panel-heading h2 {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.watch-panel-heading span {
+  color: var(--color-ink-faint);
+  font-size: 12px;
+}
+
+.watch-attention {
+  border-left: 1px solid var(--color-line);
+  padding-left: 1.5rem;
+}
+
+.watch-attention-item {
+  padding-block: 0.85rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.watch-attention-item span,
+.watch-attention-item strong,
+.watch-attention-item small {
+  display: block;
+}
+
+.watch-attention-item span,
+.watch-attention-item small {
+  color: var(--color-ink-faint);
+  font-size: 12px;
+}
+
+.watch-attention-item strong {
+  margin-top: 0.2rem;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.watch-attention-item small {
+  margin-top: 0.2rem;
+}
+
+.watch-attention-item.is-warning strong {
+  color: var(--color-amber);
+}
+
+.watch-attention-link {
+  display: block;
+  min-height: 36px;
+  padding-block: 0.55rem;
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-accent);
+  font-size: 12px;
+}
+
+.watch-table-foot {
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--color-line);
+  color: var(--color-ink-faint);
+  font-size: 12px;
+}
+
+.watch-table-foot a {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.7rem;
+  color: var(--color-ink-dim);
+}
+
+@media (max-width: 1024px) {
+  .watch-monitor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .watch-attention {
+    border-top: 1px solid var(--color-line);
+    border-left: 0;
+    padding-top: 0.75rem;
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .watch-workbench-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .watch-workbench-result {
+    text-align: left;
+  }
+
+  .watch-table-foot {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 .sr-only {
@@ -4221,7 +4460,7 @@ nav[aria-label="主导航"] a {
 .review-body {
   display: flex;
   flex-direction: column;
-  gap: 1.75rem;
+  gap: 1.25rem;
   min-width: 0;
 }
 
@@ -4233,7 +4472,7 @@ nav[aria-label="主导航"] a {
 }
 
 .review-shell {
-  gap: 2.75rem;
+  gap: 2rem;
 }
 
 .review-header,
@@ -4423,6 +4662,54 @@ nav[aria-label="主导航"] a {
   color: var(--color-accent);
 }
 
+.review-workflow-nav {
+  position: sticky;
+  z-index: 15;
+  top: var(--terminal-topbar);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-block: 1px solid var(--color-line);
+  background: color-mix(in srgb, var(--color-bg) 94%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.review-workflow-nav button {
+  min-height: 60px;
+  border-bottom: 2px solid transparent;
+  padding: 0.65rem 0.9rem;
+  color: var(--color-ink-faint);
+  text-align: left;
+}
+
+.review-workflow-nav button + button {
+  border-left: 1px solid var(--color-line);
+}
+
+.review-workflow-nav button:hover {
+  color: var(--color-ink);
+}
+
+.review-workflow-nav button[aria-current='step'] {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.review-workflow-nav strong,
+.review-workflow-nav span {
+  display: block;
+}
+
+.review-workflow-nav strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.review-workflow-nav span {
+  margin-top: 0.15rem;
+  color: var(--color-ink-faint);
+  font-size: 12px;
+}
+
 .review-outcome {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -4523,6 +4810,22 @@ nav[aria-label="主导航"] a {
   color: var(--color-ink);
 }
 
+.review-outcome-status {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-ink-faint);
+  font-size: 12px;
+}
+
+.review-outcome-status b {
+  color: var(--color-ink-dim);
+  font-weight: 500;
+}
+
 .review-section {
   scroll-margin-top: 64px;
 }
@@ -4568,7 +4871,11 @@ nav[aria-label="主导航"] a {
 }
 
 .review-contribution-list {
+  max-height: 430px;
+  overflow-y: auto;
   border-top: 1px solid var(--color-line);
+  padding-right: 0.3rem;
+  overscroll-behavior: contain;
 }
 
 .review-contribution-row {
@@ -4942,8 +5249,12 @@ nav[aria-label="主导航"] a {
 }
 
 .review-decision-list {
+  max-height: 390px;
+  overflow-y: auto;
   margin-top: 2rem;
   border-top: 1px solid var(--color-line);
+  padding-right: 0.3rem;
+  overscroll-behavior: contain;
 }
 
 .review-decision-list article {
@@ -5093,6 +5404,40 @@ nav[aria-label="主导航"] a {
   margin-top: 0.75rem;
 }
 
+.review-step-footer {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid var(--color-line);
+  color: var(--color-ink-faint);
+  font-size: 12px;
+}
+
+.review-step-footer > div {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.review-step-footer button {
+  min-height: 34px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.85rem;
+  color: var(--color-ink-dim);
+}
+
+.review-step-footer button:last-child:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.review-step-footer button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
 @media (max-width: 1360px) {
   .review-outcome {
     grid-template-columns: 1fr;
@@ -5142,6 +5487,10 @@ nav[aria-label="主导航"] a {
 
   .review-section-nav {
     grid-template-columns: repeat(3, 1fr);
+  }
+
+  .review-workflow-nav {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .review-outcome {
@@ -5231,6 +5580,12 @@ nav[aria-label="主导航"] a {
   .review-note-footer > div {
     display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+
+  .review-step-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-top: 0.75rem;
   }
 }
 

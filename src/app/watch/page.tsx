@@ -1,5 +1,6 @@
-// 看盘：当日组合收益曲线（分钟级）+ 全持仓实时估值
+// 看盘：当日组合收益曲线（分钟级）+ 全持仓实时估值 + 组合历史收益与基准对比
 import { getWatchData, loadBenchmarks } from '@/lib/queries'
+import { prisma } from '@/lib/db'
 import { cnyRateFor } from '@/lib/market/fx'
 import { SetupScreen } from '@/components/ui'
 import { WatchClient, type WatchHolding, type StaticRow } from '@/components/watch-client'
@@ -10,7 +11,6 @@ import { parseHoldingSort } from '@/lib/engine/holding-sort'
 import { parseWatchClassFilter } from '@/lib/engine/watch-filter'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { getSession } from '@/lib/session'
-import { prisma } from '@/lib/db'
 import { parsePreferences } from '@/lib/preferences'
 
 export const dynamic = 'force-dynamic'

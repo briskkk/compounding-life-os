@@ -15,6 +15,7 @@ import { cx, fmtCNY } from '@/lib/format'
 import { btnCls, inputCls } from './fields'
 import { PortfolioMoneyChart, PortfolioPctChart } from './charts'
 import { ReturnsCalendar } from './returns-calendar'
+import { HashOpenDetails } from './hash-open-details'
 import type { LiveDayReturn } from '@/lib/engine/returns-calendar'
 import { valuationStatusText } from './valuation-status-text'
 
@@ -242,7 +243,9 @@ export function PortfolioHistory({
               <strong>{endPoint ? valuationStatusText(endPoint) : '—'}</strong>
             </div>
             <div>
-              <span>同期{activeBenchmark?.label ?? '基准'}</span>
+              {/* 整串标签一次渲染：JSX 插值会在「同期」与指数名之间插入注释节点，
+                  读屏/DOM 文本匹配与 E2E 都更稳 */}
+              <span>{`同期${activeBenchmark?.label ?? '基准'}`}</span>
               <strong className={cx('num', benchmarkTotal == null ? 'text-ink-faint' : benchmarkTotal >= 0 ? 'text-up' : 'text-down')}>
                 {benchmarkTotal == null ? '—' : signedPct(benchmarkTotal)}
               </strong>
@@ -274,83 +277,95 @@ export function PortfolioHistory({
           )}
 
           {hasReturnObservations ? (
-            <div className="history-chart-surface">
-              <div className="history-range-controls history-chart-tabs" role="group" aria-label="历史收益图表视图">
-                {CHART_TABS.map((tab) => (
-                  <button
-                    key={tab.value}
-                    type="button"
-                    aria-pressed={chartTab === tab.value}
-                    className="history-range-button"
-                    onClick={() => setChartTab(tab.value)}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-              <div className="history-chart-legend">
-                {chartTab === 'RETURN' && (
-                  <>
-                    <span className="history-legend-item">
-                      <i className="history-legend-rate" aria-hidden="true" />
-                      时间加权
-                    </span>
+            <HashOpenDetails
+              id="history-chart"
+              className="watch-history-details"
+              summary={<><span>收益率曲线</span><small>{performance.startDate} — {performance.endDate} · 按需展开</small></>}
+            >
+              <div className="history-chart-surface">
+                <div className="history-range-controls history-chart-tabs" role="group" aria-label="历史收益图表视图">
+                  {CHART_TABS.map((tab) => (
+                    <button
+                      key={tab.value}
+                      type="button"
+                      aria-pressed={chartTab === tab.value}
+                      className="history-range-button"
+                      onClick={() => setChartTab(tab.value)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="history-chart-legend">
+                  {chartTab === 'RETURN' && (
+                    <>
+                      <span className="history-legend-item">
+                        <i className="history-legend-rate" aria-hidden="true" />
+                        时间加权
+                      </span>
+                      <span className="history-legend-item">
+                        <i className="history-legend-mwr" aria-hidden="true" />
+                        资金加权
+                      </span>
+                      {hasBenchmark && activeBenchmark && (
+                        <span className="history-legend-item">
+                          <i className="history-legend-bench" aria-hidden="true" />
+                          {activeBenchmark.label}基准
+                        </span>
+                      )}
+                    </>
+                  )}
+                  {chartTab === 'AMOUNT' && (
                     <span className="history-legend-item">
                       <i className="history-legend-mwr" aria-hidden="true" />
-                      资金加权
+                      累计收益金额
                     </span>
-                    {hasBenchmark && activeBenchmark && (
-                      <span className="history-legend-item">
-                        <i className="history-legend-bench" aria-hidden="true" />
-                        {activeBenchmark.label}基准
-                      </span>
-                    )}
-                  </>
-                )}
-                {chartTab === 'AMOUNT' && (
-                  <span className="history-legend-item">
-                    <i className="history-legend-mwr" aria-hidden="true" />
-                    累计收益金额
-                  </span>
-                )}
-                {chartTab === 'WEALTH' && (
-                  <span className="history-legend-item">
-                    <i className="history-legend-rate" aria-hidden="true" />
-                    可投资资产
-                  </span>
-                )}
+                  )}
+                  {chartTab === 'WEALTH' && (
+                    <span className="history-legend-item">
+                      <i className="history-legend-rate" aria-hidden="true" />
+                      可投资资产
+                    </span>
+                  )}
+                </div>
+                <div
+                  role="img"
+                  aria-label={
+                    chartTab === 'RETURN'
+                      ? `${performance.startDate} 至 ${performance.endDate}，累计时间加权收益率 ${pct == null ? '无法计算' : signedPct(pct)}，累计资金加权收益率 ${mwrTotal == null ? '无法计算' : signedPct(mwrTotal)}`
+                      : chartTab === 'AMOUNT'
+                        ? `${performance.startDate} 至 ${performance.endDate}，累计收益金额 ${amount == null ? '无法计算' : fmtCNY(amount, { sign: true })}`
+                        : `${performance.startDate} 至 ${performance.endDate}，期末可投资资产 ${performance.endNetWorth == null ? '无法计算' : fmtCNY(performance.endNetWorth)}`
+                  }
+                >
+                  {chartTab === 'RETURN' && (
+                    <PortfolioPctChart data={chartData} benchmarkLabel={activeBenchmark?.label ?? '基准'} />
+                  )}
+                  {chartTab === 'AMOUNT' && (
+                    <PortfolioMoneyChart data={chartData} dataKey="amount" name="累计收益金额" />
+                  )}
+                  {chartTab === 'WEALTH' && (
+                    <PortfolioMoneyChart data={chartData} dataKey="netWorth" name="可投资资产" />
+                  )}
+                </div>
               </div>
-              <div
-                role="img"
-                aria-label={
-                  chartTab === 'RETURN'
-                    ? `${performance.startDate} 至 ${performance.endDate}，累计时间加权收益率 ${pct == null ? '无法计算' : signedPct(pct)}，累计资金加权收益率 ${mwrTotal == null ? '无法计算' : signedPct(mwrTotal)}`
-                    : chartTab === 'AMOUNT'
-                      ? `${performance.startDate} 至 ${performance.endDate}，累计收益金额 ${amount == null ? '无法计算' : fmtCNY(amount, { sign: true })}`
-                      : `${performance.startDate} 至 ${performance.endDate}，期末可投资资产 ${performance.endNetWorth == null ? '无法计算' : fmtCNY(performance.endNetWorth)}`
-                }
-              >
-                {chartTab === 'RETURN' && (
-                  <PortfolioPctChart data={chartData} benchmarkLabel={activeBenchmark?.label ?? '基准'} />
-                )}
-                {chartTab === 'AMOUNT' && (
-                  <PortfolioMoneyChart data={chartData} dataKey="amount" name="累计收益金额" />
-                )}
-                {chartTab === 'WEALTH' && (
-                  <PortfolioMoneyChart data={chartData} dataKey="netWorth" name="可投资资产" />
-                )}
-              </div>
-            </div>
+            </HashOpenDetails>
           ) : (
             <p className="history-chart-empty">该区间没有新的有效估值，收益记为“—”。</p>
           )}
 
-          <ReturnsCalendar
-            series={liveSeries}
-            benchmark={activeBenchmark}
-            todayKey={todayKey}
-            liveDayReturn={liveDayReturn}
-          />
+          <HashOpenDetails
+            id="history-calendar"
+            className="watch-history-details"
+            summary={<><span>收益日历</span><small>日 / 月 / 年与当日明细 · 按需展开</small></>}
+          >
+            <ReturnsCalendar
+              series={liveSeries}
+              benchmark={activeBenchmark}
+              todayKey={todayKey}
+              liveDayReturn={liveDayReturn}
+            />
+          </HashOpenDetails>
 
           <p className="history-method-note">
             今天有实时报价时，收益日历与顶部“今日涨跌”共用实时昨收口径；历史日期按相邻有效估值快照计算收益，并扣除期间存入与取出。休市、无新估值和仅资金流日期保留余额记录，但收益显示为“—”，不进入波动率与夏普样本。部分估值为临时结果，待基金或 QDII 官方净值补齐后回填。期初基准为 {performance.basisDate ?? '—'} 估值快照。

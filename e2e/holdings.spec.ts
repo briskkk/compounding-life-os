@@ -1,4 +1,18 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
+
+/** 看盘实时估值表的行：看盘页恢复组合历史后还有其他表格结构，必须限定到估值表内。 */
+function watchRows(page: Page) {
+  return page.getByTestId('watch-valuation-table').locator('tbody tr')
+}
+
+/** 收益日历在看盘页默认折叠，断言日历内证据前先展开。 */
+async function expandReturnsCalendar(page: Page) {
+  const details = page.locator('#history-calendar')
+  if (!(await details.evaluate((element) => (element as HTMLDetailsElement).open))) {
+    await details.locator('summary').first().click()
+  }
+  await expect(details).toHaveJSProperty('open', true)
+}
 
 test('持仓页：列头排序切换 URL 与 aria-sort', async ({ page }) => {
   await page.goto('/positions?sort=dayPnl-desc')
@@ -78,13 +92,13 @@ test('看盘页：筛选条可按名称搜索、按大类与未计入状态过�
   // 搜索：先按代码（510300 = 沪深300ETF）
   await page.getByLabel('搜索标的名称或代码').fill('510300')
   await expect(status).toContainText('显示 1 /')
-  await expect(page.locator('tbody tr')).toHaveCount(1)
-  await expect(page.locator('tbody tr').first()).toContainText('沪深300ETF')
+  await expect(watchRows(page)).toHaveCount(1)
+  await expect(watchRows(page).first()).toContainText('沪深300ETF')
   await expect(page).toHaveURL(/q=510300/)
 
   // 搜索名称同样命中
   await page.getByLabel('搜索标的名称或代码').fill('茅台')
-  await expect(page.locator('tbody tr').first()).toContainText('贵州茅台')
+  await expect(watchRows(page).first()).toContainText('贵州茅台')
 
   // 搜不到时给空态与清除入口（空态内的清除按钮与工具栏那个不同名，需精确匹配）
   await page.getByLabel('搜索标的名称或代码').fill('不存在的标的')
@@ -96,11 +110,11 @@ test('看盘页：筛选条可按名称搜索、按大类与未计入状态过�
   // 大类 chip：按大类过滤后每行都属于该类
   await page.getByRole('button', { name: /^基金/ }).click()
   await expect(page).toHaveURL(/cls=FUND/)
-  const fundRows = await page.locator('tbody tr').count()
+  const fundRows = await watchRows(page).count()
   expect(fundRows).toBeGreaterThan(0)
   await expect(status).toContainText(`显示 ${fundRows} / ${total}`)
   for (let i = 0; i < fundRows; i++) {
-    await expect(page.locator('tbody tr').nth(i)).toContainText('110022')
+    await expect(watchRows(page).nth(i)).toContainText('110022')
   }
   // 再点一次取消该大类
   await page.getByRole('button', { name: /^基金/ }).click()
@@ -205,10 +219,54 @@ test('看盘页：归属日不是北京今天时，当日盈亏显示「—」�
     await route.fulfill({ response, body: JSON.stringify({ ...body, quotes }) })
   })
   await page.goto('/watch')
-  const row = page.locator('tbody tr').filter({ hasText: '110022' }).first()
+  await page.getByLabel('搜索标的名称或代码').fill('110022')
+  const row = watchRows(page).filter({ hasText: '110022' }).first()
   await expect(row).toBeVisible()
   await expect(page.getByText(/今日盈亏已计入 \d+ 只 · 未计入 \d+ 只/)).toBeVisible()
   await expect(row.getByText(/净值日 2026-09-14 · 不计入今日盈亏/)).toBeVisible()
   // 该行不应有今日盈亏数字（只有「—」与口径说明）
   await expect(row.locator('td').nth(5)).toContainText('—')
+})
+
+test('看盘页：总资产、基准对比与收益日历在同页可读', async ({ page }) => {
+  await page.goto('/watch')
+
+  // 总资产（实时估值口径）在首屏状态行上
+  await expect(page.getByText(/可投资组合实时估值/)).toBeVisible()
+
+  // 组合历史收益与基准指数对比（指标格与图表的完整口径由 terminal.spec 覆盖）
+  const history = page.getByRole('region', { name: /组合历史收益/ })
+  await expect(history).toBeVisible()
+  await expect(history.getByText('收益金额', { exact: true })).toBeVisible()
+  await expect(history.getByText('时间加权收益率', { exact: true })).toBeVisible()
+  await expect(history.getByText(/同期沪深300/).first()).toBeVisible()
+
+  // 收益率曲线与收益日历默认折叠：首屏只剩指标与基准对比
+  await expect(page.locator('#history-chart')).toHaveJSProperty('open', false)
+  await expect(page.locator('#history-calendar')).toHaveJSProperty('open', false)
+
+  // 展开收益日历后「今天」仍与顶部实时口径同源
+  await expandReturnsCalendar(page)
+  const calendarToday = page.getByTestId('returns-calendar-today')
+  await expect(calendarToday).toBeVisible()
+  const watchAmount = await page.getByTestId('watch-today-pnl').getAttribute('data-amount')
+  expect(await calendarToday.getAttribute('data-amount')).toBe(watchAmount)
+})
+
+test('看盘页：实时估值表不分页，筛选后仍一行不漏', async ({ page }) => {
+  await page.goto('/watch')
+  await expect(page.getByLabel('实时估值分页')).toHaveCount(0)
+
+  const status = page.getByTestId('watch-filter-count')
+  const total = Number((await status.textContent())?.match(/\/\s*(\d+)/)?.[1] ?? 0)
+  expect(total).toBeGreaterThan(0)
+  // 未筛选时整表一次展示：行数与统计口径一致
+  await expect(watchRows(page)).toHaveCount(total)
+  await expect(page.getByText(`共 ${total} 项`)).toBeVisible()
+
+  // 按大类筛选后同样全量展示，且不再有分页控件
+  await page.getByRole('button', { name: /^基金/ }).click()
+  const fundRows = await watchRows(page).count()
+  expect(fundRows).toBeGreaterThan(0)
+  await expect(watchRows(page)).toHaveCount(fundRows)
 })

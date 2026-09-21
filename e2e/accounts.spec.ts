@@ -78,6 +78,10 @@ test('总览、看盘与账户的今日盈亏使用同一交易日口径', async
   await page.goto('/watch')
   await expect(page.getByTestId('watch-today-pnl')).toBeVisible()
   const watchAmount = await page.getByTestId('watch-today-pnl').getAttribute('data-amount')
+  // 看盘已恢复组合历史与收益日历（日历默认折叠）：展开后「今天」必须与顶部实时口径同源
+  await page.locator('#history-calendar summary').first().click()
+  await expect(page.locator('#history-calendar')).toHaveJSProperty('open', true)
+  await expect(page.getByTestId('returns-calendar-today')).toBeVisible()
   const calendarAmount = await page.getByTestId('returns-calendar-today').getAttribute('data-amount')
 
   await page.goto('/accounts')

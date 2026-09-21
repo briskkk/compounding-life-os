@@ -1,4 +1,13 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
+
+/** 看盘历史收益的收益率曲线 / 收益日历默认折叠，需要按需展开后再断言内部证据。 */
+async function expandHistorySection(page: Page, title: '收益率曲线' | '收益日历') {
+  const details = page.locator('details', { has: page.locator('summary', { hasText: title }) })
+  if (!(await details.evaluate((element) => (element as HTMLDetailsElement).open))) {
+    await details.locator('summary').first().click()
+  }
+  await expect(details).toHaveJSProperty('open', true)
+}
 
 test('全局导航：定投可直接发现，支持快捷搜索与侧栏收起', async ({ page }) => {
   await page.goto('/')
@@ -96,6 +105,24 @@ test('持仓页：类别汇总与明细表', async ({ page }) => {
   await expect(page.getByText('未分组', { exact: true }).first()).toBeVisible()
 })
 
+test('看盘页：首屏是今日工作台，基准对比与历史收益在同页下方', async ({ page }) => {
+  await page.goto('/watch')
+  await expect(page.getByRole('heading', { name: '组合今天发生了什么' })).toBeVisible()
+  const dataStatus = page.getByRole('region', { name: '行情数据状态' })
+  await expect(dataStatus).toBeVisible()
+  await expect(dataStatus).toContainText(/行情已覆盖|行情待更新|历史收盘数据仍有缺口|暂无需要行情更新/)
+  // 今日工作台右栏是 aside（complementary），不是 region
+  await expect(page.getByRole('complementary', { name: '今天需要留意' })).toBeVisible()
+  await expect(page.getByRole('link', { name: '进入周期复盘 →' })).toHaveAttribute('href', '/review')
+  // 历史趋势与基准对比仍在同页下方，但不再占据今日工作台的首屏
+  await expect(page.getByRole('heading', { name: '组合历史收益' })).toBeVisible()
+  // 收益率曲线与收益日历默认折叠，指标与基准对比保持可见
+  await expect(page.locator('#history-chart')).toHaveJSProperty('open', false)
+  await expect(page.locator('#history-calendar')).toHaveJSProperty('open', false)
+  await page.setViewportSize({ width: 1280, height: 800 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
 test('看盘页：历史收益支持预设周期与自定义日期', async ({ page }) => {
   await page.goto('/watch')
   const dataStatus = page.getByRole('region', { name: '行情数据状态' })
@@ -104,6 +131,9 @@ test('看盘页：历史收益支持预设周期与自定义日期', async ({ pa
   await expect(page.getByRole('heading', { name: '组合历史收益' })).toBeVisible()
   await expect(page.getByText('收益金额', { exact: true })).toBeVisible()
   await expect(page.getByText('时间加权收益率', { exact: true })).toBeVisible()
+  // 收益率曲线默认折叠：展开后才加载图表视图切换
+  await expect(page.locator('#history-chart')).toHaveJSProperty('open', false)
+  await expandHistorySection(page, '收益率曲线')
   // 图表区按 收益率曲线 / 累计收益曲线 / 资产趋势 三个视图切换，默认收益率曲线（时间加权 + 资金加权）
   const chartTabs = page.getByRole('group', { name: '历史收益图表视图' })
   const chartLegend = page.locator('.history-chart-legend')
@@ -117,7 +147,9 @@ test('看盘页：历史收益支持预设周期与自定义日期', async ({ pa
   await expect(chartLegend.getByText('可投资资产', { exact: true })).toBeVisible()
   await expect(page.locator('.history-chart-surface .recharts-responsive-container')).toBeVisible()
   await chartTabs.getByRole('button', { name: '收益率曲线', exact: true }).click()
-  // 收益日历：月份标签、当日收益单元格、上一月/下一月导航、当月合计
+  // 收益日历：同样默认折叠，展开后验证月份标签、当日收益单元格、导航与当月合计
+  await expect(page.locator('#history-calendar')).toHaveJSProperty('open', false)
+  await expandHistorySection(page, '收益日历')
   const calendar = page.locator('.returns-cal')
   await expect(calendar).toBeVisible()
   const monthLabel = calendar.locator('.returns-cal-month')
