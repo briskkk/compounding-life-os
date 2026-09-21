@@ -1,5 +1,5 @@
 // 财富轨迹快照：按日回放账本 + 历史行情估值 + 负债余额 + 净投入，落库为 Snapshot 行
-import type { PrismaClient } from '@prisma/client'
+import type { Prisma, PrismaClient } from '@prisma/client'
 import { foldTransactions, pendingFundPurchasesAt, pendingSettlementsAt, roundMoney, type LedgerTx } from './engine/ledger'
 import { valuePositions } from './engine/valuation'
 import { totalLiabilities, type LiabilityEntryInput } from './engine/liabilities'
@@ -170,12 +170,61 @@ export function computeWealthSeries(
   })
 }
 
+/** 删除阈值与写入起点必须取自同一个北京日界毫秒值（见 rebuildSnapshots 注释）。 */
+async function deleteSnapshotsFrom(
+  db: PrismaClient | Prisma.TransactionClient,
+  familyId: string,
+  startMs: number | null,
+): Promise<void> {
+  await db.snapshot.deleteMany({
+    where: startMs == null ? { familyId } : { familyId, date: { gte: new Date(startMs) } },
+  })
+}
+
+/**
+ * 重建后的完整性自检：本次写入的区间必须逐日连续。
+ * 只有「删掉却没写回来」这类静默残缺会被这里拦住——残缺快照会让区间收益
+ * 的期初回退到很久以前（并让基准序列整体失效），必须在写入处报错而不是留在库里。
+ */
+async function assertSnapshotCoverage(
+  db: PrismaClient,
+  familyId: string,
+  points: WealthPoint[],
+): Promise<void> {
+  if (points.length === 0) return
+  const firstMs = dayStartMs(points[0].date)
+  const lastMs = dayStartMs(points.at(-1)!.date)
+  const rows = await db.snapshot.findMany({
+    where: { familyId, date: { gte: new Date(firstMs), lte: new Date(lastMs) } },
+    orderBy: { date: 'asc' },
+    select: { date: true },
+  })
+  const expected = Math.round((lastMs - firstMs) / DAY) + 1
+  if (rows.length !== expected || rows.length !== points.length) {
+    throw new Error(
+      `快照重建不完整：${points[0].date.toISOString().slice(0, 10)} 起应有 ${expected} 天，实际 ${rows.length} 天`,
+    )
+  }
+  for (let index = 0; index < rows.length; index++) {
+    if (rows[index].date.getTime() !== firstMs + index * DAY) {
+      throw new Error(`快照重建日期不连续：${rows[index].date.toISOString().slice(0, 10)}`)
+    }
+  }
+}
+
 /**
  * 重建某家庭空间的快照。
- * - 不传 since：全量重建（先清后写），用于初始化与行情刷新。
- * - 传 since：增量重建——只删除并重算 affectedSince 当日及之后的快照；
+ * - 不传 since：全量重建，用于初始化与行情刷新。
+ * - 传 since：增量重建——只重算 affectedSince 所属**北京日**及之后的快照；
  *   早于该日的快照保留（流水/负债只影响其发生日之后的值）。
  *   内部仍以最早流水日为起点重放，保证期初持仓与净投入正确。
+ *
+ * 两个不变量（都曾因破坏而产生静默残缺的快照表）：
+ * 1. 增量重建的删除阈值与写入起点必须用**同一个北京日界**。写入起点若按 UTC 日
+ *    取整，在北京 00:00–08:00 之间会比删除阈值早一天，于是去重写一条没被删除的
+ *    已有行，命中 (familyId, date) 唯一约束让整批写入失败——而删除已经生效。
+ * 2. 先算完所有点位，再把「删除 + 写入」放进同一个事务。计算失败或写入失败都不能
+ *    留下已被清空、尚未回填的快照表。
  */
 export async function rebuildSnapshots(
   db: PrismaClient,
@@ -189,13 +238,12 @@ export async function rebuildSnapshots(
   })
   const now = new Date()
   const endMs = dayStartMs(now)
-  if (opts?.affectedSince) {
-    const since = Math.min(dayStartMs(opts.affectedSince), endMs)
-    await db.snapshot.deleteMany({ where: { familyId, date: { gte: new Date(since) } } })
-  } else {
-    await db.snapshot.deleteMany({ where: { familyId } })
+  // 增量重建的删除阈值 = 写入起点（同为北京日零点），钳制到今日以兼容未来日期。
+  const startMs = opts?.affectedSince ? Math.min(dayStartMs(opts.affectedSince), endMs) : null
+  if (txsRaw.length === 0) {
+    await deleteSnapshotsFrom(db, familyId, startMs)
+    return 0
   }
-  if (txsRaw.length === 0) return 0
 
   const [assetsRaw, entriesRaw] = await Promise.all([
     db.asset.findMany({ where: { familyId } }),
@@ -250,28 +298,30 @@ export async function rebuildSnapshots(
     return v == null ? undefined : v * cnyRateFor(symbol, { USDCNY: rateAt('USD', date), HKDCNY: rateAt('HKD', date) })
   }
 
-  // 增量：只从受影响日起重算，并带入此前的累计净投入；
-  // 全量：从最早流水日重建全部，不再静默截断长历史。future 日期钳制到今日。
-  const from = opts?.affectedSince
-    ? new Date(Math.min(Math.floor(opts.affectedSince.getTime() / DAY) * DAY, endMs))
-    : txsRaw[0].occurredAt
+  // 增量：只从受影响日（北京日零点）起重算，并带入此前的累计净投入；
+  // 全量：从最早流水日重建全部，不再静默截断长历史。future 日期已在 startMs 钳制到今日。
+  const from = startMs != null ? new Date(startMs) : txsRaw[0].occurredAt
   const points = computeWealthSeries(txs, assets, entries, from, now, priceAt, rateAt, observationAt)
-  await db.snapshot.createMany({
-    data: points.map((p) => ({
-      familyId,
-      date: p.date,
-      assets: p.assets,
-      liabilities: p.liabilities,
-      netWorth: p.netWorth,
-      investable: p.investable,
-      contributions: p.contributions,
-      valuationStatus: p.valuationStatus,
-      valuationCoverage: p.valuationCoverage,
-      freshValue: p.freshValue,
-      pricedValue: p.pricedValue,
-      latestValuationDate: p.latestValuationDate ? new Date(`${p.latestValuationDate}T00:00:00Z`) : null,
-      valuationDetails: p.valuationDetails,
-    })),
-  })
+  const data = points.map((p) => ({
+    familyId,
+    date: p.date,
+    assets: p.assets,
+    liabilities: p.liabilities,
+    netWorth: p.netWorth,
+    investable: p.investable,
+    contributions: p.contributions,
+    valuationStatus: p.valuationStatus,
+    valuationCoverage: p.valuationCoverage,
+    freshValue: p.freshValue,
+    pricedValue: p.pricedValue,
+    latestValuationDate: p.latestValuationDate ? new Date(`${p.latestValuationDate}T00:00:00Z`) : null,
+    valuationDetails: p.valuationDetails,
+  }))
+  // 删除与写入必须同生共死：两者分开执行时，任何写入失败都会把尾部快照永久删掉。
+  await db.$transaction(async (tx) => {
+    await deleteSnapshotsFrom(tx, familyId, startMs)
+    if (data.length > 0) await tx.snapshot.createMany({ data })
+  }, { timeout: 30000 })
+  await assertSnapshotCoverage(db, familyId, points)
   return points.length
 }

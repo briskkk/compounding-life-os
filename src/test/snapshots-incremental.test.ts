@@ -74,3 +74,56 @@ describe('rebuildSnapshots 增量重建', () => {
     expect(Number(latest?.netWorth)).toBeGreaterThanOrEqual(100)
   })
 })
+
+describe('rebuildSnapshots 日界对齐与原子性', () => {
+  async function seedFamily(name: string) {
+    const fam = await base.familySpace.create({ data: { name } })
+    const account = await base.account.create({ data: { familyId: fam.id, name: '现金户', type: 'BANK', currency: 'CNY' } })
+    const asset = await base.asset.create({
+      data: { familyId: fam.id, symbol: `CASH${fam.id.slice(-8)}`, name: '人民币现金', cls: 'CASH', currency: 'CNY' },
+    })
+    return { familyId: fam.id, accountId: account.id, assetId: asset.id }
+  }
+
+  async function seedDeposit(fixture: { familyId: string; accountId: string; assetId: string }, amount: number, occurredAt: Date) {
+    await base.transaction.create({
+      data: { familyId: fixture.familyId, accountId: fixture.accountId, assetId: fixture.assetId, type: 'DEPOSIT', amount, fee: 0, occurredAt },
+    })
+  }
+
+  async function snapshotTimes(familyId: string): Promise<number[]> {
+    const rows = await base.snapshot.findMany({ where: { familyId }, orderBy: { date: 'asc' }, select: { date: true } })
+    return rows.map((row) => row.date.getTime())
+  }
+
+  it('affectedSince 落在北京凌晨时不再重写未删除的当日行，也不丢尾部', async () => {
+    const fixture = await seedFamily('快照日界测试家')
+    await seedDeposit(fixture, 10000, D('2026-01-01T00:00:00Z'))
+    await rebuildSnapshots(base, fixture.familyId)
+    const before = await snapshotTimes(fixture.familyId)
+    expect(before.length).toBeGreaterThan(30)
+
+    // 2026-01-10T17:00Z = 北京 2026-01-11 01:00：删除阈值是 01-11，写入起点按 UTC 取整会是 01-10，
+    // 于是重写一条未被删除的 01-10 行并撞上 (familyId, date) 唯一约束，整批写入失败且尾部已被删掉。
+    await rebuildSnapshots(base, fixture.familyId, { affectedSince: D('2026-01-10T17:00:00Z') })
+
+    const after = await snapshotTimes(fixture.familyId)
+    expect(after).toEqual(before)
+    for (let index = 1; index < after.length; index++) {
+      expect(after[index] - after[index - 1]).toBe(DAY)
+    }
+  })
+
+  it('计算失败时保留原有快照，不再先清空后失败', async () => {
+    const fixture = await seedFamily('快照原子性测试家')
+    await seedDeposit(fixture, 10000, D('2026-01-01T00:00:00Z'))
+    await rebuildSnapshots(base, fixture.familyId)
+    const before = await snapshotTimes(fixture.familyId)
+    expect(before.length).toBeGreaterThan(30)
+
+    // 追加一笔把重放区间拉过 36525 天上限的流水
+    await seedDeposit(fixture, 1, D('1900-01-01T00:00:00Z'))
+    await expect(rebuildSnapshots(base, fixture.familyId)).rejects.toThrow(/快照区间超过/)
+    expect(await snapshotTimes(fixture.familyId)).toEqual(before)
+  })
+})
