@@ -24,6 +24,17 @@ e2e/.auth
 
 # 临时交付/导入产物（截图、原型、本地 venv 等），不入库
 outputs/
+
+# 个人投资画像：本地实验，不入库
+# 画像指令、引擎、测试与报告产物都只在本机运行，不提交。
+# 若要转正为项目能力，删掉本节并重新 `git add` 即可恢复跟踪。
+context/investment-profile/
+docs/investment-profile/
+src/lib/engine/investor-profile.ts
+src/lib/engine/counterfactual.ts
+src/test/investor-profile.test.ts
+scripts/investment-intelligence.ts
+
 # 代理工具临时目录
 .agents/
 .workbuddy/
