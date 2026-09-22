@@ -13,10 +13,14 @@ test('组合复盘：归因切换、周期深链与草稿保存', async ({ page 
   await expect(workflow.getByRole('button', { name: /1 · 结果/ })).toHaveAttribute('aria-current', 'step')
   await expect(page.getByText('资金体验 MWR（区间）')).toBeVisible()
   await workflow.getByRole('button', { name: /2 · 归因/ }).click()
+  await expect(page).toHaveURL(/step=attribution/)
   await expect(page.getByRole('heading', { name: '利润和亏损由谁贡献' })).toBeVisible()
   await expect(page.locator('.review-contribution-list').getByText('待对账差额')).toHaveCount(0)
+  await expect(page.getByLabel('收益对账状态')).toBeHidden()
+  await page.getByRole('tab', { name: '对账与在途' }).click()
   await expect(page.getByLabel('收益对账状态')).toBeVisible()
   await expect(page.getByLabel('当前在途资产')).toContainText('不作为利润贡献')
+  await page.getByRole('tab', { name: '谁贡献' }).click()
 
   // 页面不得嵌套 <main>（外壳已提供唯一 main），且步骤条停在顶栏下方不遮挡顶栏控件
   await expect(page.locator('main')).toHaveCount(1)
@@ -41,21 +45,24 @@ test('组合复盘：归因切换、周期深链与草稿保存', async ({ page 
 
   // 行为与风险单独成步，区间与年化换手率不共用一个名字
   await workflow.getByRole('button', { name: /3 · 行为与风险/ }).click()
+  await expect(page).toHaveURL(/step=behavior/)
   await expect(page.getByText('区间换手率')).toBeVisible()
 
   await page.getByRole('link', { name: '本季度' }).click()
   await expect(page).toHaveURL(/period=THIS_QUARTER/)
-  await expect(page.getByText('本季度投资收益')).toBeVisible()
+  await expect(page).toHaveURL(/step=behavior/)
+  await expect(page.getByRole('heading', { name: '本期做过什么决定' })).toBeVisible()
 
   await page.getByRole('navigation', { name: '复盘步骤' }).getByRole('button', { name: /4 · 结论/ }).click()
-  const note = page.getByLabel('复盘笔记')
+  await expect(page).toHaveURL(/step=conclusion/)
+  await expect(page.getByLabel('完成前证据状态')).toBeVisible()
+  const note = page.getByLabel('我的判断')
   await note.fill('E2E：记录本期利润来源与风险变化。')
   await page.getByRole('button', { name: '保存草稿' }).click()
   await expect(page.getByText(/草稿已保存/)).toBeVisible()
 
   await page.reload()
-  await page.getByRole('navigation', { name: '复盘步骤' }).getByRole('button', { name: /4 · 结论/ }).click()
-  await expect(page.getByLabel('复盘笔记')).toHaveValue('E2E：记录本期利润来源与风险变化。')
+  await expect(page.getByLabel('我的判断')).toHaveValue('E2E：记录本期利润来源与风险变化。')
   await expect(page.getByText('草稿', { exact: true })).toBeVisible()
   // B7：保存后必须能看到「保存以来」的数据差异（而不是默认页面上显示的就是保存时那份结论）
   await expect(page.getByText(/保存以来：/)).toBeVisible()
@@ -112,21 +119,20 @@ test('组合复盘：可深链查看完整历史自然月', async ({ page }) => 
   // 在途卡片属于「2 · 归因」步骤；复盘改成分步工作台后，默认只展示「1 · 结果」
   const steps = page.getByRole('navigation', { name: '复盘步骤' })
   await steps.getByRole('button', { name: /2 · 归因/ }).click()
+  await page.getByRole('tab', { name: '对账与在途' }).click()
   await expect(page.getByLabel('期末在途资产')).toBeVisible()
 
   await steps.getByRole('button', { name: /4 · 结论/ }).click()
-  await page.getByLabel('复盘笔记').fill('E2E：2026 年 8 月独立复盘。')
+  await page.getByLabel('我的判断').fill('E2E：2026 年 8 月独立复盘。')
   await page.getByRole('button', { name: '保存草稿' }).click()
   await expect(page.getByText(/草稿已保存/)).toBeVisible()
   await page.reload()
-  await steps.getByRole('button', { name: /4 · 结论/ }).click()
-  await expect(page.getByLabel('复盘笔记')).toHaveValue('E2E：2026 年 8 月独立复盘。')
+  await expect(page.getByLabel('我的判断')).toHaveValue('E2E：2026 年 8 月独立复盘。')
 
   await page.getByRole('link', { name: '查看上一个月' }).click()
   await expect(page).toHaveURL(/month=2026-07/)
   await expect(page.getByText('复盘区间 · 2026-07-01 — 2026-07-31')).toBeVisible()
-  await steps.getByRole('button', { name: /4 · 结论/ }).click()
-  await expect(page.getByLabel('复盘笔记')).not.toHaveValue('E2E：2026 年 8 月独立复盘。')
+  await expect(page.getByLabel('我的判断')).not.toHaveValue('E2E：2026 年 8 月独立复盘。')
 })
 
 test('长期复盘：成立以来/近五年/自然年范围切换、桥与数据资格', async ({ page }) => {
@@ -246,6 +252,7 @@ test('复盘 03 时点：日柱按可用宽度均分，不需要横向滚动且�
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/review')
   await page.getByRole('navigation', { name: '复盘步骤' }).getByRole('button', { name: /2 · 归因/ }).click()
+  await page.getByRole('tab', { name: '何时发生' }).click()
   const chart = page.locator('.review-day-chart')
   await expect(chart).toBeVisible()
   const overflow = await chart.evaluate((el) => el.scrollWidth - el.clientWidth)

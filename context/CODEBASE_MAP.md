@@ -15,8 +15,9 @@ last_verified: 2026-09-14
 | 总览 | `src/app/page.tsx` | `getDashboard(period)`；净资产、周/月/季可投资资产结果桥、贡献来源、财富轨迹、构成、状态与 FIRE |
 | 持仓 | `src/app/positions/page.tsx` | `loadEngineState`；配置、分组、列头排序（市值/当日盈亏/未实现盈亏/权重/名称）、当日盈亏 |
 | 资产详情 | `src/app/positions/[assetId]/page.tsx` | 价格/净值历史、基金估值、持仓概览、流水与带账本锁的安全编辑/删除 |
-| 看盘 | `src/app/watch/page.tsx` | `getWatchData` + `loadBenchmarks`；盘中曲线、实时估值表（不分页，一次展示全部筛选结果）、组合历史收益（指标与基准对比常显，收益率曲线 `#history-chart`、收益日历 `#history-calendar` 默认折叠）；排序与筛选状态走 `sort`/`q`/`cls`/`excl` 深链；点表格行在曲线上叠加该标的当日盈亏 |
-| 复盘 | `src/app/review/page.tsx` | `getReviewPageData`；周/月/季及任意历史自然月的结果桥、贡献归因、时点、交易、风险与复盘笔记 |
+| 看盘 | `src/app/watch/page.tsx` | `getWatchData` + 默认基准；盘中曲线、今日贡献/拖累、结算状态、近 30 日三项快照与实时估值表（默认 8 项，筛选或显式展开后展示全部）；排序与筛选状态走 `sort`/`q`/`cls`/`excl` 深链；点表格行在曲线上叠加该标的当日盈亏 |
+| 周期复盘 | `src/app/review/page.tsx` | `getReviewPageData`；周/月/季及任意历史自然月的结果、归因子视图、行为风险与结构化用户笔记；当前步骤走 `step` 深链 |
+| 收益历史 | `src/app/review/returns/page.tsx` | `getWatchData` + `loadBenchmarks`；预设/自定义区间、四基准对比、收益率/金额/资产曲线，以及日/月/年收益日历 |
 | 流水 | `src/app/transactions/page.tsx` | 默认有效流水视图、可展开冲正历史、筛选、分页、录入、CSV、冲正、导出 |
 | 基金确认 | `src/app/fund-confirmations/page.tsx` | 待确认基金集中队列、官方净值只读预览、平台份额比对与确认写入 |
 | FIRE | `src/app/goals/page.tsx` | 目标编辑、储蓄、情景实验室、蒙特卡洛结果 |

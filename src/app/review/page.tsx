@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 export default async function ReviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; benchmark?: string; month?: string; date?: string }>
+  searchParams: Promise<{ period?: string; benchmark?: string; month?: string; date?: string; step?: string }>
 }) {
   const params = await searchParams
   const data = await getReviewPageData(params)
@@ -17,7 +17,7 @@ export default async function ReviewPage({
   return (
     <div className="page-shell review-shell">
       <ReviewModeNav current="cyclical" month={params.month} />
-      <ReviewClient key={`${data.period}-${data.range.startDate}`} data={data} />
+      <ReviewClient key={`${data.period}-${data.range.startDate}`} data={data} initialStep={params.step} />
     </div>
   )
 }

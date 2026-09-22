@@ -1,6 +1,5 @@
-// 看盘：当日组合收益曲线（分钟级）+ 全持仓实时估值 + 组合历史收益与基准对比
-import { getWatchData, loadBenchmarks } from '@/lib/queries'
-import { prisma } from '@/lib/db'
+// 看盘：当日组合收益曲线（分钟级）+ 实时估值摘要 + 近 30 日表现快照
+import { getWatchData, loadBenchmarkSeries } from '@/lib/queries'
 import { cnyRateFor } from '@/lib/market/fx'
 import { SetupScreen } from '@/components/ui'
 import { WatchClient, type WatchHolding, type StaticRow } from '@/components/watch-client'
@@ -10,8 +9,8 @@ import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { parseHoldingSort } from '@/lib/engine/holding-sort'
 import { parseWatchClassFilter } from '@/lib/engine/watch-filter'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
-import { getSession } from '@/lib/session'
-import { parsePreferences } from '@/lib/preferences'
+import { BENCHMARK_INDICES, DEFAULT_BENCHMARK_SYMBOL, type LoadedBenchmark } from '@/lib/engine/benchmark'
+import { performancePresetRange } from '@/lib/engine/period-performance'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,18 +19,29 @@ export default async function WatchPage({
 }: {
   searchParams: Promise<{ sort?: string; q?: string; cls?: string; excl?: string }>
 }) {
-  const [watchData, sp, session] = await Promise.all([getWatchData(), searchParams, getSession()])
+  const [watchData, sp] = await Promise.all([getWatchData(), searchParams])
   if (!watchData) return <SetupScreen />
-  const defaultRange = session?.userId
-    ? parsePreferences((await prisma.user.findUnique({ where: { id: session.userId }, select: { preferences: true } }))?.preferences ?? null).defaultRange ?? null
-    : null
 
   const state = watchData.state
   const rates = { USDCNY: state.currencyRates.USD, HKDCNY: state.currencyRates.HKD }
-  // 基准序列向前多取 10 天：保证期初基准日（可能落在非交易日）有可用收盘净值
-  const benchmarks = watchData.series.length > 0
-    ? await loadBenchmarks(new Date(new Date(`${watchData.series[0].date}T00:00:00`).getTime() - 10 * 86400000), new Date())
+  const now = new Date()
+  const snapshotRange = performancePresetRange('LAST_30_DAYS', now)
+  const firstSnapshotIndex = watchData.series.findIndex((point) => point.date >= snapshotRange.startDate)
+  const compactHistorySeries = firstSnapshotIndex === -1
+    ? watchData.series.slice(-1)
+    : watchData.series.slice(Math.max(0, firstSnapshotIndex - 1))
+  // 只加载默认基准；看盘不再承担多基准和任意区间分析，完整比较进入复盘。
+  const benchmarkPoints = compactHistorySeries.length > 0
+    ? await loadBenchmarkSeries(
+      DEFAULT_BENCHMARK_SYMBOL,
+      new Date(new Date(`${snapshotRange.startDate}T00:00:00Z`).getTime() - 10 * 86400000),
+      now,
+    )
     : []
+  const benchmarkMeta = BENCHMARK_INDICES.find((item) => item.symbol === DEFAULT_BENCHMARK_SYMBOL)
+  const benchmark: LoadedBenchmark | null = benchmarkMeta && benchmarkPoints.length >= 2
+    ? { ...benchmarkMeta, points: benchmarkPoints }
+    : null
   const mergedPositions = mergePositionsByAsset(state.valued.filter((position) => isPortfolioAssetClass(position.asset.cls)))
 
   // 行情类持仓（股票/ETF/基金/黄金）——参与曲线与实时估值表
@@ -93,7 +103,7 @@ export default async function WatchPage({
       staticInvestableValueCny={staticInvestableValueCny}
       staticRows={staticRows}
       provider={marketChainLabel(providerLabel()).label}
-      historySeries={watchData.series.map((point) => ({
+      historySeries={compactHistorySeries.map((point) => ({
         date: point.date,
         netWorth: point.investable,
         contributions: point.contributions,
@@ -107,8 +117,7 @@ export default async function WatchPage({
       initialQuery={sp.q ?? ''}
       initialClass={parseWatchClassFilter(sp.cls)}
       initialOnlyExcluded={sp.excl === '1'}
-      defaultRange={defaultRange}
-      benchmarks={benchmarks}
+      benchmark={benchmark}
       settlement={watchData.settlement}
     />
   )

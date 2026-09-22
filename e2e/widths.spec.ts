@@ -9,6 +9,7 @@ const PAGES = [
   ['/transactions', '流水'],
   ['/accounts', '账户'],
   ['/review', '复盘'],
+  ['/review/returns', '收益历史'],
   ['/review/history', '长期复盘'],
   ['/goals', 'FIRE'],
   ['/health/market', '行情质量'],

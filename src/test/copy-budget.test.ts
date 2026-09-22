@@ -48,7 +48,7 @@ const PROSE_BUDGET: Record<string, number> = {
   'src/components/watch-client.tsx': 78,
   'src/app/investment-plans/page.tsx': 67,
   'src/components/split-discovery-panel.tsx': 67,
-  'src/components/app-shell.tsx': 62,
+  'src/components/app-shell.tsx': 66, // 新增「收益历史」全局可发现入口
   'src/components/fund-confirmation-card.tsx': 60,
   'src/app/error.tsx': 51,
   'src/components/csv-import.tsx': 50,

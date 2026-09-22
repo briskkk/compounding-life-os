@@ -30,9 +30,14 @@ import {
   parseWatchClassFilter,
   type WatchClassFilter,
 } from '@/lib/engine/watch-filter'
-import { PortfolioHistory } from './portfolio-history'
-import type { PerformancePoint } from '@/lib/engine/period-performance'
-import type { LoadedBenchmark } from '@/lib/engine/benchmark'
+import {
+  performanceBetween,
+  performancePresetRange,
+  upsertPerformancePoint,
+  type PerformancePoint,
+} from '@/lib/engine/period-performance'
+import { alignBenchmark, type LoadedBenchmark } from '@/lib/engine/benchmark'
+import { riskMetrics } from '@/lib/engine/risk'
 import type { DataSettlementState } from '@/lib/engine/data-settlement'
 import { DataSettlementRail } from './data-settlement-rail'
 import { TableScroll } from './table-scroll'
@@ -81,11 +86,12 @@ interface QuoteLite {
 }
 
 const POLL_MS = 30_000
+const COLLAPSED_ROW_COUNT = 8
 const INTRADAY_TIME_FORMATTER = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
 const SORT_HEADERS: { key: HoldingSortKey; label: string }[] = [
-  { key: 'value', label: HOLDING_SORT_HEADERS.value },
   { key: 'changePct', label: HOLDING_SORT_HEADERS.changePct },
+  { key: 'value', label: HOLDING_SORT_HEADERS.value },
   { key: 'dayPnl', label: HOLDING_SORT_HEADERS.dayPnl },
 ]
 
@@ -101,8 +107,7 @@ export function WatchClient({
   initialQuery,
   initialClass,
   initialOnlyExcluded,
-  defaultRange,
-  benchmarks,
+  benchmark,
   settlement,
 }: {
   holdings: WatchHolding[]
@@ -116,8 +121,7 @@ export function WatchClient({
   initialQuery: string
   initialClass: WatchClassFilter
   initialOnlyExcluded: boolean
-  defaultRange?: string | null
-  benchmarks: LoadedBenchmark[]
+  benchmark: LoadedBenchmark | null
   settlement: DataSettlementState
 }) {
   const [seriesMap, setSeriesMap] = useState<Map<string, IntradaySeries>>(new Map())
@@ -127,6 +131,7 @@ export function WatchClient({
   const [query, setQuery] = useState(initialQuery)
   const [classFilter, setClassFilter] = useState<WatchClassFilter>(initialClass)
   const [onlyExcluded, setOnlyExcluded] = useState(initialOnlyExcluded)
+  const [showAllRows, setShowAllRows] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -402,9 +407,22 @@ export function WatchClient({
     latestValuationDate: liveValuation.date,
     valuationGaps: [],
   }), [currentContributions, liveInvestableValue, liveValuation, todayKey])
-  const liveDayReturn = useMemo(() => livePerformancePoint == null
-    ? null
-    : { date: todayKey, amount: totalPnl, pct: dayPct }, [dayPct, livePerformancePoint, todayKey, totalPnl])
+
+  const historySummary = useMemo(() => {
+    const series = upsertPerformancePoint(historySeries, livePerformancePoint)
+    const range = performancePresetRange('LAST_30_DAYS', new Date(`${todayKey}T12:00:00+08:00`), series[0]?.date)
+    const performance = performanceBetween(series, range.startDate, range.endDate, range.label)
+    const risk = riskMetrics(performance.curve)
+    const benchmarkCurve = benchmark
+      ? alignBenchmark(performance.curve.map((point) => point.date), benchmark.points)
+      : []
+    const validBenchmark = benchmarkCurve.filter((value): value is number => value != null)
+    return {
+      performance,
+      maxDrawdown: risk.maxDrawdown,
+      benchmarkPct: validBenchmark.length > 1 ? validBenchmark.at(-1) ?? null : null,
+    }
+  }, [benchmark, historySeries, livePerformancePoint, todayKey])
 
   // 表格行 = 有行情的标的 + 常量计值项（现金/手工估值/在途）。
   // 常量项没有行情，因此不参与涨跌幅与当日盈亏排序，恒沉底。
@@ -461,6 +479,8 @@ export function WatchClient({
   const hasFilter = query.trim() !== '' || classFilter != null || onlyExcluded
   const filterValue: HoldingFilterValue = { query, classFilter, onlyExcluded }
   const canCompareIntraday = chartData.length > 1
+  const tableRows = hasFilter || showAllRows ? displayRows : displayRows.slice(0, COLLAPSED_ROW_COUNT)
+  const hiddenRowCount = displayRows.length - tableRows.length
 
   function applyFilter(next: HoldingFilterValue) {
     setQuery(next.query)
@@ -549,33 +569,34 @@ export function WatchClient({
             <div className="watch-attention-item">
               <span>贡献最多</span>
               <strong>{dailyLeaders.best.name}</strong>
-              <small className="num text-up">{fmtCNY(dailyLeaders.best.dayPnlCny ?? 0, { sign: true })}</small>
+              <small className={cx('num', (dailyLeaders.best.dayPnlCny ?? 0) >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(dailyLeaders.best.dayPnlCny ?? 0, { sign: true })}</small>
             </div>
-          ) : <div className="watch-attention-item"><strong>暂无可用盈利贡献</strong></div>}
+          ) : <div className="watch-attention-empty">今日暂无可比较的持仓贡献。</div>}
           {dailyLeaders.worst && (dailyLeaders.worst.dayPnlCny ?? 0) < 0 ? (
             <div className="watch-attention-item">
               <span>拖累最多</span>
               <strong>{dailyLeaders.worst.name}</strong>
               <small className="num text-down">{fmtCNY(dailyLeaders.worst.dayPnlCny ?? 0, { sign: true })}</small>
             </div>
-          ) : <div className="watch-attention-item"><strong>暂无负贡献标的</strong></div>}
-          <div className={cx('watch-attention-item', excludedRows > 0 && 'is-warning')}>
-            <span>数据范围</span>
-            <strong>{excludedRows > 0 ? `${excludedRows} 只未计入今日盈亏` : '全部行情标的已计入'}</strong>
-            <small>{excludedRows > 0 ? '休市、净值未更新或归属其他日期' : '当前报价归属口径一致'}</small>
-          </div>
-          <Link href="/health" className="watch-attention-link">查看数据状态 →</Link>
-          <Link href="/review" className="watch-attention-link">进入周期复盘 →</Link>
+          ) : null}
+          <Link href="/review?period=THIS_MONTH" className="watch-attention-link">复盘本月 →</Link>
         </aside>
       </section>
 
-      <PortfolioHistory
-        series={historySeries}
-        livePoint={livePerformancePoint}
-        liveDayReturn={liveDayReturn}
-        benchmarks={benchmarks}
-        initialPreset={defaultRange ?? undefined}
-      />
+      <section className="watch-history-snapshot" aria-labelledby="watch-history-title">
+        <div className="watch-history-heading">
+          <div>
+            <h2 id="watch-history-title">近 30 日表现</h2>
+            <p>{historySummary.performance.startDate ?? '—'} — {historySummary.performance.endDate ?? '—'} · 完整区间、贡献与风险进入复盘</p>
+          </div>
+          <Link href="/review/returns">打开收益历史 →</Link>
+        </div>
+        <div className="watch-history-metrics">
+          <div><span>组合 TWR</span><strong className={cx('num', historySummary.performance.pct == null ? 'text-ink-faint' : historySummary.performance.pct >= 0 ? 'text-up' : 'text-down')}>{fmtPct(historySummary.performance.pct, { sign: true })}</strong></div>
+          <div><span>同期{benchmark?.label ?? '基准'}</span><strong className={cx('num', historySummary.benchmarkPct == null ? 'text-ink-faint' : historySummary.benchmarkPct >= 0 ? 'text-up' : 'text-down')}>{fmtPct(historySummary.benchmarkPct, { sign: true })}</strong></div>
+          <div><span>最大回撤</span><strong className={cx('num', historySummary.maxDrawdown == null ? 'text-ink-faint' : 'text-down')}>{fmtPct(historySummary.maxDrawdown)}</strong></div>
+        </div>
+      </section>
 
       <Panel title="实时估值" bodyClassName="p-0">
         <div className="border-b border-line px-4 py-2.5"><ValuationLegend /></div>
@@ -607,7 +628,7 @@ export function WatchClient({
                   </td>
                 </tr>
               )}
-              {displayRows.map((r) => r.kind === 'market' ? (
+              {tableRows.map((r) => r.kind === 'market' ? (
               <tr
                 key={r.assetId}
                 data-testid="watch-row"
@@ -699,8 +720,15 @@ export function WatchClient({
           </table>
         </TableScroll>
         <div className="watch-table-foot">
-          <span className="num">共 {displayRows.length} 项</span>
-          <Link href="/positions">打开完整持仓 →</Link>
+          <span className="num">共 {displayRows.length} 项{hiddenRowCount > 0 ? ` · 当前显示 ${tableRows.length} 项` : ''}</span>
+          <div>
+            {!hasFilter && displayRows.length > COLLAPSED_ROW_COUNT && (
+              <button type="button" aria-expanded={showAllRows} onClick={() => setShowAllRows((expanded) => !expanded)}>
+                {showAllRows ? '收起列表' : `展开全部 ${displayRows.length} 项`}
+              </button>
+            )}
+            <Link href="/positions">打开完整持仓 →</Link>
+          </div>
         </div>
       </Panel>
     </div>

@@ -5,7 +5,7 @@ export function ReviewModeNav({
   current,
   month,
 }: {
-  current: 'month-close' | 'cyclical' | 'history' | 'decisions'
+  current: 'month-close' | 'cyclical' | 'returns' | 'history' | 'decisions'
   month?: string
 }) {
   const monthParam = month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? `?month=${month}` : ''
@@ -17,6 +17,9 @@ export function ReviewModeNav({
       </Link>
       <Link href={cyclicalHref} prefetch={false} className={current === 'cyclical' ? 'ii-mode-item is-active' : 'ii-mode-item'} aria-current={current === 'cyclical' ? 'page' : undefined}>
         周期复盘
+      </Link>
+      <Link href="/review/returns" prefetch={false} className={current === 'returns' ? 'ii-mode-item is-active' : 'ii-mode-item'} aria-current={current === 'returns' ? 'page' : undefined}>
+        收益历史
       </Link>
       <Link href={`/review/history${monthParam}`} prefetch={false} className={current === 'history' ? 'ii-mode-item is-active' : 'ii-mode-item'} aria-current={current === 'history' ? 'page' : undefined}>
         长期复盘

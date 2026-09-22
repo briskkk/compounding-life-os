@@ -1,17 +1,8 @@
 import { test, expect, type Page } from '@playwright/test'
 
-/** 看盘实时估值表的行：看盘页恢复组合历史后还有其他表格结构，必须限定到估值表内。 */
+/** 看盘实时估值表的行：页面还有其他表格结构，必须限定到估值表内。 */
 function watchRows(page: Page) {
   return page.getByTestId('watch-valuation-table').locator('tbody tr')
-}
-
-/** 收益日历在看盘页默认折叠，断言日历内证据前先展开。 */
-async function expandReturnsCalendar(page: Page) {
-  const details = page.locator('#history-calendar')
-  if (!(await details.evaluate((element) => (element as HTMLDetailsElement).open))) {
-    await details.locator('summary').first().click()
-  }
-  await expect(details).toHaveJSProperty('open', true)
 }
 
 test('持仓页：列头排序切换 URL 与 aria-sort', async ({ page }) => {
@@ -47,6 +38,15 @@ test('持仓页：排序保留大类筛选，并保留筛选参数', async ({ pa
 
 test('看盘页：列头排序写入 URL、aria-sort 只标注当前列', async ({ page }) => {
   await page.goto('/watch')
+  await expect(page.getByTestId('watch-valuation-table').locator('thead th')).toHaveText([
+    /资产/,
+    '数量',
+    '现价',
+    /涨跌幅/,
+    /市值（¥）/,
+    /当日盈亏（¥）/,
+    '来源',
+  ])
   // 默认市值降序：URL 不带参数，但列头必须如实标注
   await expect(page.getByRole('columnheader', { name: '按市值（¥）降序排序' })).toHaveAttribute('aria-sort', 'descending')
   await expect(page.getByRole('columnheader', { name: '按涨跌幅排序' })).toHaveAttribute('aria-sort', 'none')
@@ -210,13 +210,19 @@ test('看盘页：资产排序、详情跳转与当前资产流水录入', async
 
 test('看盘页：归属日不是北京今天时，当日盈亏显示「—」并说明归属日', async ({ page }) => {
   // 模拟场外基金净值滞后（真实场景：官方净值 T+1，或行情通道失败回落持久化净值）
-  await page.route('**/api/prices**', async (route) => {
-    const response = await route.fetch()
-    const body = await response.json()
-    const quotes = (body.quotes ?? []).map((quote: { symbol: string; tradingDate?: string }) => (
-      quote.symbol === '110022' ? { ...quote, tradingDate: '2026-09-14' } : quote
-    ))
-    await route.fulfill({ response, body: JSON.stringify({ ...body, quotes }) })
+  // 先在页面导航前读取一次真实响应，再用静态响应拦截轮询；避免测试结束时
+  // 页面销毁与路由处理器中的上游请求竞态，导致 APIResponse 被提前回收。
+  const response = await page.request.get('/api/prices?symbols=110022')
+  const body = await response.json()
+  const quotes = (body.quotes ?? []).map((quote: { symbol: string; tradingDate?: string }) => (
+    quote.symbol === '110022' ? { ...quote, tradingDate: '2026-09-14' } : quote
+  ))
+  await page.route('**/api/prices**', (route) => {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...body, quotes }),
+    })
   })
   await page.goto('/watch')
   await page.getByLabel('搜索标的名称或代码').fill('110022')
@@ -228,43 +234,37 @@ test('看盘页：归属日不是北京今天时，当日盈亏显示「—」�
   await expect(row.locator('td').nth(5)).toContainText('—')
 })
 
-test('看盘页：总资产、基准对比与收益日历在同页可读', async ({ page }) => {
+test('看盘页：总资产与近 30 日快照同页可读，完整历史进入复盘', async ({ page }) => {
   await page.goto('/watch')
 
   // 总资产（实时估值口径）在首屏状态行上
   await expect(page.getByText(/可投资组合实时估值/)).toBeVisible()
 
-  // 组合历史收益与基准指数对比（指标格与图表的完整口径由 terminal.spec 覆盖）
-  const history = page.getByRole('region', { name: /组合历史收益/ })
-  await expect(history).toBeVisible()
-  await expect(history.getByText('收益金额', { exact: true })).toBeVisible()
-  await expect(history.getByText('时间加权收益率', { exact: true })).toBeVisible()
+  const history = page.getByRole('region', { name: /近 30 日表现/ })
+  await expect(history.getByText('组合 TWR', { exact: true })).toBeVisible()
   await expect(history.getByText(/同期沪深300/).first()).toBeVisible()
-
-  // 收益率曲线与收益日历默认折叠：首屏只剩指标与基准对比
-  await expect(page.locator('#history-chart')).toHaveJSProperty('open', false)
-  await expect(page.locator('#history-calendar')).toHaveJSProperty('open', false)
-
-  // 展开收益日历后「今天」仍与顶部实时口径同源
-  await expandReturnsCalendar(page)
-  const calendarToday = page.getByTestId('returns-calendar-today')
-  await expect(calendarToday).toBeVisible()
-  const watchAmount = await page.getByTestId('watch-today-pnl').getAttribute('data-amount')
-  expect(await calendarToday.getAttribute('data-amount')).toBe(watchAmount)
+  await expect(history.getByText('最大回撤', { exact: true })).toBeVisible()
+  await expect(history.getByRole('link', { name: '打开收益历史 →' })).toHaveAttribute('href', '/review/returns')
+  await expect(page.locator('#history-chart, #history-calendar')).toHaveCount(0)
 })
 
-test('看盘页：实时估值表不分页，筛选后仍一行不漏', async ({ page }) => {
+test('看盘页：实时估值默认收起，筛选与展开后不漏行', async ({ page }) => {
   await page.goto('/watch')
   await expect(page.getByLabel('实时估值分页')).toHaveCount(0)
 
   const status = page.getByTestId('watch-filter-count')
   const total = Number((await status.textContent())?.match(/\/\s*(\d+)/)?.[1] ?? 0)
   expect(total).toBeGreaterThan(0)
-  // 未筛选时整表一次展示：行数与统计口径一致
-  await expect(watchRows(page)).toHaveCount(total)
+  // 未筛选时最多展示 8 行；明确展开后恢复全部证据
+  await expect(watchRows(page)).toHaveCount(Math.min(total, 8))
   await expect(page.getByText(`共 ${total} 项`)).toBeVisible()
+  if (total > 8) {
+    await page.getByRole('button', { name: `展开全部 ${total} 项` }).click()
+    await expect(watchRows(page)).toHaveCount(total)
+    await expect(page.getByRole('button', { name: '收起列表' })).toHaveAttribute('aria-expanded', 'true')
+  }
 
-  // 按大类筛选后同样全量展示，且不再有分页控件
+  // 按大类筛选后展示全部匹配项，且不出现分页控件
   await page.getByRole('button', { name: /^基金/ }).click()
   const fundRows = await watchRows(page).count()
   expect(fundRows).toBeGreaterThan(0)

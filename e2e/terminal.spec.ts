@@ -105,7 +105,7 @@ test('持仓页：类别汇总与明细表', async ({ page }) => {
   await expect(page.getByText('未分组', { exact: true }).first()).toBeVisible()
 })
 
-test('看盘页：首屏是今日工作台，基准对比与历史收益在同页下方', async ({ page }) => {
+test('看盘页：首屏是今日工作台，历史分析进入复盘', async ({ page }) => {
   await page.goto('/watch')
   await expect(page.getByRole('heading', { name: '组合今天发生了什么' })).toBeVisible()
   const dataStatus = page.getByRole('region', { name: '行情数据状态' })
@@ -113,21 +113,17 @@ test('看盘页：首屏是今日工作台，基准对比与历史收益在同�
   await expect(dataStatus).toContainText(/行情已覆盖|行情待更新|历史收盘数据仍有缺口|暂无需要行情更新/)
   // 今日工作台右栏是 aside（complementary），不是 region
   await expect(page.getByRole('complementary', { name: '今天需要留意' })).toBeVisible()
-  await expect(page.getByRole('link', { name: '进入周期复盘 →' })).toHaveAttribute('href', '/review')
-  // 历史趋势与基准对比仍在同页下方，但不再占据今日工作台的首屏
-  await expect(page.getByRole('heading', { name: '组合历史收益' })).toBeVisible()
-  // 收益率曲线与收益日历默认折叠，指标与基准对比保持可见
-  await expect(page.locator('#history-chart')).toHaveJSProperty('open', false)
-  await expect(page.locator('#history-calendar')).toHaveJSProperty('open', false)
+  await expect(page.getByRole('link', { name: '复盘本月 →' })).toHaveAttribute('href', '/review?period=THIS_MONTH')
+  await expect(page.getByRole('heading', { name: '近 30 日表现' })).toBeVisible()
+  await expect(page.getByRole('link', { name: '打开收益历史 →' })).toHaveAttribute('href', '/review/returns')
+  await expect(page.getByRole('heading', { name: '组合历史收益' })).toHaveCount(0)
   await page.setViewportSize({ width: 1280, height: 800 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('看盘页：历史收益支持预设周期与自定义日期', async ({ page }) => {
-  await page.goto('/watch')
-  const dataStatus = page.getByRole('region', { name: '行情数据状态' })
-  await expect(dataStatus).toBeVisible()
-  await expect(dataStatus).toContainText(/行情已覆盖|行情待更新|历史收盘数据仍有缺口|暂无需要行情更新/)
+test('收益历史：支持预设周期、自定义日期、曲线与收益日历', async ({ page }) => {
+  await page.goto('/review/returns')
+  await expect(page.getByLabel('复盘模式').getByText('收益历史')).toHaveAttribute('aria-current', 'page')
   await expect(page.getByRole('heading', { name: '组合历史收益' })).toBeVisible()
   await expect(page.getByText('收益金额', { exact: true })).toBeVisible()
   await expect(page.getByText('时间加权收益率', { exact: true })).toBeVisible()
@@ -237,8 +233,8 @@ test('看盘页：历史收益支持预设周期与自定义日期', async ({ pa
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('看盘页：基准指数可选（沪深300/上证指数/创业板指/科创50）', async ({ page }) => {
-  await page.goto('/watch')
+test('收益历史：基准指数可选（沪深300/上证指数/创业板指/科创50）', async ({ page }) => {
+  await page.goto('/review/returns')
   const group = page.getByRole('group', { name: '基准指数' })
   await expect(group.getByRole('button', { name: '沪深300', exact: true })).toBeVisible()
   await expect(group.getByRole('button', { name: '上证指数', exact: true })).toBeVisible()

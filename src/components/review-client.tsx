@@ -14,6 +14,14 @@ import { useConfirm } from '@/components/confirm-dialog'
 
 type Dimension = 'asset' | 'source' | 'class'
 type ReviewStep = 'outcome' | 'attribution' | 'behavior' | 'conclusion'
+type AttributionView = 'contribution' | 'timing' | 'evidence'
+type ReviewNotePart = 'facts' | 'judgment' | 'next'
+
+interface ReviewNoteParts {
+  facts: string
+  judgment: string
+  next: string
+}
 
 const REVIEW_STEPS: { value: ReviewStep; label: string; description: string }[] = [
   { value: 'outcome', label: '1 · 结果', description: '发生了什么' },
@@ -21,6 +29,38 @@ const REVIEW_STEPS: { value: ReviewStep; label: string; description: string }[] 
   { value: 'behavior', label: '3 · 行为与风险', description: '做得怎么样' },
   { value: 'conclusion', label: '4 · 结论', description: '下期看什么' },
 ]
+
+const ATTRIBUTION_VIEWS: { value: AttributionView; label: string }[] = [
+  { value: 'contribution', label: '谁贡献' },
+  { value: 'timing', label: '何时发生' },
+  { value: 'evidence', label: '对账与在途' },
+]
+
+const NOTE_FACTS = '【已确认事实】'
+const NOTE_JUDGMENT = '【我的判断】'
+const NOTE_NEXT = '【下期验证】'
+
+function reviewStepFrom(value?: string): ReviewStep {
+  return REVIEW_STEPS.some((item) => item.value === value) ? value as ReviewStep : 'outcome'
+}
+
+function parseReviewNote(note: string): ReviewNoteParts {
+  const judgmentAt = note.indexOf(NOTE_JUDGMENT)
+  const nextAt = note.indexOf(NOTE_NEXT)
+  if (!note.startsWith(NOTE_FACTS) || judgmentAt < 0 || nextAt < judgmentAt) {
+    return { facts: '', judgment: note, next: '' }
+  }
+  return {
+    facts: note.slice(NOTE_FACTS.length, judgmentAt).trim(),
+    judgment: note.slice(judgmentAt + NOTE_JUDGMENT.length, nextAt).trim(),
+    next: note.slice(nextAt + NOTE_NEXT.length).trim(),
+  }
+}
+
+function serializeReviewNote(parts: ReviewNoteParts): string {
+  if (!parts.facts.trim() && !parts.judgment.trim() && !parts.next.trim()) return ''
+  return `${NOTE_FACTS}\n${parts.facts.trim()}\n\n${NOTE_JUDGMENT}\n${parts.judgment.trim()}\n\n${NOTE_NEXT}\n${parts.next.trim()}`
+}
 
 const PERIODS = [
   { value: 'THIS_DAY', label: '按日' },
@@ -128,14 +168,15 @@ function ContributionRows({ rows, selected, onSelect }: {
   )
 }
 
-export function ReviewClient({ data }: { data: ReviewPageData }) {
+export function ReviewClient({ data, initialStep }: { data: ReviewPageData; initialStep?: string }) {
   const router = useRouter()
   const navigateAfterWrite = useNavigateAfterWrite()
   const confirmDialog = useConfirm()
-  const [step, setStep] = useState<ReviewStep>('outcome')
+  const [step, setStep] = useState<ReviewStep>(() => reviewStepFrom(initialStep))
+  const [attributionView, setAttributionView] = useState<AttributionView>('contribution')
   const [dimension, setDimension] = useState<Dimension>('asset')
   const [selectedAsset, setSelectedAsset] = useState(data.result.assets[0]?.key ?? null)
-  const [note, setNote] = useState(data.savedReview?.note ?? '')
+  const [noteParts, setNoteParts] = useState<ReviewNoteParts>(() => parseReviewNote(data.savedReview?.note ?? ''))
   const [message, setMessage] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const { result, range } = data
@@ -154,6 +195,14 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
   const isHistoricalDate = data.period === 'THIS_DAY' && selectedDate < data.currentDate
   const pendingFundEventCount = data.pendingPurchases.length + data.pendingSettlements.length
   const stepIndex = REVIEW_STEPS.findIndex((item) => item.value === step)
+  const note = serializeReviewNote(noteParts)
+  const completionIssues = [
+    result.reconciliationStatus !== 'MATCHED' ? `收益对账${reconciliation.label}` : null,
+    result.valuationCoverage == null
+      ? '估值覆盖不可用'
+      : result.valuationCoverage < 0.999999 ? `估值覆盖 ${fmtPct(result.valuationCoverage)}` : null,
+    pendingFundEventCount > 0 ? `${pendingFundEventCount} 笔基金事项待确认` : null,
+  ].filter((item): item is string => item != null)
 
   const rows = useMemo<ReviewContribution[]>(() => {
     if (dimension === 'asset') return result.assets
@@ -181,7 +230,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
     }))
   }, [dimension, result.assets, result.classes, result.sources])
 
-  function href(next: { period?: string; benchmark?: string; month?: string; date?: string }) {
+  function href(next: { period?: string; benchmark?: string; month?: string; date?: string; step?: ReviewStep }) {
     const period = next.period ?? data.period
     const params = new URLSearchParams({
       period,
@@ -193,6 +242,8 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
     if (period === 'THIS_DAY') {
       params.set('date', next.date ?? (data.period === 'THIS_DAY' ? selectedDate : data.currentDate))
     }
+    const targetStep = next.step ?? step
+    if (targetStep !== 'outcome') params.set('step', targetStep)
     return `/review?${params.toString()}`
   }
 
@@ -253,7 +304,13 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
 
   function selectStep(next: ReviewStep) {
     setStep(next)
+    window.history.replaceState(null, '', href({ step: next }))
     requestAnimationFrame(() => document.querySelector('.review-workflow-nav')?.scrollIntoView({ block: 'start' }))
+  }
+
+  function updateNotePart(key: ReviewNotePart, value: string) {
+    const next = { ...noteParts, [key]: value }
+    if (serializeReviewNote(next).length <= 4000) setNoteParts(next)
   }
 
   return (
@@ -329,6 +386,23 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
         ))}
       </nav>
 
+      {step === 'attribution' && (
+        <div className="review-subnav" role="tablist" aria-label="归因证据">
+          {ATTRIBUTION_VIEWS.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              role="tab"
+              aria-selected={attributionView === item.value}
+              aria-controls={`attribution-${item.value}`}
+              onClick={() => setAttributionView(item.value)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <section id="outcome" className="review-outcome chart-surface" hidden={step !== 'outcome'}>
         <div className="review-outcome-main">
           <span>{range.label}投资收益</span>
@@ -365,7 +439,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
         </div>
       </section>
 
-      <section id="contribution" className="section-panel review-section" hidden={step !== 'attribution'}>
+      <section id="attribution-contribution" className="section-panel review-section" hidden={step !== 'attribution' || attributionView !== 'contribution'}>
         <div className="review-section-heading">
           <div><span>2.1</span><h2 title="金额贡献与 TWR 百分点分别对账，不把在途或估值差额摊给任何标的">利润和亏损由谁贡献</h2></div>
           <div className="review-tabs" role="tablist" aria-label="贡献维度">
@@ -397,6 +471,12 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
               <><h3 title="这里只比较真实收益来源；待对账差额不参与排名">当前维度已归属</h3></>
             )}
           </aside>
+        </div>
+      </section>
+
+      <section id="attribution-evidence" className="section-panel review-section" hidden={step !== 'attribution' || attributionView !== 'evidence'}>
+        <div className="review-section-heading">
+          <div><span>2.3</span><h2 title="核对组合收益、已归属贡献与基金在途状态">对账与在途</h2></div>
         </div>
         <div className="review-reconciliation-grid">
           <article className={cx('review-reconciliation-card', reconciliation.className)} aria-label="收益对账状态">
@@ -444,7 +524,7 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
         </div>
       </section>
 
-      <section id="timing" className="section-panel review-section" hidden={step !== 'attribution'}>
+      <section id="attribution-timing" className="section-panel review-section" hidden={step !== 'attribution' || attributionView !== 'timing'}>
         <div className="review-section-heading">
           <div><span>2.2</span><h2 title="只统计有效收益观察日；休市、纯资金流和无更新日不会被当作涨跌">收益发生在什么时候</h2></div>
         </div>
@@ -531,8 +611,25 @@ export function ReviewClient({ data }: { data: ReviewPageData }) {
             </div>
           )}
         </div>
-        <label htmlFor="review-note">复盘笔记</label>
-        <textarea id="review-note" value={note} maxLength={4000} onChange={(event) => setNote(event.target.value)} placeholder="例如：本期利润集中在哪些来源？亏损来自判断失误、仓位还是正常波动？哪些交易需要在下个周期继续验证？" disabled={readOnly} />
+        <div className={cx('review-completion-status', completionIssues.length > 0 && 'is-warning')} aria-label="完成前证据状态">
+          <strong>{completionIssues.length > 0 ? `${completionIssues.length} 项状态需要保留` : '本期证据状态完整'}</strong>
+          <span>{completionIssues.length > 0 ? completionIssues.join(' · ') : '收益对账、估值覆盖与基金在途均无待处理项'}</span>
+          {completionIssues.length > 0 && <small>可以完成复盘；后续证据补齐时，派生结果可能重算。</small>}
+        </div>
+        <fieldset className="review-note-sections" aria-label="复盘笔记">
+          <label>
+            <span>已确认事实</span>
+            <textarea value={noteParts.facts} maxLength={4000} onChange={(event) => updateNotePart('facts', event.target.value)} placeholder="只记录页面证据，例如收益来源、净投入、风险变化和未决数据。" disabled={readOnly} />
+          </label>
+          <label>
+            <span>我的判断</span>
+            <textarea value={noteParts.judgment} maxLength={4000} onChange={(event) => updateNotePart('judgment', event.target.value)} placeholder="哪些结果来自判断，哪些可能只是市场波动或仓位影响？" disabled={readOnly} />
+          </label>
+          <label>
+            <span>下期验证</span>
+            <textarea value={noteParts.next} maxLength={4000} onChange={(event) => updateNotePart('next', event.target.value)} placeholder="下个周期继续观察什么事实，不在这里自动生成买卖建议。" disabled={readOnly} />
+          </label>
+        </fieldset>
         <div className="review-note-footer">
           <span>{note.length} / 4000{message ? ` · ${message}` : ''}</span>
           <div>
