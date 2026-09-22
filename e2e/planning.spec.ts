@@ -37,26 +37,37 @@ test('目标配置以当前权重预填并可保存为观察基准', async ({ pa
   await expect(page.getByText('目标合计').locator('..').getByText('100.0%')).toBeVisible()
 })
 
-test('资金日历可添加和移除计划事项', async ({ page }) => {
-  await page.goto('/accounts?view=calendar')
-  await page.getByText('添加其他资金计划', { exact: true }).click()
+test('资金计划在账户页维护，日历不再承载计划事项', async ({ page }) => {
+  await page.goto('/accounts')
+  // 资金计划维护入口已从资金日历移到账户概览（折叠区标题与提交按钮同名，需限定到折叠区）
+  await page.locator('#new-cash-plan > summary').click()
   await expect(page.getByPlaceholder('例如：保险缴费 / 奖金到账')).toBeVisible()
   await page.getByPlaceholder('例如：保险缴费 / 奖金到账').fill('E2E 年度保费')
   await page.getByLabel('金额（人民币）').fill('12000')
   await page.getByLabel('重复').selectOption('YEARLY')
-  await page.getByRole('button', { name: '加入资金日历' }).click()
+  await page.getByRole('button', { name: '添加资金计划' }).click()
 
-  await expect(page.getByTestId('write-flash')).toContainText('计划事项已加入日历')
+  await expect(page.getByTestId('write-flash')).toContainText('资金计划已保存')
   await expect(page.getByText('E2E 年度保费').first()).toBeVisible()
+  await expect(page.getByText('每年').first()).toBeVisible()
+
+  // 日历只呈现账本实际活动：资金计划不占日历格
+  await page.goto('/accounts?view=calendar')
+  await expect(page.getByText('E2E 年度保费')).toHaveCount(0)
+
+  await page.goto('/accounts')
   await page.getByRole('button', { name: '移除' }).click()
   await page.getByTestId('confirm-accept').click()
   await expect(page.getByTestId('write-flash')).toContainText('计划事项已移除')
   await expect(page.getByText('E2E 年度保费')).toHaveCount(0)
 })
 
-test('资金日历联动账本买卖并可下钻到当日流水', async ({ page }) => {
+test('资金日历只列账本实际买卖，并可下钻到当日流水', async ({ page }) => {
   await page.goto('/accounts?view=calendar&month=2026-06&day=2026-06-15')
-  await expect(page.getByText('账本实际买入').first()).toBeVisible()
+  await expect(page.getByText('实际买入').first()).toBeVisible()
+  // 计划层内容不再出现在日历上
+  await expect(page.getByText('本月定投计划')).toHaveCount(0)
+  await expect(page.getByText('待处理计划')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: '6 月 15 日明细' })).toBeVisible()
   await expect(page.getByText('沪深300ETF').first()).toBeVisible()
   await expect(page.getByText('易方达消费行业').first()).toBeVisible()

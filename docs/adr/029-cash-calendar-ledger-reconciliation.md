@@ -1,15 +1,17 @@
 ---
-status: accepted
+status: superseded
 owner: project-maintainers
 created_at: 2026-09-20
 accepted_at: 2026-09-20
+superseded_at: 2026-09-22
+superseded_by: ADR-031
 ---
 
 # ADR-029：资金日历作为计划与账本的按日核对视图
 
 ## 状态
 
-Accepted。用户于 2026-09-20 要求资金日历与定投计划、账户真实买卖记录联动。
+Superseded by [ADR-031](031-cash-calendar-ledger-activity-only.md)。本 ADR 保留为历史决策记录。
 
 ## 背景
 

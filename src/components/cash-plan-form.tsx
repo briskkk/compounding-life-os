@@ -40,7 +40,7 @@ export function CashPlanForm({ accounts }: { accounts: { id: string; name: strin
       form.reset()
       setDirection('OUTFLOW')
       setRecurrence('NONE')
-      navigateAfterWrite({ message: '计划事项已加入日历' })
+      navigateAfterWrite({ message: '资金计划已保存' })
     } else {
       setMsg({ ok: false, text: result.error })
     }
@@ -90,7 +90,7 @@ export function CashPlanForm({ accounts }: { accounts: { id: string; name: strin
         <input name="note" maxLength={200} className={inputCls} placeholder="用途、确认条件等" />
       </Field>
       <FormMsg msg={msg} />
-      <button type="submit" disabled={pending} className={btnCls}>{pending ? '添加中…' : '加入资金日历'}</button>
+      <button type="submit" disabled={pending} className={btnCls}>{pending ? '添加中…' : '添加资金计划'}</button>
     </form>
   )
 }

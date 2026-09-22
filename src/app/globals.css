@@ -6688,13 +6688,12 @@ nav[aria-label="主导航"] a {
 }
 
 .cash-calendar-evidence i.is-ledger { background: var(--color-down); }
-.cash-calendar-evidence i.is-plan { border: 1px solid var(--color-amber); background: transparent; }
-.cash-calendar-evidence i.is-cash { background: var(--color-violet); }
+.cash-calendar-evidence i.is-settlement { background: var(--color-violet); }
 .cash-calendar-evidence small { margin-left: auto; color: var(--color-ink-faint); font-size: inherit; }
 
 .cash-calendar-summary {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: stretch;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
@@ -6710,7 +6709,7 @@ nav[aria-label="主导航"] a {
 }
 
 .cash-calendar-summary > div:first-child { border-left: 0; }
-.cash-calendar-summary > div.is-linked { background: color-mix(in srgb, var(--color-accent) 7%, transparent); }
+.cash-calendar-summary > div.is-settlement { background: color-mix(in srgb, var(--color-violet) 7%, transparent); }
 
 .cash-calendar-flowline {
   display: flex;
@@ -6847,12 +6846,7 @@ nav[aria-label="主导航"] a {
   background: color-mix(in srgb, var(--color-down) 5.5%, transparent);
 }
 
-.cash-calendar-day article.is-plan {
-  border-left-color: var(--color-amber);
-  background: color-mix(in srgb, var(--color-amber) 5.5%, transparent);
-}
-
-.cash-calendar-day article.is-cash {
+.cash-calendar-day article.is-redeem {
   border-left-color: var(--color-violet);
   background: color-mix(in srgb, var(--color-violet) 5.5%, transparent);
 }
@@ -6983,8 +6977,6 @@ nav[aria-label="主导航"] a {
   padding-top: 0.3rem;
 }
 
-.cash-calendar-agenda > div.is-investment-plan > span i { border: 1px solid var(--color-amber); background: transparent; }
-.cash-calendar-agenda > div.is-plan > span i,
 .cash-calendar-agenda > div.is-settlement > span i { background: var(--color-violet); }
 .cash-calendar-agenda > div.is-trade > span i { background: var(--color-down); }
 
