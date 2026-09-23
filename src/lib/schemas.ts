@@ -346,6 +346,28 @@ function refineInvestmentPlan(value: {
 
 export const investmentPlanInputSchema = z.object(investmentPlanFields).superRefine(refineInvestmentPlan)
 
+export const investmentPlanBatchInputSchema = z.object({
+  cadence: z.enum(['WEEKDAY', 'WEEKLY', 'MONTHLY']),
+  scheduleDay: z.number().int().nullable().default(null),
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date().nullable().default(null),
+  accountId: z.string().min(1).nullable().default(null),
+  entries: z.array(z.object({
+    assetId: z.string().min(1),
+    amount: z.number().positive('每期金额必须大于 0'),
+  })).min(1, '至少选择一只执行资产').max(24),
+  note: z.string().trim().max(300).nullable().default(null),
+}).superRefine((value, ctx) => {
+  const assetIds = value.entries.map((entry) => entry.assetId)
+  refineInvestmentPlan({
+    cadence: value.cadence,
+    scheduleDay: value.scheduleDay,
+    startDate: value.startDate,
+    endDate: value.endDate,
+    assetIds,
+  }, ctx)
+})
+
 const investmentPlanEntryDate = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/, '日期格式必须为 YYYY-MM-DD')
 
 /** 区间未买：一次确认连续日期区间内没有执行，只写可撤销的计划层证据。 */

@@ -80,7 +80,9 @@ export function useNavigateAfterWrite() {
       router.push(`${target}${query ? `?${query}` : ''}`, { scroll: false })
       return
     }
-    // 同页写入：刷新当前路由（含布局），列表、合计与侧栏计数都会取到写入后的服务端结果
-    router.refresh()
+    // 先让成功回执完成一次提交，再刷新当前路由。若在同一事件批次里立刻 refresh，
+    // Safari/Next 可能让 RSC 替换抢先于客户端状态提交，表现为提示丢失，开发态甚至
+    // 会落入路由错误边界。延后一帧不改变数据语义，只把两次提交明确分开。
+    window.requestAnimationFrame(() => router.refresh())
   }, [router, pathname, show])
 }

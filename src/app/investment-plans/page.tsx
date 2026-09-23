@@ -180,24 +180,61 @@ export default async function InvestmentPlansPage({
     || row.transactionCount > 0
     || (selectedMonth === currentMonth && planById.get(row.id)?.status === 'ACTIVE')
   ))
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  const endedPlans = plans
+    .filter((plan) => (
+      plan.status === 'ENDED'
+      || Boolean(plan.endDate && new Date(plan.endDate.getFullYear(), plan.endDate.getMonth(), plan.endDate.getDate()).getTime() < todayStart.getTime())
+    ))
+    .sort((a, b) => (b.endedAt ?? b.endDate ?? b.updatedAt).getTime() - (a.endedAt ?? a.endDate ?? a.updatedAt).getTime())
+  const activeMonthRows = monthRows.filter((row) => row.pace !== 'ENDED')
   // 本轮仍有待核对节点的计划：用于「待核对」筛选，不受已勾选状态影响
   const plansWithPending = new Set(quickEntryDays.flatMap((day) => day.rows.map((row) => row.planId)))
   const PLAN_VIEWS = ['all', 'pending', 'behind', 'ended'] as const
   const view = (PLAN_VIEWS as readonly string[]).includes(sp.view ?? '') ? sp.view as typeof PLAN_VIEWS[number] : 'all'
-  const viewCount = (key: typeof PLAN_VIEWS[number]) => monthRows.filter((row) => (
-    key === 'all' ? true
-      : key === 'pending' ? plansWithPending.has(row.id)
-        : key === 'behind' ? row.pace === 'BEHIND'
-          : row.pace === 'ENDED'
-  )).length
-  const visibleRows = monthRows.filter((row) => (
+  const viewCount = (key: typeof PLAN_VIEWS[number]) => key === 'ended'
+    ? endedPlans.length
+    : activeMonthRows.filter((row) => (
+      key === 'all' ? true
+        : key === 'pending' ? plansWithPending.has(row.id)
+          : row.pace === 'BEHIND'
+    )).length
+  const visibleRows = activeMonthRows.filter((row) => (
     view === 'all' ? true
       : view === 'pending' ? plansWithPending.has(row.id)
-        : view === 'behind' ? row.pace === 'BEHIND'
-          : row.pace === 'ENDED'
+        : view === 'behind' ? row.pace === 'BEHIND' : false
   ))
+  const visibleGroups = [
+    ...accounts.map((account) => ({
+      id: account.id,
+      name: account.name,
+      currency: account.currency,
+      rows: visibleRows.filter((row) => planById.get(row.id)?.accountId === account.id),
+    })),
+    {
+      id: 'all-accounts',
+      name: '全部同币种账户',
+      currency: null,
+      rows: visibleRows.filter((row) => !planById.get(row.id)?.accountId),
+    },
+  ].filter((group) => group.rows.length > 0)
+  const endedGroups = [
+    ...accounts.map((account) => ({
+      id: account.id,
+      name: account.name,
+      currency: account.currency,
+      plans: endedPlans.filter((plan) => plan.accountId === account.id),
+    })),
+    {
+      id: 'all-accounts',
+      name: '全部同币种账户',
+      currency: null,
+      plans: endedPlans.filter((plan) => !plan.accountId),
+    },
+  ].filter((group) => group.plans.length > 0)
   const totalsByCurrency = new Map<string, { planned: number; due: number; actual: number }>()
-  for (const row of visibleRows) {
+  for (const row of view === 'ended' ? activeMonthRows : visibleRows) {
     const totals = totalsByCurrency.get(row.currency) ?? { planned: 0, due: 0, actual: 0 }
     totals.planned += row.plannedAmount
     totals.due += row.dueAmount
@@ -258,9 +295,9 @@ export default async function InvestmentPlansPage({
       <section className="investment-plan-workbench">
         <div className="investment-plan-ledger">
           <header>
-            <div><h2 title="每个计划日直接标明账本是否已有买入；净值待确认的买入仍计入实际投入">逐日执行</h2></div>
+            <div><h2 title={view === 'ended' ? '历史计划仅保留配置与流水入口' : '每个计划日直接标明账本是否已有买入；净值待确认的买入仍计入实际投入'}>{view === 'ended' ? '历史计划' : '逐日执行'}</h2></div>
             <nav className="investment-plan-view-filter" aria-label="计划筛选">
-              {([['all', '全部'], ['pending', '待核对'], ['behind', '落后'], ['ended', '已结束']] as const).map(([key, label]) => (
+              {([['all', '进行中'], ['pending', '待核对'], ['behind', '落后'], ['ended', '已结束']] as const).map(([key, label]) => (
                 <Link
                   key={key}
                   href={key === 'all' ? `/investment-plans?month=${selectedMonth}` : `/investment-plans?month=${selectedMonth}&view=${key}`}
@@ -272,13 +309,62 @@ export default async function InvestmentPlansPage({
             </nav>
           </header>
 
-          {visibleRows.length === 0 ? (
+          {view === 'ended' ? endedPlans.length === 0 ? (
+            <Empty>还没有已结束的定投计划</Empty>
+          ) : (
+            <div className="investment-plan-account-groups investment-plan-archive-groups">
+              {endedGroups.map((group) => (
+                <section key={group.id} className="investment-plan-account-group" aria-label={`${group.name}的历史定投计划`}>
+                  <header>
+                    <div>
+                      <h3>{group.name}</h3>
+                      <p>{group.currency ? `${group.currency} 账户` : '未限定具体账户'}</p>
+                    </div>
+                    <span className="num">{group.plans.length} 条历史</span>
+                  </header>
+                  <div className="investment-plan-archive-list">
+                    {group.plans.map((plan) => {
+                      const closedAt = plan.endedAt ?? plan.endDate
+                      const lifecycle = plan.status === 'ENDED' ? '已终止' : '已到期'
+                      return (
+                        <article key={plan.id} className="investment-plan-archive-row">
+                          <div className="investment-plan-archive-id">
+                            <div><h4>{plan.name}</h4><Tag tone="dim">{lifecycle}</Tag></div>
+                            <p>{plan.assets.map((item) => item.asset.name).join(' + ')} · {plan.assets.map((item) => item.asset.symbol).join(' + ')}</p>
+                          </div>
+                          <div className="investment-plan-archive-meta">
+                            <span>{scheduleLabel(plan.cadence, plan.scheduleDay)}</span>
+                            <b className="num">{fmtMoney(Number(plan.amount), plan.currency)}</b>
+                          </div>
+                          <div className="investment-plan-archive-meta">
+                            <span>运行区间</span>
+                            <b className="num">{fmtDate(plan.startDate)} — {closedAt ? fmtDate(closedAt) : '—'}</b>
+                          </div>
+                          <Link href={plan.accountId ? `/transactions?account=${plan.accountId}&type=BUY` : '/transactions?type=BUY'}>查看历史流水</Link>
+                        </article>
+                      )
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : visibleRows.length === 0 ? (
             <Empty action={canWrite ? { href: '#new-investment-plan', label: '建立第一条定投计划' } : undefined}>
-              {plans.length === 0 ? '还没有定投计划' : view === 'all' ? '所选月份没有计划或实际买入' : '当前筛选下没有计划'}
+              {plans.length === 0 ? '还没有定投计划' : view === 'all' ? '所选月份没有进行中的计划或实际买入' : '当前筛选下没有计划'}
             </Empty>
           ) : (
-            <div className="investment-plan-rows">
-              {visibleRows.map((row) => {
+            <div className="investment-plan-account-groups">
+              {visibleGroups.map((group) => (
+                <section key={group.id} className="investment-plan-account-group" aria-label={`${group.name}的定投计划`}>
+                  <header>
+                    <div>
+                      <h3>{group.name}</h3>
+                      <p>{group.currency ? `${group.currency} 账户` : '未限定具体账户'}</p>
+                    </div>
+                    <span className="num">{group.rows.length} 条计划</span>
+                  </header>
+                  <div className="investment-plan-rows">
+              {group.rows.map((row) => {
                 const plan = planById.get(row.id)!
                 const pace = PACE[row.pace]
                 const completion = row.dueAmount > 0 ? row.actualAmount / row.dueAmount : null
@@ -376,9 +462,12 @@ export default async function InvestmentPlansPage({
                   </article>
                 )
               })}
+                  </div>
+                </section>
+              ))}
             </div>
           )}
-          <p className="investment-plan-boundary">实际投入按“候选资产 + 账户 + 当月有效 BUY”合并，用于执行核对；收益仍以组合复盘为准。</p>
+          <p className="investment-plan-boundary">{view === 'ended' ? '历史计划不再参与待核对和逐日执行；真实买入仍保留在账本流水中。' : '实际投入按“候选资产 + 账户 + 当月有效 BUY”合并，用于执行核对；收益仍以组合复盘为准。'}</p>
         </div>
 
         {canWrite ? <HashOpenDetails

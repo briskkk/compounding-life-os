@@ -7,6 +7,7 @@ test('定投管理：创建计划、核对既有 BUY 并结束计划', async ({ 
   await page.getByRole('link', { name: '新建计划' }).click()
   await expect(page.locator('#new-investment-plan')).toHaveAttribute('open', '')
 
+  await page.getByRole('button', { name: '候选资产策略' }).click()
   await page.getByLabel('计划名称').fill('沪深 300 月定投')
   await page.getByLabel(/每期金额/).fill('6000')
   await page.getByLabel('执行节奏').selectOption('MONTHLY')
@@ -15,10 +16,11 @@ test('定投管理：创建计划、核对既有 BUY 并结束计划', async ({ 
   await page.getByLabel(/510300/).check()
   await page.getByRole('button', { name: '开始跟踪计划' }).click()
   await expect(page.getByTestId('write-flash')).toContainText('定投计划已开始跟踪')
-
-  await page.goto('/investment-plans?month=2026-07')
+  await expect(page).toHaveURL(/\/investment-plans(?:#new-investment-plan)?$/)
   const plan = page.getByRole('article').filter({ hasText: '沪深 300 月定投' })
   await expect(plan).toBeVisible()
+
+  await page.goto('/investment-plans?month=2026-07')
   // 一行式轨道：指标合并为「实际 / 到期」，本月计划额与完成率并排呈现
   await expect(plan.locator('.investment-plan-row-metrics')).toContainText('本月计划')
   await expect(plan.locator('.investment-plan-row-metrics')).toContainText('实际 / 到期')
@@ -47,13 +49,19 @@ test('定投管理：创建计划、核对既有 BUY 并结束计划', async ({ 
 
   await plan.getByRole('button', { name: '结束计划' }).click()
   await page.getByTestId('confirm-accept').click()
-  await expect(plan.getByText('已结束')).toBeVisible()
-  await expect(plan.getByRole('button', { name: '结束计划' })).toHaveCount(0)
+  await expect(plan).toHaveCount(0)
+  await page.locator('.investment-plan-view-filter').getByRole('link', { name: /^已结束/ }).click()
+  const archivedPlan = page.locator('.investment-plan-archive-row').filter({ hasText: '沪深 300 月定投' })
+  await expect(archivedPlan.getByText('已终止')).toBeVisible()
+  await expect(archivedPlan).toContainText('运行区间')
+  await expect(archivedPlan.locator('.investment-plan-row-metrics')).toHaveCount(0)
+  await expect(archivedPlan.locator('.investment-plan-row-detail')).toHaveCount(0)
 })
 
 test('定投管理：核对平台实际申购后快速录入，计划节点不会自行写账本', async ({ page }) => {
   await page.goto('/investment-plans?month=2026-07')
   await page.getByRole('link', { name: '新建计划' }).click()
+  await page.getByRole('button', { name: '候选资产策略' }).click()
   await page.getByLabel('计划名称').fill('易方达消费定投')
   await page.getByLabel(/每期金额/).fill('100')
   await page.getByLabel('开始日期').fill('2026-07-20')
@@ -185,12 +193,13 @@ test('定投管理：跨日跨基金一次提交，未勾选的节点留待下�
   await expect(plan.locator('.investment-plan-day').filter({ hasText: '07/24' })).toContainText('¥120.00')
 })
 
-test('定投管理：轨道按待核对/落后/已结束筛选，状态写在 URL 上', async ({ page }) => {
+test('定投管理：进行中轨道可筛选，已结束计划降级为历史归档', async ({ page }) => {
   // 复用前面用例建立并编辑过的「易方达消费定投」（天天基金 · 110022）
   await page.goto('/investment-plans?month=2026-07')
   const filter = page.locator('.investment-plan-view-filter')
   await expect(filter).toBeVisible()
-  await expect(filter.getByRole('link', { name: /^全部/ })).toHaveAttribute('aria-current', 'page')
+  await expect(filter.getByRole('link', { name: /^进行中/ })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('article').filter({ hasText: '沪深 300 月定投' })).toHaveCount(0)
 
   // 待核对筛选：该计划在 7 月仍有未核对节点
   await filter.getByRole('link', { name: /^待核对/ }).click()
@@ -201,13 +210,16 @@ test('定投管理：轨道按待核对/落后/已结束筛选，状态写在 UR
   // 已结束筛选：7 月的沪深 300 计划在首条用例里已结束，应出现在这里
   await filter.getByRole('link', { name: /^已结束/ }).click()
   await expect(page).toHaveURL(/view=ended/)
-  await expect(page.getByRole('article').filter({ hasText: '沪深 300 月定投' })).toBeVisible()
+  const archivedPlan = page.locator('.investment-plan-archive-row').filter({ hasText: '沪深 300 月定投' })
+  await expect(archivedPlan).toBeVisible()
+  await expect(archivedPlan.getByRole('link', { name: '查看历史流水' })).toBeVisible()
+  await expect(archivedPlan.locator('.investment-plan-row-detail')).toHaveCount(0)
   await expect(page.getByRole('article').filter({ hasText: '易方达消费定投' })).toHaveCount(0)
 
-  // 回到全部：筛选可前进后退
+  // 回到进行中：筛选可前进后退
   await page.goBack()
   await expect(page).toHaveURL(/view=pending/)
-  await filter.getByRole('link', { name: /^全部/ }).click()
+  await filter.getByRole('link', { name: /^进行中/ }).click()
   await expect(page).not.toHaveURL(/view=/)
 })
 
@@ -269,4 +281,43 @@ test('定投管理：编辑计划只影响未来节点，历史已录入日不�
   await expect(updated.locator('.investment-plan-row-detail > summary')).toContainText(
     /已录入 \d+/.exec(beforeRecorded)?.[0] ?? '已录入',
   )
+})
+
+test('定投管理：批量创建独立计划，同一资产可按不同账户跟踪并按账户归类', async ({ page }) => {
+  await page.goto('/investment-plans?month=2026-10')
+  await page.getByRole('link', { name: '新建计划' }).click()
+  const form = page.locator('.investment-plan-form')
+
+  await expect(form.getByRole('button', { name: '批量独立计划' })).toHaveAttribute('aria-pressed', 'true')
+  await form.getByLabel(/默认每期金额/).fill('100')
+  await form.getByLabel('开始日期').fill('2026-10-01')
+  await form.getByLabel(/510300/).check()
+  await form.getByLabel(/110022/).check()
+  await form.getByLabel('易方达消费行业 每期金额').fill('200')
+  await form.getByLabel('限定账户（可选）').selectOption({ label: '华泰证券 · CNY' })
+  await form.getByRole('button', { name: '创建 2 条独立计划' }).click()
+
+  await expect(page.getByTestId('write-flash')).toContainText('已创建 2 条独立定投计划')
+  const huatai = page.getByRole('region', { name: '华泰证券的定投计划' })
+  await expect(huatai).toContainText('2 条计划')
+  await expect(huatai.getByRole('article').filter({ hasText: '沪深300ETF' })).toContainText('¥100.00')
+  await expect(huatai.getByRole('article').filter({ hasText: '易方达消费行业' })).toContainText('¥200.00')
+
+  await form.getByLabel(/默认每期金额/).fill('300')
+  await form.getByLabel('开始日期').fill('2026-10-01')
+  await form.getByLabel(/510300/).check()
+  await form.getByLabel('限定账户（可选）').selectOption({ label: '天天基金 · CNY' })
+  await form.getByRole('button', { name: '创建 1 条独立计划' }).click()
+
+  await expect(page.getByTestId('write-flash')).toContainText('已创建 1 条独立定投计划')
+  const tiantian = page.getByRole('region', { name: '天天基金的定投计划' })
+  await expect(tiantian.getByRole('article').filter({ hasText: '沪深300ETF' })).toContainText('¥300.00')
+  await expect(huatai.getByRole('article').filter({ hasText: '沪深300ETF' })).toBeVisible()
+
+  await form.getByLabel(/默认每期金额/).fill('500')
+  await form.getByLabel('开始日期').fill('2026-10-01')
+  await form.getByLabel(/510300/).check()
+  await form.getByLabel('限定账户（可选）').selectOption({ label: '天天基金 · CNY' })
+  await form.getByRole('button', { name: '创建 1 条独立计划' }).click()
+  await expect(form.getByRole('alert')).toContainText('已在「天天基金」的有效计划')
 })

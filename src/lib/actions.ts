@@ -29,6 +29,7 @@ import {
   goalScenarioPreviewSchema,
   goalUpdateSchema,
   fundTradePolicyInputSchema,
+  investmentPlanBatchInputSchema,
   investmentPlanInputSchema,
   investmentPlanBuysInputSchema,
   investmentPlanEditSchema,
@@ -172,14 +173,18 @@ export async function createInvestmentPlan(input: unknown): Promise<ActionResult
           assetId: { in: data.assetIds },
           plan: {
             status: 'ACTIVE',
-            OR: [{ endDate: null }, { endDate: { gte: new Date() } }],
+            AND: [
+              { OR: [{ endDate: null }, { endDate: { gte: new Date() } }] },
+              ...(data.accountId ? [{ OR: [{ accountId: data.accountId }, { accountId: null }] }] : []),
+            ],
           },
         },
-        include: { asset: true, plan: true },
+        include: { asset: true, plan: { include: { account: true } } },
       })
       if (occupied.length > 0) {
         const conflict = occupied[0]
-        throw new Error(`${conflict.asset.symbol} 已属于有效计划「${conflict.plan.name}」，请先结束原计划`)
+        const scope = conflict.plan.account?.name ?? '全部账户'
+        throw new Error(`${conflict.asset.symbol} 已在「${scope}」的有效计划「${conflict.plan.name}」中，请先结束或调整原计划`)
       }
 
       const created = await txDb.investmentPlan.create({
@@ -216,6 +221,92 @@ export async function createInvestmentPlan(input: unknown): Promise<ActionResult
     revalidatePath('/investment-plans')
     revalidatePath('/accounts')
     return { ok: true, data: { id: plan.id } }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function createInvestmentPlanBatch(input: unknown): Promise<ActionResult<{ ids: string[]; count: number }>> {
+  try {
+    const ctx = await requireWrite()
+    const data = investmentPlanBatchInputSchema.parse(input)
+    const createdIds = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      const assetIds = data.entries.map((entry) => entry.assetId)
+      const assets = await txDb.asset.findMany({
+        where: { familyId: ctx.familyId, id: { in: assetIds } },
+        orderBy: { symbol: 'asc' },
+      })
+      if (assets.length !== assetIds.length) throw new Error('部分执行资产不存在或不属于当前家庭')
+      const invalid = assets.filter((asset) => !['STOCK', 'FUND', 'ETF', 'GOLD'].includes(asset.cls))
+      if (invalid.length > 0) throw new Error('定投计划只支持股票、基金、ETF 或黄金')
+      const currencies = new Set(assets.map((asset) => asset.currency))
+      if (currencies.size !== 1) throw new Error('同一批计划的资产必须使用相同币种')
+      const currency = assets[0].currency
+
+      let accountName = '全部账户'
+      if (data.accountId) {
+        const account = await txDb.account.findFirst({ where: { id: data.accountId, familyId: ctx.familyId } })
+        if (!account) throw new Error('所选账户不存在或不属于当前家庭')
+        if (account.currency !== currency) throw new Error('计划账户与执行资产的币种必须一致')
+        accountName = account.name
+      }
+
+      const occupied = await txDb.investmentPlanAsset.findMany({
+        where: {
+          familyId: ctx.familyId,
+          assetId: { in: assetIds },
+          plan: {
+            status: 'ACTIVE',
+            AND: [
+              { OR: [{ endDate: null }, { endDate: { gte: new Date() } }] },
+              ...(data.accountId ? [{ OR: [{ accountId: data.accountId }, { accountId: null }] }] : []),
+            ],
+          },
+        },
+        include: { asset: true, plan: { include: { account: true } } },
+      })
+      if (occupied.length > 0) {
+        const conflict = occupied[0]
+        const scope = conflict.plan.account?.name ?? '全部账户'
+        throw new Error(`${conflict.asset.symbol} 已在「${scope}」的有效计划「${conflict.plan.name}」中，请先结束或调整原计划`)
+      }
+
+      const entryByAssetId = new Map(data.entries.map((entry) => [entry.assetId, entry]))
+      const ids: string[] = []
+      for (const asset of assets) {
+        const entry = entryByAssetId.get(asset.id)!
+        const created = await txDb.investmentPlan.create({
+          data: {
+            familyId: ctx.familyId,
+            accountId: data.accountId,
+            name: asset.name,
+            amount: entry.amount,
+            currency,
+            cadence: data.cadence,
+            scheduleDay: data.scheduleDay,
+            startDate: data.startDate,
+            endDate: data.endDate,
+            note: data.note,
+          },
+        })
+        await txDb.investmentPlanAsset.create({
+          data: { familyId: ctx.familyId, planId: created.id, assetId: asset.id },
+        })
+        await audit(
+          ctx,
+          'CREATE',
+          'InvestmentPlan',
+          created.id,
+          `${created.name} · ${created.cadence} · ${created.amount} ${currency} · ${accountName} · ${asset.symbol} · 批量创建`,
+          txDb,
+        )
+        ids.push(created.id)
+      }
+      return ids
+    })
+    revalidatePath('/investment-plans')
+    revalidatePath('/accounts')
+    return { ok: true, data: { ids: createdIds, count: createdIds.length } }
   } catch (e) {
     return fail(e)
   }
@@ -258,13 +349,20 @@ export async function updateInvestmentPlan(input: unknown): Promise<ActionResult
           familyId: ctx.familyId,
           assetId: { in: data.assetIds },
           planId: { not: plan.id },
-          plan: { status: 'ACTIVE', OR: [{ endDate: null }, { endDate: { gte: new Date() } }] },
+          plan: {
+            status: 'ACTIVE',
+            AND: [
+              { OR: [{ endDate: null }, { endDate: { gte: new Date() } }] },
+              ...(data.accountId ? [{ OR: [{ accountId: data.accountId }, { accountId: null }] }] : []),
+            ],
+          },
         },
-        include: { asset: true, plan: true },
+        include: { asset: true, plan: { include: { account: true } } },
       })
       if (occupied.length > 0) {
         const conflict = occupied[0]
-        throw new Error(`${conflict.asset.symbol} 已属于有效计划「${conflict.plan.name}」，请先结束原计划`)
+        const scope = conflict.plan.account?.name ?? '全部账户'
+        throw new Error(`${conflict.asset.symbol} 已在「${scope}」的有效计划「${conflict.plan.name}」中，请先结束或调整原计划`)
       }
 
       const changes = [
