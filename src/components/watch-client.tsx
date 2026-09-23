@@ -540,19 +540,24 @@ export function WatchClient({
           <div className="chart-surface">
             {canCompareIntraday ? (
               <>
-                {activeRow && (
-                  <div className="mb-2 flex items-center gap-2 text-[12px]" data-testid="watch-chart-asset" data-symbol={activeRow.symbol}>
-                    <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: (activeRow.dayPnlCny ?? 0) >= 0 ? 'var(--color-up)' : 'var(--color-down)' }} />
-                    <span className="text-ink-dim">
-                      {activeRow.name} · 当日 {activeRow.dayPnlCny != null ? fmtCNY(activeRow.dayPnlCny, { sign: true }) : '无数据'}
-                    </span>
-                    {selectedSymbol === activeRow.symbol && (
-                      <button type="button" onClick={() => setSelectedSymbol(null)} className="text-ink-faint transition-colors hover:text-ink">
-                        取消选中 ×
-                      </button>
-                    )}
-                  </div>
-                )}
+                {/* 固定保留标的信息槽位。若按 hover 条件挂载整行，鼠标跨过相邻表格行时
+                    会先 leave 再 enter，使上方曲线面板高度反复变化；页面位于下半部时，
+                    Safari/Chrome 的滚动补偿会表现为整页上下抖动。 */}
+                <div className="mb-2 flex min-h-5 items-center gap-2 text-[12px]">
+                  {activeRow && (
+                    <div className="flex items-center gap-2" data-testid="watch-chart-asset" data-symbol={activeRow.symbol}>
+                      <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: (activeRow.dayPnlCny ?? 0) >= 0 ? 'var(--color-up)' : 'var(--color-down)' }} />
+                      <span className="text-ink-dim">
+                        {activeRow.name} · 当日 {activeRow.dayPnlCny != null ? fmtCNY(activeRow.dayPnlCny, { sign: true }) : '无数据'}
+                      </span>
+                      {selectedSymbol === activeRow.symbol && (
+                        <button type="button" onClick={() => setSelectedSymbol(null)} className="text-ink-faint transition-colors hover:text-ink">
+                          取消选中 ×
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <IntradayChart data={chartPoints} assetName={activeRow?.name} showAsset={activeRow != null} />
               </>
             ) : (

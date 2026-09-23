@@ -142,9 +142,14 @@ test('看盘页：点表格行在曲线上叠加该标的当日盈亏', async ({
     return
   }
 
+  const chartPanel = page.locator('.watch-chart-panel')
+  const heightBeforeHover = await chartPanel.evaluate((element) => element.getBoundingClientRect().height)
+
   // 悬停预览
   await firstRow.hover()
   await expect(page.getByTestId('watch-chart-asset')).toBeVisible()
+  const heightAfterHover = await chartPanel.evaluate((element) => element.getBoundingClientRect().height)
+  expect(heightAfterHover).toBe(heightBeforeHover)
 
   // 点击钉住：行进入选中态，曲线区显示该标的及其当日盈亏
   await firstRow.click()
