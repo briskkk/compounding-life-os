@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import { GoalForm, type GoalInitial } from '@/components/goal-form'
 import { btnGhostCls } from '@/components/fields'
 
-export function GoalEditDialog({ goalId, initial }: { goalId: string; initial: GoalInitial }) {
+export function GoalEditDialog({ goalId, initial, canWrite = true }: { goalId: string; initial: GoalInitial; canWrite?: boolean }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [open, setOpen] = useState(false)
 
@@ -17,6 +17,9 @@ export function GoalEditDialog({ goalId, initial }: { goalId: string; initial: G
     if (open && !dialog.open) dialog.showModal()
     else if (!open && dialog.open) dialog.close()
   }, [open])
+
+  // 只读成员不渲染编辑入口；页面级 ReadOnlyNotice 已说明原因。
+  if (!canWrite) return null
 
   return (
     <>

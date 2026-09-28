@@ -7,52 +7,41 @@ import { TerminalIcon, type TerminalIconName } from '@/components/terminal-icon'
 
 export const NAV_GROUPS: Array<{
   label: string
-  links: Array<{ href: string; label: string; icon: TerminalIconName }>
+  links: Array<{
+    href: string
+    label: string
+    icon: TerminalIconName
+    aliases: string
+    matchPrefixes: string[]
+  }>
 }> = [
   {
-    label: '财富视图',
+    label: '家庭工作台',
     links: [
-      { href: '/', label: '总览', icon: 'grid' },
-      { href: '/positions', label: '持仓', icon: 'layers' },
-      { href: '/watch', label: '看盘', icon: 'activity' },
-      { href: '/review', label: '复盘', icon: 'review' },
-    ],
-  },
-  {
-    label: '记录与计划',
-    links: [
-      { href: '/transactions', label: '流水', icon: 'ledger' },
-      { href: '/investment-plans', label: '定投', icon: 'repeat' },
-      { href: '/accounts', label: '账户', icon: 'wallet' },
-    ],
-  },
-  {
-    label: '核对与治理',
-    links: [
-      { href: '/health', label: '数据健康', icon: 'shield' },
-      { href: '/reconciliation', label: '账户对账', icon: 'wallet' },
-      { href: '/fund-confirmations', label: '基金确认', icon: 'ledger' },
-      { href: '/corporate-actions', label: '公司行动', icon: 'repeat' },
-      { href: '/transactions/imports', label: '导入批次', icon: 'ledger' },
-    ],
-  },
-  {
-    label: '系统',
-    links: [
-      { href: '/audit', label: '审计', icon: 'shield' },
-      { href: '/settings', label: '设置', icon: 'settings' },
+      { href: '/', label: '总览', icon: 'grid', aliases: '家庭财富 家底', matchPrefixes: ['/'] },
+      { href: '/positions', label: '资产', icon: 'layers', aliases: '持仓 账户 负债 配置', matchPrefixes: ['/positions', '/accounts', '/allocation'] },
+      { href: '/watch', label: '投资', icon: 'activity', aliases: '看盘 今日 收益历史', matchPrefixes: ['/watch', '/review/returns'] },
+      { href: '/transactions', label: '记录', icon: 'ledger', aliases: '流水 定投 资金日历 导入', matchPrefixes: ['/transactions', '/investment-plans'] },
+      { href: '/review', label: '复盘', icon: 'review', aliases: '周期 月结 长期 决策', matchPrefixes: ['/review', '/month-close'] },
+      { href: '/goals', label: '目标', icon: 'target', aliases: '目标测算 复利 FIRE 财务自由 退休', matchPrefixes: ['/goals'] },
     ],
   },
 ]
 
+export function navMatchScore(pathname: string, link: (typeof NAV_GROUPS)[number]['links'][number]): number {
+  return Math.max(...link.matchPrefixes.map((prefix) => {
+    if (prefix === '/') return pathname === '/' ? 1 : -1
+    return pathname === prefix || pathname.startsWith(`${prefix}/`) ? prefix.length : -1
+  }))
+}
+
 export function Nav() {
   const pathname = usePathname()
-  // 父级高亮用「最长前缀匹配」：/positions 与 /positions/[id] 只有一个命中，
-  // /transactions 与 /transactions/imports 也不会同时点亮。
-  const hrefs = NAV_GROUPS.flatMap((group) => group.links.map((link) => link.href))
-  const activeHref = hrefs
-    .filter((href) => (href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/')))
-    .sort((a, b) => b.length - a.length)[0]
+  const activeHref = NAV_GROUPS
+    .flatMap((group) => group.links)
+    .map((link) => ({ href: link.href, score: navMatchScore(pathname, link) }))
+    .filter((item) => item.score >= 0)
+    .sort((a, b) => b.score - a.score)[0]?.href
   return (
     <nav className="terminal-nav" aria-label="主导航">
       {NAV_GROUPS.map((group) => (

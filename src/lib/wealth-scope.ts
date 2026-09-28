@@ -45,6 +45,11 @@ export const WEALTH_SCOPES = {
     badge: '申购待确认 + 赎回待到账',
     detail: '由账本派生的在途金额，已计入可投资资产，但不计入行情盈亏',
   },
+  MARKET_DAY_PNL: {
+    label: '可投资组合当日行情盈亏',
+    badge: '仅可投资组合',
+    detail: '只统计可投资组合（现金、基金、ETF、股票、黄金与在途资金）按最新报价的当日行情涨跌，不含房产与长期持股，不代表家庭净资产的当日变化',
+  },
 } as const
 
 export type WealthScopeKey = keyof typeof WEALTH_SCOPES

@@ -1,6 +1,6 @@
 import { getSession } from '@/lib/session'
 import { loadEngineState, loadGoals, loadSavingsOverview, type GoalView } from '@/lib/queries'
-import { Empty, SetupScreen, Tag } from '@/components/ui'
+import { Empty, ReadOnlyNotice, SetupScreen, Tag } from '@/components/ui'
 import { ProjectionChart, SavingsRateChart, type ProjectionDatum } from '@/components/charts'
 import { GoalForm } from '@/components/goal-form'
 import { GoalEditDialog } from '@/components/goal-edit-dialog'
@@ -63,6 +63,8 @@ export default async function GoalsPage() {
   })
   const primary = goals[0] ?? null
   const now = new Date()
+  const readOnly = ctx.role === 'VIEWER'
+  const canWrite = !readOnly
 
   const valuationField = primary?.metric === 'NET_WORTH' ? 'value' : 'investable'
   const goalValuations = state.valued
@@ -119,6 +121,8 @@ export default async function GoalsPage() {
         <Tag tone={primary ? 'info' : 'amber'}>{primary ? '1 个主目标' : '尚未保存目标'}</Tag>
       </header>
 
+      {readOnly && <ReadOnlyNotice what="可以查看目标测算、情景假设与高级压力测试，但不能新建、修改或保存目标" />}
+
       {primary && finalPoint ? (
         <>
           <section className="goal-summary" aria-labelledby="goal-summary-title">
@@ -128,7 +132,7 @@ export default async function GoalsPage() {
                 <h2 id="goal-summary-title">{primary.name}</h2>
                 <p>{fmtDate(primary.targetDate)} · 目标金额按今日购买力记录</p>
               </div>
-              <GoalEditDialog goalId={primary.id} initial={initialFor(primary)} />
+              <GoalEditDialog goalId={primary.id} initial={initialFor(primary)} canWrite={canWrite} />
             </div>
 
             <div className="goal-answer-grid">
@@ -144,6 +148,21 @@ export default async function GoalsPage() {
             <p className="goal-summary-caption">当前资本相当于今日目标的 {fmtPct(primary.projection.fundedRatio)}；计划与账本流水保持分离。</p>
             {primary.capitalScopeAdjusted && <p className="goal-scope-warning">退休目标已改用家庭净资产；保存后可同步修正口径。</p>}
           </section>
+
+          {/* 决策流：先给结论，再让用户就地调整投入看时间怎么变；试算不写库。 */}
+          <GoalScenarioLab
+            goalId={primary.id}
+            monthlyContribution={primary.monthlyContribution}
+            sustainableMonthlySavings={sustainable}
+            savingsEvidenceMonths={savings.recordedMonths}
+            projectedMedian={primary.projection.projectedMedian}
+            fireNumberAtRetirement={primary.projection.fireNumberAtRetirement}
+            accumulationSuccessProbability={primary.projection.accumulationSuccessProb}
+            requiredMonthly={primary.projection.requiredMonthly}
+            estimatedFireMonths={primary.projection.estimatedFireMonths}
+            projectionInput={primary.projectionInput}
+            canWrite={canWrite}
+          />
 
           <section aria-labelledby="goal-scenario-title">
             <div className="goal-section-head">
@@ -196,19 +215,6 @@ export default async function GoalsPage() {
               <div><span>家庭负债</span><strong>{fmtCNY(state.liabilitiesTotal)}</strong><small>{primary.metric === 'INVESTABLE' ? '单独披露，不抵消投资资本' : '已从净资产口径扣除'}</small></div>
             </div>
           </section>
-
-          <GoalScenarioLab
-            goalId={primary.id}
-            monthlyContribution={primary.monthlyContribution}
-            sustainableMonthlySavings={sustainable}
-            savingsEvidenceMonths={savings.recordedMonths}
-            projectedMedian={primary.projection.projectedMedian}
-            fireNumberAtRetirement={primary.projection.fireNumberAtRetirement}
-            accumulationSuccessProbability={primary.projection.accumulationSuccessProb}
-            requiredMonthly={primary.projection.requiredMonthly}
-            estimatedFireMonths={primary.projection.estimatedFireMonths}
-            projectionInput={primary.projectionInput}
-          />
 
           <details className="goal-advanced" id="retirement-stress">
             <summary>
@@ -266,7 +272,7 @@ export default async function GoalsPage() {
                           <div><span>目标金额</span><strong>{fmtCNY(goal.targetAmount)}</strong></div>
                           <div><span>预计达成</span><strong>{monthFrom(now, goal.projection.estimatedFireMonths)}</strong></div>
                         </summary>
-                        <div className="goal-row-editor"><GoalForm mode="edit" goalId={goal.id} initial={initialFor(goal)} initiallyOpen /></div>
+                        <div className="goal-row-editor"><GoalForm mode="edit" goalId={goal.id} initial={initialFor(goal)} initiallyOpen canWrite={canWrite} /></div>
                       </details>
                     ))}
                   </div>
@@ -280,14 +286,16 @@ export default async function GoalsPage() {
           <section className="goal-empty-hero">
             <div>
               <Tag tone="info">账本已就绪</Tag>
-              <h2>先设一个真正需要回答的目标。</h2>
-              <p>保存后自动带入当前资本，计算达成时间与所需月投入。</p>
+              <h2>{canWrite ? '先设一个真正需要回答的目标。' : '这个家庭还没有保存主目标。'}</h2>
+              <p>{canWrite ? '保存后自动带入当前资本，计算达成时间与所需月投入。' : '目标由家庭 OWNER 建立；建立后这里会自动带入账本资本与三档测算。'}</p>
             </div>
-            <a href="#new-goal">建立主目标 →</a>
+            {canWrite && <a href="#new-goal">建立主目标 →</a>}
           </section>
-          <HashOpenDetails id="new-goal" className="new-goal-section" summary={<span><strong>建立主目标</strong><small>默认从普通财富目标开始</small></span>}>
-            <div className="mt-6"><GoalForm mode="create" /></div>
-          </HashOpenDetails>
+          {canWrite && (
+            <HashOpenDetails id="new-goal" className="new-goal-section" summary={<span><strong>建立主目标</strong><small>默认从普通财富目标开始</small></span>}>
+              <div className="mt-6"><GoalForm mode="create" /></div>
+            </HashOpenDetails>
+          )}
         </>
       )}
     </div>

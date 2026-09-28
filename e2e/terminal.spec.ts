@@ -9,21 +9,22 @@ async function expandHistorySection(page: Page, title: '收益率曲线' | '收�
   await expect(details).toHaveJSProperty('open', true)
 }
 
-test('全局导航：定投可直接发现，支持快捷搜索与侧栏收起', async ({ page }) => {
+test('全局导航：六项任务、定投搜索与侧栏收起', async ({ page }) => {
   await page.goto('/')
 
   const navigation = page.getByRole('navigation', { name: '主导航' })
-  await expect(navigation.getByRole('link', { name: '定投', exact: true })).toBeVisible()
+  await expect(navigation.getByRole('link')).toHaveCount(6)
+  await expect(navigation.getByRole('link', { name: '记录', exact: true })).toBeVisible()
 
   await page.keyboard.press('Control+K')
   const command = page.getByRole('dialog', { name: '页面搜索' })
   await expect(command).toBeVisible()
   await expect(page.getByLabel('搜索页面')).toBeFocused()
   await page.getByLabel('搜索页面').fill('定投')
-  await command.getByRole('option', { name: /^定投/ }).click()
+  await command.getByRole('option', { name: /^定投核对/ }).click()
 
   await expect(page).toHaveURL(/\/investment-plans/)
-  await expect(navigation.getByRole('link', { name: '定投', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(navigation.getByRole('link', { name: '记录', exact: true })).toHaveAttribute('aria-current', 'page')
 
   await page.getByRole('button', { name: '收起侧栏' }).click()
   await expect(page.getByRole('button', { name: '展开侧栏' })).toBeVisible()
@@ -53,27 +54,44 @@ test('页面搜索可发现二级任务，键盘焦点停留在弹窗并归还',
   await expect(page).toHaveURL(/\/accounts\?view=calendar/)
 })
 
-test('终端首页：财富结果、对账桥、贡献来源与状态同屏', async ({ page }) => {
+test('总览：三项家底、投资结果桥、待办与目标同屏', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: '家庭财富总览' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '财富轨迹' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '本月利润从哪里来' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '待办' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '可投资资产构成' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '状态速览' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '目标进度' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '主目标进度' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '在途与资金状态' })).toBeVisible()
+  await expect(page.getByText(/最大可投资持仓/).first()).toBeVisible()
+  await expect(page.locator('.overview-allocation-note')).not.toContainText('自住房产')
   await expect(page.getByRole('region', { name: '行情数据状态' })).toHaveCount(0)
-  await expect(page.locator('.overview-data-quality').getByRole('link', { name: '查看数据状态 →' })).toBeVisible()
-  // 账本可对账结果与双口径
+  const scopes = page.getByRole('region', { name: '家庭财富三个口径' })
+  await expect(scopes.getByTestId('overview-net-worth')).toBeVisible()
+  await expect(scopes.getByTestId('overview-investable')).toBeVisible()
+  await expect(scopes.getByTestId('overview-liabilities')).toBeVisible()
+  await expect(scopes).not.toContainText('当日行情盈亏')
+
+  const evidence = page.getByRole('region', { name: '数据证据' })
+  await expect(evidence.getByText('估值日')).toBeVisible()
+  await expect(evidence.getByText('估值覆盖')).toBeVisible()
+  await expect(evidence.getByText('份额待确认')).toBeVisible()
+  await expect(evidence.getByTestId('overview-today-pnl')).toContainText('可投资组合当日行情盈亏')
+  await expect(evidence.getByRole('link', { name: '数据健康 →' })).toBeVisible()
+
+  const performance = page.getByRole('region', { name: '本月投资表现' })
+  await expect(performance.getByText('投资收益', { exact: true }).first()).toBeVisible()
+  await expect(performance.getByText('外部净投入', { exact: true })).toBeVisible()
+  await expect(performance.getByText('组合收益率 TWR', { exact: true })).toBeVisible()
+
+  // 账本可对账结果桥与双口径
   await expect(page.getByText(/期初可投资资产/).first()).toBeVisible()
-  // 口径徽标必须显示：期初/期末都是复盘口径，避免与当前可投资资产混淆
   await expect(page.locator('.overview-equation').getByText('复盘口径').first()).toBeVisible()
   await expect(page.getByText('净投入').first()).toBeVisible()
   await expect(page.getByText('投资收益', { exact: true }).first()).toBeVisible()
   await expect(page.getByText(/期末可投资资产/).first()).toBeVisible()
-  // 当前口径的可投资资产必须带作用域徽标，且与复盘期末是不同名称
-  await expect(page.locator('.overview-metric-strip').getByText('现金与可交易资产 + 在途')).toBeVisible()
-  await expect(page.getByText('本月 TWR', { exact: true })).toBeVisible()
-  await expect(page.getByText('负债率', { exact: true })).toBeVisible()
+
+  const tasks = page.getByRole('complementary').filter({ has: page.getByRole('heading', { name: '待办' }) })
+  await expect(tasks.getByText('待核对不等于未执行')).toBeVisible()
   // 图表渲染
   await expect(page.locator('.recharts-responsive-container').first()).toBeVisible()
   // 周/月/季使用同一自然周期口径，并保持桌面端无横向压缩溢出
@@ -81,18 +99,20 @@ test('终端首页：财富结果、对账桥、贡献来源与状态同屏', as
   await expect(periods.getByRole('link', { name: '本月', exact: true })).toHaveAttribute('aria-current', 'page')
   await periods.getByRole('link', { name: '本周', exact: true }).click()
   await expect(page).toHaveURL(/period=week/)
-  await expect(page.getByRole('heading', { name: '本周利润从哪里来' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '本周投资表现' })).toBeVisible()
   await page.setViewportSize({ width: 1280, height: 800 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
 test('持仓页：类别汇总与明细表', async ({ page }) => {
   await page.goto('/positions')
-  await expect(page.getByText('持仓明细')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '持仓明细' })).toBeVisible()
   await expect(page.getByRole('button', { name: /^手动估值（房产等非行情资产）/ })).toBeVisible()
   await expect(page.locator('tbody tr').first()).toBeVisible()
   await expect(page.getByText('华为股票')).toHaveCount(0)
-  // 组合构成：位于总资产右侧，资产大类、投资风格、市场与自定义标签各自独立
+  // 组合构成进入同域二级视图，资产大类、投资风格、市场与自定义标签各自独立
+  await page.getByRole('navigation', { name: '资产视图' }).getByRole('link', { name: /结构分析/ }).click()
+  await expect(page).toHaveURL(/view=composition/)
   const dims = page.getByRole('group', { name: '构成维度' })
   await expect(dims).toBeVisible()
   await expect(dims.getByRole('button', { name: '资产大类', exact: true })).toHaveAttribute('aria-pressed', 'true')
@@ -108,6 +128,9 @@ test('持仓页：类别汇总与明细表', async ({ page }) => {
 test('看盘页：首屏是今日工作台，历史分析进入复盘', async ({ page }) => {
   await page.goto('/watch')
   await expect(page.getByRole('heading', { name: '组合今天发生了什么' })).toBeVisible()
+  const investmentNav = page.getByRole('navigation', { name: '投资视图' })
+  await expect(investmentNav.getByRole('link', { name: /今日/ })).toHaveAttribute('aria-current', 'page')
+  await expect(investmentNav.getByRole('link', { name: /历史/ })).toHaveAttribute('href', '/review/returns')
   const dataStatus = page.getByRole('region', { name: '行情数据状态' })
   await expect(dataStatus).toBeVisible()
   await expect(dataStatus).toContainText(/行情已覆盖|行情待更新|历史收盘数据仍有缺口|暂无需要行情更新/)
@@ -123,7 +146,8 @@ test('看盘页：首屏是今日工作台，历史分析进入复盘', async ({
 
 test('收益历史：支持预设周期、自定义日期、曲线与收益日历', async ({ page }) => {
   await page.goto('/review/returns')
-  await expect(page.getByLabel('复盘模式').getByText('收益历史')).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('navigation', { name: '投资视图' }).getByRole('link', { name: /历史/ })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByLabel('复盘视图').getByRole('link', { name: '收益历史' })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByRole('heading', { name: '组合历史收益' })).toBeVisible()
   await expect(page.getByText('收益金额', { exact: true })).toBeVisible()
   await expect(page.getByText('时间加权收益率', { exact: true })).toBeVisible()
@@ -233,6 +257,25 @@ test('收益历史：支持预设周期、自定义日期、曲线与收益日�
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
+test('收益历史：今日收益与看盘今日盈亏共用实时昨收口径', async ({ page }) => {
+  await page.goto('/watch')
+  const watchAmountText = await page.getByTestId('watch-today-pnl').getAttribute('data-amount')
+  expect(watchAmountText).not.toBeNull()
+
+  await page.goto('/review/returns')
+  await expandHistorySection(page, '收益日历')
+  const today = page.getByTestId('returns-calendar-today')
+  await expect(today).toBeVisible()
+  const calendarAmountText = await today.getAttribute('data-amount')
+  expect(calendarAmountText).not.toBeNull()
+  expect(Number(calendarAmountText)).toBeCloseTo(Number(watchAmountText), 2)
+
+  await today.click()
+  const dialog = page.locator('.returns-day-dialog')
+  await expect(dialog.getByText(/实时估算/)).toBeVisible()
+  await expect(dialog.getByText(/部分估值/)).toHaveCount(0)
+})
+
 test('收益历史：基准指数可选（沪深300/上证指数/创业板指/科创50）', async ({ page }) => {
   await page.goto('/review/returns')
   const group = page.getByRole('group', { name: '基准指数' })
@@ -301,6 +344,8 @@ test('审计页：哈希链完整', async ({ page }) => {
 test('导航：⌘K 支持 ↑↓/Enter，面包屑可点击并显示实体名', async ({ page }) => {
   // ⌘K 键盘模型：过滤后 ↑↓ 移动激活项，Enter 跳转
   await page.goto('/positions')
+  // 等客户端壳层完成挂载，避免在全量回归的重负载下先于全局 keydown 监听器发键。
+  await expect(page.getByRole('button', { name: '打开页面搜索' })).toBeVisible()
   await page.keyboard.press('Control+k')
   const search = page.getByLabel('搜索页面')
   await expect(search).toBeVisible()
@@ -322,27 +367,27 @@ test('导航：⌘K 支持 ↑↓/Enter，面包屑可点击并显示实体名',
   await page.locator('tbody a').first().click()
   await expect(page).toHaveURL(/\/positions\/.+/)
   const crumbs = page.getByRole('navigation', { name: '面包屑' })
-  await expect(crumbs.getByRole('link', { name: '家庭财富终端' })).toHaveAttribute('href', '/')
-  await expect(crumbs.getByRole('link', { name: '持仓' })).toBeVisible()
+  await expect(crumbs.getByRole('link', { name: '家庭财富' })).toHaveAttribute('href', '/')
   await expect(crumbs.locator('.terminal-breadcrumb-entity')).not.toBeEmpty()
-  await crumbs.getByRole('link', { name: '持仓' }).click()
+  await crumbs.getByRole('link', { name: '资产' }).click()
   await expect(page).toHaveURL(/\/positions$/)
 
-  // 侧栏：核对与治理分组可见且父级高亮唯一
-  await expect(page.getByRole('region', { name: '核对与治理' })).toBeVisible()
+  // 侧栏：主导航按家庭任务收敛，低频治理入口由命令面板承载
+  await expect(page.getByRole('region', { name: '家庭工作台' })).toBeVisible()
   await page.goto('/transactions/imports')
   await expect(page.getByRole('navigation', { name: '主导航' }).locator('a[aria-current="page"]')).toHaveCount(1)
-  await expect(page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '导入批次' })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '记录' })).toHaveAttribute('aria-current', 'page')
 })
 
-test('目标测算：退出一级导航但可从总览和命令面板进入', async ({ page }) => {
+test('目标测算：作为一级任务保留，并可从命令面板进入', async ({ page }) => {
   await page.goto('/')
   const nav = page.getByRole('navigation', { name: '主导航' })
   await expect(nav.getByRole('link', { name: 'FIRE' })).toHaveCount(0)
+  await expect(nav.getByRole('link', { name: '目标' })).toHaveAttribute('href', '/goals')
   await page.keyboard.press('Control+k')
   const search = page.getByLabel('搜索页面')
   await search.fill('目标测算')
-  await page.getByRole('option', { name: '目标测算' }).click()
+  await page.getByRole('option', { name: /^目标/ }).click()
   await expect(page).toHaveURL(/\/goals/)
   await expect(page.getByRole('heading', { name: '目标测算' })).toBeVisible()
 })

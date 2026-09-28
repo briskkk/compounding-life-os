@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const theme = (await cookies()).get('portfolio-theme')?.value === 'light' ? 'light' : 'dark'
+  const theme = (await cookies()).get('portfolio-theme')?.value === 'dark' ? 'dark' : 'light'
   const ctx = await getSession()
   // cookie 存在但会话失效（过期/被删除）时兜底重定向登录页（middleware 只做存在性检查）
   if (!ctx) {

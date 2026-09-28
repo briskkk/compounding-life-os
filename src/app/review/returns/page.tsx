@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { PortfolioHistory } from '@/components/portfolio-history'
-import { ReviewModeNav } from '@/components/review-mode-nav'
+import { ReviewDomainNav } from '@/components/review-domain-nav'
+import { InvestmentDomainNav } from '@/components/investment-domain-nav'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { parsePreferences } from '@/lib/preferences'
@@ -8,7 +9,12 @@ import { getWatchData, loadBenchmarks } from '@/lib/queries'
 
 export const dynamic = 'force-dynamic'
 
-export default async function ReviewReturnsPage() {
+export default async function ReviewReturnsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>
+}) {
+  const params = await searchParams
   const session = await getSession()
   if (!session) redirect('/login')
 
@@ -31,7 +37,8 @@ export default async function ReviewReturnsPage() {
 
   return (
     <div className="page-shell review-shell">
-      <ReviewModeNav current="returns" />
+      <InvestmentDomainNav active="history" />
+      <ReviewDomainNav active="returns" params={params} />
       <PortfolioHistory
         series={watchData.series.map((point) => ({
           date: point.date,
@@ -42,8 +49,16 @@ export default async function ReviewReturnsPage() {
           latestValuationDate: point.latestValuationDate,
           valuationGaps: point.valuationGaps,
         }))}
-        livePoint={null}
-        liveDayReturn={null}
+        livePoint={{
+          date: watchData.livePoint.date,
+          netWorth: watchData.livePoint.investable,
+          contributions: watchData.livePoint.contributions,
+          valuationStatus: watchData.livePoint.valuationStatus,
+          valuationCoverage: watchData.livePoint.valuationCoverage,
+          latestValuationDate: watchData.livePoint.latestValuationDate,
+          valuationGaps: watchData.livePoint.valuationGaps,
+        }}
+        liveDayReturn={watchData.liveDayReturn}
         benchmarks={benchmarks}
         initialPreset={defaultRange ?? undefined}
       />

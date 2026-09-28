@@ -78,11 +78,15 @@ describe('收益日历', () => {
       date: '2026-09-10',
       amount: -12,
       pct: -0.012,
+      valuationCoverage: 0.82,
     })
 
     expect(original.get('2026-09-10')?.dailyAmount).toBe(-20)
     expect(displayed.get('2026-09-10')?.dailyAmount).toBe(-12)
     expect(displayed.get('2026-09-10')?.dailyPct).toBe(-0.012)
+    expect(displayed.get('2026-09-10')?.valuationStatus).toBe('LIVE')
+    expect(displayed.get('2026-09-10')?.valuationCoverage).toBe(0.82)
+    expect(displayed.get('2026-09-10')?.valuationGaps).toEqual([])
   })
 
   it('基准当月涨跌幅以月初前最近收盘为期初', () => {

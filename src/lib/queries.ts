@@ -38,6 +38,7 @@ import { fundConfirmationDate, isQdiiFund } from './engine/fund-order'
 import { buildAssetPerformanceSeries, type AssetNavPoint } from './engine/asset-performance'
 import { buildReviewResult, reconstructReviewPortfolioSeries, reviewRange, reviewRelevantAssetIds, type ReviewPeriod, type ReviewResult } from './engine/review'
 import { buildDataSettlementState, type DataSettlementState } from './engine/data-settlement'
+import type { LiveDayReturn } from './engine/returns-calendar'
 
 export interface LiabilityView {
   id: string
@@ -408,6 +409,76 @@ export interface WatchData {
   series: SeriesPoint[]
   currentContributions: number
   settlement: DataSettlementState
+  livePoint: SeriesPoint
+  liveDayReturn: LiveDayReturn
+}
+
+function livePortfolioObservation(
+  state: EngineState,
+  currentContributions: number,
+  now: Date,
+): { point: SeriesPoint; dayReturn: LiveDayReturn } {
+  const todayKey = dateKeyAt(now)
+  const positions = mergePositionsByAsset(
+    state.valued.filter((position) => isPortfolioAssetClass(position.asset.cls)),
+  ).filter((position) => Math.abs(position.quantity) > 1e-9)
+  const marketPositions = positions.filter((position) => (
+    !position.asset.manual
+    && position.asset.cls !== 'CASH'
+    && position.asset.cls !== 'REAL_ESTATE'
+  ))
+  const marketItems = marketPositions.map((position) => {
+    const quote = state.quotes.get(position.asset.symbol)
+    return dailyQuoteValuation({
+      quantity: position.quantity,
+      quote: quote ? {
+        price: quote.priceCny,
+        prevClose: quote.prevCloseCny,
+        tradingDate: quote.tradingDate,
+      } : null,
+      fallbackValueCny: position.investable,
+      asset: {
+        symbol: position.asset.symbol,
+        currency: position.asset.currency,
+        cls: position.asset.cls,
+      },
+      now,
+    })
+  })
+  const staticInvestable = positions
+    .filter((position) => (
+      position.asset.manual
+      || position.asset.cls === 'CASH'
+      || position.asset.cls === 'REAL_ESTATE'
+    ))
+    .reduce((sum, position) => sum + position.investable, 0) + state.inTransit
+  const summary = summarizeDailyPortfolio(marketItems, staticInvestable)
+  const marketValue = marketItems.reduce((sum, item) => sum + Math.abs(item.currentValueCny), 0)
+  const coveredValue = marketItems.reduce(
+    (sum, item) => sum + (item.previousValueCny == null ? 0 : Math.abs(item.currentValueCny)),
+    0,
+  )
+  const coverage = marketValue > 0 ? coveredValue / marketValue : 1
+  return {
+    point: {
+      date: todayKey,
+      netWorth: state.investable,
+      investable: state.investable,
+      contributions: currentContributions,
+      assets: state.metrics.netWorth,
+      liabilities: state.liabilitiesTotal,
+      valuationStatus: 'LIVE',
+      valuationCoverage: coverage,
+      latestValuationDate: todayKey,
+      valuationGaps: [],
+    },
+    dayReturn: {
+      date: todayKey,
+      amount: summary.pnlCny,
+      pct: summary.pnlPct,
+      valuationCoverage: coverage,
+    },
+  }
 }
 
 function dataSettlementFor(state: EngineState, series: SeriesPoint[]): DataSettlementState {
@@ -580,11 +651,14 @@ export async function getWatchData(ctxOverride?: FamilyCtx): Promise<WatchData |
     point.contributions = Math.round(normalizedContributions[index])
   })
   const contributionsNow = [...flows.values()].reduce((sum, amount) => sum + amount, 0)
+  const live = livePortfolioObservation(state, Math.round(contributionsNow), new Date())
   return {
     state,
     series,
     currentContributions: Math.round(contributionsNow),
     settlement: dataSettlementFor(state, series),
+    livePoint: live.point,
+    liveDayReturn: live.dayReturn,
   }
 }
 

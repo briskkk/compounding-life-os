@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
-import { Nav, NAV_GROUPS } from '@/components/nav'
+import { Nav, NAV_GROUPS, navMatchScore } from '@/components/nav'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { FamilySwitcher, type FamilyOption } from '@/components/family-switcher'
 import { LogoutButton } from '@/components/user-menu'
@@ -19,7 +19,7 @@ const PAGE_NAMES: Array<[string, string]> = [
   ['/fund-confirmations', '基金确认'],
   ['/corporate-actions', '公司行动'],
   ['/fund-operations', '基金规则'],
-  ['/transactions/imports', '导入批次'],
+  ['/transactions/imports', '导入记录'],
   ['/transactions', '流水'],
   ['/positions', '持仓'],
   ['/watch', '看盘'],
@@ -56,12 +56,13 @@ export function BreadcrumbEntity({ name }: { name: string }) {
 
 const WORKFLOW_LINKS: Array<{ href: string; label: string; icon: TerminalIconName; aliases: string }> = [
   { href: '/goals', label: '目标测算', icon: 'target', aliases: '目标 复利 FIRE 财务自由 退休' },
+  { href: '/investment-plans', label: '定投核对', icon: 'repeat', aliases: '定投 计划执行 定投计划' },
   { href: '/month-close', label: '月结中心', icon: 'review', aliases: '月结 结账 月度复盘' },
   { href: '/fund-confirmations', label: '基金确认', icon: 'ledger', aliases: '份额确认 净值确认 确认基金 待确认' },
   { href: '/reconciliation', label: '账户对账', icon: 'wallet', aliases: '核对账户 对账 余额' },
   { href: '/accounts?view=calendar', label: '资金日历', icon: 'wallet', aliases: '现金计划 到账日历' },
   { href: '/accounts?view=assets', label: '资产目录', icon: 'layers', aliases: '登记资产 资产管理' },
-  { href: '/transactions/imports', label: '导入批次', icon: 'ledger', aliases: 'CSV导入 导入流水 批次对账' },
+  { href: '/transactions/imports', label: '导入记录', icon: 'ledger', aliases: 'CSV导入 导入流水 批次对账' },
   { href: '/corporate-actions', label: '公司行动', icon: 'repeat', aliases: '拆分 分红 换股' },
   { href: '/fund-operations', label: '基金规则', icon: 'settings', aliases: '申购费率 赎回费率 暂停申购' },
   { href: '/allocation', label: '配置目标', icon: 'target', aliases: '资产配置 偏离 目标权重' },
@@ -70,6 +71,8 @@ const WORKFLOW_LINKS: Array<{ href: string; label: string; icon: TerminalIconNam
   { href: '/review/decisions', label: '交易决策', icon: 'activity', aliases: '买卖决策 行为复盘' },
   { href: '/health', label: '数据健康', icon: 'shield', aliases: '数据状态 估值缺口' },
   { href: '/health/market', label: '行情质量', icon: 'activity', aliases: '行情来源 价格质量' },
+  { href: '/audit', label: '审计记录', icon: 'shield', aliases: '审计 哈希链 操作记录' },
+  { href: '/settings', label: '设置', icon: 'settings', aliases: '家庭 成员 主题 安全' },
 ]
 
 interface AppShellProps {
@@ -94,7 +97,6 @@ export function AppShell({
   initialTheme,
   authenticated,
   brandName,
-  brandNameEn,
   familyName,
   dateLabel,
   marketLabel,
@@ -120,18 +122,21 @@ export function AppShell({
   // 父级面包屑：取导航里匹配当前路径的最长前缀（不含当前页自身）
   const parentCrumb = NAV_GROUPS
     .flatMap((group) => group.links)
-    .filter((link) => link.href !== '/' && (pathname === link.href || pathname.startsWith(link.href + '/')))
-    .sort((a, b) => b.href.length - a.href.length)[0] ?? null
+    .map((link) => ({ link, score: navMatchScore(pathname, link) }))
+    .filter(({ link, score }) => link.href !== '/' && link.href !== pathname && score >= 0)
+    .sort((a, b) => b.score - a.score)[0]?.link ?? null
+  const primaryHrefs = new Set(NAV_GROUPS.flatMap((group) => group.links.map((link) => link.href)))
   const quickLinks = useMemo(() => [
-    ...NAV_GROUPS.flatMap((group) => group.links.map((link) => ({ ...link, group: group.label, aliases: '' }))),
-    ...WORKFLOW_LINKS.map((link) => ({ ...link, group: '工作流程' })),
+    ...NAV_GROUPS.flatMap((group) => group.links.map((link) => ({ ...link, group: group.label }))),
+    ...WORKFLOW_LINKS.filter((link) => !primaryHrefs.has(link.href)).map((link) => ({ ...link, group: link.href === '/settings' || link.href === '/audit' ? '系统' : '工作流程' })),
   ], [])
-  const visibleLinks = query.trim()
+  const matchedLinks = query.trim()
     ? quickLinks.filter((link) => `${link.label} ${link.aliases}`.toLowerCase().includes(query.trim().toLowerCase()))
     : quickLinks
-  const visibleGroups = ['财富视图', '记录与计划', '工作流程', '系统']
-    .map((label) => ({ label, links: visibleLinks.filter((link) => link.group === label) }))
+  const visibleGroups = ['家庭工作台', '工作流程', '系统']
+    .map((label) => ({ label, links: matchedLinks.filter((link) => link.group === label) }))
     .filter((group) => group.links.length > 0)
+  const visibleLinks = visibleGroups.flatMap((group) => group.links)
 
   useEffect(() => {
     setActiveIdx(0)
@@ -235,8 +240,8 @@ export function AppShell({
     return (
       <div className="auth-frame">
         <header className="auth-brand">
-          <div className="terminal-brand-mark">{brandName.slice(0, 1)}</div>
-          <div><strong>{brandName}</strong><small>{brandNameEn}</small></div>
+          <div className="terminal-brand-mark wealth-brand-mark" aria-hidden="true"><i /><i /><i /></div>
+          <div><strong>{brandName}</strong><small>让每一份积累，看得见。</small></div>
           <ThemeToggle initialTheme={initialTheme} />
         </header>
         <main id="main-content" className="auth-main">{children}</main>
@@ -254,8 +259,8 @@ export function AppShell({
       <button type="button" className="terminal-mobile-scrim" aria-label="关闭导航" onClick={() => setMobileOpen(false)} />
       <aside className="terminal-sidebar">
         <div className="terminal-brand">
-          <div className="terminal-brand-mark">{brandName.slice(0, 1)}</div>
-          <div className="terminal-brand-copy"><strong>{brandName}</strong><small>{brandNameEn}</small></div>
+          <div className="terminal-brand-mark wealth-brand-mark" aria-hidden="true"><i /><i /><i /></div>
+          <div className="terminal-brand-copy"><strong>{brandName}</strong><small>让每一份积累，看得见。</small></div>
           <button type="button" className="terminal-icon-button terminal-collapse" onClick={toggleCollapsed} aria-label={collapsed ? '展开侧栏' : '收起侧栏'} title={collapsed ? '展开侧栏' : '收起侧栏'}>
             <TerminalIcon name="panel" />
           </button>
@@ -279,7 +284,7 @@ export function AppShell({
             <TerminalIcon name="panel" />
           </button>
           <nav className="terminal-breadcrumb" aria-label="面包屑">
-            <Link href="/">家庭财富终端</Link>
+            <Link href="/">家庭财富</Link>
             <b aria-hidden>/</b>
             {parentCrumb && (
               <>

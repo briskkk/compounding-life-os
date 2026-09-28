@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 
 test('定投管理：创建计划、核对既有 BUY 并结束计划', async ({ page }) => {
   await page.goto('/investment-plans')
-  await expect(page.getByRole('heading', { level: 1, name: '定投不是一串提醒，而是一条可核对的轨道。' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '定投核对' })).toBeVisible()
   await expect(page.locator('#new-investment-plan')).not.toHaveAttribute('open')
   await page.getByRole('link', { name: '新建计划' }).click()
   await expect(page.locator('#new-investment-plan')).toHaveAttribute('open', '')

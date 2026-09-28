@@ -11,6 +11,7 @@ import { HashOpenDetails } from '@/components/hash-open-details'
 import { buildInvestmentPlanMonth, scheduledDatesInMonth, unrecordedScheduledDatesInMonth, type InvestmentPlanPace } from '@/lib/engine/investment-plan'
 import { dateKeyAt } from '@/lib/engine/watch-market'
 import { cx, fmtDate, fmtMoney, fmtPct } from '@/lib/format'
+import { RecordDomainNav } from '@/components/record-domain-nav'
 
 export const dynamic = 'force-dynamic'
 
@@ -249,8 +250,8 @@ export default async function InvestmentPlansPage({
   return (
     <div className="page-shell investment-plans-page">
       <PageHeader
-        title="定投不是一串提醒，而是一条可核对的轨道。"
-        description="计划定义节奏，账本记录实际投入。"
+        title="定投核对"
+        description="计划定义节奏，账本记录实际投入；未买结论需人工确认。"
         right={(
           <div className="flex flex-wrap items-center justify-end gap-4">
             <Link href="/accounts?view=calendar" className="text-[13px] text-ink-dim transition-colors hover:text-accent">资金日历 →</Link>
@@ -258,6 +259,8 @@ export default async function InvestmentPlansPage({
           </div>
         )}
       />
+
+      <RecordDomainNav active="plans" />
 
       <section className="investment-plan-console" aria-label="定投月度执行摘要">
         <header>

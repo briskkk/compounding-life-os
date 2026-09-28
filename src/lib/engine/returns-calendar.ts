@@ -11,6 +11,7 @@ export interface LiveDayReturn {
   date: string
   amount: number
   pct: number | null
+  valuationCoverage: number
 }
 
 /** 'YYYY-MM-DD' → 'YYYY-MM' */
@@ -87,6 +88,10 @@ export function applyLiveDayReturn(
     ...point,
     dailyAmount: live.amount,
     dailyPct: live.pct,
+    valuationStatus: 'LIVE',
+    valuationCoverage: live.valuationCoverage,
+    latestValuationDate: live.date,
+    valuationGaps: [],
   })
   return next
 }

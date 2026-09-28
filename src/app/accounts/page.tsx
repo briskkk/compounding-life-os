@@ -21,6 +21,8 @@ import { livePreviousClose } from '@/lib/engine/portfolio-day'
 import { investmentPlanMatchesBuy, type InvestmentPlanInput } from '@/lib/engine/investment-plan'
 import { dateKeyAt } from '@/lib/engine/watch-market'
 import { HashOpenDetails } from '@/components/hash-open-details'
+import { AssetDomainNav } from '@/components/asset-domain-nav'
+import { RecordDomainNav } from '@/components/record-domain-nav'
 
 export const dynamic = 'force-dynamic'
 
@@ -317,30 +319,44 @@ export default async function AccountsPage({
     { view: 'liabilities', label: '负债管理', count: state.liabilities.length },
     { view: 'calendar', label: '资金日历', count: cashCalendar.events.length },
   ]
+  const headerDescription: Record<AccountView, string> = {
+    overview: '查看各账户的资产、现金和结算关系。',
+    assets: '维护资产目录与估值方式，实际归属仍由交易流水决定。',
+    liabilities: '查看由负债条目推导的余额，并记录放款、还款或调整。',
+    calendar: '按日查看账本里实际发生的买入、卖出与赎回到账。',
+  }
+  const headerAction: Record<AccountView, { href: string; label: string }> = {
+    overview: { href: '#new-cash-plan', label: '添加计划' },
+    assets: { href: '#new-asset', label: '登记资产' },
+    liabilities: { href: '#new-liability', label: '登记负债' },
+    calendar: { href: '/transactions#new-entry', label: '录入流水' },
+  }
 
   return (
     <div className="page-shell">
       <PageHeader
         title="账户中心"
-        description={activeView === 'calendar'
-          ? '按日查看账本里实际发生的买入、卖出与赎回到账。'
-          : '查看各账户的资产、现金和结算关系。'}
+        description={headerDescription[activeView]}
         right={(
           <div className="flex flex-wrap items-end gap-5">
             <div><div className="text-[14px] text-ink-faint"><ScopeLabel scope="PORTFOLIO_ASSETS" /></div><div className="num mt-2 whitespace-nowrap text-[34px] text-ink">{fmtCNY(totalAssets)}</div></div>
             <Link href="/investment-plans" className="inline-flex min-h-11 shrink-0 items-center text-[14px] whitespace-nowrap text-accent">定投管理 →</Link>
             {canWrite && (
-              <a href={activeView === 'overview' ? '#new-cash-plan' : '#new-account'} className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-accent px-5 text-[14px] font-medium whitespace-nowrap text-bg">
-                ＋ {activeView === 'overview' ? '添加计划' : '新建账户'}
-              </a>
+              <Link href={headerAction[activeView].href} className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-accent px-5 text-[14px] font-medium whitespace-nowrap text-bg">
+                ＋ {headerAction[activeView].label}
+              </Link>
             )}
           </div>
         )}
       />
 
+      {activeView === 'calendar'
+        ? <RecordDomainNav active="calendar" />
+        : <AssetDomainNav active="accounts" />}
+
       {!canWrite && <ReadOnlyNotice what="可以查看账户、资产与负债，但不能新建或修改" />}
 
-      <nav className="flex flex-wrap gap-8 border-b border-line" aria-label="账户中心视图">
+      <nav className="account-view-nav" aria-label="账户中心视图">
         {tabs.map((tab) => (
           <Link
             key={tab.view}

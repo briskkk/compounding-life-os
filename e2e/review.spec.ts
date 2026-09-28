@@ -24,7 +24,7 @@ test('组合复盘：归因切换、周期深链与草稿保存', async ({ page 
 
   // 页面不得嵌套 <main>（外壳已提供唯一 main），且步骤条停在顶栏下方不遮挡顶栏控件
   await expect(page.locator('main')).toHaveCount(1)
-  await expect(page.locator('.review-workflow-nav')).toHaveCSS('top', '68px')
+  await expect(page.locator('.review-workflow-nav')).toHaveCSS('top', '76px')
   await page.evaluate(() => window.scrollTo(0, 1200))
   await page.waitForTimeout(300)
   const occluded = await page.evaluate(() => {
@@ -82,7 +82,7 @@ test('组合复盘：按日查看并在历史日之间切换', async ({ page }) 
   await page.goto('/review?period=THIS_DAY&date=2026-08-24&benchmark=sh000300')
 
   await expect(page).toHaveURL(/period=THIS_DAY/)
-  await expect(page.getByText('复盘区间 · 2026-08-24 — 2026-08-24')).toBeVisible()
+  await expect(page.locator('.review-context-identity')).toContainText('2026-08-24 — 2026-08-24')
   await expect(page.locator('#review-date')).toHaveValue('2026-08-24')
   await expect(page.getByText('2026年8月24日投资收益')).toBeVisible()
   await expect(page.getByRole('link', { name: '回到今天' })).toBeVisible()
@@ -112,7 +112,7 @@ test('组合复盘：可深链查看完整历史自然月', async ({ page }) => 
   await page.goto('/review?period=THIS_MONTH&month=2026-08&benchmark=sh000300')
 
   await expect(page).toHaveURL(/month=2026-08/)
-  await expect(page.getByText('复盘区间 · 2026-08-01 — 2026-08-31')).toBeVisible()
+  await expect(page.locator('.review-context-identity')).toContainText('2026-08-01 — 2026-08-31')
   await expect(page.getByText('2026年8月投资收益')).toBeVisible()
   await expect(page.locator('#review-month')).toHaveValue('2026-08')
   await expect(page.getByRole('link', { name: '回到本月' })).toBeVisible()
@@ -131,7 +131,7 @@ test('组合复盘：可深链查看完整历史自然月', async ({ page }) => 
 
   await page.getByRole('link', { name: '查看上一个月' }).click()
   await expect(page).toHaveURL(/month=2026-07/)
-  await expect(page.getByText('复盘区间 · 2026-07-01 — 2026-07-31')).toBeVisible()
+  await expect(page.locator('.review-context-identity')).toContainText('2026-07-01 — 2026-07-31')
   await expect(page.getByLabel('我的判断')).not.toHaveValue('E2E：2026 年 8 月独立复盘。')
 })
 
@@ -140,7 +140,7 @@ test('长期复盘：成立以来/近五年/自然年范围切换、桥与数据
   await page.goto('/review/history')
 
   await expect(page.getByRole('heading', { level: 1, name: '长期复盘：钱如何增长，又如何回撤' })).toBeVisible()
-  await expect(page.getByLabel('复盘模式').getByText('长期复盘')).toBeVisible()
+  await expect(page.getByLabel('复盘视图').getByRole('link', { name: '长期复盘' })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByLabel('长期复盘范围').getByText('成立以来')).toBeVisible()
 
   // 桥：期初 + 净投入 + 投资收益 = 期末（文本同时存在，数值守恒由引擎单测覆盖）
@@ -218,7 +218,7 @@ test('决策库：事件表、资格与 1280/1440 无溢出', async ({ page }) =
     await expect(page.getByText(/年化换手率/)).toBeVisible()
     await expect(page.getByText(/取自 \d+ 天快照/)).toBeVisible()
     await expect(page.getByLabel('决策库概览').getByText('买入', { exact: true })).toBeVisible()
-    await expect(page.getByLabel('复盘模式').getByText('决策库')).toHaveClass(/is-active/)
+    await expect(page.getByLabel('复盘视图').getByRole('link', { name: '决策库' })).toHaveAttribute('aria-current', 'page')
     await expect(page.getByLabel('决策事件分页')).toContainText('当前显示')
     const visibleRows = await page.locator('table.ii-dec-table tbody tr').count()
     expect(visibleRows).toBeGreaterThan(0)
@@ -260,4 +260,32 @@ test('复盘 03 时点：日柱按可用宽度均分，不需要横向滚动且�
   // 每个日柱底部有零轴（伪元素），正负不再只靠颜色区分
   const axis = await chart.locator('.review-day-column > div').first().evaluate((el) => getComputedStyle(el, '::after').borderTopWidth)
   expect(parseFloat(axis)).toBeGreaterThan(0)
+})
+
+test('组合复盘：上下文条在四步之间保持周期与证据状态', async ({ page }) => {
+  await page.goto('/review?period=THIS_MONTH&month=2026-08&benchmark=sh000300')
+  const context = page.getByLabel('复盘上下文')
+  await expect(context).toContainText('2026年8月')
+  await expect(context).toContainText('2026-08-01 — 2026-08-31')
+  await expect(context).toContainText('收益对账')
+  await expect(context).toContainText('估值覆盖')
+
+  // 切到第 3 步后上下文条仍在，且周期身份没有被清空
+  const steps = page.getByRole('navigation', { name: '复盘步骤' })
+  await steps.getByRole('button', { name: /3 · 行为与风险/ }).click()
+  await expect(page).toHaveURL(/step=behavior/)
+  await expect(page).toHaveURL(/month=2026-08/)
+  await expect(context).toContainText('2026年8月')
+  await expect(context).toContainText('3 / 4 步')
+
+  // 换周期时上下文身份跟随周期，而不是继续显示某个月
+  await page.getByRole('link', { name: '本季度' }).click()
+  await expect(page).toHaveURL(/period=THIS_QUARTER/)
+  await expect(context).toContainText('本季度')
+  await expect(context).not.toContainText('2026年8月')
+
+  // 二级入口把当前周期带到长期复盘与月结，且不丢月份深链
+  await page.goto('/review?period=THIS_MONTH&month=2026-08')
+  await expect(page.getByLabel('复盘视图').getByRole('link', { name: '长期复盘' })).toHaveAttribute('href', '/review/history?month=2026-08')
+  await expect(page.getByLabel('复盘视图').getByRole('link', { name: '月结中心' })).toHaveAttribute('href', '/month-close?month=2026-08')
 })

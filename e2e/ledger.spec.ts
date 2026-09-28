@@ -10,11 +10,11 @@ test.afterAll(async () => {
 
 test('流水页：表格、筛选、冲正入口与导出链接', async ({ page }) => {
   await page.goto('/transactions')
-  await expect(page.getByRole('heading', { name: '交易流水' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '交易流水' })).toBeVisible()
   await expect(page.locator('#new-entry')).not.toHaveAttribute('open')
   await page.locator('#new-entry summary').click()
-  await expect(page.getByText('录入流水')).toBeVisible()
-  await expect(page.getByText('CSV 导入')).toBeVisible()
+  await expect(page.locator('#new-entry').getByRole('heading', { name: '录入流水' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: '记录视图' }).getByRole('link', { name: /导入记录/ })).toHaveAttribute('href', '/transactions/imports')
 
   // 数据行存在，且有冲正入口（OWNER 身份）
   const rows = page.locator('tbody tr')

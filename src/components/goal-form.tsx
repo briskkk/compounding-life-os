@@ -22,7 +22,7 @@ export interface GoalInitial {
   note: string
 }
 
-export function GoalForm({ mode, goalId, initial, initiallyOpen = false, onDone }: { mode: 'create' | 'edit'; goalId?: string; initial?: GoalInitial; initiallyOpen?: boolean; onDone?: () => void }) {
+export function GoalForm({ mode, goalId, initial, initiallyOpen = false, canWrite = true, onDone }: { mode: 'create' | 'edit'; goalId?: string; initial?: GoalInitial; initiallyOpen?: boolean; canWrite?: boolean; onDone?: () => void }) {
   const navigateAfterWrite = useNavigateAfterWrite()
   const [open, setOpen] = useState(mode === 'create' || initiallyOpen)
   const [goalMode, setGoalMode] = useState<'LUMP_SUM' | 'STREAM'>(initial?.mode ?? 'LUMP_SUM')
@@ -72,6 +72,9 @@ export function GoalForm({ mode, goalId, initial, initiallyOpen = false, onDone 
       setMsg({ ok: false, text: response.error })
     }
   }
+
+  // 只读成员不渲染目标表单：写入入口由页面级的 ReadOnlyNotice 统一说明，不做静默禁用。
+  if (!canWrite) return null
 
   if (!open) {
     return (

@@ -8,12 +8,21 @@ import { savePortfolioReview } from '@/lib/actions'
 import type { ReviewPageData } from '@/lib/review-data'
 import type { ReviewContribution } from '@/lib/engine/review'
 import { cx, fmtCNY, fmtDateTime, fmtPct, toneOf } from '@/lib/format'
+import {
+  REVIEW_PERIODS,
+  REVIEW_STEPS,
+  displayReviewDate,
+  displayReviewMonth,
+  reviewContextIdentity,
+  shiftReviewDate,
+  shiftReviewMonth,
+  type ReviewStep,
+} from '@/lib/review-workspace'
 import type { ReactNode } from 'react'
 import { ScopeLabel, ReadOnlyNotice } from '@/components/ui'
 import { useConfirm } from '@/components/confirm-dialog'
 
 type Dimension = 'asset' | 'source' | 'class'
-type ReviewStep = 'outcome' | 'attribution' | 'behavior' | 'conclusion'
 type AttributionView = 'contribution' | 'timing' | 'evidence'
 type ReviewNotePart = 'facts' | 'judgment' | 'next'
 
@@ -22,13 +31,6 @@ interface ReviewNoteParts {
   judgment: string
   next: string
 }
-
-const REVIEW_STEPS: { value: ReviewStep; label: string; description: string }[] = [
-  { value: 'outcome', label: '1 · 结果', description: '发生了什么' },
-  { value: 'attribution', label: '2 · 归因', description: '为什么发生' },
-  { value: 'behavior', label: '3 · 行为与风险', description: '做得怎么样' },
-  { value: 'conclusion', label: '4 · 结论', description: '下期看什么' },
-]
 
 const ATTRIBUTION_VIEWS: { value: AttributionView; label: string }[] = [
   { value: 'contribution', label: '谁贡献' },
@@ -39,10 +41,6 @@ const ATTRIBUTION_VIEWS: { value: AttributionView; label: string }[] = [
 const NOTE_FACTS = '【已确认事实】'
 const NOTE_JUDGMENT = '【我的判断】'
 const NOTE_NEXT = '【下期验证】'
-
-function reviewStepFrom(value?: string): ReviewStep {
-  return REVIEW_STEPS.some((item) => item.value === value) ? value as ReviewStep : 'outcome'
-}
 
 function parseReviewNote(note: string): ReviewNoteParts {
   const judgmentAt = note.indexOf(NOTE_JUDGMENT)
@@ -61,13 +59,6 @@ function serializeReviewNote(parts: ReviewNoteParts): string {
   if (!parts.facts.trim() && !parts.judgment.trim() && !parts.next.trim()) return ''
   return `${NOTE_FACTS}\n${parts.facts.trim()}\n\n${NOTE_JUDGMENT}\n${parts.judgment.trim()}\n\n${NOTE_NEXT}\n${parts.next.trim()}`
 }
-
-const PERIODS = [
-  { value: 'THIS_DAY', label: '按日' },
-  { value: 'THIS_WEEK', label: '本周' },
-  { value: 'THIS_MONTH', label: '本月' },
-  { value: 'THIS_QUARTER', label: '本季度' },
-] as const
 
 const CLASS_LABELS: Record<string, string> = {
   STOCK: '股票',
@@ -95,26 +86,6 @@ const RISK_LABELS: Record<string, string> = {
 
 function tone(value: number | null) {
   return value == null ? 'text-ink-faint' : toneOf(value) === 'up' ? 'text-up' : toneOf(value) === 'down' ? 'text-down' : 'text-ink-dim'
-}
-
-function shiftMonth(month: string, delta: number): string {
-  const date = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1 + delta, 1))
-  return date.toISOString().slice(0, 7)
-}
-
-function displayMonth(month: string): string {
-  return `${Number(month.slice(0, 4))}年${Number(month.slice(5, 7))}月`
-}
-
-function shiftDate(date: string, delta: number): string {
-  const value = new Date(`${date}T00:00:00Z`)
-  value.setUTCDate(value.getUTCDate() + delta)
-  return value.toISOString().slice(0, 10)
-}
-
-function displayDate(date: string): string {
-  const [year, month, day] = date.split('-').map(Number)
-  return `${year}年${month}月${day}日`
 }
 
 function Metric({ label, value, detail, className }: {
@@ -168,11 +139,51 @@ function ContributionRows({ rows, selected, onSelect }: {
   )
 }
 
+/** 常驻上下文：所选周期身份与证据状态在任何步骤都可见，避免「切一步就忘掉在看哪一期」。 */
+function ReviewContextStrip({ data, step }: { data: ReviewPageData; step: ReviewStep }) {
+  const { result, range } = data
+  const reconciliation = RECONCILIATION_STATUS[result.reconciliationStatus]
+  const pendingFundEventCount = data.pendingPurchases.length + data.pendingSettlements.length
+  const stepIndex = REVIEW_STEPS.findIndex((item) => item.value === step)
+  const identity = reviewContextIdentity(
+    { period: data.period, month: data.month, date: data.date, scope: null, step },
+    data.currentMonth,
+    data.currentDate,
+  )
+  return (
+    <section className="review-context" aria-label="复盘上下文" aria-live="polite">
+      <div className="review-context-identity">
+        <span>{identity}</span>
+        <strong>{range.startDate} — {range.endDate}</strong>
+      </div>
+      <p className="review-context-status">
+        <span className={cx('review-context-item', reconciliation.className)}>
+          收益对账 <b>{reconciliation.label}</b>
+        </span>
+        <span className="review-context-item">
+          估值覆盖 <b className="num">{fmtPct(result.valuationCoverage)}</b>
+        </span>
+        <span className="review-context-item">
+          基金在途 <b className="num">{fmtCNY(data.inTransit)}</b>
+        </span>
+        {pendingFundEventCount > 0 ? (
+          <Link className="review-context-item is-attention" href="/fund-confirmations">
+            <b className="num">{pendingFundEventCount} 笔</b>待确认 →
+          </Link>
+        ) : (
+          <span className="review-context-item is-clear">没有待确认事项</span>
+        )}
+      </p>
+      <span className="review-context-step">{stepIndex + 1} / {REVIEW_STEPS.length} 步</span>
+    </section>
+  )
+}
+
 export function ReviewClient({ data, initialStep }: { data: ReviewPageData; initialStep?: string }) {
   const router = useRouter()
   const navigateAfterWrite = useNavigateAfterWrite()
   const confirmDialog = useConfirm()
-  const [step, setStep] = useState<ReviewStep>(() => reviewStepFrom(initialStep))
+  const [step, setStep] = useState<ReviewStep>(() => REVIEW_STEPS.some((item) => item.value === initialStep) ? initialStep as ReviewStep : 'outcome')
   const [attributionView, setAttributionView] = useState<AttributionView>('contribution')
   const [dimension, setDimension] = useState<Dimension>('asset')
   const [selectedAsset, setSelectedAsset] = useState(data.result.assets[0]?.key ?? null)
@@ -187,10 +198,10 @@ export function ReviewClient({ data, initialStep }: { data: ReviewPageData; init
   const reconciliation = RECONCILIATION_STATUS[result.reconciliationStatus]
   const selectedMonth = data.month ?? data.currentMonth
   const selectedDate = data.date ?? data.currentDate
-  const previousMonth = shiftMonth(selectedMonth, -1)
-  const nextMonth = shiftMonth(selectedMonth, 1)
-  const previousDate = shiftDate(selectedDate, -1)
-  const nextDate = shiftDate(selectedDate, 1)
+  const previousMonth = shiftReviewMonth(selectedMonth, -1)
+  const nextMonth = shiftReviewMonth(selectedMonth, 1)
+  const previousDate = shiftReviewDate(selectedDate, -1)
+  const nextDate = shiftReviewDate(selectedDate, 1)
   const isHistoricalMonth = data.period === 'THIS_MONTH' && selectedMonth < data.currentMonth
   const isHistoricalDate = data.period === 'THIS_DAY' && selectedDate < data.currentDate
   const pendingFundEventCount = data.pendingPurchases.length + data.pendingSettlements.length
@@ -317,14 +328,13 @@ export function ReviewClient({ data, initialStep }: { data: ReviewPageData; init
     <div className="review-body">
       <header className="review-header">
         <div>
-          <div className="page-kicker">复盘区间 · {range.startDate} — {range.endDate}</div>
-          <h1 className="page-title">这段时间，钱为什么变了</h1>
-          <p className="page-description">按结果、归因、行为与风险、结论四步完成一次复盘。</p>
+          <h1 className="page-title" title="按结果、归因、行为与风险、结论四步完成一次复盘；所选周期与证据状态在四步之间保持可见">这段时间，钱为什么变了</h1>
+          <p className="page-description">四步完成一次复盘，所选周期与证据状态全程可见。</p>
         </div>
         <div className="review-range-controls">
           <div className="review-periods" aria-label="复盘周期">
-            {PERIODS.map((period) => (
-              <Link key={period.value} href={href({ period: period.value })} className={data.period === period.value ? 'is-active' : ''}>
+            {REVIEW_PERIODS.map((period) => (
+              <Link key={period.value} href={href({ period: period.value })} className={data.period === period.value ? 'is-active' : ''} aria-current={data.period === period.value ? 'page' : undefined}>
                 {period.label}
               </Link>
             ))}
@@ -333,7 +343,7 @@ export function ReviewClient({ data, initialStep }: { data: ReviewPageData; init
             <div className={cx('review-month-control', isHistoricalDate && 'has-current')} role="group" aria-label="复盘日期">
               <Link className="review-month-step" href={href({ date: previousDate })} aria-label="查看前一天"><span aria-hidden="true">‹</span></Link>
               <label className="review-month-value" htmlFor="review-date">
-                <span aria-hidden="true">{displayDate(selectedDate)}</span>
+                <span aria-hidden="true">{displayReviewDate(selectedDate)}</span>
                 <input
                   id="review-date"
                   type="date"
@@ -353,7 +363,7 @@ export function ReviewClient({ data, initialStep }: { data: ReviewPageData; init
             <div className={cx('review-month-control', isHistoricalMonth && 'has-current')} role="group" aria-label="复盘月份">
               <Link className="review-month-step" href={href({ month: previousMonth })} aria-label="查看上一个月"><span aria-hidden="true">‹</span></Link>
               <label className="review-month-value" htmlFor="review-month">
-                <span aria-hidden="true">{displayMonth(selectedMonth)}</span>
+                <span aria-hidden="true">{displayReviewMonth(selectedMonth)}</span>
                 <input
                   id="review-month"
                   type="month"
@@ -371,6 +381,8 @@ export function ReviewClient({ data, initialStep }: { data: ReviewPageData; init
           )}
         </div>
       </header>
+
+      <ReviewContextStrip data={data} step={step} />
 
       <nav className="review-workflow-nav" aria-label="复盘步骤">
         {REVIEW_STEPS.map((item) => (
@@ -437,6 +449,9 @@ export function ReviewClient({ data, initialStep }: { data: ReviewPageData; init
           <span>基金在途 <b className="num">{fmtCNY(data.inTransit)}</b></span>
           <span>{pendingFundEventCount > 0 ? `${pendingFundEventCount} 笔等待确认` : '没有待确认事项'}</span>
         </div>
+        <p className="review-outcome-next">
+          <button type="button" onClick={() => selectStep('attribution')}>下一步：这些收益由谁贡献 →</button>
+        </p>
       </section>
 
       <section id="attribution-contribution" className="section-panel review-section" hidden={step !== 'attribution' || attributionView !== 'contribution'}>

@@ -5,6 +5,39 @@ function watchRows(page: Page) {
   return page.getByTestId('watch-valuation-table').locator('tbody tr')
 }
 
+test('资产域：持仓默认表格优先，二级视图保持路由与证据', async ({ page }) => {
+  await page.goto('/positions')
+
+  const nav = page.getByRole('navigation', { name: '资产视图' })
+  await expect(nav.getByRole('link')).toHaveCount(4)
+  await expect(nav.getByRole('link', { name: /持仓明细/ })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('heading', { level: 1, name: '资产与持仓' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '资产概况' })).toContainText('可投资资产')
+  await expect(page.getByRole('region', { name: '持仓明细表' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '在途资金' })).toBeVisible()
+  const headings = page.getByRole('region', { name: '持仓明细表' }).getByRole('columnheader')
+  await expect(headings.nth(0)).toContainText('资产')
+  await expect(headings.nth(1)).toHaveText('账户')
+  await expect(headings.nth(4)).toHaveText('现价 / 来源')
+  await expect(headings.nth(5)).toContainText('市值')
+  await expect(headings.nth(7)).toContainText('未实现盈亏')
+  await expect(headings.nth(8)).toContainText('权重')
+
+  await nav.getByRole('link', { name: /结构分析/ }).click()
+  await expect(page).toHaveURL(/view=composition/)
+  await expect(page.getByRole('navigation', { name: '资产视图' }).getByRole('link', { name: /结构分析/ })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('heading', { name: '结构分析' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '持仓明细表' })).toHaveCount(0)
+
+  await page.getByRole('navigation', { name: '资产视图' }).getByRole('link', { name: /账户与负债/ }).click()
+  await expect(page).toHaveURL(/\/accounts$/)
+  await expect(page.getByRole('navigation', { name: '资产视图' }).getByRole('link', { name: /账户与负债/ })).toHaveAttribute('aria-current', 'page')
+
+  await page.getByRole('navigation', { name: '资产视图' }).getByRole('link', { name: /配置目标/ }).click()
+  await expect(page).toHaveURL(/\/allocation$/)
+  await expect(page.getByRole('navigation', { name: '资产视图' }).getByRole('link', { name: /配置目标/ })).toHaveAttribute('aria-current', 'page')
+})
+
 test('持仓页：列头排序切换 URL 与 aria-sort', async ({ page }) => {
   await page.goto('/positions?sort=dayPnl-desc')
   await expect(page.getByRole('columnheader', { name: '按当日盈亏（¥）降序排序' })).toHaveAttribute('aria-sort', 'descending')

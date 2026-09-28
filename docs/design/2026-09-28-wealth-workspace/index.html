@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>家庭财富 · 高保真设计预览</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23315efb'/%3E%3Cpath d='M8 23V16M16 23V9M24 23V13' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳至内容</a>
+  <aside class="sidebar">
+    <a class="brand" href="#overview" aria-label="家庭财富总览"><span class="brand-mark"><i></i><i></i><i></i></span><span>家庭财富<span class="brand-sub">让每一份积累，看得见。</span></span></a>
+    <div class="space-label">我的家庭空间</div>
+    <nav aria-label="主导航" id="navigation"></nav>
+    <div class="sidebar-bottom">
+      <div class="prototype-note"><span class="prototype-dot"></span>设计预览 · 演示数据<small>总览 / 持仓 / 定投核对</small></div>
+      <button class="nav-item" data-action="health"><span data-icon="shield"></span><span>数据与核对</span><span class="nav-dot"></span></button>
+      <button class="nav-item" data-action="about"><span data-icon="settings"></span><span>预览说明</span></button>
+      <div class="family"><span class="avatar">家</span><div><strong>我们的家庭</strong><small>家庭所有者</small></div><span class="family-lock" data-icon="lock"></span></div>
+    </div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <div class="breadcrumb"><span>我的家庭</span><span class="slash">/</span><strong id="crumb">总览</strong></div>
+      <div class="topbar-actions"><button class="search-trigger" data-action="search"><span data-icon="search"></span><span>搜索页面与操作</span><kbd>⌘ K</kbd></button><span class="topbar-separator"></span><button class="icon-button" data-action="privacy" aria-label="隐藏主要金额" aria-pressed="false"><span data-icon="eye"></span></button><button class="button primary small" data-action="new"><span data-icon="plus"></span>新增记录</button></div>
+    </header>
+    <main id="main" tabindex="-1"></main>
+    <footer class="page-footer"><span>家庭财富 · UI 方案 01</span><span>所有金额、资产及状态均为演示数据，未连接真实账本</span><button class="text-button" data-action="reset">重置演示</button></footer>
+  </div>
+  <dialog id="detail-dialog" class="drawer" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
+  <dialog id="search-dialog" class="search-dialog" aria-labelledby="search-title"><div class="search-dialog-head"><span data-icon="search"></span><label class="sr-only" id="search-title" for="global-search">搜索页面与操作</label><input id="global-search" placeholder="搜索总览、持仓、定投、基金确认…" autocomplete="off"><button class="icon-button" data-close aria-label="关闭搜索"><span data-icon="close"></span></button></div><div id="search-results"></div><div class="search-foot">搜索本次设计预览中的页面与操作 <kbd>Esc 关闭</kbd></div></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

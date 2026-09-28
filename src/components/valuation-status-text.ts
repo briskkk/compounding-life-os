@@ -13,7 +13,10 @@ export function valuationStatusText(point: Pick<PerformanceCurvePoint, 'valuatio
   if (point.valuationStatus === 'CLOSED') return '休市'
   if (point.valuationStatus === 'NO_UPDATE') return '无新估值'
   if (point.valuationStatus === 'FLOW_ONLY') return '仅资金流'
-  if (point.valuationStatus === 'LIVE') return '实时估算'
+  if (point.valuationStatus === 'LIVE') {
+    const coverage = point.valuationCoverage == null ? null : Math.round(point.valuationCoverage * 100)
+    return coverage != null && coverage < 100 ? `实时估算 · 当日行情覆盖 ${coverage}%` : '实时估算'
+  }
   return '历史口径'
 }
 

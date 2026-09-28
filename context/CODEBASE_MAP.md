@@ -16,14 +16,14 @@ last_verified: 2026-09-23
 | 持仓 | `src/app/positions/page.tsx` | `loadEngineState`；配置、分组、列头排序（市值/当日盈亏/未实现盈亏/权重/名称）、当日盈亏 |
 | 资产详情 | `src/app/positions/[assetId]/page.tsx` | 价格/净值历史、基金估值、持仓概览、流水与带账本锁的安全编辑/删除 |
 | 看盘 | `src/app/watch/page.tsx` | `getWatchData` + 默认基准；盘中曲线、今日贡献/拖累、结算状态、近 30 日三项快照与实时估值表（默认 8 项，筛选或显式展开后展示全部）；排序与筛选状态走 `sort`/`q`/`cls`/`excl` 深链；点表格行在曲线上叠加该标的当日盈亏 |
-| 周期复盘 | `src/app/review/page.tsx` | `getReviewPageData`；周/月/季及任意历史自然月的结果、归因子视图、行为风险与结构化用户笔记；当前步骤走 `step` 深链 |
+| 周期复盘 | `src/app/review/page.tsx` | `getReviewPageData`；周/月/季及任意历史自然月的结果、归因子视图、行为风险与结构化用户笔记；当前步骤走 `step` 深链，所选周期身份与对账/估值/在途证据由常驻上下文条在四步之间保持可见 |
 | 收益历史 | `src/app/review/returns/page.tsx` | `getWatchData` + `loadBenchmarks`；预设/自定义区间、四基准对比、收益率/金额/资产曲线，以及日/月/年收益日历 |
 | 流水 | `src/app/transactions/page.tsx` | 默认有效流水视图、可展开冲正历史、筛选、分页、录入、CSV、冲正、导出 |
 | 基金确认 | `src/app/fund-confirmations/page.tsx` | 待确认基金集中队列、官方净值只读预览、平台份额比对与确认写入 |
-| 目标测算 | `src/app/goals/page.tsx` | 账本资本、达成时间、所需月投入、三档结果、本金/复利拆分；高级区保留退休压力测试与收支证据 |
+| 目标测算 | `src/app/goals/page.tsx` | 账本资本、达成时间、所需月投入、三档结果、本金/复利拆分与临时试算构成连续决策流；高级区保留退休压力测试与收支证据；VIEWER 只读 |
 | 账户 | `src/app/accounts/page.tsx`、`accounts/[accountId]/page.tsx` | 账户、资产目录、结算关系、负债 |
 | 定投管理 | `src/app/investment-plans/page.tsx` | 定投节奏、月度计划与有效 BUY 核对；用户核对实际申购后按日批量快速录入 |
-| 月结中心 | `src/app/month-close/page.tsx` | 数据确认、账户对账、定投核对与月度复盘的只读编排 |
+| 月结中心 | `src/app/month-close/page.tsx` | 首屏先回答能否结账与还缺哪些证据（结论 → 缺口 → 证据），四步编排数据确认、账户对账、定投核对与月度复盘的既有证据 |
 | 审计 | `src/app/audit/page.tsx` | 审计哈希链验证与时间线 |
 
 全局前端壳层：
@@ -75,6 +75,8 @@ Route Handlers：
 - `src/lib/services/api-auth.ts`：API 认证分界：读可回落全局 Key，写必须真实用户会话。
 - `src/lib/queries.ts`：页面 View Model 装配、实时估值与目标；总览复用复盘引擎装配周/月/季贡献证据。
 - `src/lib/review-data.ts`：复盘页 View Model；历史价格/汇率、同源组合/资产日曲线、在途资金、基准与已保存记录装配。
+- `src/lib/review-workspace.ts`：复盘域 URL 上下文纯函数（月份/日期/范围/步骤解析与非法值回落），供复盘二级入口与页面共用。
+- `src/components/review-domain-nav.tsx`：复盘域二级入口（月结中心 / 周期复盘 / 收益历史 / 长期复盘 / 决策库），把当前周期上下文带到目标页面。
 - `src/lib/snapshots.ts`：从首笔流水完整回放财富序列；日格按北京日历日切分、快照终点取北京今天（ADR-027）；`rebuildSnapshots` 支持按 `affectedSince` 增量重建，异常超长日期显式拒绝而不静默截断。`src/lib/engine/portfolio-day.ts` 是北京归属日的唯一判定（美股 +1、实时窗口与昨收基线）。
 - `src/lib/audit.ts`：审计哈希、完整性验证及同家庭串行事务；`chainScope + chainKey` 唯一约束与冲突重试防止并发分叉。
 - `src/lib/export.ts`、`src/lib/csv.ts`：CSV 出入双向格式；`ImportBatch` 负责批次指纹、幂等与对账。

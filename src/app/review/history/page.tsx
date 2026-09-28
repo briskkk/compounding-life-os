@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { HistoryClient } from '@/components/investment-history-client'
 import { isContributionView } from '@/components/investment-history-contribution'
-import { ReviewModeNav } from '@/components/review-mode-nav'
+import { ReviewDomainNav } from '@/components/review-domain-nav'
 import { getInvestmentHistoryPageData } from '@/lib/investment-history-data'
 
 export const dynamic = 'force-dynamic'
@@ -29,7 +29,7 @@ export default async function InvestmentHistoryPage({
 
   return (
     <div className="page-shell review-shell">
-      <ReviewModeNav current="history" month={params.month} />
+      <ReviewDomainNav active="history" params={params} />
       <HistoryClient data={data} scopes={scopes} view={view} query={viewQuery.toString()} />
     </div>
   )

@@ -17,6 +17,8 @@ interface GoalScenarioLabProps {
   fireNumberAtRetirement: number
   requiredMonthly: number
   estimatedFireMonths: number | null
+  /** 只读成员仍可试算预览，但不能保存到主目标 */
+  canWrite?: boolean
   projectionInput: {
     current: number
     fireNumberToday: number
@@ -44,6 +46,7 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
   const confirm = useConfirm()
   const navigateAfterWrite = useNavigateAfterWrite()
   const hasSavingsEvidence = props.savingsEvidenceMonths >= 3
+  const canWrite = props.canWrite !== false
   const [monthly, setMonthly] = useState(props.monthlyContribution)
   const [delayMonths, setDelayMonths] = useState(0)
   const [pending, setPending] = useState(false)
@@ -121,8 +124,8 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
           <button
             type="button"
             className={btnGhostCls}
-            disabled={!hasSavingsEvidence}
-            title={hasSavingsEvidence ? undefined : `目前只有 ${props.savingsEvidenceMonths} 个月有效收支记录，至少需要 3 个月`}
+            disabled={!hasSavingsEvidence || !canWrite}
+            title={hasSavingsEvidence ? (canWrite ? undefined : '只读成员不能把储蓄参考写入试算') : `目前只有 ${props.savingsEvidenceMonths} 个月有效收支记录，至少需要 3 个月`}
             onClick={() => setMonthly(Math.max(0, Math.round(props.sustainableMonthlySavings / 500) * 500))}
           >
             {hasSavingsEvidence ? `采用储蓄参考 ${money(props.sustainableMonthlySavings)}` : '储蓄能力证据不足'}
@@ -151,9 +154,13 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
           </p>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
             <FormMsg msg={msg} />
-            <button type="button" onClick={apply} disabled={pending || !changed} className={btnCls}>
-              {pending ? '保存中…' : changed ? '保存到主目标' : '试算未变化'}
-            </button>
+            {canWrite ? (
+              <button type="button" onClick={apply} disabled={pending || !changed} className={btnCls}>
+                {pending ? '保存中…' : changed ? '保存到主目标' : '试算未变化'}
+              </button>
+            ) : (
+              <span className="text-[12px] text-ink-faint">只读成员可以试算预览；保存到主目标需要家庭 OWNER 权限。</span>
+            )}
           </div>
         </div>
       </div>

@@ -2,6 +2,11 @@ import { test, expect } from '@playwright/test'
 
 test('P1 二级工作流从流水与健康中心可进入', async ({ page }) => {
   await page.goto('/transactions')
+  const recordNav = page.getByRole('navigation', { name: '记录视图' })
+  await expect(recordNav.getByRole('link', { name: /交易流水/ })).toHaveAttribute('aria-current', 'page')
+  await expect(recordNav.getByRole('link', { name: /定投核对/ })).toHaveAttribute('href', '/investment-plans')
+  await expect(recordNav.getByRole('link', { name: /资金日历/ })).toHaveAttribute('href', '/accounts?view=calendar')
+  await expect(recordNav.getByRole('link', { name: /导入记录/ })).toHaveAttribute('href', '/transactions/imports')
   await expect(page.getByRole('link', { name: '份额确认 →' })).toHaveAttribute('href', '/fund-confirmations')
   await page.getByText('更多流水操作', { exact: true }).click()
   const operations = page.getByRole('navigation', { name: '流水专项操作' })
@@ -31,13 +36,11 @@ test('公司行动账本说明事件与流水边界', async ({ page }) => {
 })
 
 test('导入中心展示批次来源，CSV 可进入字段映射检查', async ({ page }) => {
-  await page.goto('/transactions/imports')
-  await expect(page.getByRole('heading', { level: 1, name: '导入批次' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '导入记录' })).toBeVisible()
-
-  await page.goto('/transactions#new-entry')
-  // 深链应先展开「录入与导入」面板：文件投递依赖面板内的可见输入
-  await expect(page.locator('#new-entry')).toHaveAttribute('open', '')
+  await page.goto('/transactions/imports#import-csv')
+  await expect(page.getByRole('heading', { level: 1, name: '导入记录' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '导入记录' })).toBeVisible()
+  // 导入与单笔录入分离，深链直接展开 CSV 预检工作区。
+  await expect(page.locator('#import-csv')).toHaveAttribute('open', '')
   await page.locator('input[type="file"]').setInputFiles({
     name: 'p1-mapping.csv',
     mimeType: 'text/csv',

@@ -9,6 +9,7 @@ import { ALLOCATION_TARGET_CLASSES, buildAllocationDrift } from '@/lib/engine/al
 import { ASSET_CLASS_LABEL } from '@/lib/labels'
 import { CLASS_COLORS } from '@/lib/colors'
 import { cx, fmtCNY, fmtPct } from '@/lib/format'
+import { AssetDomainNav } from '@/components/asset-domain-nav'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,6 +62,8 @@ export default async function AllocationPage() {
         description="把当前可投资资产与自己设定的资产大类目标对照。偏离只用于观察，不会生成自动买卖或改写账本。"
         right={<Link href="/positions" className="allocation-back-link">返回持仓 →</Link>}
       />
+
+      <AssetDomainNav active="allocation" />
 
       <section className={cx('allocation-status-hero', !drift.configured && 'is-unconfigured')}>
         <div className="allocation-status-copy">

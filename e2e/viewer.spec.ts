@@ -24,6 +24,12 @@ test('只读账号：写入入口一律以统一提示说明，不静默消失',
   await expect(page.locator('tbody').getByRole('button', { name: '冲正' })).toHaveCount(0)
   await expect(page.getByText('↓ 导出 CSV')).toBeVisible()
 
+  // 导入记录独立成页：可查批次，不能打开 CSV 预检工作区
+  await page.goto('/transactions/imports')
+  await expect(notice).toHaveCount(1)
+  await expect(notice).toContainText('不能预检或写入 CSV')
+  await expect(page.locator('#import-csv')).toHaveCount(0)
+
   // 账户页：可看，不能新建/修改
   await page.goto('/accounts')
   await expect(notice).toHaveCount(1)
@@ -55,4 +61,30 @@ test('只读账号：写入入口一律以统一提示说明，不静默消失',
   await page.goto('/allocation')
   await expect(notice).toHaveCount(1)
   await expect(notice).toContainText('不能修改目标配置')
+})
+
+test('只读账号：目标测算可看全部证据，不能修改或保存目标', async ({ page }) => {
+  const notice = page.getByTestId('readonly-notice')
+
+  await page.goto('/goals')
+  await expect(notice).toHaveCount(1)
+  await expect(notice).toContainText('不能新建、修改或保存目标')
+
+  // 若家庭已有目标：编辑入口与试算保存入口都不出现，但测算证据与压力测试仍可读
+  const hasGoal = await page.getByText('可用于目标的当前资产').count()
+  if (hasGoal > 0) {
+    await expect(page.getByRole('button', { name: '编辑计划', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '保存到主目标' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '采用储蓄参考', exact: false })).toHaveCount(0)
+    await expect(page.getByText(/只读成员可以试算预览/)).toBeVisible()
+    await expect(page.getByText('高级：退休压力测试与收支证据')).toBeVisible()
+  } else {
+    await expect(page.getByRole('link', { name: '建立主目标 →' })).toHaveCount(0)
+    await expect(page.locator('#new-goal')).toHaveCount(0)
+  }
+
+  // 月结与周期复盘仍可完整查看证据
+  await page.goto('/month-close')
+  await expect(page.locator('.month-close-verdict')).toBeVisible()
+  await expect(notice).toHaveCount(0)
 })

@@ -1,4 +1,4 @@
-// 流水页：唯一事实源的浏览、筛选、手工录入与 CSV 导入
+// 流水页：唯一事实源的浏览、筛选与单笔录入；CSV 批量导入在独立记录工作区。
 import Link from 'next/link'
 import type { Prisma } from '@prisma/client'
 import { getSession } from '@/lib/session'
@@ -9,7 +9,6 @@ import { TxForm } from '@/components/tx-form'
 import { HashOpenDetails } from '@/components/hash-open-details'
 import { foldTransactions, holdingsIndex } from '@/lib/engine/ledger'
 import { TxFilters } from '@/components/tx-filters'
-import { CsvImport } from '@/components/csv-import'
 import { ReverseButton } from '@/components/reverse-button'
 import { TxSortSelect } from '@/components/tx-sort-select'
 import { DEFAULT_TX_SORT, parseTxSort, txAriaSort } from '@/lib/engine/tx-sort'
@@ -19,6 +18,7 @@ import type { TxType } from '@/lib/engine/types'
 import { TableScroll } from '@/components/table-scroll'
 import { dateKeyAt } from '@/lib/engine/watch-market'
 import { settlementStatus } from '@/lib/engine/settlement-status'
+import { RecordDomainNav } from '@/components/record-domain-nav'
 
 export const dynamic = 'force-dynamic'
 
@@ -141,8 +141,8 @@ export default async function TransactionsPage({
   return (
     <div className="page-shell">
       <PageHeader
-        title="每一笔变化，都有出处。"
-        description="默认只展示当前有效流水；已冲正记录与系统冲正标记折叠到变更历史，需要审计时可随时展开。"
+        title="交易流水"
+        description="浏览、筛选和录入账本事实；冲正记录保留在变更历史。"
         right={(
           <div className="flex flex-wrap items-center gap-3">
             <div><div className="text-[14px] text-ink-faint">{showHistory ? '含历史记录' : '有效流水'}</div><div className="num mt-2 text-[28px] text-ink">{total}</div></div>
@@ -160,14 +160,16 @@ export default async function TransactionsPage({
         )}
       />
 
+      <RecordDomainNav active="transactions" />
+
       {!canWrite && <ReadOnlyNotice what="可以查看、筛选与导出流水，但不能录入、导入或冲正" />}
       {canWrite && (
         <HashOpenDetails
           id="new-entry"
           className="ledger-entry-workspace"
-          summary={<><span>录入与导入</span><small>按需展开，不必穿过整页流水</small></>}
+          summary={<><span>录入流水</span><small>登记一笔真实交易或资金变化</small></>}
         >
-          <div className="grid gap-6 p-4 xl:grid-cols-2">
+          <div className="ledger-entry-single p-4">
             <Panel title="录入流水">
               <TxForm
                 initialAccountId={sp.account}
@@ -193,12 +195,6 @@ export default async function TransactionsPage({
                     sourceName: a.fundTradePolicy.sourceName,
                   } : null,
                 }))}
-              />
-            </Panel>
-            <Panel title="CSV 导入">
-              <CsvImport
-                accounts={accounts.map((a) => ({ id: a.id, name: a.name }))}
-                assets={assets.map((a) => ({ id: a.id, symbol: a.symbol, name: a.name }))}
               />
             </Panel>
           </div>

@@ -43,6 +43,7 @@ import { DataSettlementRail } from './data-settlement-rail'
 import { TableScroll } from './table-scroll'
 import { SortHeader } from './sort-header'
 import { attributionDateKey, liveQuoteAttribution } from '@/lib/engine/portfolio-day'
+import { InvestmentDomainNav } from './investment-domain-nav'
 
 export interface WatchHolding {
   assetId: string
@@ -521,6 +522,8 @@ export function WatchClient({
           <small>{asOf ? `更新于 ${fmtDateTime(asOf)}` : '分钟级行情加载中…'}</small>
         </div>
       </header>
+
+      <InvestmentDomainNav active="today" />
 
       <div className="watch-workbench-status" aria-label="今日估值摘要">
         <span>可投资组合实时估值 <b className="num">{fmtCNY(totalValue)}</b></span>

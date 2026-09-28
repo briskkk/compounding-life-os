@@ -1,9 +1,9 @@
 import Link from 'next/link'
-import { ReviewModeNav } from '@/components/review-mode-nav'
+import { ReviewDomainNav } from '@/components/review-domain-nav'
 import { PageHeader, SetupScreen } from '@/components/ui'
 import { prisma } from '@/lib/db'
 import { buildInvestmentPlanMonth } from '@/lib/engine/investment-plan'
-import { buildMonthClose, type MonthCloseStepStatus } from '@/lib/engine/month-close'
+import { buildMonthClose, type MonthCloseStep, type MonthCloseStepStatus } from '@/lib/engine/month-close'
 import { fmtDate, fmtMoney, fmtPct } from '@/lib/format'
 import { scopedDb } from '@/lib/scoped'
 import { getSession } from '@/lib/session'
@@ -163,52 +163,103 @@ export default async function MonthClosePage({
     planRows: visiblePlanRows,
     reviewStatus: savedReview?.status ?? null,
   })
-  const steps = [
-    { number: '01', title: '确认数据', en: 'DATA', step: close.data },
-    { number: '02', title: '账户对账', en: 'RECONCILE', step: close.reconciliation },
-    { number: '03', title: '核对定投', en: 'PLAN', step: close.investmentPlan },
-    { number: '04', title: '完成复盘', en: 'REVIEW', step: close.review },
+  const steps: Array<{ number: string; title: string; step: MonthCloseStep; href: string }> = [
+    { number: '01', title: '确认数据', step: close.data, href: '/health' },
+    { number: '02', title: '账户对账', step: close.reconciliation, href: '/reconciliation' },
+    { number: '03', title: '核对定投', step: close.investmentPlan, href: `/investment-plans?month=${selectedMonth}` },
+    { number: '04', title: '完成复盘', step: close.review, href: `/review?period=THIS_MONTH&month=${selectedMonth}` },
   ]
+  // 首屏优先回答「能不能结账」：只把待处理步骤列成缺口清单；完整证据仍在下方四步卡片里。
+  const missing = steps.filter((item) => item.step.status === 'ATTENTION')
+  const readyToClose = missing.length === 0
   const [year, month] = selectedMonth.split('-').map(Number)
   const nextMonth = shiftMonth(selectedMonth, 1)
   const isCurrentMonth = selectedMonth === currentMonth()
 
   return (
     <div className="page-shell month-close-page">
-      <ReviewModeNav current="month-close" month={selectedMonth} />
+      <ReviewDomainNav active="month-close" params={{ period: 'THIS_MONTH', month: selectedMonth }} />
       <PageHeader
         title="这个月，不靠记忆收尾。"
         description="月结中心只编排已有证据：先确认估值与在途状态，再核对账户和定投，最后把判断写入月度复盘。这里不会创建第二套余额。"
         right={(
           <div className="month-close-month-control">
             <Link href={`/month-close?month=${shiftMonth(selectedMonth, -1)}`} aria-label="上月">←</Link>
-            <div><span>Closing period</span><strong>{year} 年 {month} 月</strong></div>
+            <div><span>结算期间</span><strong>{year} 年 {month} 月</strong></div>
             {nextMonth <= currentMonth() ? <Link href={`/month-close?month=${nextMonth}`} aria-label="下月">→</Link> : <span aria-hidden="true">→</span>}
           </div>
         )}
       />
 
-      <section className="month-close-progress" aria-label="月结进度">
-        <div className="month-close-score">
-          <span>已完成</span>
-          <strong className="num">{close.completedSteps}<small> / {close.totalSteps}</small></strong>
-          <p>{isCurrentMonth ? '本月进行中，状态随证据更新' : '历史月份按当前账本与保存凭证复核'}</p>
+      <section className={`month-close-verdict ${readyToClose ? 'is-ready' : 'is-attention'}`} aria-label="月结结论" aria-labelledby="month-close-verdict-title">
+        <div className="month-close-verdict-head">
+          <span className="month-close-verdict-state">{readyToClose ? (close.completedSteps === close.totalSteps ? '本月已结账' : '可以结账') : '还缺证据'}</span>
+          <h2
+            id="month-close-verdict-title"
+            title={readyToClose
+              ? '估值、账户对账、定投核对与月度复盘都已就绪；仍可回看每一步的证据再决定是否调整判断。'
+              : '下面是尚未就绪的步骤和对应入口；补齐后状态会自动更新，不需要重建账本。'}
+          >
+            {readyToClose
+              ? `${year} 年 ${month} 月四步证据齐全，可以收尾。`
+              : `${year} 年 ${month} 月还有 ${missing.length} 项证据需要补齐。`}
+          </h2>
+          <p>{readyToClose ? '四步均已就绪。' : '缺口如下，可逐项补齐。'}</p>
         </div>
+
+        <div className="month-close-verdict-body">
+          <div className="month-close-verdict-progress">
+            <span>已完成</span>
+            <strong className="num">{close.completedSteps}<small> / {close.totalSteps}</small></strong>
+            <p>{isCurrentMonth ? '本月进行中，状态随证据更新' : '历史月份按当前账本与保存凭证复核'}</p>
+            <div className="month-close-verdict-bar" role="progressbar" aria-label="月结完成度" aria-valuenow={close.completedSteps} aria-valuemin={0} aria-valuemax={close.totalSteps}>
+              <i style={{ width: `${close.completedSteps / close.totalSteps * 100}%` }} />
+            </div>
+          </div>
+
+          <div className="month-close-gaps" aria-label="待补证据">
+            {missing.length > 0 ? (
+              <ul>
+                {missing.map((item) => (
+                  <li key={item.number}>
+                    <span className="num">{item.number}</span>
+                    <div>
+                      <strong>{item.title}</strong>
+                      <small>{item.step.summary}</small>
+                    </div>
+                    <Link href={item.href}>{item.title} →</Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="month-close-gaps-clear" role="status">
+                <strong>没有待处理证据</strong>
+                <span>四步状态均为完成或无需处理；月度复盘可从第 04 步打开。</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="month-close-progress" aria-label="月结进度">
         <ol className="month-close-tape">
-          {steps.map(({ number, title, en, step }) => {
+          {steps.map(({ number, title, step }) => {
             const meta = STATUS_META[step.status]
             return (
               <li key={number} className={meta.className}>
-                <span className="num">{number}</span>
-                <div><small>{en}</small><strong>{title}</strong></div>
-                <b>{meta.label}</b>
+                <div className="month-close-tape-head">
+                  <span className="num">{number}</span>
+                  <strong>{title}</strong>
+                  <b>{meta.label}</b>
+                </div>
+                <small>{step.summary}</small>
               </li>
             )
           })}
         </ol>
       </section>
 
-      <section className="month-close-stages">
+      <section className="month-close-stages" aria-label="月结四步证据">
         <article className={`month-close-stage ${STATUS_META[close.data.status].className}`}>
           <header><span className="num">01</span><div><h2>确认数据</h2></div><b>{STATUS_META[close.data.status].label}</b></header>
           <p className="month-close-stage-summary">{close.data.summary}</p>
@@ -232,13 +283,13 @@ export default async function MonthClosePage({
         </article>
 
         <article className={`month-close-stage ${STATUS_META[close.investmentPlan.status].className}`}>
-          <header><span className="num">03</span><div><small>PLAN × LEDGER</small><h2>核对定投</h2></div><b>{STATUS_META[close.investmentPlan.status].label}</b></header>
+          <header><span className="num">03</span><div><h2>核对定投</h2></div><b>{STATUS_META[close.investmentPlan.status].label}</b></header>
           <p className="month-close-stage-summary">{close.investmentPlan.summary}</p>
           <dl>
             <div><dt>本月相关计划</dt><dd className="num">{visiblePlanRows.length}</dd></div>
             <div><dt>到期计划金额</dt><dd className="num">{amountList(visiblePlanRows, 'dueAmount')}</dd></div>
             <div><dt>账本实际投入</dt><dd className="num text-accent">{amountList(visiblePlanRows, 'actualAmount')}</dd></div>
-            <div><dt>匹配 BUY</dt><dd className="num">{planReport.transactionCount} 笔</dd></div>
+            <div><dt>匹配买入</dt><dd className="num">{planReport.transactionCount} 笔</dd></div>
           </dl>
           <footer><Link href={`/investment-plans?month=${selectedMonth}`}>查看计划与账本 →</Link></footer>
         </article>

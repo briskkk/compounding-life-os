@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { ReviewModeNav } from '@/components/review-mode-nav'
+import { ReviewDomainNav } from '@/components/review-domain-nav'
 import { DecisionLibraryClient } from '@/components/decision-library-client'
 import { getDecisionLibraryPageData } from '@/lib/decision-library-data'
 
@@ -16,7 +16,7 @@ export default async function DecisionLibraryPage({
 
   return (
     <div className="page-shell review-shell">
-      <ReviewModeNav current="decisions" month={params.month} />
+      <ReviewDomainNav active="decisions" params={params} />
       <DecisionLibraryClient data={data} />
     </div>
   )

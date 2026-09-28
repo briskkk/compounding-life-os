@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session'
 import { loadEngineState } from '@/lib/queries'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
-import { Empty, Panel, SetupScreen, Tag, ScopeLabel } from '@/components/ui'
+import { Empty, PageHeader, Panel, SetupScreen, Tag, ScopeLabel } from '@/components/ui'
 import { ValuationToggle } from '@/components/valuation-toggle'
 import { groupByTag, matchesTag, parseTags, UNTAGGED } from '@/lib/engine/groups'
 import { groupByMarket, groupByStyle, sumByKey, UNCLASSIFIED_STYLE_KEY } from '@/lib/engine/composition'
@@ -15,16 +15,17 @@ import { C, CLASS_COLORS, SLICE_PALETTE } from '@/lib/colors'
 import type { AssetClass, AssetStyle } from '@/lib/engine/types'
 import { CompositionChart, type CompositionDimension } from '@/components/composition-chart'
 import { PositionSourceTag, ValuationLegend, ValuationSourceSummary } from '@/components/valuation-source'
-import { DEFAULT_HOLDING_SORT, holdingAriaSort, parseHoldingSort, sortHoldings } from '@/lib/engine/holding-sort'
+import { holdingAriaSort, parseHoldingSort, sortHoldings } from '@/lib/engine/holding-sort'
 import { PositionSortHeader } from '@/components/position-sort-header'
 import { isInvestableAsset, isPortfolioAssetClass } from '@/lib/asset-classification'
 import { livePreviousClose } from '@/lib/engine/portfolio-day'
 import { marketGroupLabel } from '@/lib/engine/market-group'
 import { TableScroll } from '@/components/table-scroll'
+import { AssetDomainNav } from '@/components/asset-domain-nav'
 
 export const dynamic = 'force-dynamic'
 
-export default async function PositionsPage({ searchParams }: { searchParams: Promise<{ tag?: string; sort?: string; cls?: string }> }) {
+export default async function PositionsPage({ searchParams }: { searchParams: Promise<{ tag?: string; sort?: string; cls?: string; view?: string }> }) {
   const sp = await searchParams
   const ctx = await getSession()
   if (!ctx) return <SetupScreen />
@@ -47,6 +48,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
   const groups = groupByTag(allRows, assetTags)
   const activeTag = sp.tag ?? null
   const activeSort = parseHoldingSort(sp.sort)
+  const activeView = sp.view === 'composition' ? 'composition' : 'holdings'
   const classOrder: AssetClass[] = ['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'REAL_ESTATE']
   const activeClass = classOrder.includes(sp.cls as AssetClass) ? sp.cls as AssetClass : null
   const now = new Date()
@@ -158,21 +160,34 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="page-shell positions-shell">
-      <section className="hero-grid border-b border-line pb-6">
-        <div>
-          <div className="eyebrow"><ScopeLabel scope="PORTFOLIO_ASSETS" /></div>
-          <h1 className="num hero-number mt-4" aria-label={`持仓总市值 ${fmtCNY(totalHeld)}`}>{fmtCNY(totalHeld)}</h1>
-          <div className={cx('num mt-5 text-[18px]', totalUnrealized >= 0 ? 'text-up' : 'text-down')}>
-            {fmtCNY(totalUnrealized, { sign: true })} · 持有收益
-          </div>
-          <p className="mt-5 text-[14px] text-ink-faint">{heldClassCount} 类资产 · {heldAccountCount} 个账户 · {mergedRows.length} 项持仓</p>
-          <Link href="/allocation" className="mt-5 inline-flex min-h-10 items-center rounded-lg border border-line px-3.5 text-[13px] text-ink-dim transition-colors hover:border-ink-faint hover:text-ink">
-            查看目标配置偏离 →
-          </Link>
-        </div>
+      <PageHeader
+        title="资产与持仓"
+        description="查看资产位置、价值、盈亏与估值依据；在途资金单列。"
+        right={<ScopeLabel scope="INVESTABLE" className="asset-page-scope" />}
+      />
 
+      <AssetDomainNav active={activeView} />
+
+      <section className="asset-summary-grid" aria-label="资产概况">
         <div>
-          {mergedRows.length > 0 && <CompositionChart dimensions={compositionDimensions} />}
+          <span>可投资资产</span>
+          <strong className="num">{fmtCNY(state.investable)}</strong>
+          <p>现金与可交易资产 + 在途</p>
+        </div>
+        <div>
+          <span>已确认组合资产</span>
+          <strong className="num">{fmtCNY(totalHeld)}</strong>
+          <p>不含 {fmtCNY(state.inTransit)} 在途资金</p>
+        </div>
+        <div>
+          <span>未实现盈亏</span>
+          <strong className={cx('num', totalUnrealized >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(totalUnrealized, { sign: true })}</strong>
+          <p>当前市值与剩余成本之差</p>
+        </div>
+        <div>
+          <span>持仓与账户</span>
+          <strong className="num">{mergedRows.length} 项 · {heldAccountCount} 个</strong>
+          <p>{heldClassCount} 类资产，同一资产跨账户合并</p>
         </div>
       </section>
 
@@ -184,7 +199,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
         }))}
       />
 
-      <section className="flex flex-wrap items-center gap-2 border-b border-line pb-5">
+      {activeView === 'holdings' && <section className="asset-filter-bar" aria-label="持仓筛选">
         <Link href={`/positions?sort=${activeSort}${activeTag ? `&tag=${encodeURIComponent(activeTag)}` : ''}`} className={cx('rounded-lg border px-4 py-2 text-[15px] transition-colors', !activeClass ? 'border-accent bg-accent text-bg' : 'border-line text-ink-dim hover:border-ink-faint')}>全部</Link>
         {classOrder.map((cls) => (
           <Link
@@ -210,8 +225,9 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
               {g.tag} <span className="num ml-1 text-[13px]">({g.count})</span>
             </Link>
         ))}
-      </section>
+      </section>}
 
+      {activeView === 'holdings' && <>
       <div>
         {/* 持仓明细 */}
         <Panel
@@ -349,6 +365,33 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
           )}
         </Panel>
       </div>
+      <section className="asset-in-transit" aria-label="在途资金">
+        <div>
+          <span><ScopeLabel scope="IN_TRANSIT" /></span>
+          <strong className="num">{fmtCNY(state.inTransit)}</strong>
+        </div>
+        <p>申购待确认 {fmtCNY(state.purchaseInTransit)} · 赎回待到账 {fmtCNY(state.redemptionInTransit)}。份额或到账确认后才进入对应持仓或现金。</p>
+        <div>
+          {state.purchaseInTransit > 0 && <Link href="/fund-confirmations">核对基金份额 →</Link>}
+          {state.redemptionInTransit > 0 && <Link href="/accounts?view=calendar">查看到账日历 →</Link>}
+          {state.inTransit === 0 && <span>当前没有在途资金</span>}
+        </div>
+      </section>
+      </>}
+
+      {activeView === 'composition' && (
+        <Panel
+          title="结构分析"
+          className="asset-composition-panel"
+          right={<span className="text-[12px] text-ink-faint">{mergedRows.length} 项已确认持仓</span>}
+        >
+          {mergedRows.length > 0 ? (
+            <CompositionChart dimensions={compositionDimensions} />
+          ) : (
+            <Empty action={{ href: '/transactions#new-entry', label: '录入流水' }}>暂无持仓可供分析</Empty>
+          )}
+        </Panel>
+      )}
     </div>
   )
 }
