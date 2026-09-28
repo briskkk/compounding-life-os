@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-09-14
+last_verified: 2026-09-23
 ---
 
 # 代码地图
@@ -12,7 +12,7 @@ last_verified: 2026-09-14
 
 | 领域 | 页面/API | 主要数据与交互 |
 | --- | --- | --- |
-| 总览 | `src/app/page.tsx` | `getDashboard(period)`；净资产、周/月/季可投资资产结果桥、贡献来源、财富轨迹、构成、状态与 FIRE |
+| 总览 | `src/app/page.tsx` | `getDashboard(period)`；净资产、周/月/季可投资资产结果桥、贡献来源、财富轨迹、构成、状态与主目标入口 |
 | 持仓 | `src/app/positions/page.tsx` | `loadEngineState`；配置、分组、列头排序（市值/当日盈亏/未实现盈亏/权重/名称）、当日盈亏 |
 | 资产详情 | `src/app/positions/[assetId]/page.tsx` | 价格/净值历史、基金估值、持仓概览、流水与带账本锁的安全编辑/删除 |
 | 看盘 | `src/app/watch/page.tsx` | `getWatchData` + 默认基准；盘中曲线、今日贡献/拖累、结算状态、近 30 日三项快照与实时估值表（默认 8 项，筛选或显式展开后展示全部）；排序与筛选状态走 `sort`/`q`/`cls`/`excl` 深链；点表格行在曲线上叠加该标的当日盈亏 |
@@ -20,7 +20,7 @@ last_verified: 2026-09-14
 | 收益历史 | `src/app/review/returns/page.tsx` | `getWatchData` + `loadBenchmarks`；预设/自定义区间、四基准对比、收益率/金额/资产曲线，以及日/月/年收益日历 |
 | 流水 | `src/app/transactions/page.tsx` | 默认有效流水视图、可展开冲正历史、筛选、分页、录入、CSV、冲正、导出 |
 | 基金确认 | `src/app/fund-confirmations/page.tsx` | 待确认基金集中队列、官方净值只读预览、平台份额比对与确认写入 |
-| FIRE | `src/app/goals/page.tsx` | 目标编辑、储蓄、情景实验室、蒙特卡洛结果 |
+| 目标测算 | `src/app/goals/page.tsx` | 账本资本、达成时间、所需月投入、三档结果、本金/复利拆分；高级区保留退休压力测试与收支证据 |
 | 账户 | `src/app/accounts/page.tsx`、`accounts/[accountId]/page.tsx` | 账户、资产目录、结算关系、负债 |
 | 定投管理 | `src/app/investment-plans/page.tsx` | 定投节奏、月度计划与有效 BUY 核对；用户核对实际申购后按日批量快速录入 |
 | 月结中心 | `src/app/month-close/page.tsx` | 数据确认、账户对账、定投核对与月度复盘的只读编排 |
@@ -112,9 +112,10 @@ Route Handlers：
 - `src/components/investment-plan-quick-entry.tsx`、`src/lib/actions.ts` 的 `recordInvestmentPlanBuys`：同日已买申购走交易写服务和现金结算，明确未买只留 `InvestmentPlanDayReview` 计划层证据；`revokeInvestmentPlanNoBuyReview` 可撤销核对，不新建第二账本。
 - `src/lib/engine/month-close.ts`：基于既有证据推导月结四步状态，不保存第二余额或结账标记。
 
-### FIRE
+### 目标测算与退休压力测试
 
-- `src/lib/engine/projection.ts`、`covariance.ts`、`rng.ts`：确定性蒙特卡洛和 FIRE。
+- `src/lib/engine/goal-scope.ts`：普通目标与退休目标的资本边界；退休目标固定使用家庭净资产，纳入长期资产并扣除负债。
+- `src/lib/engine/projection.ts`、`covariance.ts`、`rng.ts`：目标投影、确定性蒙特卡洛和退休期压力测试。
 - `src/lib/engine/savings.ts`：储蓄口径。
 - `src/lib/engine/metrics.ts`：组合指标。
 

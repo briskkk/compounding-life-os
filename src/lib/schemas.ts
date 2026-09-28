@@ -194,7 +194,7 @@ export const goalInputSchema = goalBaseSchema.superRefine((v, ctx) => {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: '请填写预计年度退休支出', path: ['annualSpend'] })
   }
   if (v.mode === 'LUMP_SUM' && v.targetAmount <= 0) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'FIRE Number 必须为正', path: ['targetAmount'] })
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '目标金额必须为正', path: ['targetAmount'] })
   }
 })
 

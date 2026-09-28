@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-09-22
+last_verified: 2026-09-23
 ---
 
 # 已确认决策
@@ -13,6 +13,8 @@ last_verified: 2026-09-22
 | 交易账本是唯一事实源 | 持仓、成本、净投入和快照由流水重放；不引入可写余额表 | [ADR-001](../docs/adr/001-transaction-ledger-source-of-truth.md) |
 | 成本采用移动平均法 | SELL 按卖出前平均单位成本释放成本，不改为 FIFO | [ADR-002](../docs/adr/002-moving-average-cost-basis.md) |
 | 维持双财富口径 | 净资产包含长期资产并扣负债；可自由投资排除房产、手动非黄金资产、华为员工持股 | [ADR-003](../docs/adr/003-dual-wealth-scopes.md) |
+| 默认使用账本驱动的目标测算 | 复杂 FIRE 假设进入高级压力测试，临时试算不自动保存 | [ADR-033](../docs/adr/033-ledger-driven-goal-calculator.md) |
+| FIRE 纳入家庭净资产 | 退休目标纳入员工持股、房产等长期资产并扣除负债；使用综合资产手工假设，不改变可投资组合口径 | [ADR-034](../docs/adr/034-fire-includes-household-net-worth.md) |
 | 生产不伪造行情 | 默认真实 provider chain，模拟源只能显式启用 | [ADR-004](../docs/adr/004-real-market-data-only.md) |
 | 基金估算与官方净值隔离 | 官方历史进 PriceBar；盘中估算进 FundEstimate，不能覆盖官方值 | [ADR-005](../docs/adr/005-separate-fund-estimates.md) |
 | TWR 与 XIRR 各司其职 | TWR 衡量组合；XIRR 衡量实际资金体验；非收益快照不造收益点 | [ADR-006](../docs/adr/006-performance-semantics.md) |

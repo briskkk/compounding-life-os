@@ -314,18 +314,18 @@ export default async function OverviewPage({
 
         <div className="overview-compact-panel overview-fire-panel">
           <div className="overview-section-heading">
-            <div><h2>FIRE 路径</h2></div>
+            <div><h2>目标进度</h2></div>
             <Link href="/goals">详情 →</Link>
           </div>
-          {!primaryGoal ? <Empty action={{ href: '/goals', label: '建立计划' }}>尚未设定 FIRE 计划</Empty> : (
+          {!primaryGoal ? <Empty action={{ href: '/goals', label: '建立目标' }}>尚未设定主目标</Empty> : (
             <>
               <div className="overview-fire-main"><strong className="num">{fmtPct(primaryGoal.projection.fundedRatio)}</strong><span>{primaryGoal.name}</span></div>
-              <p>当前 {fmtCNY(primaryGoal.current)} / FIRE Number {fmtCNY(primaryGoal.targetAmount)}</p>
+              <p>当前 {fmtCNY(primaryGoal.current)} / 目标 {fmtCNY(primaryGoal.targetAmount)}</p>
               <div className="overview-fire-progress" role="progressbar" aria-label={`${primaryGoal.name} 完成度`} aria-valuenow={Math.min(100, Math.max(0, Math.round(primaryGoal.projection.fundedRatio * 100)))} aria-valuemin={0} aria-valuemax={100}>
                 <i style={{ width: `${Math.min(100, Math.max(0, primaryGoal.projection.fundedRatio * 100))}%` }} />
               </div>
-              <div className="overview-fire-meta"><span>预计达成 {fireMonth(primaryGoal.projection.estimatedFireMonths)}</span><span>不断供概率 <b className="num">{fmtPct(primaryGoal.projection.retirementSuccessProb)}</b></span></div>
-              {d.goals.length > 1 && <Link className="overview-fire-more" href="/goals">另有 {d.goals.length - 1} 个平行方案</Link>}
+              <div className="overview-fire-meta"><span>预计达成 {fireMonth(primaryGoal.projection.estimatedFireMonths)}</span><span>所需月投入 <b className="num">{fmtCNY(primaryGoal.projection.requiredMonthly)}</b></span></div>
+              {d.goals.length > 1 && <Link className="overview-fire-more" href="/goals">另有 {d.goals.length - 1} 个既有目标</Link>}
             </>
           )}
         </div>

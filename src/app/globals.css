@@ -9949,3 +9949,278 @@ kbd {
     justify-content: start;
   }
 }
+
+/* ---------- 目标测算：默认回答达成时间与所需投入，退休压力测试按需展开 ---------- */
+.goal-simple-page {
+  gap: 2.5rem;
+}
+
+.goal-summary {
+  display: grid;
+  gap: 1.5rem;
+  padding: clamp(1.4rem, 3vw, 2.25rem);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+}
+
+.goal-summary-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.goal-summary-head h2 {
+  margin-top: 0.7rem;
+  color: var(--color-ink);
+  font-size: clamp(1.8rem, 3.2vw, 2.8rem);
+  font-weight: 500;
+  line-height: 1.12;
+}
+
+.goal-summary-head p,
+.goal-summary-caption,
+.goal-model-note {
+  margin-top: 0.45rem;
+  color: var(--color-ink-faint);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.goal-answer-grid,
+.goal-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.goal-answer-grid > div,
+.goal-evidence-grid > div,
+.goal-scenario-grid > div {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  min-height: 126px;
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  background: var(--color-panel);
+}
+
+.goal-answer-grid span,
+.goal-answer-grid small,
+.goal-evidence-grid span,
+.goal-evidence-grid small,
+.goal-scenario-grid span,
+.goal-scenario-grid small,
+.goal-bridge-equation span {
+  color: var(--color-ink-faint);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.goal-answer-grid strong,
+.goal-evidence-grid strong,
+.goal-scenario-grid strong {
+  margin-block: 0.55rem 0.35rem;
+  overflow-wrap: anywhere;
+  color: var(--color-ink);
+  font-size: clamp(1.05rem, 1.7vw, 1.4rem);
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.goal-summary-progress {
+  height: 7px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-line);
+}
+
+.goal-summary-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent);
+}
+
+.goal-scope-warning {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--color-amber) 35%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-amber) 8%, transparent);
+  color: var(--color-ink-dim);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.goal-scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.goal-capital-bridge,
+.goal-evidence {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.goal-bridge-equation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: center;
+  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+}
+
+.goal-bridge-equation > div {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.goal-bridge-equation > b {
+  color: var(--color-ink-faint);
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.goal-bridge-equation strong {
+  color: var(--color-ink);
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.goal-evidence-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.goal-evidence-grid > div {
+  min-height: 112px;
+  background: var(--surface-1);
+}
+
+.goal-evidence-grid .status-tag {
+  justify-self: start;
+  margin-block: 0.5rem 0.3rem;
+}
+
+.goal-scenario .goal-scenario-controls {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.goal-advanced {
+  border-top: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.goal-advanced > summary,
+.goal-form-advanced > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 68px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.goal-advanced > summary::-webkit-details-marker,
+.goal-form-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.goal-advanced > summary span {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.goal-advanced > summary strong,
+.goal-form-advanced > summary {
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.goal-advanced > summary small,
+.goal-advanced > summary b {
+  color: var(--color-ink-faint);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.goal-advanced-body {
+  display: grid;
+  gap: 3rem;
+  padding-block: 1.5rem 2.5rem;
+}
+
+.goal-form-advanced {
+  border-top: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.goal-form-scope {
+  display: grid;
+  gap: 0.2rem;
+  align-content: center;
+  min-height: 72px;
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+}
+
+.goal-form-scope span,
+.goal-form-scope small {
+  color: var(--color-ink-faint);
+  font-size: 12px;
+}
+
+.goal-form-scope strong {
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+@media (max-width: 1180px) {
+  .goal-answer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .goal-evidence-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .goal-bridge-equation {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
+  .goal-bridge-equation > b:nth-of-type(3),
+  .goal-bridge-equation > div:last-child {
+    margin-top: 0.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .goal-summary-head {
+    flex-direction: column;
+  }
+
+  .goal-answer-grid,
+  .goal-evidence-grid,
+  .goal-scenario-grid,
+  .goal-scenario .goal-scenario-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .goal-bridge-equation {
+    grid-template-columns: 1fr;
+  }
+
+  .goal-bridge-equation > b {
+    display: none;
+  }
+}

@@ -1506,7 +1506,7 @@ export async function addLiabilityEntry(input: unknown): Promise<ActionResult<{ 
   }
 }
 
-// ---------- FIRE 计划 ----------
+// ---------- 目标测算 ----------
 
 export async function createGoal(input: unknown): Promise<ActionResult<{ id: string }>> {
   try {
@@ -1617,7 +1617,7 @@ function canonicalSavingsPeriod(periodType: 'WEEK' | 'MONTH', value: Date): Date
 }
 
 /**
- * FIRE 情景预览：不写库、不取行情，直接用与页面同源的引擎输入重算候选方案。
+ * 目标临时试算：不写库、不取行情，直接用与页面同源的引擎输入重算候选方案。
  * 这样“预览值”与“应用后的引擎值”必然一致，不会出现两套模型两个答案。
  */
 export async function previewGoalScenario(input: unknown): Promise<ActionResult<{
@@ -1625,6 +1625,8 @@ export async function previewGoalScenario(input: unknown): Promise<ActionResult<
   projectedMedian: number
   fireNumberAtRetirement: number
   fundedRatio: number
+  requiredMonthly: number
+  estimatedFireMonths: number | null
 }>> {
   try {
     await getSessionOrThrow()
@@ -1642,6 +1644,8 @@ export async function previewGoalScenario(input: unknown): Promise<ActionResult<
         projectedMedian: projection.projectedMedian,
         fireNumberAtRetirement: projection.fireNumberAtRetirement,
         fundedRatio: projection.fundedRatio,
+        requiredMonthly: projection.requiredMonthly,
+        estimatedFireMonths: projection.estimatedFireMonths,
       },
     }
   } catch (e) {

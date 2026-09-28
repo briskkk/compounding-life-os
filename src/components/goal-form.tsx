@@ -1,6 +1,5 @@
 'use client'
 
-// FIRE 计划创建 / 编辑表单（直接设 FIRE Number + 按退休支出反推）
 import { useNavigateAfterWrite } from '@/lib/write-navigation'
 import { useState, type FormEvent } from 'react'
 import { createGoal, deleteGoal, updateGoal } from '@/lib/actions'
@@ -27,6 +26,7 @@ export function GoalForm({ mode, goalId, initial, initiallyOpen = false, onDone 
   const navigateAfterWrite = useNavigateAfterWrite()
   const [open, setOpen] = useState(mode === 'create' || initiallyOpen)
   const [goalMode, setGoalMode] = useState<'LUMP_SUM' | 'STREAM'>(initial?.mode ?? 'LUMP_SUM')
+  const [metric, setMetric] = useState<'NET_WORTH' | 'INVESTABLE'>(initial?.metric ?? 'INVESTABLE')
   const [pending, setPending] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
@@ -43,7 +43,7 @@ export function GoalForm({ mode, goalId, initial, initiallyOpen = false, onDone 
       retirementIncome: Number(fd.get('retirementIncome') ?? 0),
       withdrawalRate: Number(fd.get('withdrawalRate') ?? 4) / 100,
       inflationRate: Number(fd.get('inflationRate') ?? 2.5) / 100,
-      metric: String(fd.get('metric')) as 'NET_WORTH' | 'INVESTABLE',
+      metric: goalMode === 'STREAM' ? 'NET_WORTH' as const : metric,
       monthlyContribution: Number(fd.get('monthlyContribution') ?? 0),
       expectedReturn: Number(fd.get('expectedReturn') ?? 7) / 100,
       volatility: Number(fd.get('volatility') ?? 15) / 100,
@@ -56,7 +56,7 @@ export function GoalForm({ mode, goalId, initial, initiallyOpen = false, onDone 
     if (res.ok) {
       if (mode === 'edit') setOpen(false)
       onDone?.()
-      navigateAfterWrite({ message: mode === 'create' ? 'FIRE 计划已创建' : '已保存，FIRE 路径已重算' })
+      navigateAfterWrite({ message: mode === 'create' ? '目标已保存' : '目标已更新并重算' })
     } else {
       setMsg({ ok: false, text: res.error })
     }
@@ -65,93 +65,111 @@ export function GoalForm({ mode, goalId, initial, initiallyOpen = false, onDone 
   async function onDelete() {
     if (!goalId) return
     setPending(true)
-    await deleteGoal(goalId)
-    navigateAfterWrite({ message: 'FIRE 计划已删除' })
+    const response = await deleteGoal(goalId)
+    if (response.ok) navigateAfterWrite({ message: '目标已删除' })
+    else {
+      setPending(false)
+      setMsg({ ok: false, text: response.error })
+    }
   }
 
   if (!open) {
     return (
       <div className="mt-3 border-t border-line pt-3">
-        <button type="button" onClick={() => setOpen(true)} className={btnGhostCls}>
-          调整假设 / 编辑计划
-        </button>
+        <button type="button" onClick={() => setOpen(true)} className={btnGhostCls}>编辑目标</button>
       </div>
     )
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-3 space-y-3 border-t border-line pt-3">
+    <form onSubmit={onSubmit} className="goal-form mt-3 space-y-4 border-t border-line pt-4">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <Field label="计划名称">
-          <input name="name" required defaultValue={initial?.name} className={inputCls} placeholder="我的 FIRE 计划" />
+        <Field label="目标名称">
+          <input name="name" required defaultValue={initial?.name} className={inputCls} placeholder="例如：2036 年目标" />
         </Field>
-        <Field label="FIRE Number 计算方式">
-          <select className={inputCls} value={goalMode} onChange={(e) => setGoalMode(e.target.value as 'LUMP_SUM' | 'STREAM')}>
-            <option value="LUMP_SUM">直接设定目标金额</option>
-            <option value="STREAM">按退休支出反推</option>
+        <Field label="目标类型">
+          <select className={inputCls} value={goalMode} onChange={(event) => setGoalMode(event.target.value as 'LUMP_SUM' | 'STREAM')}>
+            <option value="LUMP_SUM">普通财富目标</option>
+            <option value="STREAM">退休目标</option>
           </select>
         </Field>
-        <p className="self-end text-[12px] leading-5 text-ink-faint md:col-span-2">
-          4% 提取率约等于 25 倍年度净支出，是规划起点而非收益保证；退休周期越长，可用更低提取率做压力测试。
-        </p>
         {goalMode === 'LUMP_SUM' ? (
-          <Field label="FIRE Number（今日购买力，¥）">
+          <Field label="目标金额（今日购买力，¥）">
             <input name="targetAmount" type="number" min="1" step="any" required defaultValue={initial?.targetAmount} className={inputCls} />
           </Field>
         ) : (
-          <Field label="预计年度退休支出（今日购买力，¥）">
+          <Field label="年度退休支出（今日购买力，¥）">
             <input name="annualSpend" type="number" min="1" step="any" required defaultValue={initial?.annualSpend ?? 600000} className={inputCls} />
           </Field>
         )}
-        <Field label="预计退休日期">
+        <Field label="目标日期">
           <input name="targetDate" type="date" required defaultValue={initial?.targetDate} className={inputCls} />
         </Field>
-        <Field label="年度稳定退休收入（今日购买力，¥）">
-          <input name="retirementIncome" type="number" min="0" step="any" defaultValue={initial?.retirementIncome ?? 0} className={inputCls} />
-        </Field>
-        <Field label="退休规划年数">
-          <input name="spendYears" type="number" min="10" max="70" step="1" required defaultValue={initial?.spendYears ?? 40} className={inputCls} />
-        </Field>
-        <Field label="安全提取率（%）">
-          <input name="withdrawalRate" type="number" min="2" max="8" step="0.1" required defaultValue={Number(((initial?.withdrawalRate ?? 0.04) * 100).toFixed(2))} className={inputCls} />
-        </Field>
-        <Field label="长期通胀率（%）">
-          <input name="inflationRate" type="number" min="0" max="15" step="0.1" required defaultValue={Number(((initial?.inflationRate ?? 0.025) * 100).toFixed(2))} className={inputCls} />
-        </Field>
-        <Field label="统计口径">
-          <select name="metric" defaultValue={initial?.metric ?? 'INVESTABLE'} className={inputCls}>
-            <option value="INVESTABLE">可自由投资口径</option>
-            <option value="NET_WORTH">净资产口径（含非流动资产）</option>
-          </select>
-        </Field>
-        <Field label="每月投入（¥）">
+        <Field label="每月计划投入（¥）">
           <input name="monthlyContribution" type="number" min="0" step="any" defaultValue={initial?.monthlyContribution ?? 0} className={inputCls} />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="期望年化（%）">
-            <input name="expectedReturn" type="number" step="any" defaultValue={Number(((initial?.expectedReturn ?? 0.07) * 100).toFixed(2))} className={inputCls} />
-          </Field>
-          <Field label="波动率（%）">
-            <input name="volatility" type="number" min="1" step="any" defaultValue={Number(((initial?.volatility ?? 0.15) * 100).toFixed(2))} className={inputCls} />
-          </Field>
-        </div>
       </div>
+
+      <details className="goal-form-advanced">
+        <summary>高级假设</summary>
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+          {goalMode === 'LUMP_SUM' ? (
+            <Field label="当前资本口径">
+              <select value={metric} onChange={(event) => setMetric(event.target.value as 'NET_WORTH' | 'INVESTABLE')} className={inputCls}>
+                <option value="INVESTABLE">可自由投资资产</option>
+                <option value="NET_WORTH">家庭净资产</option>
+              </select>
+            </Field>
+          ) : (
+            <div className="goal-form-scope">
+              <span>当前资本口径</span>
+              <strong>家庭净资产</strong>
+              <small>纳入员工持股、房产等长期资产，并扣除负债</small>
+            </div>
+          )}
+          <Field label="长期通胀率（%）">
+            <input name="inflationRate" type="number" min="0" max="15" step="0.1" required defaultValue={Number(((initial?.inflationRate ?? 0.025) * 100).toFixed(2))} className={inputCls} />
+          </Field>
+          {goalMode === 'STREAM' && (
+            <>
+              <Field label="年度稳定退休收入（¥）">
+                <input name="retirementIncome" type="number" min="0" step="any" defaultValue={initial?.retirementIncome ?? 0} className={inputCls} />
+              </Field>
+              <Field label="退休规划年数">
+                <input name="spendYears" type="number" min="10" max="70" step="1" required defaultValue={initial?.spendYears ?? 40} className={inputCls} />
+              </Field>
+              <Field label="安全提取率（%）">
+                <input name="withdrawalRate" type="number" min="2" max="8" step="0.1" required defaultValue={Number(((initial?.withdrawalRate ?? 0.04) * 100).toFixed(2))} className={inputCls} />
+              </Field>
+            </>
+          )}
+          {goalMode !== 'STREAM' && <input type="hidden" name="retirementIncome" value={initial?.retirementIncome ?? 0} />}
+          {goalMode !== 'STREAM' && <input type="hidden" name="spendYears" value={initial?.spendYears ?? 40} />}
+          {goalMode !== 'STREAM' && <input type="hidden" name="withdrawalRate" value={Number(((initial?.withdrawalRate ?? 0.04) * 100).toFixed(2))} />}
+          <div className="grid grid-cols-2 gap-3 md:col-span-2">
+            <Field label={goalMode === 'STREAM' || metric === 'NET_WORTH' ? '综合资产年化假设（%）' : '兜底年化收益（%）'}>
+              <input name="expectedReturn" type="number" step="any" defaultValue={Number(((initial?.expectedReturn ?? 0.07) * 100).toFixed(2))} className={inputCls} />
+            </Field>
+            <Field label={goalMode === 'STREAM' || metric === 'NET_WORTH' ? '综合资产波动假设（%）' : '兜底波动率（%）'}>
+              <input name="volatility" type="number" min="1" step="any" defaultValue={Number(((initial?.volatility ?? 0.15) * 100).toFixed(2))} className={inputCls} />
+            </Field>
+          </div>
+        </div>
+        <p className="mt-3 text-[12px] leading-5 text-ink-faint" title={goalMode === 'STREAM' || metric === 'NET_WORTH' ? '家庭净资产包含员工持股、房产等长期资产并扣除负债；这些资产没有完整的可交易组合模型，因此投影统一采用这里填写的综合收益与波动假设。' : '存在可投资组合权重时，投影使用资产类别协方差模型；没有可用组合时才采用这里的兜底收益与波动假设。'}>
+          {goalMode === 'STREAM' || metric === 'NET_WORTH' ? '含长期资产并扣负债；收益按综合假设测算。' : '收益模型优先跟随当前可投资组合；兜底假设只在组合模型不可用时生效。'}
+        </p>
+      </details>
+
       <Field label="备注">
         <input name="note" defaultValue={initial?.note} className={inputCls} placeholder="可选" />
       </Field>
       <FormMsg msg={msg} />
       <div className="flex items-center gap-2">
-        <button type="submit" disabled={pending} className={btnCls}>
-          {pending ? '保存中…' : mode === 'create' ? '创建 FIRE 计划' : '保存并重算'}
-        </button>
+        <button type="submit" disabled={pending} className={btnCls}>{pending ? '保存中…' : mode === 'create' ? '保存为主目标' : '保存并重算'}</button>
         {mode === 'edit' && (
           <>
-            <button type="button" onClick={() => setOpen(false)} className={btnGhostCls}>
-              收起
-            </button>
-            <button type="button" onClick={onDelete} disabled={pending} className="ml-auto text-xs text-ink-faint hover:text-danger">
-              删除计划
-            </button>
+            <button type="button" onClick={() => setOpen(false)} className={btnGhostCls}>收起</button>
+            <button type="button" onClick={onDelete} disabled={pending} className="ml-auto text-xs text-ink-faint hover:text-danger">删除目标</button>
           </>
         )}
       </div>

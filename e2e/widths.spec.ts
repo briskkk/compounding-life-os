@@ -11,7 +11,7 @@ const PAGES = [
   ['/review', '复盘'],
   ['/review/returns', '收益历史'],
   ['/review/history', '长期复盘'],
-  ['/goals', 'FIRE'],
+  ['/goals', '目标测算'],
   ['/health/market', '行情质量'],
   ['/investment-plans', '定投'],
 ] as const

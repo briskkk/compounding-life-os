@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-09-22
+last_verified: 2026-09-23
 ---
 
 # 领域模型
@@ -58,7 +58,7 @@ last_verified: 2026-09-22
 - `LUMP_SUM`：目标日达到指定金额。
 - `STREAM`：按年度退休支出、稳定收入、提取率、通胀率和规划年数反推 FIRE。
 
-目标指标可选 NET_WORTH 或 INVESTABLE。`SavingsEntry` 按周/月记录收入、支出和结余。
+普通目标指标可选 NET_WORTH 或 INVESTABLE；退休目标计算时固定使用 NET_WORTH，纳入房产、员工持股等长期资产并扣除当前负债。由于长期资产不属于可交易组合，退休投影使用目标保存的综合收益/波动假设，不改变看盘、绩效或资产配置的可投资口径。`SavingsEntry` 按周/月记录收入、支出和结余；少于 3 个有效月份时不形成“可持续投入”证据。目标试算属于计划层，只有用户确认保存后才更新 `Goal`，不会生成交易或修改账本。
 
 ### 组合计划
 

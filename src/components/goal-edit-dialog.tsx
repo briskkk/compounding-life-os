@@ -1,6 +1,6 @@
 'use client'
 
-// FIRE 计划编辑弹窗：原生 <dialog> 模态。
+// 目标编辑弹窗：原生 <dialog> 模态。
 // Esc 关闭、焦点圈禁在弹窗内、关闭后焦点归还触发按钮，均为 showModal() 原生行为；
 // 这里只补遮罩点击关闭与每次打开重新挂载表单（避免保留上次未保存的输入）。
 import { useEffect, useRef, useState } from 'react'
@@ -40,7 +40,7 @@ export function GoalEditDialog({ goalId, initial }: { goalId: string; initial: G
         {open && (
           <div>
             <div className="flex items-center justify-between gap-4">
-              <h2 id="goal-edit-dialog-title" className="text-[19px] font-medium text-ink">编辑 FIRE 计划</h2>
+              <h2 id="goal-edit-dialog-title" className="text-[19px] font-medium text-ink">编辑目标</h2>
               <button
                 type="button"
                 aria-label="关闭编辑窗口"

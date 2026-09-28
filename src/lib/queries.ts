@@ -13,8 +13,9 @@ import {
 } from './engine/ledger'
 import { valuePositions, type ValuedPosition } from './engine/valuation'
 import { aggregate, type Metrics } from './engine/metrics'
+import { portfolioMoments, type ClassWeights } from './engine/covariance'
+import { currentGoalCapital } from './engine/goal-scope'
 import { monthsBetween, projectFireScenarios, type FireProjectionInput, type FireProjectionResult } from './engine/projection'
-import type { ClassWeights } from './engine/covariance'
 import { annualized, dailyNetFlows, twrSeries, xirr, xirrFlowsFromTxs } from './engine/attribution'
 import { totalLiabilities, type LiabilityEntryInput } from './engine/liabilities'
 import { quoteSmartSWR, providerLabel, historySmart } from './market'
@@ -218,9 +219,12 @@ export interface GoalView {
   withdrawalRate: number
   inflationRate: number
   metric: 'NET_WORTH' | 'INVESTABLE'
+  storedMetric: 'NET_WORTH' | 'INVESTABLE'
+  capitalScopeAdjusted: boolean
   monthlyContribution: number
   expectedReturn: number
   volatility: number
+  modelSource: 'PORTFOLIO' | 'MANUAL'
   note: string | null
   current: number
   monthsLeft: number
@@ -273,7 +277,6 @@ export async function loadGoals(
   const goals = await db.goal.findMany({ orderBy: { targetDate: 'asc' } })
   const now = new Date()
   const investableW = classWeights(state.valued, 'investable')
-  const grossW = classWeights(state.valued, 'value')
   return goals.map((g) => {
     const retirementIncome = Number(g.retirementIncome)
     const withdrawalRate = g.withdrawalRate
@@ -285,8 +288,14 @@ export async function loadGoals(
       ? storedAnnualSpend
       : target * withdrawalRate + retirementIncome
     const retirementYears = g.spendYears ?? 40
-    const current = g.metric === 'NET_WORTH' ? state.netWorth : state.investable
+    const capital = currentGoalCapital(g.mode, g.metric, state)
+    const current = capital.current
     const monthsLeft = monthsBetween(now, g.targetDate)
+    const hasPortfolioModel = capital.metric === 'INVESTABLE'
+      && Object.values(investableW).some((value) => (value ?? 0) > 0)
+    const moments = hasPortfolioModel
+      ? portfolioMoments(investableW)
+      : { mu: g.expectedReturn, sigma: g.volatility }
     const baseInput = {
       current,
       fireNumberToday: target,
@@ -295,10 +304,10 @@ export async function loadGoals(
       inflationRate: g.inflationRate,
       retirementYears,
       monthlyContribution: Number(g.monthlyContribution),
-      annualReturn: g.expectedReturn,
-      volatility: g.volatility,
+      annualReturn: moments.mu,
+      volatility: moments.sigma,
       seed: [...g.id].reduce((s, c) => s + c.charCodeAt(0), 7),
-      portfolioWeights: g.metric === 'NET_WORTH' ? grossW : investableW,
+      portfolioWeights: hasPortfolioModel ? investableW : undefined,
     }
     // 「计划投入」与「可持续投入」两个情景共用一条冲击序列，一次算完（成本≈单情景）
     const scenarios = opts.sustainableMonthlySavings != null
@@ -316,10 +325,13 @@ export async function loadGoals(
       retirementIncome,
       withdrawalRate,
       inflationRate: g.inflationRate,
-      metric: g.metric,
+      metric: capital.metric,
+      storedMetric: g.metric,
+      capitalScopeAdjusted: capital.adjusted,
       monthlyContribution: Number(g.monthlyContribution),
-      expectedReturn: g.expectedReturn,
-      volatility: g.volatility,
+      expectedReturn: moments.mu,
+      volatility: moments.sigma,
+      modelSource: hasPortfolioModel ? 'PORTFOLIO' : 'MANUAL',
       note: g.note,
       current,
       monthsLeft,

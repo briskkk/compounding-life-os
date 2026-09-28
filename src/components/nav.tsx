@@ -23,7 +23,6 @@ export const NAV_GROUPS: Array<{
     links: [
       { href: '/transactions', label: '流水', icon: 'ledger' },
       { href: '/investment-plans', label: '定投', icon: 'repeat' },
-      { href: '/goals', label: 'FIRE', icon: 'target' },
       { href: '/accounts', label: '账户', icon: 'wallet' },
     ],
   },

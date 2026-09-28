@@ -3,6 +3,7 @@
 import type { Goal } from '@prisma/client'
 import type { EngineState } from '@/lib/queries'
 import { monthsBetween, projectFireGoal, projectGoal } from './projection'
+import { currentGoalCapital } from './goal-scope'
 
 export interface GoalView {
   id: string
@@ -62,7 +63,7 @@ function roundProjection(points: { month: number; p10: number; p50: number; p90:
 
 export function projectGoalViews(goals: Goal[], state: EngineState, now: Date = new Date()): GoalView[] {
   return goals.map((g) => {
-    const current = g.metric === 'NET_WORTH' ? state.netWorth : state.investable
+    const current = currentGoalCapital(g.mode, g.metric, state).current
     const months = Math.max(0, monthsBetween(now, g.targetDate))
     const years = g.spendYears ?? 30
     const base = {

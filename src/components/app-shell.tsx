@@ -15,7 +15,7 @@ import { TerminalIcon, type TerminalIconName } from '@/components/terminal-icon'
 
 const PAGE_NAMES: Array<[string, string]> = [
   ['/investment-plans', '定投'],
-  ['/month-close', '月结中心'],
+  ['/month-close', '月结'],
   ['/fund-confirmations', '基金确认'],
   ['/corporate-actions', '公司行动'],
   ['/fund-operations', '基金规则'],
@@ -27,7 +27,7 @@ const PAGE_NAMES: Array<[string, string]> = [
   ['/review/history', '长期复盘'],
   ['/review/decisions', '交易决策'],
   ['/review', '复盘'],
-  ['/goals', 'FIRE'],
+  ['/goals', '目标'],
   ['/accounts', '账户'],
   ['/health/market', '行情质量'],
   ['/health', '数据健康'],
@@ -55,6 +55,7 @@ export function BreadcrumbEntity({ name }: { name: string }) {
 }
 
 const WORKFLOW_LINKS: Array<{ href: string; label: string; icon: TerminalIconName; aliases: string }> = [
+  { href: '/goals', label: '目标测算', icon: 'target', aliases: '目标 复利 FIRE 财务自由 退休' },
   { href: '/month-close', label: '月结中心', icon: 'review', aliases: '月结 结账 月度复盘' },
   { href: '/fund-confirmations', label: '基金确认', icon: 'ledger', aliases: '份额确认 净值确认 确认基金 待确认' },
   { href: '/reconciliation', label: '账户对账', icon: 'wallet', aliases: '核对账户 对账 余额' },

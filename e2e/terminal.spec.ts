@@ -60,7 +60,7 @@ test('终端首页：财富结果、对账桥、贡献来源与状态同屏', as
   await expect(page.getByRole('heading', { name: '本月利润从哪里来' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '可投资资产构成' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '状态速览' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'FIRE 路径' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '目标进度' })).toBeVisible()
   await expect(page.getByRole('region', { name: '行情数据状态' })).toHaveCount(0)
   await expect(page.locator('.overview-data-quality').getByRole('link', { name: '查看数据状态 →' })).toBeVisible()
   // 账本可对账结果与双口径
@@ -254,30 +254,26 @@ test('资产登记：华为股票使用独立长期资产分类', async ({ page 
   await expect(page.getByLabel('手动估值（不接入行情源）')).toHaveCount(0)
 })
 
-test('FIRE 页：首屏只保留一个计划成功率（含口径副标签）', async ({ page }) => {
+test('目标测算：默认回答达成时间、所需投入与三档结果', async ({ page }) => {
   await page.goto('/goals')
-  await expect(page.getByRole('heading', { name: 'FIRE · 财务自由计划' })).toBeVisible()
-  // 主数字是完成度（当前资产 / FIRE Number）
-  await expect(page.getByText('完成度 · 当前资产 / FIRE Number')).toBeVisible()
-  // C7：首屏只有一个概率，且带口径副标签；另一个口径（退休日积累达标）只在情景实验室出现
-  await expect(page.getByText('计划成功率')).toBeVisible()
-  await expect(page.getByText(/口径：退休全周期不断供 · 蒙特卡洛估计/)).toBeVisible()
-  await expect(page.getByText('退休日积累达标概率')).toHaveCount(0)
-  await expect(page.getByText('当前积累达标概率')).toBeVisible()
-  // 图表轴用「万」，下方补完整金额
-  await expect(page.getByText(/期末中位路径 ¥/)).toBeVisible()
-  await expect(page.getByText(/通胀调整后的 FIRE Number ¥/)).toBeVisible()
-  await expect(page.getByText(/FIRE Number ¥/).first()).toBeVisible()
-  await expect(page.getByRole('heading', { name: '储蓄率决定 FIRE 速度' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '全部 FIRE 方案' })).toBeVisible()
-  await expect(page.getByText('新建 FIRE 方案', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '目标测算' })).toBeVisible()
+  await expect(page.getByText('可用于目标的当前资产')).toBeVisible()
+  await expect(page.getByText('按当前投入预计达成')).toBeVisible()
+  await expect(page.getByText('目标日所需月投入')).toBeVisible()
+  await expect(page.getByText('保守区间 · P10')).toBeVisible()
+  await expect(page.getByText('基准中位 · P50')).toBeVisible()
+  await expect(page.getByText('乐观区间 · P90')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '本金和复利各贡献多少' })).toBeVisible()
+  await expect(page.getByText('计划成功率')).toHaveCount(0)
+  await expect(page.getByText('Coast FIRE')).toHaveCount(0)
+  await expect(page.getByText('高级：退休压力测试与收支证据')).toBeVisible()
 })
 
-test('FIRE 页：编辑计划弹窗（Esc / 遮罩关闭，焦点归还）', async ({ page }) => {
+test('目标测算：编辑目标弹窗（Esc / 遮罩关闭，焦点归还）', async ({ page }) => {
   await page.goto('/goals')
   const trigger = page.getByRole('button', { name: '编辑计划', exact: true })
   await trigger.click()
-  const dialog = page.getByRole('dialog', { name: '编辑 FIRE 计划' })
+  const dialog = page.getByRole('dialog', { name: '编辑目标' })
   await expect(dialog).toBeVisible()
   // 打开后焦点进入弹窗内部
   const focusInside = await page.evaluate(() => {
@@ -339,14 +335,14 @@ test('导航：⌘K 支持 ↑↓/Enter，面包屑可点击并显示实体名',
   await expect(page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '导入批次' })).toHaveAttribute('aria-current', 'page')
 })
 
-test('FIRE 页：#new-goal 深链会展开新建表单', async ({ page }) => {
-  await page.goto('/goals')
-  // P2-19：此前是普通 <details>，深链只滚动不展开，用户会以为链接坏了
-  await expect(page.locator('#new-goal')).not.toHaveAttribute('open')
-  await page.getByRole('link', { name: /建立 FIRE 计划|新建方案/ }).first().click()
-  await expect(page.locator('#new-goal')).toHaveAttribute('open')
-  await expect(page.locator('#new-goal').getByText('新建 FIRE 方案')).toBeVisible()
-  // 直接带 hash 打开（刷新后同样应展开）
-  await page.goto('/goals#new-goal')
-  await expect(page.locator('#new-goal')).toHaveAttribute('open')
+test('目标测算：退出一级导航但可从总览和命令面板进入', async ({ page }) => {
+  await page.goto('/')
+  const nav = page.getByRole('navigation', { name: '主导航' })
+  await expect(nav.getByRole('link', { name: 'FIRE' })).toHaveCount(0)
+  await page.keyboard.press('Control+k')
+  const search = page.getByLabel('搜索页面')
+  await search.fill('目标测算')
+  await page.getByRole('option', { name: '目标测算' }).click()
+  await expect(page).toHaveURL(/\/goals/)
+  await expect(page.getByRole('heading', { name: '目标测算' })).toBeVisible()
 })
