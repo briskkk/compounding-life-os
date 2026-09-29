@@ -6020,6 +6020,7 @@ nav[aria-label="主导航"] a {
   display: flex;
   height: 86px;
   align-items: flex-end;
+  justify-content: center;
 }
 
 .review-day-column i {

@@ -92,6 +92,27 @@ test('组合复盘：按日查看并在历史日之间切换', async ({ page }) 
   await expect(page.locator('#review-date')).toHaveValue('2026-08-23')
 })
 
+test('组合复盘：每日收益金额、柱子与日期在同一列居中', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto('/review?period=THIS_MONTH&month=2026-08')
+  await page.getByRole('navigation', { name: '复盘步骤' }).getByRole('button', { name: /2 · 归因/ }).click()
+  await page.getByRole('tab', { name: '何时发生' }).click()
+
+  const columns = page.locator('.review-day-column')
+  expect(await columns.count()).toBeGreaterThan(0)
+  const misaligned = await columns.evaluateAll((elements) => elements.map((column) => {
+    const center = (selector: string) => {
+      const rect = column.querySelector(selector)?.getBoundingClientRect()
+      return rect ? rect.left + rect.width / 2 : NaN
+    }
+    return Math.max(
+      Math.abs(center('span') - center('small')),
+      Math.abs(center('i') - center('small')),
+    )
+  }))
+  expect(Math.max(...misaligned)).toBeLessThanOrEqual(1)
+})
+
 test('组合复盘：1280px 桌面视口金额不拆行且无横向溢出', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
   await page.goto('/review')
