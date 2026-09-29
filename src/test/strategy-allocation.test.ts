@@ -3,7 +3,7 @@ import { buildStrategyDrift, UNASSIGNED_STRATEGY } from '@/lib/engine/strategy-a
 import { performanceScopes } from '@/lib/engine/performance-scope'
 import { combineAssetPerformanceSeries } from '@/lib/engine/group-performance'
 import { performanceBetween } from '@/lib/engine/period-performance'
-import { strategyTargetsInputSchema } from '@/lib/schemas'
+import { assetClassificationBatchSchema, strategyTargetsInputSchema } from '@/lib/schemas'
 import type { AssetPerformancePoint } from '@/lib/engine/asset-performance'
 
 function point(date: string, netWorth: number, contributions: number, status: AssetPerformancePoint['valuationStatus'] = 'SETTLED'): AssetPerformancePoint {
@@ -35,6 +35,14 @@ describe('自定义组合目标与分类收益', () => {
     expect(strategyTargetsInputSchema.safeParse({ targets: [
       { name: 'A股宽基', targetWeight: 0.6, tolerance: 0.03 },
     ] }).success).toBe(false)
+  })
+
+  it('批量分类拒绝重复资产和无效风格，避免同批次覆盖', () => {
+    const change = { id: 'asset-1', style: 'BROAD_INDEX', strategyGroup: 'A股宽基', tags: '核心' }
+    expect(assetClassificationBatchSchema.safeParse({ changes: [change, change] }).success).toBe(false)
+    expect(assetClassificationBatchSchema.safeParse({ changes: [{ ...change, style: 'UNKNOWN' }] }).success).toBe(false)
+    expect(assetClassificationBatchSchema.safeParse({ changes: [{ id: 'asset-1' }] }).success).toBe(false)
+    expect(assetClassificationBatchSchema.safeParse({ changes: [change] }).success).toBe(true)
   })
 
   it('分类筛选覆盖大类、风格、市场、组合分组与交叉标签', () => {

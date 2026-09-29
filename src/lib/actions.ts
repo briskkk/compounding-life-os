@@ -21,6 +21,7 @@ import {
   accountSettlementSchema,
   allocationTargetsInputSchema,
   strategyTargetsInputSchema,
+  assetClassificationBatchSchema,
   assetInputSchema,
   assetUpdateSchema,
   cashPlanInputSchema,
@@ -45,6 +46,7 @@ import { parseCsvRows, parsedTxKey, type CsvColumnMapping, type CsvLookup, type 
 import { buildSettlementLegs } from './engine/settlement'
 import { createsSettlementCycle } from './engine/settlement-account'
 import { parseTags, serializeTags } from './engine/groups'
+import { isInvestableAsset } from './asset-classification'
 import { UNASSIGNED_STRATEGY } from './engine/strategy-allocation'
 import {
   persistFundHistory,
@@ -59,7 +61,7 @@ import { projectFireGoal } from './engine/projection'
 import type { ClassWeights } from './engine/covariance'
 import { fundSettlementDate, isQdiiFund } from './engine/fund-order'
 import { type LedgerTx } from './engine/ledger'
-import type { AssetInfo } from './engine/types'
+import type { AssetInfo, AssetStyle } from './engine/types'
 import { compareProviderQuotes } from './market'
 import { activeAssetIdsFromLedger, buildMarketRefreshPlan, type RefreshSlot } from './market/refresh-plan'
 import { type TransactionDraft } from './transaction-rules'
@@ -1478,6 +1480,52 @@ export async function updateAsset(id: string, input: unknown): Promise<ActionRes
     revalidatePath('/review')
     revalidatePath('/')
     return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/** 一次提交结构页的分类草稿；全部校验通过后才写入，失败则整批回滚。 */
+export async function updateAssetClassifications(input: unknown): Promise<ActionResult<{
+  count: number
+  saved: { id: string; name: string; style: AssetStyle | null; strategyGroup: string; tags: string }[]
+}>> {
+  try {
+    const ctx = await requireWrite()
+    const data = assetClassificationBatchSchema.parse(input)
+    const saved = await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      const assets = await txDb.asset.findMany({
+        where: { familyId: ctx.familyId, id: { in: data.changes.map((change) => change.id) } },
+        select: { id: true, name: true, cls: true, manual: true },
+      })
+      if (assets.length !== data.changes.length) throw new Error('部分资产不存在或不属于当前家庭，请刷新后重试')
+      const assetById = new Map(assets.map((asset) => [asset.id, asset]))
+      const result: { id: string; name: string; style: AssetStyle | null; strategyGroup: string; tags: string }[] = []
+      for (const change of data.changes) {
+        const asset = assetById.get(change.id)!
+        if (!isInvestableAsset(asset)) throw new Error(`${asset.name}不属于可投资资产，不能在此修改分组`)
+        if (!['STOCK', 'FUND', 'ETF'].includes(asset.cls) && change.style != null) {
+          throw new Error(`${asset.name}不支持投资风格分类`)
+        }
+        const patch = {
+          ...(change.style !== undefined ? { style: change.style } : {}),
+          ...(change.strategyGroup !== undefined ? { strategyGroup: change.strategyGroup === UNASSIGNED_STRATEGY ? '' : change.strategyGroup } : {}),
+          ...(change.tags !== undefined ? { tags: serializeTags(parseTags(change.tags)) } : {}),
+        }
+        const updated = await txDb.asset.update({ where: { id: asset.id }, data: patch, select: { style: true, strategyGroup: true, tags: true } })
+        await audit(ctx, 'UPDATE', 'Asset', asset.id, JSON.stringify(patch), txDb)
+        result.push({ id: asset.id, name: asset.name, ...updated })
+      }
+      return result
+    }, { timeout: 20_000 })
+    revalidatePath('/positions')
+    revalidatePath('/allocation')
+    revalidatePath('/review/returns')
+    revalidatePath('/review/groups')
+    revalidatePath('/review')
+    revalidatePath('/accounts')
+    revalidatePath('/')
+    return { ok: true, data: { count: saved.length, saved } }
   } catch (e) {
     return fail(e)
   }

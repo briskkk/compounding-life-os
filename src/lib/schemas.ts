@@ -173,6 +173,21 @@ export const assetUpdateSchema = z.object({
   strategyGroup: z.string().trim().max(40).optional(),
 })
 
+export const assetClassificationBatchSchema = z.object({
+  changes: z.array(z.object({
+    id: z.string().min(1),
+    style: z.enum(['GROWTH', 'VALUE', 'BALANCED', 'QUANT', 'SECTOR_THEME', 'BROAD_INDEX', 'SECTOR_INDEX']).nullable().optional(),
+    strategyGroup: z.string().trim().max(40).optional(),
+    tags: z.string().max(120).optional(),
+  }).refine((change) => change.style !== undefined || change.strategyGroup !== undefined || change.tags !== undefined, {
+    message: '每项资产至少修改一个分类字段',
+  })).min(1, '请先修改资产分类'),
+}).superRefine((value, ctx) => {
+  if (new Set(value.changes.map((change) => change.id)).size !== value.changes.length) {
+    ctx.addIssue({ code: 'custom', path: ['changes'], message: '同一资产不能重复提交' })
+  }
+})
+
 const goalBaseSchema = z.object({
   name: z.string().min(1, '名称必填').max(40),
   mode: z.enum(['LUMP_SUM', 'STREAM']).default('LUMP_SUM'),
