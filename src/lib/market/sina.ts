@@ -1,7 +1,7 @@
 // 新浪行情源：A 股 / 港股 / 美股报价（hq.sinajs.cn，需 Referer）+ A 股日 K
 // 报文为 GBK 编码，仅解析数值字段；字段位置已按真实报文校准
 import type { Bar, MarketDataProvider, QuoteData } from './provider'
-import { parseSymbol, toSinaCode } from './symbols'
+import { parseSymbol, toSinaCode, type MarketRoute } from './symbols'
 import { exchangeTimeToIso, marketQuoteFreshness } from './quote-time'
 
 const HEADERS = { Referer: 'https://finance.sina.com.cn' }
@@ -15,9 +15,9 @@ async function fetchText(url: string): Promise<string> {
 export const sinaProvider: MarketDataProvider = {
   label: 'SINA',
 
-  async quote(symbol: string): Promise<QuoteData> {
+  async quote(symbol: string, route: MarketRoute = 'AUTO'): Promise<QuoteData> {
     const receivedAt = new Date()
-    const parsed = parseSymbol(symbol)
+    const parsed = parseSymbol(symbol, route)
     const code = toSinaCode(parsed)
     if (!code) throw new Error(`新浪源不支持：${symbol}`)
     const text = await fetchText(`https://hq.sinajs.cn/list=${code}`)
@@ -63,8 +63,8 @@ export const sinaProvider: MarketDataProvider = {
     }
   },
 
-  async history(symbol: string, from: Date, to: Date): Promise<Bar[]> {
-    const parsed = parseSymbol(symbol)
+  async history(symbol: string, from: Date, to: Date, route: MarketRoute = 'AUTO'): Promise<Bar[]> {
+    const parsed = parseSymbol(symbol, route)
     if (parsed.market !== 'CN_A' && parsed.market !== 'INDEX') throw new Error(`新浪源历史仅覆盖 A 股/指数：${symbol}`)
     const code = toSinaCode(parsed)
     const days = Math.min(1023, Math.ceil((to.getTime() - from.getTime()) / 86400000) + 10)

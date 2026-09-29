@@ -1,4 +1,5 @@
 // 行情提供者接口：真实/模拟源实现同一契约，页面与引擎不感知来源
+import type { MarketRoute } from './symbols'
 export interface Bar {
   date: Date
   close: number
@@ -39,6 +40,6 @@ export interface QuoteData {
 
 export interface MarketDataProvider {
   readonly label: string
-  quote(symbol: string): Promise<QuoteData>
-  history(symbol: string, from: Date, to: Date): Promise<Bar[]>
+  quote(symbol: string, route?: MarketRoute): Promise<QuoteData>
+  history(symbol: string, from: Date, to: Date, route?: MarketRoute): Promise<Bar[]>
 }

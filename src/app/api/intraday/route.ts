@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
     }),
   )
 
-  const map = await intradaySeriesBatch(marketSymbols)
+  const map = await intradaySeriesBatch(marketSymbols, 'EXCHANGE')
   await Promise.all(
     estimableFunds.map(async (s) => {
       const { points, prevClose } = await fundEstimateMinuteSeries(s)

@@ -2,11 +2,11 @@
 // 腾讯 fqkline 端点在某些网络环境会被 WAF 拦截，东财 push2 日 K 作为兜底，
 // 保证股票/ETF 详情页始终能渲染 K 线（而非回落场外净值折线）。
 import type { Bar, MarketDataProvider } from './provider'
-import { parseSymbol, exchangePrefix } from './symbols'
+import { parseSymbol, exchangePrefix, type MarketRoute } from './symbols'
 
 /** A 股/指数 → 东财 secid（沪=1，深=0）；非 CN_A/INDEX 返回 null */
-export function secidFor(symbol: string): string | null {
-  const parsed = parseSymbol(symbol)
+export function secidFor(symbol: string, route: MarketRoute = 'AUTO'): string | null {
+  const parsed = parseSymbol(symbol, route)
   if (parsed.market === 'CN_A') {
     const pre = exchangePrefix(parsed.code)
     if (!pre) return null
@@ -32,8 +32,8 @@ export function parseEastmoneyKlines(klines: string[], from: Date, to: Date): Ba
   return out
 }
 
-async function fetchKline(symbol: string, from: Date, to: Date): Promise<Bar[]> {
-  const secid = secidFor(symbol)
+async function fetchKline(symbol: string, from: Date, to: Date, route: MarketRoute = 'AUTO'): Promise<Bar[]> {
+  const secid = secidFor(symbol, route)
   if (!secid) throw new Error(`东财 K 线不支持：${symbol}`)
   const fmt = (d: Date) => `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`
   const url =

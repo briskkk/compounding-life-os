@@ -1,7 +1,7 @@
 // 腾讯行情源：A 股 / 港股 / 美股
 // qt.gtimg.cn 实时报价 + ifzq.gtimg.cn 前复权日 K（仅解析数值字段）
 import type { Bar, MarketDataProvider, QuoteData } from './provider'
-import { parseSymbol, toTencentCode, toTencentKlineCode } from './symbols'
+import { parseSymbol, toTencentCode, toTencentKlineCode, type MarketRoute } from './symbols'
 import { exchangeTimeToIso, marketQuoteFreshness } from './quote-time'
 
 export { exchangePrefix } from './symbols'
@@ -71,9 +71,9 @@ export async function tencentQuoteMany(codes: string[]): Promise<Map<string, { p
 export const tencentProvider: MarketDataProvider = {
   label: 'TENCENT',
 
-  async quote(symbol: string): Promise<QuoteData> {
+  async quote(symbol: string, route: MarketRoute = 'AUTO'): Promise<QuoteData> {
     const receivedAt = new Date()
-    const parsed = parseSymbol(symbol)
+    const parsed = parseSymbol(symbol, route)
     const code = toTencentCode(parsed)
     if (!code) throw new Error(`腾讯源不支持：${symbol}`)
     const text = await fetchText(`https://qt.gtimg.cn/q=${code}`)
@@ -100,8 +100,8 @@ export const tencentProvider: MarketDataProvider = {
     }
   },
 
-  async history(symbol: string, from: Date, to: Date): Promise<Bar[]> {
-    const parsed = parseSymbol(symbol)
+  async history(symbol: string, from: Date, to: Date, route: MarketRoute = 'AUTO'): Promise<Bar[]> {
+    const parsed = parseSymbol(symbol, route)
     let code = toTencentKlineCode(parsed)
     if (!code) throw new Error(`腾讯源不支持：${symbol}`)
     // 美股交易所后缀各异（VGT.AM / AAPL.OQ / JPM.N）：从报价报文解析真实后缀，

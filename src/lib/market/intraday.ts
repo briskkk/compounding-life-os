@@ -1,6 +1,6 @@
 // 盘中分时路由：A 股/ETF 走腾讯分钟线；US/HK 走 Yahoo 分钟线；其余无分时数据
 import type { Bar, MarketDataProvider, QuoteData } from './provider'
-import { parseSymbol, toTencentKlineCode } from './symbols'
+import { parseSymbol, toTencentKlineCode, type MarketRoute } from './symbols'
 import { yahooIntraday, type IntradaySeries, type IntradayPoint } from './yahoo'
 import { tencentProvider } from './tencent'
 import { quoteSmart } from './index'
@@ -51,8 +51,8 @@ export async function tencentMinuteSeries(code: string): Promise<IntradaySeries 
 }
 
 /** 获取单标的当日分时序列；无分时数据的标的返回 null */
-export async function intradaySeries(symbol: string): Promise<IntradaySeries | null> {
-  const parsed = parseSymbol(symbol)
+export async function intradaySeries(symbol: string, route: MarketRoute = 'AUTO'): Promise<IntradaySeries | null> {
+  const parsed = parseSymbol(symbol, route)
   try {
     if (parsed.market === 'CN_A') {
       const code = toTencentKlineCode(parsed)
@@ -76,11 +76,11 @@ export async function intradaySeries(symbol: string): Promise<IntradaySeries | n
 }
 
 /** 批量获取（并发，逐个容错） */
-export async function intradaySeriesBatch(symbols: string[]): Promise<Map<string, IntradaySeries>> {
+export async function intradaySeriesBatch(symbols: string[], route: MarketRoute = 'AUTO'): Promise<Map<string, IntradaySeries>> {
   const map = new Map<string, IntradaySeries>()
   await Promise.all(
     symbols.map(async (s) => {
-      const series = await intradaySeries(s)
+      const series = await intradaySeries(s, route)
       if (series) map.set(s, series)
     }),
   )

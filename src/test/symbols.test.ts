@@ -1,5 +1,6 @@
-import { describe, expect, it, afterEach } from 'vitest'
+import { describe, expect, it, afterEach, vi } from 'vitest'
 import { parseSymbol, toTencentCode, toTencentKlineCode, toSinaCode } from '@/lib/market/symbols'
+import { secidFor } from '@/lib/market/eastmoney-kline'
 import { parseFundName, parseTencentName } from '@/lib/market/lookup'
 import { providerChain, providerLabelsFor, simulatedAllowed, quoteSmart, historySmart } from '@/lib/market'
 
@@ -14,6 +15,15 @@ describe('多市场代码解析', () => {
   it('场外基金（11/16 开头）', () => {
     expect(parseSymbol('110022')).toEqual({ market: 'FUND', code: '110022' })
     expect(parseSymbol('160119')).toEqual({ market: 'FUND', code: '160119' })
+  })
+
+  it('同一 LOF 代码按资产登记口径区分场内成交价与场外净值', () => {
+    expect(parseSymbol('161128').market).toBe('FUND')
+    expect(parseSymbol('161128', 'EXCHANGE')).toEqual({ market: 'CN_A', code: '161128' })
+    expect(toTencentCode(parseSymbol('161128', 'EXCHANGE'))).toBe('sz161128')
+    expect(toSinaCode(parseSymbol('161128', 'EXCHANGE'))).toBe('sz161128')
+    expect(secidFor('161128', 'EXCHANGE')).toBe('0.161128')
+    expect(parseSymbol('161128', 'FUND').market).toBe('FUND')
   })
 
   it('港股 / 美股前缀', () => {
@@ -76,7 +86,47 @@ describe('行情源优先级链', () => {
     expect(providerLabelsFor('USQQQM', 'HISTORY', 'EXCHANGE', spec)).toEqual(['TENCENT'])
     expect(providerLabelsFor('005094', 'HISTORY', 'FUND', spec)).toEqual(['EASTMONEY-FUND'])
     expect(providerLabelsFor('515880', 'QUOTE', 'EXCHANGE', spec)).toEqual(['TENCENT', 'SINA'])
+    expect(providerLabelsFor('161128', 'QUOTE', 'EXCHANGE', spec)).toEqual(['TENCENT', 'SINA'])
+    expect(providerLabelsFor('161128', 'HISTORY', 'EXCHANGE', spec)).toEqual(['TENCENT', 'EASTMONEY-KLINE', 'SINA'])
+    expect(providerLabelsFor('161128', 'QUOTE', 'FUND', spec)).toEqual(['EASTMONEY-FUND'])
     expect(providerLabelsFor('sh000300', 'HISTORY', 'AUTO', spec)).toEqual(['TENCENT', 'EASTMONEY-KLINE', 'SINA'])
+  })
+
+  it('显式场内路由真正传入报价适配器并保留原资产代码', async () => {
+    const previous = process.env.MARKET_PROVIDER
+    process.env.MARKET_PROVIDER = 'tencent'
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      'v_sz161128="51~标普信息科技LOF~161128~7.346~7.423~~~~~~~~~~~~~~~~~~~~~~~~~~20260928161451"',
+    ))
+    try {
+      const quote = await quoteSmart('161128', { route: 'EXCHANGE' })
+      expect(fetchMock).toHaveBeenCalledWith('https://qt.gtimg.cn/q=sz161128', expect.any(Object))
+      expect(quote.symbol).toBe('161128')
+      expect(quote.price).toBe(7.346)
+      expect(quote.kind).toBe('MARKET')
+    } finally {
+      fetchMock.mockRestore()
+      if (previous === undefined) delete process.env.MARKET_PROVIDER
+      else process.env.MARKET_PROVIDER = previous
+    }
+  })
+
+  it('显式场内路由真正传入日线适配器', async () => {
+    const previous = process.env.MARKET_PROVIDER
+    process.env.MARKET_PROVIDER = 'eastmoney-kline'
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      data: { klines: ['2026-09-28,7.400,7.346,7.467,7.342,140593'] },
+    })))
+    try {
+      const result = await historySmart('161128', new Date('2026-09-28'), new Date('2026-09-29'), { route: 'EXCHANGE' })
+      expect(fetchMock.mock.calls[0][0]).toContain('secid=0.161128')
+      expect(result).toMatchObject({ status: 'OK', source: 'EASTMONEY-KLINE' })
+      expect(result.bars[0].close).toBe(7.346)
+    } finally {
+      fetchMock.mockRestore()
+      if (previous === undefined) delete process.env.MARKET_PROVIDER
+      else process.env.MARKET_PROVIDER = previous
+    }
   })
 
   it('显式模拟环境仍可覆盖所有市场能力', () => {

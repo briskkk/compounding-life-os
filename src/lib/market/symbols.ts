@@ -5,17 +5,21 @@
 //   指数：sh000300、sz399006（交易所前缀 + 6 位数字）——真实行情标的，绝不回落模拟源
 //   其他（AU9999、CASH-CNY…）：真实源不覆盖，自动回落模拟源
 export type Market = 'CN_A' | 'HK' | 'US' | 'FUND' | 'INDEX' | 'OTHER'
+export type MarketRoute = 'AUTO' | 'EXCHANGE' | 'FUND'
 
 export interface ParsedSymbol {
   market: Market
   code: string
 }
 
-export function parseSymbol(symbol: string): ParsedSymbol {
+export function parseSymbol(symbol: string, route: MarketRoute = 'AUTO'): ParsedSymbol {
   const s = symbol.toUpperCase().trim()
   if (/^HK\d{4,5}$/.test(s)) return { market: 'HK', code: s.slice(2) }
   if (/^US[A-Z]{1,6}(\.[A-Z])?$/.test(s)) return { market: 'US', code: s.slice(2) }
   if (/^\d{6}$/.test(s)) {
+    // LOF 等代码同时有场内成交价和场外净值；由资产类别决定取哪种价格。
+    if (route === 'EXCHANGE') return { market: 'CN_A', code: s }
+    if (route === 'FUND') return { market: 'FUND', code: s }
     if (/^(11|16)\d{4}$/.test(s)) return { market: 'FUND', code: s }
     return { market: 'CN_A', code: s }
   }

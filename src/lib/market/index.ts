@@ -7,7 +7,7 @@ import { tencentProvider } from './tencent'
 import { sinaProvider } from './sina'
 import { eastmoneyFundProvider } from './eastmoney-fund'
 import { eastmoneyKlineProvider } from './eastmoney-kline'
-import { parseSymbol, type Market } from './symbols'
+import { parseSymbol, type Market, type MarketRoute } from './symbols'
 import { cachedQuote, cachedQuoteSWR, providerCircuitOpen, quoteCacheKey, recordRequest } from './cache'
 import { recordProviderObservation } from './quality'
 import type { Bar, MarketDataProvider, QuoteData } from './provider'
@@ -45,12 +45,10 @@ const REGISTRY: Record<string, MarketDataProvider> = {
 }
 
 export type MarketOperation = 'QUOTE' | 'HISTORY'
-export type MarketRoute = 'AUTO' | 'EXCHANGE' | 'FUND'
+export type { MarketRoute } from './symbols'
 
 function routedMarket(symbol: string, route: MarketRoute): Market {
-  if (route === 'FUND') return 'FUND'
-  if (route === 'EXCHANGE' && /^\d{6}$/.test(symbol.trim())) return 'CN_A'
-  return parseSymbol(symbol).market
+  return parseSymbol(symbol, route).market
 }
 
 function providerSupports(label: string, operation: MarketOperation, market: Market): boolean {
@@ -143,7 +141,7 @@ function smartQuoteFetcher(symbol: string, route: MarketRoute): { key: string; f
         if (providerCircuitOpen(provider.label, Date.now(), scope)) continue
         const t0 = Date.now()
         try {
-          const q = await provider.quote(symbol)
+          const q = await provider.quote(symbol, route)
           if (
             q.symbol !== symbol
             || !Number.isFinite(q.price)
@@ -167,7 +165,7 @@ function smartQuoteFetcher(symbol: string, route: MarketRoute): { key: string; f
           /* 尝试下一源 */
         }
       }
-      if (parseSymbol(symbol).market === 'OTHER' && simulatedAllowed()) return simulatedProvider.quote(symbol)
+      if (market === 'OTHER' && simulatedAllowed()) return simulatedProvider.quote(symbol)
       throw new Error(`全部行情源均不可用：${symbol}`)
     },
   }
@@ -215,7 +213,7 @@ export async function historySmart(
     }
     const t0 = Date.now()
     try {
-      const bars = await provider.history(symbol, from, to)
+      const bars = await provider.history(symbol, from, to, route)
       if (bars.length > 0) {
         const elapsed = Date.now() - t0
         recordRequest(provider.label, true, elapsed, undefined, scope)
@@ -245,7 +243,7 @@ export async function historySmart(
     }
   }
   if (best) return { ...best, status: 'OK', errors }
-  if (parseSymbol(symbol).market === 'OTHER' && simulatedAllowed()) {
+  if (market === 'OTHER' && simulatedAllowed()) {
     return { bars: await simulatedProvider.history(symbol, from, to), source: PROVIDER_LABEL, status: 'OK', errors }
   }
   if (errors.length === 0) errors.push({ provider: 'ROUTER', message: `没有支持 ${market} ${'HISTORY'} 的已配置行情源` })
@@ -283,7 +281,7 @@ export async function compareProviderQuotes(
     }
     const started = Date.now()
     try {
-      const quote = await provider.quote(symbol)
+      const quote = await provider.quote(symbol, route)
       if (quote.symbol !== symbol || !Number.isFinite(quote.price) || quote.price <= 0 || !Number.isFinite(new Date(quote.asOf).getTime())) {
         throw new Error(`${provider.label} 返回了无效报价`)
       }
