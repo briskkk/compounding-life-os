@@ -18,7 +18,7 @@ last_verified: 2026-09-28
 | 看盘 | `src/app/watch/page.tsx` | `getWatchData` + 默认基准；盘中曲线、今日贡献/拖累、结算状态、近 30 日三项快照与实时估值表（默认 8 项，筛选或显式展开后展示全部）；排序与筛选状态走 `sort`/`q`/`cls`/`excl` 深链；点表格行在曲线上叠加该标的当日盈亏 |
 | 周期复盘 | `src/app/review/page.tsx` | `getReviewPageData`；周/月/季及任意历史自然月的结果、归因子视图、行为风险与结构化用户笔记；当前步骤走 `step` 深链，所选周期身份与对账/估值/在途证据由常驻上下文条在四步之间保持可见 |
 | 收益历史 | `src/app/review/returns/page.tsx` | `getWatchData` + `loadBenchmarks`；预设/自定义区间、四基准对比、收益率/金额/资产曲线，以及日/月/年收益日历 |
-| 分类复盘 | `src/app/review/groups/page.tsx` | 维度 → 分组 → 周期选择；所选资产账本日序列合并，展示收益对账、风险、估值证据及资产贡献 |
+| 分类复盘 | `src/app/review/groups/page.tsx` | 维度 → 分组 → 周期选择；组合分组仅当前持仓成员，其他维度可回看历史；所选资产账本日序列合并，展示收益对账、风险、估值证据及资产贡献 |
 | 配置目标 | `src/app/allocation/page.tsx` | 资产大类目标和互斥自定义组合目标双视图；目标权重与当前可投资资产偏离 |
 | 流水 | `src/app/transactions/page.tsx` | 默认有效流水视图、可展开冲正历史、筛选、分页、录入、CSV、冲正、导出 |
 | 基金确认 | `src/app/fund-confirmations/page.tsx` | 待确认基金集中队列、官方净值只读预览、平台份额比对与确认写入 |

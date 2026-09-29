@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildStrategyDrift, UNASSIGNED_STRATEGY } from '@/lib/engine/strategy-allocation'
-import { performanceScopes } from '@/lib/engine/performance-scope'
+import { assetsForPerformanceScope, filterActiveStrategyScopes, performanceScopes } from '@/lib/engine/performance-scope'
 import { combineAssetPerformanceSeries } from '@/lib/engine/group-performance'
 import { performanceBetween } from '@/lib/engine/period-performance'
 import { assetClassificationBatchSchema, strategyTargetsInputSchema } from '@/lib/schemas'
@@ -51,6 +51,21 @@ describe('自定义组合目标与分类收益', () => {
     for (const key of ['class:ETF', 'style:BROAD_INDEX', 'market:DOMESTIC', 'strategy:A股宽基', 'tag:核心']) {
       expect(scopes.find((scope) => scope.key === key)?.matches(asset)).toBe(true)
     }
+  })
+
+  it('组合分组只包含当前持仓，已清仓资产仍可在大类历史中复盘', () => {
+    const asset = { cls: 'ETF' as const, style: 'BROAD_INDEX' as const, symbol: '159919', name: '沪深300ETF', currency: 'CNY', strategyGroup: 'A股宽基', tags: '核心' }
+    const assets = [
+      { ...asset, id: 'held' },
+      { ...asset, id: 'sold', symbol: '510300', name: '已清仓宽基' },
+      { ...asset, id: 'closed-group', symbol: '510500', name: '已清仓组合', strategyGroup: '旧组合' },
+    ]
+    const heldIds = new Set(['held'])
+    const scopes = filterActiveStrategyScopes(performanceScopes(assets), assets, heldIds)
+    expect(scopes.some((scope) => scope.key === 'strategy:A股宽基')).toBe(true)
+    expect(scopes.some((scope) => scope.key === 'strategy:旧组合')).toBe(false)
+    expect(assetsForPerformanceScope(assets, scopes.find((scope) => scope.key === 'strategy:A股宽基')!, heldIds).map((item) => item.id)).toEqual(['held'])
+    expect(assetsForPerformanceScope(assets, scopes.find((scope) => scope.key === 'class:ETF')!, heldIds).map((item) => item.id)).toEqual(['held', 'sold', 'closed-group'])
   })
 
   it('组间增持算资金流，组合收益只保留市场变化', () => {

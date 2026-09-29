@@ -36,6 +36,7 @@ export default async function GroupReviewPage({ searchParams }: { searchParams: 
   })).filter((asset) => asset.result.endDate != null).sort((a, b) => Math.abs(b.result.amount ?? 0) - Math.abs(a.result.amount ?? 0))
   const coverage = result.curve.at(-1)?.valuationCoverage
   const validDays = result.curve.filter((point) => point.dailyPct != null).length
+  const currentGroup = data.scope.key.startsWith('strategy:')
 
   return (
     <div className="page-shell review-shell group-review-page">
@@ -63,7 +64,7 @@ export default async function GroupReviewPage({ searchParams }: { searchParams: 
             <div>
               <span className="group-review-eyebrow">所选分类 · {range.label}</span>
               <h2>{data.scope.label}</h2>
-              <p>{range.startDate} — {range.endDate} · {data.assets.length} 项曾持有资产</p>
+              <p>{range.startDate} — {range.endDate} · {data.assets.length} 项{currentGroup ? '当前持仓资产' : '曾持有资产'}</p>
             </div>
             <Link href={`/review/returns?scope=${encodeURIComponent(data.scope.key)}`} className="group-review-history-link">查看收益曲线与日历 ↗</Link>
           </div>
@@ -80,7 +81,7 @@ export default async function GroupReviewPage({ searchParams }: { searchParams: 
             <span aria-hidden="true">＝</span>
             <div><span>期末资产</span><strong className="num">{result.endNetWorth == null ? '—' : fmtCNY(result.endNetWorth)}</strong></div>
           </div>
-          <p className="group-review-result-note"><span>组内买卖计入资金流；TWR 只用有效收益日。</span><span> 当前分类重算历史，不代表当时分组。</span></p>
+          <p className="group-review-result-note"><span>组内买卖计入资金流；TWR 只用有效收益日。</span><span> 当前分类重算历史，不代表当时分组。</span>{currentGroup && <span> 组合分组按当前成员回看全程。</span>}</p>
         </section>
 
         <div className="group-review-detail-grid">

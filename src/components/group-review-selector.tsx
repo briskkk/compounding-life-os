@@ -22,7 +22,7 @@ export function GroupReviewSelector({ scopes, value, period }: { scopes: Scope[]
           <span className="group-review-eyebrow">选择复盘范围</span>
           <h2>先选维度，再选分组</h2>
         </div>
-        <span className="group-review-selector-hint">分类采用当前设置，历史收益随分组调整重新计算</span>
+        <span className="group-review-selector-hint">组合分组只含当前持仓；其他维度可回看已清仓资产</span>
       </div>
       <nav className="group-review-dimensions" aria-label="分类维度">
         {DIMENSIONS.map((dimension) => {

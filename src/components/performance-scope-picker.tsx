@@ -17,7 +17,7 @@ export function PerformanceScopePicker({ options, value }: { options: { key: str
       }} className="min-w-[180px] rounded border border-line bg-panel2 px-3 py-2 text-ink" aria-label="选择收益范围">
         {options.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
       </select>
-      <span className="text-ink-faint">按当前分类重算所选资产的历史收益；改动分组会追溯改变此视图。</span>
+      <span className="text-ink-faint">组合分组只含当前持仓；分类使用当前设置重算历史。</span>
     </label>
   )
 }

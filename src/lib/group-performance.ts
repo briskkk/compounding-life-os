@@ -2,7 +2,7 @@ import { prisma } from './db'
 import { scopedDb, type FamilyCtx } from './scoped'
 import { getWatchData } from './queries'
 import { isInvestableAsset } from './asset-classification'
-import { performanceScopes, resolvePerformanceScope } from './engine/performance-scope'
+import { assetsForPerformanceScope, filterActiveStrategyScopes, performanceScopes, resolvePerformanceScope } from './engine/performance-scope'
 import { buildAssetPerformanceSeries, type AssetPerformancePoint, type AssetNavPoint } from './engine/asset-performance'
 import { combineAssetPerformanceSeries } from './engine/group-performance'
 import { performanceBetween, type PerformancePoint } from './engine/period-performance'
@@ -20,10 +20,14 @@ export async function getGroupPerformance(ctx: FamilyCtx, scopeKey: string | und
   if (!watch) return null
   const tradedIds = new Set(watch.state.ledgerTxs.map((tx) => tx.assetId))
   const reviewableAssets = investableAssets.filter((asset) => tradedIds.has(asset.id))
-  const scopes = performanceScopes(forGroupReview ? reviewableAssets : investableAssets)
   const heldIds = new Set(watch.state.valued
     .filter((position) => Math.abs(position.quantity) > 1e-9 || position.value > 0)
     .map((position) => position.assetId))
+  const scopes = filterActiveStrategyScopes(
+    performanceScopes(forGroupReview ? reviewableAssets : investableAssets),
+    reviewableAssets,
+    heldIds,
+  )
   const requestedScope = resolvePerformanceScope(scopes, scopeKey)
   const scope = forGroupReview && requestedScope.key === 'all'
     ? scopes.find((item) => item.key.startsWith('strategy:') && item.key !== 'strategy:未分组' && reviewableAssets.some((asset) => heldIds.has(asset.id) && item.matches(asset)))
@@ -33,7 +37,7 @@ export async function getGroupPerformance(ctx: FamilyCtx, scopeKey: string | und
     : requestedScope
   const scopeOptions = scopes.map(({ key, label }) => ({ key, label }))
   if (scope.key === 'all') return { scope, scopes: scopeOptions, series: [] as PerformancePoint[], liveDayReturn: null, assets: [] as { id: string; name: string; symbol: string; series: AssetPerformancePoint[] }[] }
-  const selected = reviewableAssets.filter((asset) => scope.matches(asset))
+  const selected = assetsForPerformanceScope(reviewableAssets, scope, heldIds)
   const selectedIds = new Set(selected.map((asset) => asset.id))
   const transactions = watch.state.ledgerTxs.filter((tx) => selectedIds.has(tx.assetId))
   const [priceMap, rateAt] = await Promise.all([

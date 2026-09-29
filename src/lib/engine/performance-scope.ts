@@ -39,3 +39,24 @@ export function performanceScopes(assets: ScopeAsset[]): PerformanceScope[] {
 export function resolvePerformanceScope(scopes: PerformanceScope[], key: string | null | undefined): PerformanceScope {
   return scopes.find((scope) => scope.key === key) ?? scopes[0]
 }
+
+/** 组合分组描述当前组合；其他维度仍可回看已清仓资产的历史表现。 */
+export function filterActiveStrategyScopes<T extends ScopeAsset & { id: string }>(
+  scopes: PerformanceScope[],
+  assets: T[],
+  heldIds: ReadonlySet<string>,
+): PerformanceScope[] {
+  const active = new Set(assets
+    .filter((asset) => heldIds.has(asset.id))
+    .map((asset) => `strategy:${strategyName(asset.strategyGroup)}`))
+  return scopes.filter((scope) => !scope.key.startsWith('strategy:') || active.has(scope.key))
+}
+
+export function assetsForPerformanceScope<T extends ScopeAsset & { id: string }>(
+  assets: T[],
+  scope: PerformanceScope,
+  heldIds: ReadonlySet<string>,
+): T[] {
+  const activeOnly = scope.key.startsWith('strategy:')
+  return assets.filter((asset) => scope.matches(asset) && (!activeOnly || heldIds.has(asset.id)))
+}

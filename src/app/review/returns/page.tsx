@@ -9,7 +9,7 @@ import { getWatchData, loadBenchmarks } from '@/lib/queries'
 import { getGroupPerformance } from '@/lib/group-performance'
 import { scopedDb } from '@/lib/scoped'
 import { isInvestableAsset } from '@/lib/asset-classification'
-import { performanceScopes } from '@/lib/engine/performance-scope'
+import { filterActiveStrategyScopes, performanceScopes } from '@/lib/engine/performance-scope'
 import { PerformanceScopePicker } from '@/components/performance-scope-picker'
 
 export const dynamic = 'force-dynamic'
@@ -33,8 +33,12 @@ export default async function ReviewReturnsPage({
   const watchData = scoped ? null : await getWatchData(session)
   if (!scoped && !watchData) redirect('/login')
   const preferences = await preferencesPromise
-  const scopeOptions = scoped?.scopes ?? performanceScopes(
-    (await scopedDb(prisma, session).asset.findMany()).filter(isInvestableAsset),
+  const investableAssets = scoped ? [] : (await scopedDb(prisma, session).asset.findMany()).filter(isInvestableAsset)
+  const heldIds = new Set(watchData?.state.valued
+    .filter((position) => Math.abs(position.quantity) > 1e-9 || position.value > 0)
+    .map((position) => position.assetId) ?? [])
+  const scopeOptions = scoped?.scopes ?? filterActiveStrategyScopes(
+    performanceScopes(investableAssets), investableAssets, heldIds,
   ).map(({ key, label }) => ({ key, label }))
   const series = scoped?.series ?? watchData!.series.map((point) => ({
     date: point.date,
