@@ -116,8 +116,8 @@ export function AssetClassificationEditor({ rows, groupNames, canWrite }: { rows
   return (
     <section className="mt-6 min-w-0 max-w-full rounded-xl border border-line bg-panel" aria-label="资产分组管理">
       <div className="border-b border-line px-4 py-4">
-        <h2 className="text-lg font-semibold text-ink">直接整理资产分组</h2>
-        <p className="mt-1 text-[13px] text-ink-dim"><span>组合分组一项资产一组，用于目标与收益。</span><span className="ml-2">标签可多选；账本类别与市场归属保持事实口径。</span></p>
+        <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-semibold text-ink">整理资产分组</h2><span className="text-xs text-ink-faint">当前持仓 {rows.length} 项</span></div>
+        <p className="mt-1 text-[13px] text-ink-dim">仅列当前持仓。组合分组互斥，标签可多选；账本大类与市场归属只读。</p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索资产、代码或分组" aria-label="搜索待分类资产" className="w-full max-w-sm rounded border border-line bg-panel2 px-3 py-2 text-sm text-ink" />
           {changes.length > 0 && <span className="text-sm text-accent">待保存 {changes.length} 项资产 · {changedCount} 处修改</span>}
@@ -145,7 +145,7 @@ export function AssetClassificationEditor({ rows, groupNames, canWrite }: { rows
                   </div>
                 )
               })}
-              {filtered.length === 0 && <p className="px-3 py-4 text-sm text-ink-faint">没有匹配的资产</p>}
+              {filtered.length === 0 && <p className="px-3 py-4 text-sm text-ink-faint">{rows.length === 0 ? '当前没有可整理的持仓资产' : '没有匹配的资产'}</p>}
             </div>
           </div>
           <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t border-line bg-panel px-4 py-3 shadow-lg"><span className="text-sm text-ink-dim">{changes.length > 0 ? `${changes.length} 项资产待保存，包含当前筛选外的修改` : '当前没有未保存修改'}</span><div className="flex gap-2"><button type="button" onClick={discard} disabled={pending || changes.length === 0} className="rounded border border-line px-3 py-2 text-sm text-ink-dim disabled:opacity-50">撤销修改</button><button type="button" onClick={save} disabled={pending || changes.length === 0} className="rounded bg-accent px-4 py-2 text-sm text-bg disabled:opacity-50">{pending ? '保存中…' : `保存全部修改（${changes.length}）`}</button></div></div>

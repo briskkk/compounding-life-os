@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 const routes = [
   '/', '/positions', '/positions?view=composition', '/accounts', '/allocation',
-  '/watch', '/review/returns', '/transactions', '/investment-plans',
+  '/watch', '/review/returns', '/review/groups', '/transactions', '/investment-plans',
   '/transactions/imports', '/review', '/review/history', '/review/decisions',
   '/month-close', '/goals', '/health', '/health/market', '/reconciliation',
   '/fund-confirmations', '/corporate-actions', '/fund-operations', '/audit', '/settings',

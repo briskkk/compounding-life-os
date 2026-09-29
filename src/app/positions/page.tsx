@@ -152,10 +152,9 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
       color: slice.key === UNASSIGNED_STRATEGY ? C.inkFaint : SLICE_PALETTE[strategyColorIdx++ % SLICE_PALETTE.length],
     }))
   const heldAssetIds = new Set(mergedRows.map((position) => position.assetId))
-  const historicalAssetIds = new Set(state.ledgerTxs.map((transaction) => transaction.assetId))
   const classificationRows: ClassificationRow[] = assetsRaw
-    .filter((asset) => isInvestableAsset(asset) && (heldAssetIds.has(asset.id) || historicalAssetIds.has(asset.id)))
-    .sort((a, b) => Number(heldAssetIds.has(b.id)) - Number(heldAssetIds.has(a.id)) || a.name.localeCompare(b.name))
+    .filter((asset) => isInvestableAsset(asset) && heldAssetIds.has(asset.id))
+    .sort((a, b) => a.name.localeCompare(b.name))
     .map((asset) => ({
         id: asset.id,
         name: asset.name,

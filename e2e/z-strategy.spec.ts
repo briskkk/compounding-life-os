@@ -1,9 +1,12 @@
 import { test, expect } from '@playwright/test'
 
 test('结构页直接分组，并按自定义组合设目标与查看分类复盘', async ({ page }) => {
+  await page.goto('/review/groups')
+  await expect(page.getByRole('heading', { name: '大类 · 股票' })).toBeVisible()
   await page.goto('/positions?view=composition')
   const manager = page.getByRole('region', { name: '资产分组管理' })
   await expect(manager).toBeVisible()
+  await expect(manager).toContainText('当前持仓')
   const asset = manager.locator('[data-asset-id]').filter({ hasText: '600519' })
   const second = manager.locator('[data-asset-id]').filter({ hasText: '300750' })
   const group = asset.getByRole('combobox', { name: '组合分组' })
@@ -42,8 +45,15 @@ test('结构页直接分组，并按自定义组合设目标与查看分类复�
 
   await page.goto('/review/groups?scope=strategy%3AA%E8%82%A1%E5%AE%BD%E5%9F%BA')
   await expect(page.getByRole('heading', { level: 1, name: '分类投资复盘' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: '分类维度' }).getByRole('link', { name: /组合分组/ })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('group', { name: '选择具体分组' }).getByRole('link', { name: 'A股宽基' })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByRole('heading', { name: '组合 · A股宽基' })).toBeVisible()
   await expect(page.getByRole('link', { name: /贵州茅台/ })).toBeVisible()
+  await page.getByRole('navigation', { name: '分类维度' }).getByRole('link', { name: /资产大类/ }).click()
+  await expect(page.getByRole('navigation', { name: '分类维度' }).getByRole('link', { name: /资产大类/ })).toHaveAttribute('aria-current', 'page')
+  await page.getByRole('group', { name: '分类复盘周期' }).getByRole('link', { name: '今年' }).click()
+  await expect(page).toHaveURL(/period=THIS_YEAR/)
+  await expect(page.getByRole('region', { name: '分类复盘结果' })).toContainText('期初资产')
   await page.goto('/review/returns?scope=strategy%3AA%E8%82%A1%E5%AE%BD%E5%9F%BA')
   await expect(page.getByRole('heading', { name: '组合 · A股宽基 · 历史收益' })).toBeVisible()
 

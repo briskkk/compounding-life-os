@@ -17,6 +17,7 @@ const PAGES = [
   ['/review', '复盘'],
   ['/review?period=THIS_MONTH&month=2026-08&step=conclusion', '复盘结论步'],
   ['/review/returns', '收益历史'],
+  ['/review/groups', '分类复盘'],
   ['/review/history', '长期复盘'],
   ['/review/decisions', '决策库'],
   ['/month-close', '月结中心'],
