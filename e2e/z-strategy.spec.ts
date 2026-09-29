@@ -70,3 +70,32 @@ test('结构页直接分组，并按自定义组合设目标与查看分类复�
   await restoreManager.getByRole('button', { name: '保存全部修改（2）' }).click()
   await expect(restoreManager.getByRole('status')).toContainText('已保存 2 项资产')
 })
+
+test('组合目标不足 100% 时说明差额并可指定分组补足后保存', async ({ page }) => {
+  await page.goto('/allocation?view=strategy')
+  const weights = page.getByRole('spinbutton', { name: /目标权重/ })
+  const count = await weights.count()
+  expect(count).toBeGreaterThan(0)
+  const firstName = (await weights.first().getAttribute('aria-label'))!.replace('目标权重', '')
+  for (let index = 0; index < count; index += 1) await weights.nth(index).fill('0')
+  await weights.first().fill('68.6')
+
+  await expect(page.getByRole('status').getByText(/还差 31\.4%/)).toBeVisible()
+  for (const width of [560, 800, 1280]) {
+    await page.setViewportSize({ width, height: 900 })
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect(overflow, `${width}px 下目标差额操作区溢出`).toBeLessThanOrEqual(1)
+  }
+  await page.getByRole('button', { name: '保存组合目标' }).click()
+  await expect(page.locator('.allocation-editor-footer').getByRole('alert')).toContainText('还差 31.4%')
+  await page.getByRole('combobox', { name: '差额调整分组' }).selectOption({ label: firstName })
+  await page.getByRole('button', { name: '补足所选分组' }).click()
+  await expect(page.locator('.allocation-editor-footer')).toContainText('100.0%')
+  await page.getByRole('button', { name: '保存组合目标' }).click()
+  await expect(page.getByTestId('write-flash')).toContainText('自定义组合目标已保存')
+  await page.reload()
+  await expect(page.getByRole('button', { name: '清除组合目标' })).toBeVisible()
+  await expect(page.locator('.allocation-editor-footer')).toContainText('100.0%')
+  await page.getByRole('button', { name: '清除组合目标' }).click()
+  await expect(page.getByTestId('write-flash')).toContainText('自定义组合目标已清除')
+})
