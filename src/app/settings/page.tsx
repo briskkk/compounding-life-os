@@ -6,9 +6,11 @@ import { SettingsForm } from '@/components/settings-form'
 
 export const dynamic = 'force-dynamic'
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ section?: string }> }) {
   const ctx = await getSession()
   if (!ctx) redirect('/login')
+  const requestedSection = (await searchParams).section
+  const section = requestedSection === 'family' || requestedSection === 'data' ? requestedSection : 'account'
 
   const [user, family, members] = await Promise.all([
     prisma.user.findUnique({ where: { id: ctx.userId }, select: { email: true, preferences: true } }),
@@ -26,7 +28,7 @@ export default async function SettingsPage() {
       role={ctx.role}
       email={user?.email ?? ''}
       familyName={family?.name ?? ''}
-      baseCurrency={family?.baseCurrency ?? 'CNY'}
+      section={section}
       defaultRange={parsePreferences(user?.preferences ?? null).defaultRange ?? null}
       members={members.map((m) => ({
         id: m.id,

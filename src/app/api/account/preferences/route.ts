@@ -3,7 +3,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
-import { parsePreferences, type UserPreferences } from '@/lib/preferences'
+import { DEFAULT_RANGE_VALUES, parsePreferences, type UserPreferences } from '@/lib/preferences'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -23,6 +23,10 @@ export async function PATCH(req: NextRequest) {
     body = await req.json()
   } catch {
     return NextResponse.json({ ok: false, error: '请求格式错误' }, { status: 400 })
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body) ||
+    (body.defaultRange !== undefined && !DEFAULT_RANGE_VALUES.includes(body.defaultRange as typeof DEFAULT_RANGE_VALUES[number]))) {
+    return NextResponse.json({ ok: false, error: '默认收益区间无效' }, { status: 400 })
   }
   const user = await prisma.user.findUnique({ where: { id: ctx.userId }, select: { preferences: true } })
   const merged: UserPreferences = { ...parsePreferences(user?.preferences ?? null), ...body }
