@@ -4,9 +4,10 @@ import { getSession } from '@/lib/session'
 import { scopedDb } from '@/lib/scoped'
 import { qualityWindowStart } from '@/lib/market/quality'
 import { fmtDate, fmtDateTime, fmtPct } from '@/lib/format'
-import { Empty, PageHeader, Panel, SetupScreen, Tag } from '@/components/ui'
+import { Empty, PageHeader, Panel, ReadOnlyNotice, SetupScreen, Tag } from '@/components/ui'
 import { MarketQualityCheckButton } from '@/components/market-quality-check-button'
 import { TableScroll } from '@/components/table-scroll'
+import { GovernanceNav } from '@/components/governance-nav'
 
 export const dynamic = 'force-dynamic'
 
@@ -113,9 +114,14 @@ export default async function MarketQualityPage() {
     }
     aggregates.set(key, current)
   }
-  const providerRows = [...aggregates.values()].sort((a, b) => b.requests - a.requests)
+  const providerRows = [...aggregates.values()].sort((a, b) =>
+    (b.failed > 0 ? 1 : 0) - (a.failed > 0 ? 1 : 0)
+    || b.failed - a.failed
+    || b.requests - a.requests,
+  )
   const totalRequests = providerRows.reduce((sum, row) => sum + row.requests, 0)
   const totalOk = providerRows.reduce((sum, row) => sum + row.ok, 0)
+  const totalFailed = providerRows.reduce((sum, row) => sum + row.failed, 0)
   const evidenceRows = evidence ? [...evidence.rows].sort((a, b) => {
     const score = (row: QualityEvidence['rows'][number]) => row.sources.every((source) => source.status !== 'OK')
       ? 2
@@ -136,6 +142,18 @@ export default async function MarketQualityPage() {
           </div>
         )}
       />
+      <GovernanceNav active="market" />
+      {ctx.role === 'VIEWER' && <ReadOnlyNotice what="可以查看来源、价差与失败证据，但不能发起新的报价核对" />}
+
+      {(totalFailed > 0 || (evidence && (evidence.summary.failed > 0 || evidence.summary.divergent > 0))) && (
+        <section className="governance-alert" aria-label="行情质量待核对">
+          <div>
+            <strong>行情证据需要核对</strong>
+            <span>近 30 日来源请求失败 {totalFailed} 次；最近一次报价核对中，全源失败 {evidence?.summary.failed ?? 0} 项、价差超阈值 {evidence?.summary.divergent ?? 0} 项。部分成功不能代表全部持仓可用。</span>
+          </div>
+          <Link href="/positions">查看受影响持仓 →</Link>
+        </section>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]">
         <Panel title="近 30 日行情来源" bodyClassName="p-0">
@@ -152,7 +170,7 @@ export default async function MarketQualityPage() {
                     <td className="num px-3 py-4 text-right text-ink">{row.requests}</td>
                     <td className="px-3 py-4 text-right"><Tag tone={rate != null && rate >= 0.98 ? 'up' : rate != null && rate >= 0.8 ? 'amber' : 'down'}>{fmtPct(rate)}</Tag></td>
                     <td className="num px-3 py-4 text-right text-ink-dim">{row.requests ? `${Math.round(row.totalMs / row.requests)} ms` : '—'}</td>
-                    <td className="max-w-[240px] truncate px-5 py-4 text-ink-faint" title={row.lastError ?? ''}>{row.lastError ?? '—'}</td>
+                    <td className="max-w-[240px] px-5 py-4 text-ink-faint" title={row.lastError ?? ''}><span className="block truncate">{row.lastError ?? '—'}</span>{row.lastErrorAt && <small className="block">{fmtDateTime(row.lastErrorAt)}</small>}</td>
                   </tr>
                 })}</tbody>
               </table>

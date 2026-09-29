@@ -38,14 +38,21 @@ export function HealthRepairActions() {
     if (operation === 'quotes') {
       const result = await refreshPrices()
       if (!result.ok) setMessage(result.error)
-      else setMessage(result.warning ?? `已补齐 ${result.data?.symbols ?? 0} 个标的并全量重建快照 · ${((result.data?.timings.totalMs ?? 0) / 1000).toFixed(1)} 秒`)
+      else {
+        const message = result.warning ?? `已补齐 ${result.data?.symbols ?? 0} 个标的并全量重建快照 · ${((result.data?.timings.totalMs ?? 0) / 1000).toFixed(1)} 秒`
+        setMessage(message)
+        navigateAfterWrite({ message, tone: result.warning ? 'warn' : 'ok' })
+      }
     } else {
       const result = await rebuildDerivedSnapshots()
       if (!result.ok) setMessage(result.error)
-      else setMessage(`已重建 ${result.data?.days ?? 0} 天派生快照`)
+      else {
+        const message = `已重建 ${result.data?.days ?? 0} 天派生快照`
+        setMessage(message)
+        navigateAfterWrite({ message })
+      }
     }
     setActive(null)
-    navigateAfterWrite({ message: '行情与派生快照维护已完成' })
   })
 
   return (

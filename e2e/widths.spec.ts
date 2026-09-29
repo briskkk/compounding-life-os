@@ -22,6 +22,13 @@ const PAGES = [
   ['/month-close', '月结中心'],
   ['/goals', '目标测算'],
   ['/health/market', '行情质量'],
+  ['/health', '数据健康'],
+  ['/reconciliation', '账户对账'],
+  ['/fund-confirmations', '基金确认'],
+  ['/corporate-actions', '公司行动'],
+  ['/fund-operations', '基金规则'],
+  ['/audit', '审计记录'],
+  ['/settings', '设置'],
   ['/investment-plans', '定投'],
 ] as const
 
@@ -35,7 +42,11 @@ for (const [path, name] of PAGES) {
       await page.waitForLoadState('domcontentloaded')
       await page.waitForTimeout(150)
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
-      expect(overflow, `${name} @${width}px 溢出 ${overflow}px`).toBeLessThanOrEqual(1)
+      const offenders = overflow > 1 ? await page.evaluate(() => [...document.querySelectorAll('body *')]
+        .filter((element) => element.getBoundingClientRect().right > document.documentElement.clientWidth + 1)
+        .map((element) => `${element.tagName.toLowerCase()}.${element.className} ${Math.round(element.getBoundingClientRect().right)}px overflow=${getComputedStyle(element).overflowX}`)
+        .slice(-30)) : []
+      expect(overflow, `${name} @${width}px 溢出 ${overflow}px: ${offenders.join(', ')}`).toBeLessThanOrEqual(1)
     }
   })
 }

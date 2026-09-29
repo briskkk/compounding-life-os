@@ -337,8 +337,10 @@ test('目标测算：编辑目标弹窗（Esc / 遮罩关闭，焦点归还）',
 
 test('审计页：哈希链完整', async ({ page }) => {
   await page.goto('/audit')
+  await expect(page.getByRole('heading', { level: 1, name: '审计记录' })).toBeVisible()
   await expect(page.getByText('审计日志')).toBeVisible()
-  await expect(page.getByText(/哈希链完整/)).toBeVisible()
+  await expect(page.getByText('哈希链完整', { exact: true })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: '数据治理视图' }).getByRole('link', { name: '审计记录' })).toHaveAttribute('aria-current', 'page')
 })
 
 test('导航：⌘K 支持 ↑↓/Enter，面包屑可点击并显示实体名', async ({ page }) => {

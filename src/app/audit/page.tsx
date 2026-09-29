@@ -1,4 +1,5 @@
 // 审计页：哈希链校验状态 + 操作日志
+import Link from 'next/link'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
@@ -6,6 +7,7 @@ import { verifyChain } from '@/lib/audit'
 import { Empty, PageHeader, Panel, SetupScreen, Tag } from '@/components/ui'
 import { fmtDateTime } from '@/lib/format'
 import { TableScroll } from '@/components/table-scroll'
+import { GovernanceNav } from '@/components/governance-nav'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,21 +22,18 @@ export default async function AuditPage() {
 
   return (
     <div className="page-shell">
-      <PageHeader title="所有资产，都能追溯到一笔真实流水。" description="验证结论基于当前家庭空间的审计哈希链快照。" />
+      <PageHeader title="审计记录" description="核对当前家庭的操作记录与哈希链，追溯数据写入与变更。" />
+      <GovernanceNav active="audit" />
 
-      <section className="grid gap-10 border-b border-line pb-10 md:grid-cols-[0.65fr_1fr] md:items-end">
-        <div>
-          <div className="text-[15px] text-ink-faint">审计结论</div>
-          <div className={chain.ok ? 'mt-4 text-[36px] font-medium text-info' : 'mt-4 text-[36px] font-medium text-danger'}>
-            {chain.ok ? '✓ 已验证' : '链路异常'}
-          </div>
-          <div className="mt-3 text-[14px] text-ink-faint">{chain.ok ? '未发现异常或账本匹配项' : `断裂于 ${chain.brokenAt?.slice(0, 8)}…`}</div>
-        </div>
-        <div className="metric-band">
-          <div><div className="text-[14px] text-ink-faint">审计范围</div><div className="num mt-2 text-[18px] text-ink">{chain.count} 条记录</div></div>
-          <div><div className="text-[14px] text-ink-faint">日志展示</div><div className="num mt-2 text-[18px] text-ink">最近 {logs.length} 条</div></div>
-          <div><div className="text-[14px] text-ink-faint">链式算法</div><div className="mt-2 text-[18px] text-ink">SHA-256</div></div>
-        </div>
+      {!chain.ok && <section className="governance-alert is-danger" aria-label="审计链异常">
+        <div><strong>审计链校验未通过</strong><span>断裂于记录 {chain.brokenAt?.slice(0, 8) ?? '未知'}。请先核对最近写入与备份，再继续处理数据。</span></div>
+        <Link href="/settings">检查备份 →</Link>
+      </section>}
+
+      <section className="operations-summary operations-summary-3" aria-label="审计概览">
+        <div><span>哈希链</span><strong className={chain.ok ? 'text-info' : 'text-danger'}>{chain.ok ? '完整' : '异常'}</strong><small>当前家庭 · SHA-256</small></div>
+        <div><span>已校验</span><strong className="num">{chain.count}</strong><small>条审计记录</small></div>
+        <div><span>日志展示</span><strong className="num">{logs.length}</strong><small>最近写入</small></div>
       </section>
 
       <Panel title="审计日志" bodyClassName="p-0" right={chain.ok ? <Tag tone="info">哈希链完整</Tag> : <Tag tone="danger">需要检查</Tag>}>

@@ -1,7 +1,6 @@
 'use client'
 
-// 设置页：标签页分组（账号 / 家庭 / 数据），字段行式紧凑布局
-// 设计遵循 MASTER.md：无侧边栏、标签结构、编辑型金融界面的键值行、surface 卡片
+// 设置页：账号安全、家庭协作与数据管理分组，保留既有写入权限和确认流程。
 import Link from 'next/link'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigateAfterWrite } from '@/lib/write-navigation'
@@ -95,12 +94,11 @@ export function SettingsForm({
 }) {
   const [tab, setTab] = useState<Tab>('account')
   return (
-    <div className="mx-auto w-full max-w-2xl">
+    <div className="mx-auto w-full max-w-3xl">
       <header className="mb-8">
         <h1 className="mt-2 text-3xl font-medium tracking-tight text-ink">设置</h1>
-        <p className="mt-1.5 text-sm text-ink-faint">
-          <span className="num">{memberName}</span> · {shortRole(role)}
-        </p>
+        <p className="mt-1.5 text-sm text-ink-dim">管理账号安全、家庭成员与数据备份。主题可从顶栏切换。</p>
+        <p className="mt-2 text-[13px] text-ink-faint"><span className="num">{memberName}</span> · {shortRole(role)}</p>
       </header>
 
       <div role="tablist" aria-label="设置分组" className="mb-6 flex gap-1 border-b border-line">
@@ -684,6 +682,7 @@ function DataPanel({ role, familyName }: { role: string; familyName: string }) {
   const isOwner = role === 'OWNER'
   return (
     <div className="flex flex-col gap-5" role="tabpanel">
+      <div className="flex flex-wrap gap-4 text-[13px]"><Link href="/health" className="text-accent">查看数据健康 →</Link><Link href="/audit" className="text-accent">查看审计记录 →</Link></div>
       <Card title="数据导出" desc="导出当前家庭的数据（CSV）">
         <div className="flex flex-wrap gap-3">
           <Link href="/api/export/transactions" className={btnGhostCls}>导出流水</Link>
@@ -790,7 +789,7 @@ function ResetCard({ familyName }: { familyName: string }) {
 function Card({ title, desc, children }: { title: string; desc: string; children: React.ReactNode }) {
   return (
     <section className="surface p-5 sm:p-6">
-      <div className="flex items-baseline justify-between gap-4">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
         <h2 className="text-[15px] font-medium text-ink">{title}</h2>
         <span className="text-[12px] text-ink-faint">{desc}</span>
       </div>

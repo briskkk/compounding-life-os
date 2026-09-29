@@ -63,6 +63,7 @@ test('基金规则与行情质量页面明确证据边界', async ({ page }) => 
 
   await page.goto('/health/market')
   await expect(page.getByRole('heading', { level: 1, name: '行情质量' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: '数据治理视图' }).getByRole('link', { name: '行情质量' })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByRole('heading', { name: '近 30 日行情来源' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '最近一次报价核对' })).toBeVisible()
   await page.getByText('口径说明', { exact: true }).click()

@@ -1,0 +1,97 @@
+.governance-nav {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.25rem 0 0.5rem;
+  scrollbar-width: thin;
+}
+
+.governance-nav a {
+  display: inline-flex;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-dim);
+  font-size: 13px;
+}
+
+.governance-nav a[aria-current='page'] {
+  border-color: color-mix(in srgb, var(--color-accent) 35%, var(--color-line));
+  background: var(--color-panel2);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.governance-nav a:hover,
+.governance-nav a:focus-visible {
+  border-color: var(--color-accent);
+  outline-offset: 2px;
+}
+
+.governance-alert {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+  border: 1px solid color-mix(in srgb, var(--color-amber) 38%, var(--color-line));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-amber) 5%, var(--color-panel));
+}
+
+.governance-alert.is-danger {
+  border-color: color-mix(in srgb, var(--color-danger) 38%, var(--color-line));
+  background: color-mix(in srgb, var(--color-danger) 4%, var(--color-panel));
+}
+
+.governance-alert strong,
+.governance-alert span { display: block; }
+.governance-alert strong { color: var(--color-ink); font-size: 15px; }
+.governance-alert span { margin-top: 0.35rem; color: var(--color-ink-dim); font-size: 13px; line-height: 1.6; }
+.governance-alert a { flex: 0 0 auto; color: var(--color-accent); font-size: 13px; }
+
+.health-status-hero.is-healthy { padding-block: 1.1rem; }
+.health-status-hero { background: var(--color-panel); }
+.health-status-hero.is-healthy .health-status-main h2 { font-size: 1.35rem; }
+.health-status-hero.is-healthy .health-status-counts strong { font-size: 1.4rem; }
+.health-issue-list article.is-blocking .health-issue-state i { background: var(--color-danger); }
+
+@media (max-width: 1280px) {
+  .health-status-hero,
+  .health-layout,
+  .health-job-grid { grid-template-columns: minmax(0, 1fr); }
+  .health-job-schedule { border-right: 0; border-bottom: 1px solid var(--color-line); }
+  .reconciliation-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .reconciliation-summary > p { grid-column: 1 / -1; }
+}
+
+@media (max-width: 760px) {
+  .health-header,
+  .governance-alert { flex-direction: column; }
+  .health-status-hero { gap: 1rem; padding: 1.3rem; }
+  .health-status-counts > div { padding-inline: 0.5rem; }
+  .health-issue-list article { grid-template-columns: minmax(0, 1fr) auto; min-height: 0; }
+  .health-issue-state,
+  .health-issue-copy { grid-column: 1 / -1; }
+  .health-issue-metric { text-align: left; }
+  .health-confirmation-list article { grid-template-columns: minmax(0, 1fr); }
+  .health-confirmation-list article > b { text-align: left; }
+  .health-confirmation-list article > div:last-child { justify-self: start; }
+  .health-job-schedule { grid-template-columns: minmax(0, 1fr); }
+  .health-job-schedule > div { border-left: 0; border-top: 1px solid var(--color-line); padding-block: 0.65rem; }
+  .health-job-schedule > div:first-child { border-top: 0; }
+  .health-job-timeline article { grid-template-columns: 8px minmax(0, 1fr); }
+  .health-job-timeline strong,
+  .health-job-timeline span { grid-column: 2; }
+  .reconciliation-summary { grid-template-columns: minmax(0, 1fr); }
+  .reconciliation-summary > p { grid-column: 1; }
+  .reconciliation-form { grid-template-columns: minmax(0, 1fr); }
+  .reconciliation-form .is-wide { grid-column: 1; }
+  .reconciliation-history article { grid-template-columns: minmax(0, 1fr) auto; }
+  .reconciliation-history article > div { grid-column: 1 / -1; }
+  .reconciliation-history article small { grid-column: 1 / -1; }
+}

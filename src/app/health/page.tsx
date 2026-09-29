@@ -4,10 +4,11 @@ import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { verifyChain } from '@/lib/audit'
 import { marketHealth } from '@/lib/market/cache'
-import { SetupScreen, Tag } from '@/components/ui'
+import { ReadOnlyNotice, SetupScreen, Tag } from '@/components/ui'
 import { cx, fmtCNY, fmtDate, fmtDateTime, fmtPct } from '@/lib/format'
 import { HealthRepairActions } from '@/components/health-repair-actions'
 import { ConfirmFundSettlementButton } from '@/components/confirm-fund-settlement-button'
+import { GovernanceNav } from '@/components/governance-nav'
 
 export const dynamic = 'force-dynamic'
 
@@ -194,7 +195,7 @@ export default async function DataHealthPage() {
       title: `最近导入有 ${failedRows} 行未成功`,
       detail: '失败行不会进入账本；请修正原文件后重新导入，系统会按文件内容识别重复批次。',
       metric: `${failedImports.length} 个批次`,
-      href: '/transactions',
+      href: '/transactions/imports',
       action: '查看导入',
     })
   }
@@ -264,8 +265,33 @@ export default async function DataHealthPage() {
     })
   }
 
+  const latestRefresh = refreshLogs[0]
+  const latestRefreshJobFailed = (latestRefresh?.detail ?? '').includes('JOB_FAILED')
+  const latestRefreshFailures = latestRefresh
+    ? [...(latestRefresh.detail ?? '').matchAll(/:FAILED:/g)].length
+    : 0
+  if (latestRefreshJobFailed || latestRefreshFailures > 0) {
+    issues.push({
+      id: 'market-refresh-failed',
+      severity: 'WARNING',
+      category: '行情刷新',
+      title: latestRefreshJobFailed ? '最近一次行情刷新任务失败' : `最近一次行情刷新有 ${latestRefreshFailures} 项失败`,
+      detail: `失败记录时间 ${fmtDateTime(latestRefresh!.createdAt)}。请先核对行情来源与受影响持仓，再决定是否人工补齐。`,
+      metric: latestRefreshJobFailed ? '任务失败' : `${latestRefreshFailures} 项`,
+      href: '/health/market',
+      action: '检查行情',
+    })
+  }
+
   const order: Record<Severity, number> = { BLOCKING: 0, WARNING: 1, INFO: 2 }
-  issues.sort((a, b) => order[a.severity] - order[b.severity])
+  const impactOrder = [
+    'audit-chain', 'negative-cash', 'missing-quotes', 'market-refresh-failed',
+    'period-valuation-gaps', 'estimated-nav', 'fund-settlement-confirmation',
+    'failed-imports', 'missing-manual-valuations', 'stale-manual',
+    'unsettled-accounts', 'pending-settlement', 'account-reconciliation', 'allocation-target',
+  ]
+  issues.sort((a, b) => order[a.severity] - order[b.severity]
+    || impactOrder.indexOf(a.id) - impactOrder.indexOf(b.id))
   const blocking = issues.filter((issue) => issue.severity === 'BLOCKING').length
   const warnings = issues.filter((issue) => issue.severity === 'WARNING').length
   const infos = issues.filter((issue) => issue.severity === 'INFO').length
@@ -279,6 +305,7 @@ export default async function DataHealthPage() {
         <div><h1>数据健康中心</h1></div>
         <div className="flex gap-6"><Link href="/health/market">行情质量 →</Link><Link href="/audit">审计记录 →</Link></div>
       </header>
+      <GovernanceNav active="health" />
 
       <section className={cx('health-status-hero', blocking > 0 ? 'is-blocking' : warnings > 0 ? 'is-warning' : 'is-healthy')}>
         <div className="health-status-main">
@@ -344,6 +371,7 @@ export default async function DataHealthPage() {
           <small className="num">06:30 · 16:30 · 22:30</small>
         </summary>
         <div className="health-maintenance-body">
+          {dashboard.ctx.role === 'VIEWER' && <ReadOnlyNotice what="可以查看行情任务与检查依据，但不能手动补齐行情或重建快照" />}
           {dashboard.ctx.role !== 'VIEWER' && (
             <section className="health-repair-strip">
               <div><strong title="服务器按市场收盘时段自动增量刷新；人工修复不会改写交易流水">需要时手动补齐</strong></div>
@@ -355,10 +383,9 @@ export default async function DataHealthPage() {
               <div className="health-job-schedule"><div><b className="num">06:30</b><span>美股收盘与外汇</span></div><div><b className="num">16:30</b><span>A/H 股收盘</span></div><div><b className="num">22:30</b><span>基金官方净值</span></div></div>
               <div className="health-job-timeline">
                 {refreshLogs.length === 0 ? <p>尚无刷新记录。</p> : refreshLogs.map((log) => {
-                  const failed = (log.detail ?? '').includes('JOB_FAILED')
-                    ? 1
-                    : [...(log.detail ?? '').matchAll(/:FAILED:/g)].length
-                  return <article key={log.id}><i className={failed > 0 ? 'is-warning' : 'is-ok'} /><time className="num">{fmtDateTime(log.createdAt)}</time><strong>{failed > 0 ? `${failed} 个标的失败` : '刷新完成'}</strong><span>{log.actorName}</span></article>
+                  const jobFailed = (log.detail ?? '').includes('JOB_FAILED')
+                  const failed = [...(log.detail ?? '').matchAll(/:FAILED:/g)].length
+                  return <article key={log.id}><i className={jobFailed || failed > 0 ? 'is-warning' : 'is-ok'} /><time className="num">{fmtDateTime(log.createdAt)}</time><strong>{jobFailed ? '任务失败' : failed > 0 ? `${failed} 个标的失败` : '刷新完成'}</strong><span>{log.actorName}</span></article>
                 })}
               </div>
             </div>

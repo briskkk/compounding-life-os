@@ -8,11 +8,17 @@ test('数据健康中心展示家庭数据检查队列', async ({ page }) => {
   await expect(page.getByText('审计链', { exact: true }).first()).toBeVisible()
   await expect(page.getByRole('heading', { name: '行情任务中心' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '基金确认闭环' })).toBeVisible()
+  const governance = page.getByRole('navigation', { name: '数据治理视图' })
+  await expect(governance.getByRole('link', { name: '数据健康' })).toHaveAttribute('aria-current', 'page')
+  await expect(governance.getByRole('link', { name: '账户对账' })).toHaveAttribute('href', '/reconciliation')
 })
 
 test('账户对账只追加外部凭证，不改写账本余额', async ({ page }) => {
   await page.goto('/reconciliation')
   await expect(page.getByRole('heading', { level: 1, name: '账户对账' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '账户与最近核对凭证' })).toBeVisible()
+  await expect(page.getByText(/各凭证日期可能不同/)).toBeVisible()
+  const accountName = (await page.locator('tbody tr').first().locator('td').first().locator('strong').textContent())?.trim() ?? ''
   const ledgerBefore = await page.locator('tbody tr').first().locator('td').nth(1).textContent()
   await expect(page.locator('#new-reconciliation')).not.toHaveAttribute('open', '')
   await page.getByRole('link', { name: '新增凭证' }).click()
@@ -23,7 +29,7 @@ test('账户对账只追加外部凭证，不改写账本余额', async ({ page 
   await page.getByRole('button', { name: '写入核对凭证' }).click()
   await expect(page.getByTestId('write-flash')).toContainText(/已记录差额|核对一致/)
   await expect(page.getByText('E2E 券商月结单').first()).toBeVisible()
-  await expect(page.locator('tbody tr').first().locator('td').nth(1)).toHaveText(ledgerBefore ?? '')
+  await expect(page.locator('tbody tr').filter({ has: page.getByText(accountName, { exact: true }) }).first().locator('td').nth(1)).toHaveText(ledgerBefore ?? '')
 })
 
 test('目标配置以当前权重预填并可保存为观察基准', async ({ page }) => {

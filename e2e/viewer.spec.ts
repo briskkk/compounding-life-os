@@ -41,6 +41,16 @@ test('只读账号：写入入口一律以统一提示说明，不静默消失',
   await expect(notice).toHaveCount(1)
   await expect(notice).toContainText('不能追加外部凭证')
 
+  await page.goto('/health')
+  await page.locator('#market-jobs > summary').click()
+  await expect(notice).toHaveCount(1)
+  await expect(notice).toContainText('不能手动补齐行情')
+
+  await page.goto('/health/market')
+  await expect(notice).toHaveCount(1)
+  await expect(notice).toContainText('不能发起新的报价核对')
+  await expect(page.getByRole('button', { name: '核对当前持仓' })).toHaveCount(0)
+
   // 定投页：可看计划与执行，不能创建/结束/快速录入
   await page.goto('/investment-plans')
   await expect(notice).toHaveCount(2) // 顶部说明 + 快速录入位（两处写入区块）

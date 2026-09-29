@@ -4,13 +4,13 @@ import { getWatchData } from '@/lib/queries'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { summarizeAccountPositions } from '@/lib/engine/account-summary'
-import { dateKeyAt } from '@/lib/engine/watch-market'
 import { livePreviousClose } from '@/lib/engine/portfolio-day'
 import { Empty, PageHeader, Panel, SetupScreen, Tag, ReadOnlyNotice } from '@/components/ui'
 import { ReconciliationForm } from '@/components/reconciliation-form'
 import { cx, fmtCNY, fmtDateTime } from '@/lib/format'
 import { TableScroll } from '@/components/table-scroll'
 import { HashOpenDetails } from '@/components/hash-open-details'
+import { GovernanceNav } from '@/components/governance-nav'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,7 +79,14 @@ export default async function ReconciliationPage() {
     return evidence ? [{ ...evidence, id: log.id, createdAt: log.createdAt, actorName: log.actorName }] : []
   })
   const matchedCount = accountRows.filter((row) => row.latest?.evidence && Math.abs(row.latest.evidence.differenceCny) < 0.01).length
-  const differenceTotal = accountRows.reduce((sum, row) => sum + (row.latest?.evidence?.differenceCny ?? 0), 0)
+  const differenceCount = accountRows.filter((row) => row.latest?.evidence && Math.abs(row.latest.evidence.differenceCny) >= 0.01).length
+  const accountPriority = (row: typeof accountRows[number]) => row.latest?.evidence
+    ? Math.abs(row.latest.evidence.differenceCny) >= 0.01 ? 0 : 2
+    : 1
+  const prioritizedAccounts = [...accountRows].sort((a, b) =>
+    accountPriority(a) - accountPriority(b)
+    || Math.abs(b.latest?.evidence?.differenceCny ?? 0) - Math.abs(a.latest?.evidence?.differenceCny ?? 0),
+  )
 
   return (
     <div className="page-shell reconciliation-page">
@@ -93,22 +100,30 @@ export default async function ReconciliationPage() {
           </div>
         )}
       />
+      <GovernanceNav active="reconciliation" />
+
+      {differenceCount > 0 && (
+        <section className="governance-alert" aria-label="账户对账待核对">
+          <div><strong>{differenceCount} 个账户的最近凭证记录了差额</strong><span>请按凭证日期核对账单与当时账本；如发现遗漏或错误交易，通过流水补录或冲正。追加凭证不会改写账本。</span></div>
+          <Link href="/transactions">核对流水 →</Link>
+        </section>
+      )}
 
       <section className="reconciliation-summary">
         <div><span>已建立凭证</span><strong className="num">{accountRows.filter((row) => row.latest).length}/{accountRows.length}</strong></div>
-        <div><span>最近一致</span><strong className="num text-info">{matchedCount}</strong></div>
-        <div><span>最近差额合计</span><strong className={cx('num', Math.abs(differenceTotal) < 0.01 ? 'text-info' : 'text-amber')}>{fmtCNY(differenceTotal, { sign: true })}</strong></div>
-        <p>差额不等于收益。发现差异后，请回到流水补录遗漏交易或冲正错误记录。</p>
+        <div><span>最近凭证一致</span><strong className="num text-info">{matchedCount}</strong></div>
+        <div><span>最近凭证有差额</span><strong className={cx('num', differenceCount > 0 ? 'text-amber' : 'text-info')}>{differenceCount}</strong></div>
+        <p>各凭证日期可能不同，差额不合计为当前余额或收益。当前账本金额单独列示，供新增凭证时参考。</p>
       </section>
 
-      <Panel title="当前账户核对状态" bodyClassName="p-0">
+      <Panel title="账户与最近核对凭证" bodyClassName="p-0">
         <TableScroll label="核对凭证表">
           <table className="w-full whitespace-nowrap text-[14px]">
-            <thead><tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint"><th className="px-4 py-3 font-normal">账户</th><th className="px-2 py-3 text-right font-normal">当前账本</th><th className="px-2 py-3 text-right font-normal">最近账单</th><th className="px-2 py-3 text-right font-normal">差额</th><th className="px-4 py-3 font-normal">状态</th></tr></thead>
-            <tbody className="divide-y divide-line/60">{accountRows.map((row) => {
+            <thead><tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint"><th className="px-4 py-3 font-normal">账户</th><th className="px-2 py-3 text-right font-normal">当前账本</th><th className="px-2 py-3 text-right font-normal">凭证账单</th><th className="px-2 py-3 text-right font-normal">凭证差额</th><th className="px-4 py-3 font-normal">最近凭证</th></tr></thead>
+            <tbody className="divide-y divide-line/60">{prioritizedAccounts.map((row) => {
               const evidence = row.latest?.evidence
               const matched = evidence && Math.abs(evidence.differenceCny) < 0.01
-              return <tr key={row.id}><td className="px-4 py-3"><strong className="font-medium text-ink">{row.name}</strong><small className="mt-1 block text-ink-faint">{row.institution ?? '未登记机构'}</small></td><td className="num px-2 py-3 text-right text-ink">{fmtCNY(row.ledgerValueCny)}</td><td className="num px-2 py-3 text-right text-ink-dim">{evidence ? fmtCNY(evidence.observedValueCny) : '—'}</td><td className={cx('num px-2 py-3 text-right', matched ? 'text-info' : evidence ? 'text-amber' : 'text-ink-faint')}>{evidence ? fmtCNY(evidence.differenceCny, { sign: true }) : '—'}</td><td className="px-4 py-3">{evidence ? <Tag tone={matched ? 'info' : 'amber'}>{matched ? '一致' : '有差额'}</Tag> : <Tag tone="dim">未核对</Tag>}</td></tr>
+              return <tr key={row.id}><td className="px-4 py-3"><strong className="font-medium text-ink">{row.name}</strong><small className="mt-1 block text-ink-faint">{row.institution ?? '未登记机构'}</small></td><td className="num px-2 py-3 text-right text-ink">{fmtCNY(row.ledgerValueCny)}</td><td className="num px-2 py-3 text-right text-ink-dim">{evidence ? fmtCNY(evidence.observedValueCny) : '—'}</td><td className={cx('num px-2 py-3 text-right', matched ? 'text-info' : evidence ? 'text-amber' : 'text-ink-faint')}>{evidence ? fmtCNY(evidence.differenceCny, { sign: true }) : '—'}</td><td className="px-4 py-3">{evidence ? <><Tag tone={matched ? 'info' : 'amber'}>{matched ? '一致' : '有差额'}</Tag><small className="mt-1 block text-ink-faint">账单日 {evidence.asOfDate}</small></> : <Tag tone="dim">未核对</Tag>}</td></tr>
             })}</tbody>
           </table>
         </TableScroll>
