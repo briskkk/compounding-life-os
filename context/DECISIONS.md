@@ -30,6 +30,7 @@ last_verified: 2026-09-23
 | 组合复盘只保存用户判断与证据快照 | 收益与贡献实时派生；差额显式对账；复盘记录不成为第二账本，也不生成自动建议 | [ADR-014](../docs/adr/014-portfolio-review-evidence.md) |
 | GOLD 恒为可交易可投资资产 | `manual` 只决定黄金估值来源；无结算腿黄金交易按组合外资金流兼容，有结算腿保持内部守恒 | [ADR-015](../docs/adr/015-tradable-gold-investable-scope.md) |
 | 计划数据与交易账本分离 | 目标权重和未来现金安排只用于观察/计划；不改余额、不生成交易、不自动买卖 | [ADR-016](../docs/adr/016-planning-data-separate-from-ledger.md) |
+| 自定义组合分组与分类收益 | 互斥策略分组用于自定义配置目标，当前分组应用于历史账本重算；标签可重叠但不用于权重求和，目标不生成交易 | [ADR-036](../docs/adr/036-strategy-allocation-and-group-performance.md) |
 | 运行核对只追加证据 | 实时/结算分轨；账户对账、任务与到账确认写审计凭证，不建立可写余额 | [ADR-017](../docs/adr/017-operational-evidence-not-second-ledger.md) |
 | 运营事件、基金规则与行情质量分层 | 公司行动展开为流水；规则与质量只保存证据，不自动改持仓、费用或行情源 | [ADR-018](../docs/adr/018-operational-ledgers-and-market-quality.md) |
 | 份额未知的基金申购先记录金额 | `PENDING` BUY 不猜净值份额，必须现金联动；金额作为在途资产派生，官方确认走冲正替换 | [ADR-019](../docs/adr/019-pending-fund-purchase-evidence.md) |

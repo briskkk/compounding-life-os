@@ -22,6 +22,9 @@ import { livePreviousClose } from '@/lib/engine/portfolio-day'
 import { marketGroupLabel } from '@/lib/engine/market-group'
 import { TableScroll } from '@/components/table-scroll'
 import { AssetDomainNav } from '@/components/asset-domain-nav'
+import { AssetClassificationEditor, type ClassificationRow } from '@/components/asset-classification-editor'
+import { strategyName, UNASSIGNED_STRATEGY } from '@/lib/engine/strategy-allocation'
+import { marketGroupOf } from '@/lib/engine/market-group'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,14 +33,16 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
   const ctx = await getSession()
   if (!ctx) return <SetupScreen />
   const db = scopedDb(prisma, ctx)
-  const [state, accounts, assetsRaw] = await Promise.all([
+  const [state, accounts, assetsRaw, strategyTargets] = await Promise.all([
     loadEngineState(ctx),
     db.account.findMany(),
     db.asset.findMany(),
+    db.strategyTarget.findMany(),
   ])
   const accountName = new Map(accounts.map((a) => [a.id, a.name]))
   const assetTags = new Map(assetsRaw.map((a) => [a.id, parseTags(a.tags)]))
   const assetStyles = new Map(assetsRaw.map((a) => [a.id, a.style as AssetStyle | null]))
+  const rawAssetById = new Map(assetsRaw.map((asset) => [asset.id, asset]))
   const m = state.metrics
 
   const allRows = state.valued
@@ -136,6 +141,35 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
       pct: totalHeld > 0 ? g.value / totalHeld : 0,
       color: g.tag === UNTAGGED ? C.inkFaint : SLICE_PALETTE[tagColorIdx++ % SLICE_PALETTE.length],
     }))
+  let strategyColorIdx = 0
+  const strategySlices = sumByKey(mergedRows
+    .filter((position) => isInvestableAsset(position.asset))
+    .map((position) => ({ key: strategyName(rawAssetById.get(position.assetId)?.strategyGroup), value: position.investable })))
+    .map((slice) => ({
+      name: slice.key,
+      value: slice.value,
+      pct: slice.pct,
+      color: slice.key === UNASSIGNED_STRATEGY ? C.inkFaint : SLICE_PALETTE[strategyColorIdx++ % SLICE_PALETTE.length],
+    }))
+  const heldAssetIds = new Set(mergedRows.map((position) => position.assetId))
+  const historicalAssetIds = new Set(state.ledgerTxs.map((transaction) => transaction.assetId))
+  const classificationRows: ClassificationRow[] = assetsRaw
+    .filter((asset) => isInvestableAsset(asset) && (heldAssetIds.has(asset.id) || historicalAssetIds.has(asset.id)))
+    .sort((a, b) => Number(heldAssetIds.has(b.id)) - Number(heldAssetIds.has(a.id)) || a.name.localeCompare(b.name))
+    .map((asset) => ({
+        id: asset.id,
+        name: asset.name,
+        symbol: asset.symbol,
+        cls: asset.cls as AssetClass,
+        market: ['STOCK', 'FUND', 'ETF'].includes(asset.cls) ? marketGroupOf(asset) : null,
+        style: asset.style as AssetStyle | null,
+        strategyGroup: asset.strategyGroup,
+        tags: asset.tags,
+      }))
+  const strategyGroupNames = [...new Set([
+    ...assetsRaw.map((asset) => asset.strategyGroup).filter(Boolean),
+    ...strategyTargets.map((target) => target.name).filter((name) => name !== UNASSIGNED_STRATEGY),
+  ])].sort()
   const compositionDimensions: CompositionDimension[] = [
     { key: 'class', label: '资产大类', slices: classSlices },
     {
@@ -149,6 +183,12 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
       label: '市场分组',
       caption: '股票 / 基金 / ETF 按境内与境外市场聚合；QDII 使用已核验注册表识别。',
       slices: marketSlices,
+    },
+    {
+      key: 'strategy',
+      label: '组合分组',
+      caption: '每项可投资资产仅归属一组，可用于目标权重与分组收益；未分组单列。',
+      slices: strategySlices,
     },
     {
       key: 'tag',
@@ -379,7 +419,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
       </section>
       </>}
 
-      {activeView === 'composition' && (
+      {activeView === 'composition' && <>
         <Panel
           title="结构分析"
           className="asset-composition-panel"
@@ -391,7 +431,9 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
             <Empty action={{ href: '/transactions#new-entry', label: '录入流水' }}>暂无持仓可供分析</Empty>
           )}
         </Panel>
-      )}
+        <AssetClassificationEditor rows={classificationRows} groupNames={strategyGroupNames} canWrite={ctx.role !== 'VIEWER'} />
+        <p className="mt-4 text-[13px] text-ink-dim"><Link href="/allocation?view=strategy" className="text-accent">按组合分组设置目标配置 →</Link></p>
+      </>}
     </div>
   )
 }

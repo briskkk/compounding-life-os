@@ -18,7 +18,7 @@
    这里只补复盘域自己的窄屏行为，保持与其他领域一致（容器内滚动，不顶出页面）。 */
 @media (max-width: 1180px) {
   .review-domain-nav {
-    grid-template-columns: repeat(5, minmax(140px, 1fr));
+    grid-template-columns: repeat(6, minmax(140px, 1fr));
     overflow-x: auto;
   }
 }

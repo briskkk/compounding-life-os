@@ -10702,7 +10702,7 @@ html[data-theme='light'] .terminal-main .overview-net-worth {
 
 .investment-domain-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .record-domain-nav { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.review-domain-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.review-domain-nav { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 
 .workflow-domain-nav a {
   display: flex;
@@ -10739,7 +10739,7 @@ html[data-theme='light'] .terminal-main .overview-net-worth {
   }
 
   .review-domain-nav {
-    grid-template-columns: repeat(5, minmax(150px, 1fr));
+    grid-template-columns: repeat(6, minmax(150px, 1fr));
     overflow-x: auto;
   }
 }

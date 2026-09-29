@@ -343,7 +343,7 @@ test.describe('B：移动端服务端收尾契约', () => {
     expect(json.monthSummary.observationDays).toBe(json.days.length)
   })
 
-  test('持仓下发 style、marketGroup 与 tags', async ({ request }) => {
+  test('持仓下发 style、marketGroup、strategyGroup 与 tags', async ({ request }) => {
     const response = await request.get('/api/positions')
     expect(response.ok()).toBeTruthy()
     const json = await response.json()
@@ -352,6 +352,7 @@ test.describe('B：移动端服务端收尾契约', () => {
       expect(['DOMESTIC', 'OFFSHORE']).toContain(position.marketGroup)
       expect(Array.isArray(position.tags)).toBeTruthy()
       expect(position.style === null || typeof position.style === 'string').toBeTruthy()
+      expect(typeof position.strategyGroup).toBe('string')
     }
   })
 

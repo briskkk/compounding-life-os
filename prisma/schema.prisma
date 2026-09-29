@@ -79,6 +79,7 @@ model FamilySpace {
   portfolioReviews  PortfolioReview[]
   importBatches     ImportBatch[]
   allocationTargets AllocationTarget[]
+  strategyTargets   StrategyTarget[]
   cashPlans         CashPlan[]
   investmentPlans   InvestmentPlan[]
   investmentPlanAssets InvestmentPlanAsset[]
@@ -167,6 +168,7 @@ model Asset {
   manual       Boolean       @default(false) // 手动估值资产（房产等）
   currency     String        @default("CNY")
   tags         String        @default("") // 自定义分组标签，逗号分隔（如 "美元基金,长期"）
+  strategyGroup String       @default("") // 互斥组合分组，用于目标权重和分组收益
   note         String?
   createdAt    DateTime      @default(now())
   transactions Transaction[]
@@ -457,7 +459,21 @@ enum CashPlanRecurrence {
   YEARLY
 }
 
-// 未来现金安排；属于计划层，不计入账本、净资产或收益。
+// 自定义组合权重；属于计划层，不计入账本、净资产或收益。
+model StrategyTarget {
+  id           String      @id @default(cuid())
+  familyId     String
+  family       FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name         String
+  targetWeight Float
+  tolerance    Float       @default(0.03)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([familyId, name])
+  @@index([familyId])
+}
+
 model CashPlan {
   id         String             @id @default(cuid())
   familyId   String

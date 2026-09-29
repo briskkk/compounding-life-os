@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-09-23
+last_verified: 2026-09-28
 ---
 
 # 代码地图
@@ -13,28 +13,31 @@ last_verified: 2026-09-23
 | 领域 | 页面/API | 主要数据与交互 |
 | --- | --- | --- |
 | 总览 | `src/app/page.tsx` | `getDashboard(period)`；净资产、周/月/季可投资资产结果桥、贡献来源、财富轨迹、构成、状态与主目标入口 |
-| 持仓 | `src/app/positions/page.tsx` | `loadEngineState`；配置、分组、列头排序（市值/当日盈亏/未实现盈亏/权重/名称）、当日盈亏 |
+| 持仓 | `src/app/positions/page.tsx` | `loadEngineState`；配置、分组、列头排序（市值/当日盈亏/未实现盈亏/权重/名称）、当日盈亏；结构视图直接整理风格、组合分组与标签 |
 | 资产详情 | `src/app/positions/[assetId]/page.tsx` | 价格/净值历史、基金估值、持仓概览、流水与带账本锁的安全编辑/删除 |
 | 看盘 | `src/app/watch/page.tsx` | `getWatchData` + 默认基准；盘中曲线、今日贡献/拖累、结算状态、近 30 日三项快照与实时估值表（默认 8 项，筛选或显式展开后展示全部）；排序与筛选状态走 `sort`/`q`/`cls`/`excl` 深链；点表格行在曲线上叠加该标的当日盈亏 |
 | 周期复盘 | `src/app/review/page.tsx` | `getReviewPageData`；周/月/季及任意历史自然月的结果、归因子视图、行为风险与结构化用户笔记；当前步骤走 `step` 深链，所选周期身份与对账/估值/在途证据由常驻上下文条在四步之间保持可见 |
 | 收益历史 | `src/app/review/returns/page.tsx` | `getWatchData` + `loadBenchmarks`；预设/自定义区间、四基准对比、收益率/金额/资产曲线，以及日/月/年收益日历 |
+| 分类复盘 | `src/app/review/groups/page.tsx` | 当前资产分类筛选；所选资产账本日序列合并，展示区间结果、风险、估值证据及资产贡献 |
+| 配置目标 | `src/app/allocation/page.tsx` | 资产大类目标和互斥自定义组合目标双视图；目标权重与当前可投资资产偏离 |
 | 流水 | `src/app/transactions/page.tsx` | 默认有效流水视图、可展开冲正历史、筛选、分页、录入、CSV、冲正、导出 |
 | 基金确认 | `src/app/fund-confirmations/page.tsx` | 待确认基金集中队列、官方净值只读预览、平台份额比对与确认写入 |
 | 目标测算 | `src/app/goals/page.tsx` | 账本资本、达成时间、所需月投入、三档结果、本金/复利拆分与临时试算构成连续决策流；高级区保留退休压力测试与收支证据；VIEWER 只读 |
 | 账户 | `src/app/accounts/page.tsx`、`accounts/[accountId]/page.tsx` | 账户、资产目录、结算关系、负债 |
 | 定投管理 | `src/app/investment-plans/page.tsx` | 定投节奏、月度计划与有效 BUY 核对；用户核对实际申购后按日批量快速录入 |
 | 月结中心 | `src/app/month-close/page.tsx` | 首屏先回答能否结账与还缺哪些证据（结论 → 缺口 → 证据），四步编排数据确认、账户对账、定投核对与月度复盘的既有证据 |
-| 审计 | `src/app/audit/page.tsx` | 审计哈希链验证与时间线 |
+| 数据治理 | `src/app/health/page.tsx`、`health/market/page.tsx`、`reconciliation/page.tsx`、`audit/page.tsx` | 异常影响排序、行情来源与失败证据、追加式账户凭证、审计哈希链；共享 `GovernanceNav` |
 
 全局前端壳层：
 
 - `src/components/app-shell.tsx`：认证后桌面工作区、可收起/移动抽屉侧栏、顶栏上下文、主题/家庭/行情入口与 `⌘/Ctrl + K` 页面及二级工作流搜索；支持操作词别名、弹窗焦点约束与关闭后焦点归还。
-- `src/components/nav.tsx`：分组一级导航；定投位于“记录与计划”，活动页使用 `aria-current` 标记。
+- `src/components/nav.tsx`：六项家庭任务一级导航；低频治理通过数据状态、上下文与搜索到达，活动页使用 `aria-current` 标记。
+- `src/components/governance-nav.tsx`、`src/app/governance-workspace.css`：数据健康、行情质量、账户对账、审计之间的二级导航、异常提示与窄屏布局。
 - `src/components/holding-filter-bar.tsx`、`src/lib/engine/watch-filter.ts`：看盘实时估值表的搜索 / 大类 / 未计入筛选条与筛选取值解析（解析必须是纯模块，`'use client'` 导出无法被服务端组件调用）。
 - `src/components/sort-header.tsx`、`src/components/position-sort-header.tsx`、`src/lib/engine/holding-sort.ts`：看盘与持仓共用的列头排序控件；排序键、升降序切换、`aria-sort` 与无障碍文案的唯一来源都在引擎里（持仓页按 URL 服务端排序，看盘页客户端排序）。
 - `src/lib/engine/intraday.ts`：`buildIntradayCurves` 返回组合曲线与逐标的当日盈亏序列（看盘行 ↔ 曲线联动），`buildPortfolioCurve` 是它的薄包装。
 - `src/components/terminal-icon.tsx`：壳层和主导航共用的线性 SVG 图标集。
-- `src/app/globals.css`、`src/app/themes.css`：石墨灰财富运营台与对应浅色主题；冰蓝用于交互和主图表、橙色用于收益、绿色用于回撤，并保留财务精度和桌面信息密度。
+- `src/app/globals.css`、`src/app/themes.css`：默认浅色家庭财富工作台与用户可选深色主题；品牌蓝用于交互，红绿只用于财务方向或异常语义，并保留财务精度和桌面信息密度。
 - `src/lib/colors.ts`：Recharts 与构成图使用的 JS 色板，必须与 CSS 主题中的黑、绿、青蓝、橙及涨跌状态色同步。
 
 Route Handlers：
@@ -48,7 +51,7 @@ Route Handlers：
 - `src/app/api/account/*/route.ts`：改邮箱 / 改密码 / 会话管理与吊销 / 最近登录 / 偏好。
 - `src/app/api/family/route.ts`：家庭创建与信息；`family/members`：成员列表、角色、移除、重置密码；`family/invites`：邀请码生成/撤销；`family/join`：凭码加入；`family/switch`：切换家庭；`family/reset`：清空家庭数据。
 - `src/app/api/admin/backup/route.ts`：手动备份与最近备份列表（OWNER）。
-- `src/app/api/positions/route.ts`、`positions/[assetId]/route.ts`：持仓与资产详情（移动端）；列表附投资风格、境内/境外市场分组与自定义标签。
+- `src/app/api/positions/route.ts`、`positions/[assetId]/route.ts`：持仓与资产详情（移动端）；列表附投资风格、境内/境外市场分组、互斥组合分组与自定义标签。
 - `src/app/api/mobile/summary/route.ts`：移动端总览/账户/FIRE 数据包。
 - `src/app/api/mobile/returns-calendar/route.ts`：与 Web 看盘同源的日/月/年收益日历、估值缺口和当日流水。
 - `src/app/api/transactions/route.ts`：移动端流水幂等写入（`Idempotency-Key`）与游标分页列表。
@@ -76,7 +79,9 @@ Route Handlers：
 - `src/lib/queries.ts`：页面 View Model 装配、实时估值与目标；总览复用复盘引擎装配周/月/季贡献证据。
 - `src/lib/review-data.ts`：复盘页 View Model；历史价格/汇率、同源组合/资产日曲线、在途资金、基准与已保存记录装配。
 - `src/lib/review-workspace.ts`：复盘域 URL 上下文纯函数（月份/日期/范围/步骤解析与非法值回落），供复盘二级入口与页面共用。
-- `src/components/review-domain-nav.tsx`：复盘域二级入口（月结中心 / 周期复盘 / 收益历史 / 长期复盘 / 决策库），把当前周期上下文带到目标页面。
+- `src/components/review-domain-nav.tsx`：复盘域二级入口（月结中心 / 周期复盘 / 收益历史 / 分类复盘 / 长期复盘 / 决策库），把当前周期上下文带到目标页面。
+- `src/lib/group-performance.ts`、`src/lib/engine/group-performance.ts`、`performance-scope.ts`：按当前资产分类选择历史账本与资产日序列，合并为分类收益；标签可能重叠。
+- `src/components/asset-classification-editor.tsx`、`strategy-target-editor.tsx`、`performance-scope-picker.tsx`：结构页直接分组、自定义目标编辑和分类收益筛选。
 - `src/lib/snapshots.ts`：从首笔流水完整回放财富序列；日格按北京日历日切分、快照终点取北京今天（ADR-027）；`rebuildSnapshots` 支持按 `affectedSince` 增量重建，异常超长日期显式拒绝而不静默截断。`src/lib/engine/portfolio-day.ts` 是北京归属日的唯一判定（美股 +1、实时窗口与昨收基线）。
 - `src/lib/audit.ts`：审计哈希、完整性验证及同家庭串行事务；`chainScope + chainKey` 唯一约束与冲突重试防止并发分叉。
 - `src/lib/export.ts`、`src/lib/csv.ts`：CSV 出入双向格式；`ImportBatch` 负责批次指纹、幂等与对账。
@@ -106,7 +111,7 @@ Route Handlers：
 - `src/app/health/page.tsx`：家庭数据质量检查队列、安全修复、行情任务时间线与基金确认闭环。
 - `src/app/reconciliation/page.tsx`、`src/components/reconciliation-form.tsx`：外部账户余额与账本派生余额的追加式核对凭证。
 - `src/lib/engine/data-settlement.ts`、`src/components/data-settlement-rail.tsx`：实时/已结算证据计算与看盘低权重数据状态行；总览仅显示摘要，详细证据进入健康中心。
-- `src/app/allocation/page.tsx`、`src/lib/engine/allocation-drift.ts`：资产大类目标、容忍带与事实性偏离计算。
+- `src/app/allocation/page.tsx`、`src/lib/engine/allocation-drift.ts`、`strategy-allocation.ts`：资产大类与自定义组合目标、容忍带及事实性偏离计算。
 - `src/app/accounts/page.tsx` 的 `calendar` 视图、`src/lib/engine/cash-calendar.ts`：**只合并账本实际发生的买入/卖出与赎回在途到账**；定投计划节点与手工资金计划都不进日历（计划不是流水）。资金计划的维护（列表、新建、移除）在账户概览。
 - `src/app/investment-plans/page.tsx`、`src/lib/engine/investment-plan.ts`：工作日/每周/每月计划节点与同币种有效 BUY 的月度核对，区分已录、用户已核对未买、待核对与未到期；计划节点不自动写账本或收益。
 - `src/components/allocation-target-editor.tsx`、`cash-plan-form.tsx`：受权限与审计保护的计划写入界面。

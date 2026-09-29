@@ -47,12 +47,14 @@ export function PortfolioHistory({
   liveDayReturn,
   benchmarks = [],
   initialPreset,
+  scopeLabel,
 }: {
   series: PerformancePoint[]
   livePoint: PerformancePoint | null
   liveDayReturn: LiveDayReturn | null
   benchmarks?: LoadedBenchmark[]
   initialPreset?: string
+  scopeLabel?: string
 }) {
   const todayKey = dateKeyAt(new Date())
   const liveSeries = useMemo(() => upsertPerformancePoint(series, livePoint), [livePoint, series])
@@ -127,8 +129,8 @@ export function PortfolioHistory({
     <section className="portfolio-history" aria-labelledby="portfolio-history-title">
       <header className="portfolio-history-header">
         <div>
-          <h2 id="portfolio-history-title">组合历史收益</h2>
-          <p>仅统计可投资组合，华为股票、房产与负债不参与历史收益计算。</p>
+          <h2 id="portfolio-history-title">{scopeLabel ? `${scopeLabel} · 历史收益` : '组合历史收益'}</h2>
+          <p>仅统计可投资组合；分组收益按账本资金流重算。</p>
         </div>
         {hasHistory && (
           <div className="portfolio-history-period num" aria-live="polite">

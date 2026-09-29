@@ -170,6 +170,7 @@ export const assetUpdateSchema = z.object({
     .enum(['GROWTH', 'VALUE', 'BALANCED', 'QUANT', 'SECTOR_THEME', 'BROAD_INDEX', 'SECTOR_INDEX'])
     .nullable()
     .optional(),
+  strategyGroup: z.string().trim().max(40).optional(),
 })
 
 const goalBaseSchema = z.object({
@@ -285,6 +286,21 @@ export const allocationTargetsInputSchema = z.object({
   }
   const total = value.targets.reduce((sum, target) => sum + target.targetWeight, 0)
   if (Math.abs(total - 1) > 0.0001) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '目标权重合计必须为 100%', path: ['targets'] })
+  }
+})
+
+export const strategyTargetsInputSchema = z.object({
+  targets: z.array(z.object({
+    name: z.string().trim().min(1).max(40),
+    targetWeight: z.number().min(0).max(1),
+    tolerance: z.number().min(0).max(0.2),
+  })).min(1).max(30),
+}).superRefine((value, ctx) => {
+  if (new Set(value.targets.map((target) => target.name)).size !== value.targets.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '组合分组名称不能重复', path: ['targets'] })
+  }
+  if (Math.abs(value.targets.reduce((sum, target) => sum + target.targetWeight, 0) - 1) > 0.0001) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: '目标权重合计必须为 100%', path: ['targets'] })
   }
 })

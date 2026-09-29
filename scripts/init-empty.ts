@@ -49,6 +49,7 @@ async function main() {
     prisma.investmentPlan.deleteMany(),
     prisma.cashPlan.deleteMany(),
     prisma.allocationTarget.deleteMany(),
+    prisma.strategyTarget.deleteMany(),
     prisma.snapshot.deleteMany(),
     prisma.session.deleteMany(),
     prisma.user.deleteMany(),

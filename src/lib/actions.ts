@@ -20,6 +20,7 @@ import {
   accountReconciliationSchema,
   accountSettlementSchema,
   allocationTargetsInputSchema,
+  strategyTargetsInputSchema,
   assetInputSchema,
   assetUpdateSchema,
   cashPlanInputSchema,
@@ -44,6 +45,7 @@ import { parseCsvRows, parsedTxKey, type CsvColumnMapping, type CsvLookup, type 
 import { buildSettlementLegs } from './engine/settlement'
 import { createsSettlementCycle } from './engine/settlement-account'
 import { parseTags, serializeTags } from './engine/groups'
+import { UNASSIGNED_STRATEGY } from './engine/strategy-allocation'
 import {
   persistFundHistory,
   persistHistory,
@@ -99,6 +101,39 @@ export async function saveAllocationTargets(input: unknown): Promise<ActionResul
     })
     revalidatePath('/allocation')
     revalidatePath('/')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function saveStrategyTargets(input: unknown): Promise<ActionResult> {
+  try {
+    const ctx = await requireWrite()
+    const data = strategyTargetsInputSchema.parse(input)
+    await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      await txDb.strategyTarget.deleteMany({ where: { familyId: ctx.familyId } })
+      await txDb.strategyTarget.createMany({
+        data: data.targets.map((target) => ({ familyId: ctx.familyId, ...target })),
+      })
+      await audit(ctx, 'UPDATE', 'StrategyTarget', ctx.familyId, '更新自定义组合目标', txDb)
+    })
+    revalidatePath('/allocation')
+    revalidatePath('/positions')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function clearStrategyTargets(): Promise<ActionResult> {
+  try {
+    const ctx = await requireWrite()
+    await auditedTransaction(prisma, ctx.familyId, async (txDb) => {
+      await txDb.strategyTarget.deleteMany({ where: { familyId: ctx.familyId } })
+      await audit(ctx, 'DELETE', 'StrategyTarget', ctx.familyId, '清除自定义组合目标', txDb)
+    })
+    revalidatePath('/allocation')
     return { ok: true }
   } catch (e) {
     return fail(e)
@@ -1413,6 +1448,7 @@ export async function updateAsset(id: string, input: unknown): Promise<ActionRes
         ...(data.tags != null ? { tags: serializeTags(parseTags(data.tags)) } : {}),
         ...(data.note !== undefined ? { note: data.note } : {}),
         ...(data.style !== undefined ? { style: data.style } : {}),
+        ...(data.strategyGroup !== undefined ? { strategyGroup: data.strategyGroup === UNASSIGNED_STRATEGY ? '' : data.strategyGroup } : {}),
       }
       if (transactionCount === 0) {
         if (data.symbol != null) patch.symbol = data.symbol
@@ -1438,6 +1474,8 @@ export async function updateAsset(id: string, input: unknown): Promise<ActionRes
     revalidatePath('/accounts')
     revalidatePath('/health')
     revalidatePath('/allocation')
+    revalidatePath('/review/returns')
+    revalidatePath('/review')
     revalidatePath('/')
     return { ok: true }
   } catch (e) {

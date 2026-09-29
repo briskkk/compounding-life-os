@@ -11,7 +11,7 @@ import {
   type ReviewWorkspaceContext,
 } from '@/lib/review-workspace'
 
-export type ReviewDomainView = 'month-close' | 'cyclical' | 'returns' | 'history' | 'decisions'
+export type ReviewDomainView = 'month-close' | 'cyclical' | 'returns' | 'group-review' | 'history' | 'decisions'
 
 // 只保留模式名：二级入口本身要能一眼读完，周期与范围身份由页面内的上下文条承担，
 // 避免入口文字与页面里的范围标签（例如「成立以来」）在可访问名称上重复。
@@ -19,6 +19,7 @@ const REVIEW_DOMAIN_VIEWS: Array<{ key: ReviewDomainView; label: string }> = [
   { key: 'month-close', label: '月结中心' },
   { key: 'cyclical', label: '周期复盘' },
   { key: 'returns', label: '收益历史' },
+  { key: 'group-review', label: '分类复盘' },
   { key: 'history', label: '长期复盘' },
   { key: 'decisions', label: '决策库' },
 ]
@@ -63,6 +64,8 @@ export function reviewDomainHref(view: ReviewDomainView, context: ReviewWorkspac
       return `/review${reviewQueryString(cyclical)}`
     case 'returns':
       return `/review/returns${reviewQueryString(carried.month ? { month: carried.month } : {})}`
+    case 'group-review':
+      return '/review/groups'
     case 'history':
       return `/review/history${reviewQueryString({ ...(carried.month ? { month: carried.month } : {}), ...(context.scope ? { scope: context.scope } : {}) })}`
     case 'decisions':

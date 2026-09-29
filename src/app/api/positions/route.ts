@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const db = scopedDb(prisma, ctx)
   const [state, assets] = await Promise.all([
     loadEngineState(ctx),
-    db.asset.findMany({ select: { id: true, symbol: true, name: true, cls: true, currency: true, style: true, tags: true } }),
+    db.asset.findMany({ select: { id: true, symbol: true, name: true, cls: true, currency: true, style: true, strategyGroup: true, tags: true } }),
   ])
   const metaById = new Map(assets.map((asset) => [asset.id, asset]))
   const now = new Date()
@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
         ...item,
         style: meta?.style ?? null,
         marketGroup: marketGroupOf(meta ?? v.asset),
+        strategyGroup: meta?.strategyGroup ?? '',
         tags: parseTags(meta?.tags ?? ''),
       }
     })
