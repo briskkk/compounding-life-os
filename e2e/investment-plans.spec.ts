@@ -285,6 +285,14 @@ test('定投管理：编辑计划只影响未来节点，历史已录入日不�
 
 test('定投管理：批量创建独立计划，同一资产可按不同账户跟踪并按账户归类', async ({ page }) => {
   await page.goto('/investment-plans?month=2026-10')
+  const firstDay = page.locator('.investment-plan-entry-day').first()
+  const existingEntry = firstDay.locator('tbody tr').filter({ hasText: '天天基金' })
+  await existingEntry.getByLabel('易方达消费行业 实际申购金额').fill('321')
+  await existingEntry.getByLabel('易方达消费行业 实际费用').fill('1.23')
+  const navDate = await existingEntry.getByLabel('易方达消费行业 成交净值日').inputValue()
+  await existingEntry.getByLabel('易方达消费行业 已实际申购').check()
+  await page.getByLabel('所选申购与平台记录一致').check()
+  await firstDay.getByRole('button', { name: '本日未买', exact: true }).click()
   await page.getByRole('link', { name: '新建计划' }).click()
   const form = page.locator('.investment-plan-form')
 
@@ -302,6 +310,24 @@ test('定投管理：批量创建独立计划，同一资产可按不同账户�
   await expect(huatai).toContainText('2 条计划')
   await expect(huatai.getByRole('article').filter({ hasText: '沪深300ETF' })).toContainText('¥100.00')
   await expect(huatai.getByRole('article').filter({ hasText: '易方达消费行业' })).toContainText('¥200.00')
+
+  // 同页刷新保留旧草稿；新增节点补全默认值，并要求重新确认更新后的节点范围。
+  await expect(existingEntry.getByLabel('易方达消费行业 实际申购金额')).toHaveValue('321')
+  await expect(existingEntry.getByLabel('易方达消费行业 实际费用')).toHaveValue('1.23')
+  await expect(existingEntry.getByLabel('易方达消费行业 成交净值日')).toHaveValue(navDate)
+  await expect(existingEntry.getByLabel('易方达消费行业 已实际申购')).toBeChecked()
+  const newEntry = firstDay.locator('tbody tr').filter({ hasText: '华泰证券' })
+  await expect(newEntry.getByLabel('易方达消费行业 实际申购金额')).toHaveValue('200')
+  await expect(newEntry.getByLabel('易方达消费行业 实际费用')).toHaveValue('0')
+  await expect(newEntry.getByLabel('易方达消费行业 成交净值日')).toHaveValue(navDate)
+  await expect(newEntry.getByLabel('易方达消费行业 已实际申购')).not.toBeChecked()
+  await expect(page.getByLabel('所选申购与平台记录一致')).not.toBeChecked()
+  await expect(firstDay.locator('.investment-plan-entry-day-flag')).toHaveCount(0)
+  await newEntry.getByLabel('易方达消费行业 实际费用').fill('2')
+  await expect(newEntry.getByLabel('易方达消费行业 实际申购金额')).toHaveValue('200')
+  await expect(newEntry.getByLabel('易方达消费行业 成交净值日')).toHaveValue(navDate)
+  await newEntry.getByLabel('易方达消费行业 已实际申购').check()
+  await expect(page.getByRole('button', { name: /一次提交 2 笔/ })).toContainText('¥521.00')
 
   await form.getByLabel(/默认每期金额/).fill('300')
   await form.getByLabel('开始日期').fill('2026-10-01')

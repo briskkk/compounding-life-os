@@ -67,11 +67,24 @@ export function InvestmentPlanQuickEntry({ days, windowPlans = [] }: { days: Qui
   const [dayState, setDayState] = useState<Record<string, DayValue>>(
     () => Object.fromEntries(dates.map((date) => [date, blankDay()])),
   )
-  const [values, setValues] = useState<Record<string, RowValue>>(() => Object.fromEntries(rows.map((row) => [row.key, {
+  // 仅保存用户修改；刷新新增的节点在当前渲染就有完整默认值，无需重挂载或等待 effect。
+  const [drafts, setDrafts] = useState<Record<string, Partial<RowValue>>>({})
+  const values: Record<string, RowValue> = Object.fromEntries(rows.map((row) => [row.key, {
     amount: String(row.amount),
     fee: '0',
     navDate: row.date,
-  }])))
+    ...drafts[row.key],
+  }]))
+  const rowScope = rows.map((row) => row.key).sort().join(',')
+  const [previousScope, setPreviousScope] = useState(rowScope)
+  if (previousScope !== rowScope) {
+    setPreviousScope(rowScope)
+    // 确认只对当时的节点有效；保留仍存在的勾选，但不能把新增节点自动确认为未买。
+    setDayState((current) => Object.fromEntries(dates.map((date) => [date, {
+      ...blankDay(),
+      selected: (current[date]?.selected ?? []).filter((id) => rows.some((row) => row.date === date && row.planId === id)),
+    }])))
+  }
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const confirmRef = useRef<HTMLInputElement>(null)
@@ -114,7 +127,7 @@ export function InvestmentPlanQuickEntry({ days, windowPlans = [] }: { days: Qui
   }
 
   function setField(key: string, field: keyof RowValue, value: string) {
-    setValues((current) => ({ ...current, [key]: { ...current[key], [field]: value } }))
+    setDrafts((current) => ({ ...current, [key]: { ...current[key], [field]: value } }))
     const row = rows.find((item) => item.key === key)
     if (row) patchDay(row.date, { confirmedActual: false })
     else setMessage(null)
