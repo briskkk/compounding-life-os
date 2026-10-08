@@ -65,7 +65,7 @@ export function reviewDomainHref(view: ReviewDomainView, context: ReviewWorkspac
     case 'returns':
       return `/review/returns${reviewQueryString(carried.month ? { month: carried.month } : {})}`
     case 'group-review':
-      return '/review/groups'
+      return `/review/groups${reviewQueryString(carried.month ? { month: carried.month } : {})}`
     case 'history':
       return `/review/history${reviewQueryString({ ...(carried.month ? { month: carried.month } : {}), ...(context.scope ? { scope: context.scope } : {}) })}`
     case 'decisions':

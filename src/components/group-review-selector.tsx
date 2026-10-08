@@ -10,10 +10,10 @@ const DIMENSIONS = [
 
 type Scope = { key: string; label: string }
 
-export function GroupReviewSelector({ scopes, value, period }: { scopes: Scope[]; value: string; period: string }) {
+export function GroupReviewSelector({ scopes, value, period, month }: { scopes: Scope[]; value: string; period: string; month?: string }) {
   const selectedDimension = value.split(':', 1)[0]
   const groups = scopes.filter((scope) => scope.key.startsWith(`${selectedDimension}:`))
-  const groupHref = (key: string) => `/review/groups?${new URLSearchParams({ scope: key, period }).toString()}`
+  const groupHref = (key: string) => `/review/groups?${new URLSearchParams({ scope: key, period, ...(month ? { month } : {}) }).toString()}`
 
   return (
     <section className="group-review-selector" aria-label="选择复盘分类">

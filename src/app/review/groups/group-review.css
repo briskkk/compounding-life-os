@@ -154,8 +154,17 @@
 
 .group-review-period-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 1rem;
+}
+
+.group-review-period-row > .review-month-control {
+  display: grid;
+  width: 300px;
+  max-width: 100%;
+  gap: 0;
+  margin-left: auto;
 }
 
 .group-review-result {

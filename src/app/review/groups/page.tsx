@@ -3,10 +3,13 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { getGroupPerformance } from '@/lib/group-performance'
 import { performanceBetween, performancePresetRange, type PerformancePreset } from '@/lib/engine/period-performance'
+import { reviewRange } from '@/lib/engine/review'
+import { dateKeyAt } from '@/lib/engine/watch-market'
 import { riskMetrics } from '@/lib/engine/risk'
 import { PageHeader, SetupScreen } from '@/components/ui'
 import { ReviewDomainNav } from '@/components/review-domain-nav'
 import { GroupReviewSelector } from '@/components/group-review-selector'
+import { GroupReviewMonthControl } from '@/components/group-review-month-control'
 import { cx, fmtCNY, fmtPct } from '@/lib/format'
 import './group-review.css'
 
@@ -14,20 +17,25 @@ export const dynamic = 'force-dynamic'
 
 const PERIODS: { key: PerformancePreset; label: string }[] = [
   { key: 'THIS_WEEK', label: '本周' },
-  { key: 'THIS_MONTH', label: '本月' },
+  { key: 'THIS_MONTH', label: '按月' },
   { key: 'THIS_YEAR', label: '今年' },
   { key: 'LAST_30_DAYS', label: '近 30 日' },
   { key: 'ALL', label: '全部' },
 ]
 
-export default async function GroupReviewPage({ searchParams }: { searchParams: Promise<{ scope?: string; period?: string }> }) {
+export default async function GroupReviewPage({ searchParams }: { searchParams: Promise<{ scope?: string; period?: string; month?: string }> }) {
   const params = await searchParams
   const ctx = await getSession()
   if (!ctx) return <SetupScreen />
   const data = await getGroupPerformance(ctx, params.scope, true)
   if (!data) redirect('/login')
   const period = PERIODS.find((item) => item.key === params.period)?.key ?? 'THIS_MONTH'
-  const range = performancePresetRange(period, new Date(), data.series[0]?.date)
+  const now = new Date()
+  const currentMonth = dateKeyAt(now).slice(0, 7)
+  const range = period === 'THIS_MONTH'
+    ? reviewRange('THIS_MONTH', now, params.month)
+    : performancePresetRange(period, now, data.series[0]?.date)
+  const month = period === 'THIS_MONTH' ? range.startDate.slice(0, 7) : undefined
   const result = performanceBetween(data.series, range.startDate, range.endDate, range.label)
   const risk = riskMetrics(result.curve)
   const rows = data.assets.map((asset) => ({
@@ -41,7 +49,7 @@ export default async function GroupReviewPage({ searchParams }: { searchParams: 
   return (
     <div className="page-shell review-shell group-review-page">
       <PageHeader title="分类投资复盘" description="沿着分组查看投资结果、资金流和资产贡献。" right={<Link href="/positions?view=composition" className="text-accent">整理分组 →</Link>} />
-      <ReviewDomainNav active="group-review" params={params} />
+      <ReviewDomainNav active="group-review" params={{ ...params, period, month }} />
       {data.scope.key === 'all' ? (
         <section className="group-review-empty">
           <h2>还没有可复盘的分类</h2>
@@ -49,14 +57,15 @@ export default async function GroupReviewPage({ searchParams }: { searchParams: 
           <Link href="/positions?view=composition">前往结构分析 →</Link>
         </section>
       ) : <>
-        <GroupReviewSelector scopes={data.scopes} value={data.scope.key} period={period} />
+        <GroupReviewSelector scopes={data.scopes} value={data.scope.key} period={period} month={month} />
         <div className="group-review-period-row">
           <span>查看周期</span>
           <div role="group" aria-label="分类复盘周期">
             {PERIODS.map((item) => (
-              <Link key={item.key} href={`/review/groups?${new URLSearchParams({ scope: data.scope.key, period: item.key }).toString()}`} aria-current={period === item.key ? 'page' : undefined} className="group-review-period" prefetch={false}>{item.label}</Link>
+              <Link key={item.key} href={`/review/groups?${new URLSearchParams({ scope: data.scope.key, period: item.key, ...(item.key === 'THIS_MONTH' && month ? { month } : {}) }).toString()}`} aria-current={period === item.key ? 'page' : undefined} className="group-review-period" prefetch={false}>{item.label}</Link>
             ))}
           </div>
+          {month && <GroupReviewMonthControl scope={data.scope.key} month={month} currentMonth={currentMonth} />}
         </div>
 
         <section className="group-review-result" aria-label="分类复盘结果">
