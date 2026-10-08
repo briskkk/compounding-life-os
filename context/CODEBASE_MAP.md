@@ -46,7 +46,7 @@ Route Handlers：
 - `src/app/api/prices/route.ts`：实时报价。
 - `src/app/api/intraday/route.ts`：股票/基金盘中曲线。
 - `src/app/api/lookup/route.ts`：资产代码查找。
-- `src/app/api/export/*/route.ts`：流水/快照 CSV。
+- `src/app/api/export/*/route.ts`：流水/快照/持仓 CSV；持仓按当前标签、大类与排序导出。
 - `src/app/api/auth/*/route.ts`：登录 / 注册 / 登出（双通道：cookie + Bearer token）。
 - `src/app/api/account/*/route.ts`：改邮箱 / 改密码 / 会话管理与吊销 / 最近登录 / 偏好。
 - `src/app/api/family/route.ts`：家庭创建与信息；`family/members`：成员列表、角色、移除、重置密码；`family/invites`：邀请码生成/撤销；`family/join`：凭码加入；`family/switch`：切换家庭；`family/reset`：清空家庭数据。
@@ -94,6 +94,7 @@ Route Handlers：
 - `src/lib/engine/fund-order.ts`、`china-trading-calendar.ts`：成交净值日 / 份额确认日 / 预计到账日分离推算（15:00 临界、上交所 2024–2026 休市日历；QDII T+2 只影响确认）、按金额申购份额估算。
 - `src/lib/engine/valuation.ts`：MARKET/MANUAL/COST/FACE 估值和双口径。
 - `src/lib/engine/merge.ts`、`groups.ts`、`account-summary.ts`：持仓聚合。
+- `src/lib/engine/position-table.ts`：持仓页与 CSV 导出共享范围、合并、筛选和排序；`src/lib/position-export.ts` 负责人民币列、估值证据和安全文本序列化。
 - `src/lib/engine/settlement.ts`、`settlement-account.ts`：买卖/分红/利息/费用现金腿（基金赎回支持 `settleAt` 延迟到账）与结算关系环检测。
 - `src/lib/asset-classification.ts`：组合资产、可投资资产与长期资产边界；GOLD 的手动估值不改变可投资属性。
 

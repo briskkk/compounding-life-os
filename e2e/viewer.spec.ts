@@ -15,6 +15,13 @@ test.beforeEach(async ({ page }) => {
 test('只读账号：写入入口一律以统一提示说明，不静默消失', async ({ page }) => {
   const notice = page.getByTestId('readonly-notice')
 
+  await page.goto('/positions')
+  const exportLink = page.getByRole('link', { name: '↓ 导出持仓 CSV' })
+  await expect(exportLink).toBeVisible()
+  const positionsExport = await page.request.get((await exportLink.getAttribute('href'))!)
+  expect(positionsExport.ok()).toBe(true)
+  expect(positionsExport.headers()['content-type']).toContain('text/csv')
+
   // 流水页：可看可导出，不能录入/导入/冲正
   await page.goto('/transactions')
   await expect(notice).toHaveCount(1)

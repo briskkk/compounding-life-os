@@ -6,19 +6,18 @@ import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { Empty, PageHeader, Panel, SetupScreen, Tag, ScopeLabel } from '@/components/ui'
 import { ValuationToggle } from '@/components/valuation-toggle'
-import { groupByTag, matchesTag, parseTags, UNTAGGED } from '@/lib/engine/groups'
+import { groupByTag, parseTags, UNTAGGED } from '@/lib/engine/groups'
 import { groupByMarket, groupByStyle, sumByKey, UNCLASSIFIED_STYLE_KEY } from '@/lib/engine/composition'
-import { mergePositionsByAsset } from '@/lib/engine/merge'
+import { buildPositionTable, POSITION_CLASSES } from '@/lib/engine/position-table'
 import { ASSET_CLASS_LABEL, ASSET_STYLE_LABEL, UNCLASSIFIED_STYLE_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtCNYExact, fmtPct, fmtPrice, fmtQty } from '@/lib/format'
 import { C, CLASS_COLORS, SLICE_PALETTE } from '@/lib/colors'
 import type { AssetClass, AssetStyle } from '@/lib/engine/types'
 import { CompositionChart, type CompositionDimension } from '@/components/composition-chart'
 import { PositionSourceTag, ValuationLegend, ValuationSourceSummary } from '@/components/valuation-source'
-import { holdingAriaSort, parseHoldingSort, sortHoldings } from '@/lib/engine/holding-sort'
+import { holdingAriaSort } from '@/lib/engine/holding-sort'
 import { PositionSortHeader } from '@/components/position-sort-header'
 import { isInvestableAsset, isPortfolioAssetClass } from '@/lib/asset-classification'
-import { livePreviousClose } from '@/lib/engine/portfolio-day'
 import { marketGroupLabel } from '@/lib/engine/market-group'
 import { TableScroll } from '@/components/table-scroll'
 import { AssetDomainNav } from '@/components/asset-domain-nav'
@@ -45,56 +44,14 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
   const rawAssetById = new Map(assetsRaw.map((asset) => [asset.id, asset]))
   const m = state.metrics
 
-  const allRows = state.valued
-    .filter((v) => isPortfolioAssetClass(v.asset.cls) && (Math.abs(v.quantity) > 1e-9 || v.value > 0))
-    .sort((a, b) => b.value - a.value)
-  // 同一资产跨账户合并展示
-  const mergedRows = mergePositionsByAsset(allRows)
+  const { allRows, mergedRows, activeTag, activeSort, activeClass, totalHeld, rows, accountsByAsset } =
+    buildPositionTable(state.valued, state.quotes, assetTags, sp)
   const groups = groupByTag(allRows, assetTags)
-  const activeTag = sp.tag ?? null
-  const activeSort = parseHoldingSort(sp.sort)
+  const classOrder = POSITION_CLASSES
   const activeView = sp.view === 'composition' ? 'composition' : 'holdings'
-  const classOrder: AssetClass[] = ['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'REAL_ESTATE']
-  const activeClass = classOrder.includes(sp.cls as AssetClass) ? sp.cls as AssetClass : null
-  const now = new Date()
-  // 组合权重（与表格权重列同一分母）先算出来，排序才能按权重重排
-  const totalHeld = mergedRows.reduce((sum, position) => sum + position.value, 0)
-  const positionRows = mergedRows.map((position) => {
-    const quote = state.quotes.get(position.asset.symbol)
-    const previousCloseCny = livePreviousClose({
-      asset: { symbol: position.asset.symbol, currency: position.asset.currency, cls: position.asset.cls },
-      exchangeTradingDate: quote?.tradingDate,
-      prevClose: quote?.prevCloseCny,
-      now,
-    })
-    const previousValueCny = previousCloseCny == null ? null : position.quantity * previousCloseCny
-    const dayPnlCny = previousValueCny == null ? null : position.value - previousValueCny
-    return {
-      position,
-      name: position.asset.name,
-      valueCny: position.value,
-      dayPnlCny,
-      dayPnlPct: previousValueCny != null && previousValueCny > 0 && dayPnlCny != null
-        ? dayPnlCny / previousValueCny
-        : null,
-      unrealizedPnlCny: position.unrealized,
-      weight: totalHeld > 0 ? position.value / totalHeld : 0,
-    }
-  })
-  const filteredRows = positionRows.filter((row) => {
-    if (activeTag && !matchesTag(assetTags.get(row.position.assetId), activeTag)) return false
-    if (activeClass && row.position.asset.cls !== activeClass) return false
-    return true
-  })
-  const rows = sortHoldings(filteredRows, activeSort)
-
-  // 每个资产涉及的账户（合并展示用）
-  const accountsByAsset = new Map<string, Set<string>>()
-  for (const v of allRows) {
-    const set = accountsByAsset.get(v.assetId) ?? new Set<string>()
-    set.add(v.accountId)
-    accountsByAsset.set(v.assetId, set)
-  }
+  const exportParams = new URLSearchParams({ sort: activeSort })
+  if (activeTag) exportParams.set('tag', activeTag)
+  if (activeClass) exportParams.set('cls', activeClass)
 
   const manualAssets = state.assets.filter((a) => isPortfolioAssetClass(a.cls) && (a.manual || a.cls === 'REAL_ESTATE'))
   const totalUnrealized = mergedRows.reduce((sum, position) => sum + position.unrealized, 0)
@@ -273,7 +230,15 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
           title={activeTag ? `持仓明细 · ${activeTag}` : '持仓明细'}
           bodyClassName="p-0"
           right={(
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href={`/api/export/positions?${exportParams}`}
+                download
+                title="导出当前筛选与排序的持仓，跨账户合并，不含在途资金"
+                className="inline-flex min-h-10 items-center rounded-lg border border-line px-3 text-[13px] text-ink-dim hover:border-accent hover:text-accent"
+              >
+                ↓ 导出持仓 CSV
+              </a>
               {activeTag && (
                 <Link href={`/positions?sort=${activeSort}${activeClass ? `&cls=${activeClass}` : ''}`} className="text-[12px] text-ink-faint hover:text-ink">
                   清除筛选 ×
