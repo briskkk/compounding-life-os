@@ -1,4 +1,5 @@
 import type { AssetClass } from './types'
+import { dailyPnlBaseline, type DailyTradeActivity } from './daily-trades'
 
 export interface AccountPositionInput {
   accountId: string
@@ -6,6 +7,7 @@ export interface AccountPositionInput {
   quantity: number
   value: number
   unrealized: number
+  dailyActivity?: DailyTradeActivity
   asset: {
     symbol: string
     cls: AssetClass
@@ -21,11 +23,11 @@ export interface AccountPositionSummary {
 }
 
 export function positionDayPnlCny(
-  position: Pick<AccountPositionInput, 'quantity' | 'value'>,
+  position: Pick<AccountPositionInput, 'quantity' | 'value' | 'dailyActivity'>,
   prevCloseCny: number | null | undefined,
 ): number | null {
   if (prevCloseCny == null || !Number.isFinite(prevCloseCny)) return null
-  return position.value - position.quantity * prevCloseCny
+  return position.value - dailyPnlBaseline(position.quantity, prevCloseCny, position.dailyActivity)
 }
 
 export function summarizeAccountPositions(
@@ -47,7 +49,7 @@ export function summarizeAccountPositions(
     if (active) holdingCount += 1
 
     const dayPnl = positionDayPnlCny(position, prevCloseFor(position.asset.symbol))
-    if (active && dayPnl != null) {
+    if ((active || position.dailyActivity) && dayPnl != null) {
       dayPnlCny += dayPnl
       knownDayPnlCount += 1
     }

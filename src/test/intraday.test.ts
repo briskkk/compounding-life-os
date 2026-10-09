@@ -7,6 +7,41 @@ describe('组合当日收益曲线', () => {
   const t0 = Date.parse('2026-07-27T09:30:00+08:00')
   const min = 60000
 
+  it('10点买入：之前只计算昨仓，之后计入新买入差价和费用，组合与选中线末点一致', () => {
+    const t10 = t0 + 30 * min
+    const holdings: CurveHolding[] = [{ symbol: 'A', qty: 120, rateToCny: 1, prevClose: 10,
+      trades: [{ t: t10, quantityDelta: 20, cashFlowCny: -180.1 }] }]
+    const { curve, series } = buildIntradayCurves(holdings, new Map([['A', [
+      { t: t0, price: 10.1 }, { t: t10, price: 10.2 }, { t: t10 + min, price: 11 },
+    ]]]), 500, 0, new Set(['A']))
+    expect(curve.map((point) => point.pnl)).toEqual([10, 43.9, 139.9])
+    expect(series.get('A')!.map((point) => point.pnl)).toEqual([10, 43.9, 139.9])
+    expect(curve.at(-1)?.value).toBe(1820)
+  })
+
+  it('多笔成交按时刻排序，清仓后保留已实现损益与费用，不再随行情涨跌', () => {
+    const trades = [{ t: t0 + 2 * min, quantityDelta: -120, cashFlowCny: 1320 - 1 },
+      { t: t0 + min, quantityDelta: 20, cashFlowCny: -200 - 0.1 }]
+    const { curve, series } = buildIntradayCurves(
+      [{ symbol: 'A', qty: 0, rateToCny: 1, prevClose: 10, trades }],
+      new Map([['A', [10.1, 10.2, 11, 12].map((price, index) => ({ t: t0 + index * min, price }))]]),
+      500, 0, new Set(['A']),
+    )
+    expect(curve.map((point) => point.pnl)).toEqual([10, 23.9, 118.9, 118.9])
+    expect(series.get('A')!.at(-1)?.pnl).toBe(118.9)
+    expect(trades[0].quantityDelta).toBe(-120)
+  })
+
+  it('外币成交现金流已折人民币，只将市值折算一次；费用与分红按发生时刻计入', () => {
+    const { curve } = buildIntradayCurves(
+      [{ symbol: 'USX', qty: 1, rateToCny: 7, prevClose: 10, trades: [
+        { t: t0 + min, quantityDelta: 0, cashFlowCny: 14 },
+        { t: t0 + 2 * min, quantityDelta: 0, cashFlowCny: -7 },
+      ] }], new Map([['USX', [11, 11, 11].map((price, index) => ({ t: t0 + index * min, price }))]]), 0,
+    )
+    expect(curve.map((point) => point.pnl)).toEqual([7, 21, 14])
+  })
+
   it('向前填补 + 基线盈亏计算', () => {
     const holdings: CurveHolding[] = [
       { symbol: 'A', qty: 100, rateToCny: 1, prevClose: 10 },

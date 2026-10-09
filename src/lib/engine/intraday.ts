@@ -9,6 +9,13 @@ export interface CurveHolding {
   qty: number // 持仓数量（取最新账本重放结果）
   rateToCny: number // 原币 → 人民币汇率
   prevClose: number | null // 昨收（原币）；缺失时该标的不计入盈亏基线
+  trades?: IntradayTrade[]
+}
+
+export interface IntradayTrade {
+  t: number
+  quantityDelta: number
+  cashFlowCny: number // 成交价和账本费用派生，已经折成人民币
 }
 
 export interface CurvePoint {
@@ -33,7 +40,8 @@ export interface IntradayCurves {
  * 合成组合当日曲线：
  * - 时间轴为各标的分钟点的并集（逐标的向前填补价格）
  * - 无分时数据的持仓以 constantValueCny 计入市值，其当日盈亏以 constantPnlCny 计入曲线
- * - pnl(t) = value(t) − baseline；常量项基线 = constantValueCny − constantPnlCny
+ * - 按交易时刻还原持仓；盈亏 = 当前持仓市值 − 昨仓昨收市值 + 已发生交易净现金流
+ * - 静态资产保持当前值；曲线市值是持仓估算，不重建历史现金余额
  * - 昨收缺失时以该标的首个分钟价为基线，避免把全部市值误判为当日盈利
  */
 export function buildPortfolioCurve(
@@ -66,58 +74,55 @@ export function buildIntradayCurves(
   const timeline = [...times].sort((a, b) => a - b)
 
   // 每标的游标；同时记住该标的的基准价（昨收，缺失时取首个分钟价）
-  const cursors = new Map<string, { idx: number; last: number | null; reference: number | null }>()
+  const cursors = new Map<string, {
+    idx: number; last: number | null; reference: number | null
+    trades: IntradayTrade[]; tradeIdx: number; openingQty: number; qty: number; cashFlowCny: number
+  }>()
   for (const h of withSeries) {
+    const trades = [...(h.trades ?? [])].sort((a, b) => a.t - b.t)
+    const openingQty = h.qty - trades.reduce((sum, trade) => sum + trade.quantityDelta, 0)
     cursors.set(h.symbol, {
       idx: 0,
       last: null,
       reference: h.prevClose ?? series.get(h.symbol)?.[0]?.price ?? null,
+      trades, tradeIdx: 0, openingQty, qty: openingQty, cashFlowCny: 0,
     })
   }
-
-  const baseline =
-    constantValueCny -
-    constantPnlCny +
-    withSeries.reduce((s, h) => {
-      const reference = cursors.get(h.symbol)!.reference
-      return s + (reference != null ? h.qty * reference * h.rateToCny : 0)
-    }, 0)
-
+  const tracked = new Map<string, IntradaySeriesPoint[]>()
+  for (const h of withSeries) if (trackSymbols.has(h.symbol)) tracked.set(h.symbol, [])
   const out: CurvePoint[] = []
   for (const t of timeline) {
     let value = constantValueCny
+    let pnl = constantPnlCny
     for (const h of withSeries) {
       const points = series.get(h.symbol)!
       const cur = cursors.get(h.symbol)!
+      let hasMinute = false
       while (cur.idx < points.length && points[cur.idx].t <= t) {
         cur.last = points[cur.idx].price
+        hasMinute = points[cur.idx].t === t
         cur.idx++
       }
-      const price = cur.last ?? h.prevClose
-      if (price != null) value += h.qty * price * h.rateToCny
+      while (cur.tradeIdx < cur.trades.length && cur.trades[cur.tradeIdx].t <= t) {
+        const trade = cur.trades[cur.tradeIdx++]
+        cur.qty += trade.quantityDelta
+        cur.cashFlowCny += trade.cashFlowCny
+      }
+      const price = cur.last ?? cur.reference
+      const assetValue = price == null ? 0 : cur.qty * price * h.rateToCny
+      const assetPnl = cur.reference == null ? 0
+        : assetValue - cur.openingQty * cur.reference * h.rateToCny + cur.cashFlowCny
+      value += assetValue
+      pnl += assetPnl
+      tracked.get(h.symbol)?.push({
+        t, pnl: hasMinute && cur.reference != null ? Math.round(assetPnl * 100) / 100 : null,
+      })
     }
     out.push({
       t,
       value: Math.round(value * 100) / 100,
-      pnl: Math.round((value - baseline) * 100) / 100,
+      pnl: Math.round(pnl * 100) / 100,
     })
-  }
-
-  const tracked = new Map<string, IntradaySeriesPoint[]>()
-  for (const h of withSeries) {
-    if (!trackSymbols.has(h.symbol)) continue
-    const points = series.get(h.symbol)!
-    const reference = cursors.get(h.symbol)!.reference
-    const at = new Map(points.map((p) => [p.t, p.price]))
-    tracked.set(h.symbol, timeline.map((t) => {
-      const price = at.get(t)
-      return {
-        t,
-        pnl: price == null || reference == null
-          ? null
-          : Math.round((price - reference) * h.qty * h.rateToCny * 100) / 100,
-      }
-    }))
   }
 
   return { curve: out, series: tracked }

@@ -104,7 +104,7 @@ Route Handlers：
 - `src/lib/engine/period-performance.ts`、`asset-performance.ts`：区间和资产级曲线；外币价格未更新日仍识别汇率收益。
 - `src/lib/engine/review.ts`：可对账的金额/链接百分点归因、来源拆分、交易行为、时点与风险变化。
 - `src/lib/engine/valuation-status.ts`：估值质量状态与收益观察点。
-- `src/lib/engine/daily-pnl.ts`、`intraday.ts`、`watch-market.ts`：当日和盘中组合；`dailyQuoteValuation` 是「今日涨跌」的唯一判定（现价取报价、昨收同源且报价归属日为北京今天/进行中的明日场次）。
+- `src/lib/engine/daily-pnl.ts`、`daily-trades.ts`、`intraday.ts`、`watch-market.ts`：当日和盘中组合；`dailyQuoteValuation` 判定报价/昨收资格，`daily-trades` 按账户/资产/场次派生买卖和费用调整，包含当天清仓。看盘分钟曲线按流水时刻重建持仓和损益，有交易日标为估算；`trade-time.ts` 为A股日期录入提供北京时间10:00默认时刻，CSV明确时间保留，旧版日期占位流水继续去重。
 - `src/lib/engine/risk.ts`、`benchmark.ts`：回撤、波动、夏普和指数对齐。
 
 ### 数据健康与组合计划

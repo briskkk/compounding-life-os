@@ -14,6 +14,7 @@ import { cx, fmtCNY, fmtDate, fmtMoney, fmtPct, fmtQty } from '@/lib/format'
 import { CLASS_COLORS } from '@/lib/colors'
 import { PositionSourceTag } from '@/components/valuation-source'
 import { positionDayPnlCny, summarizeAccountPositions } from '@/lib/engine/account-summary'
+import { hasDailyPositionActivity } from '@/lib/engine/daily-trades'
 import { holdingsIndex } from '@/lib/engine/ledger'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { dateKeyAt } from '@/lib/engine/watch-market'
@@ -79,7 +80,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
   const positions = state.valued
     .filter((position) => position.accountId === account.id
       && isPortfolioAssetClass(position.asset.cls)
-      && (Math.abs(position.quantity) > 1e-9 || Math.abs(position.value) > 1e-9))
+      && (hasDailyPositionActivity(position) || Math.abs(position.value) > 1e-9))
     .sort((a, b) => b.value - a.value)
   const summary = summarizeAccountPositions(positions, (symbol) => {
     const quote = state.quotes.get(symbol)
@@ -141,7 +142,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
 
       <dl className={styles.metrics}>
         <AccountMetric label="账户资产" primary value={<span className="text-ink">{fmtCNY(summary.valueCny)}</span>} hint="人民币折算口径" />
-        <AccountMetric label="今日盈亏" value={<DeltaAmount value={summary.dayPnlCny} />} hint="仅含有昨收行情的资产" />
+        <AccountMetric label="今日盈亏" value={<DeltaAmount value={summary.dayPnlCny} />} hint="含当日成交与账本费用 · 需有效昨收" />
         <AccountMetric label="未实现盈亏" value={<DeltaAmount value={summary.unrealizedCny} />} />
         <AccountMetric label="本账户现金" value={<span className="text-accent">{fmtCNY(summary.cashCny)}</span>} hint={sharedCashCny > 0 ? `另关联共享现金 ${fmtCNY(sharedCashCny)}` : '仅统计本账户持有现金'} />
         <AccountMetric label="投资组合占比" value={<span className="text-info">{fmtPct(accountWeight)}</span>} hint={`${summary.holdingCount} 项当前持仓`} />

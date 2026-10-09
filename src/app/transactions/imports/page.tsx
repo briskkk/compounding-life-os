@@ -77,7 +77,7 @@ export default async function ImportBatchesPage() {
           <Panel title="CSV 预检与导入">
             <CsvImport
               accounts={accounts.map((account) => ({ id: account.id, name: account.name }))}
-              assets={assets.map((asset) => ({ id: asset.id, symbol: asset.symbol, name: asset.name }))}
+              assets={assets.map((asset) => ({ id: asset.id, symbol: asset.symbol, name: asset.name, cls: asset.cls }))}
             />
           </Panel>
         </div>

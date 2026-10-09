@@ -2,8 +2,10 @@
 import type { Position } from './ledger'
 import type { AssetInfo, PriceSource } from './types'
 import { isInvestableAsset } from '../asset-classification'
+import type { DailyTradeActivity } from './daily-trades'
 
 export interface ValuedPosition extends Position {
+  dailyActivity?: DailyTradeActivity
   asset: AssetInfo
   price: number | null
   priceSource: PriceSource

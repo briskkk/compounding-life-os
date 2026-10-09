@@ -1,9 +1,12 @@
 // CSV 导入：列名映射 + 类型别名 + 行级校验（纯函数，客户端/服务端共用）
 import type { TxType } from './engine/types'
+import { defaultTransactionDate, isAShareAsset } from './engine/trade-time'
+import { dateKeyAt } from './engine/watch-market'
 
 export interface CsvLookup {
   accountByName: Map<string, string> // 名称 → accountId
   assetBySymbol: Map<string, string> // 代码 → assetId
+  assetInfoById?: Map<string, { symbol: string; cls: string }>
 }
 
 export interface ParsedTx {
@@ -163,6 +166,21 @@ export function parsedTxKey(tx: ParsedTx): string {
   ].join('|')
 }
 
+/** 默认时间调整后，日期导入仍识别旧版 08:00 / 12:00 占位流水，避免重复入账。 */
+export function csvDuplicateKeys(row: CsvRowResult, lookup: CsvLookup): string[] {
+  if (!row.tx) return []
+  const keys = [parsedTxKey(row.tx)]
+  const hasTime = Object.entries(row.raw).some(([key, value]) => normalizeHeader(key) === 'time' && value?.trim())
+  const asset = lookup.assetInfoById?.get(row.tx.assetId)
+  if (!hasTime && asset && isAShareAsset(asset)) {
+    const date = dateKeyAt(row.tx.occurredAt)
+    for (const time of ['08:00', '12:00']) {
+      keys.push(parsedTxKey({ ...row.tx, occurredAt: new Date(`${date}T${time}:00+08:00`) }))
+    }
+  }
+  return keys
+}
+
 /** rows: 由 papaparse(header:true) 或等价方式得到的对象数组 */
 export function parseCsvRows(rows: Record<string, string>[], lookup: CsvLookup): CsvRowResult[] {
   return rows.map((raw, i) => {
@@ -175,12 +193,16 @@ export function parseCsvRows(rows: Record<string, string>[], lookup: CsvLookup):
 
     const dateRaw = mapped.date
     const timeRaw = mapped.time
+    const assetId = mapped.symbol ? lookup.assetBySymbol.get(mapped.symbol.toUpperCase()) : undefined
+    const asset = assetId ? lookup.assetInfoById?.get(assetId) : undefined
     // 日期 + 可选时间（HH:mm 或 HH:mm:ss，本地时刻）：基金买卖据此区分 15:00 前/后的成交净值日
     let occurredAt: Date | null = null
     if (dateRaw && timeRaw) {
-      occurredAt = new Date(`${dateRaw}T${timeRaw}`)
+      occurredAt = new Date(`${dateRaw}T${timeRaw}${asset && isAShareAsset(asset) ? '+08:00' : ''}`)
     } else if (dateRaw) {
-      occurredAt = new Date(dateRaw)
+      occurredAt = asset && isAShareAsset(asset) && /^\d{4}-\d{2}-\d{2}$/.test(dateRaw)
+        ? defaultTransactionDate(dateRaw, asset)
+        : new Date(dateRaw)
     }
     if (!occurredAt || Number.isNaN(occurredAt.getTime())) errors.push('日期缺失或格式无效（期望 YYYY-MM-DD，可加时间列 HH:mm）')
 
@@ -190,7 +212,6 @@ export function parseCsvRows(rows: Record<string, string>[], lookup: CsvLookup):
     const accountId = mapped.account ? lookup.accountByName.get(mapped.account) : undefined
     if (!accountId) errors.push(`账户不存在：「${mapped.account ?? ''}」`)
 
-    const assetId = mapped.symbol ? lookup.assetBySymbol.get(mapped.symbol.toUpperCase()) : undefined
     if (!assetId) errors.push(`资产代码不存在：「${mapped.symbol ?? ''}」`)
 
     let quantity = parseNum(mapped.quantity)

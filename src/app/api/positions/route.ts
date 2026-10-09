@@ -6,6 +6,7 @@ import { loadEngineState } from '@/lib/queries'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { buildPositionItem } from '@/lib/engine/position-view'
+import { hasDailyPositionActivity } from '@/lib/engine/daily-trades'
 import { apiReadAuthCtx } from '@/lib/services/api-auth'
 import { parseTags } from '@/lib/engine/groups'
 import { marketGroupOf } from '@/lib/engine/market-group'
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
   const positions = mergePositionsByAsset(
     state.valued.filter((v) => isPortfolioAssetClass(v.asset.cls) && v.asset.cls !== 'CASH'),
   )
-    .filter((v) => Math.abs(v.quantity) > 1e-9)
+    .filter(hasDailyPositionActivity)
     .map((v) => {
       const item = buildPositionItem(v, state.quotes.get(v.asset.symbol), now)
       const meta = metaById.get(v.assetId)

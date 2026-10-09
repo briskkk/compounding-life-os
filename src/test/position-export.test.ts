@@ -37,8 +37,8 @@ describe('持仓明细导出', () => {
 
   it('份额未知的申购不生成持仓，已知但未确认的份额保留可用数量', () => {
     const positions = foldTransactions([
-      { accountId: 'a', assetId: 'fund', type: 'BUY', amount: 100, fee: 0, quantity: null, price: null, navSource: 'PENDING', occurredAt: now },
-      { accountId: 'a', assetId: 'stock', type: 'BUY', amount: 20, fee: 0, quantity: 2, price: 10, occurredAt: now, confirmationDate: new Date('2099-01-01') },
+      { accountId: 'a', assetId: 'fund', assetClass: 'FUND', type: 'BUY', amount: 100, fee: 0, quantity: null, price: null, navSource: 'PENDING', occurredAt: now },
+      { accountId: 'a', assetId: 'stock', assetClass: 'STOCK', type: 'BUY', amount: 20, fee: 0, quantity: 2, price: 10, occurredAt: now, confirmationDate: new Date('2099-01-01') },
     ])
     const valued = valuePositions(positions, new Map([stock, fund].map((a) => [a.id, a])), () => undefined)
     const { rows } = buildPositionTable(valued, new Map(), new Map(), {}, now)

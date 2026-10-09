@@ -7,6 +7,7 @@ import { mergePositionsByAsset } from './merge'
 import { matchesTag } from './groups'
 import { parseHoldingSort, sortHoldings } from './holding-sort'
 import { livePreviousClose } from './portfolio-day'
+import { dailyPnlBaseline, hasDailyPositionActivity } from './daily-trades'
 
 export const POSITION_CLASSES: AssetClass[] = ['STOCK', 'FUND', 'ETF', 'CASH', 'GOLD', 'REAL_ESTATE']
 
@@ -24,7 +25,7 @@ export function buildPositionTable(
   now = new Date(),
 ) {
   const allRows = valued
-    .filter((v) => isPortfolioAssetClass(v.asset.cls) && (Math.abs(v.quantity) > 1e-9 || v.value > 0))
+    .filter((v) => isPortfolioAssetClass(v.asset.cls) && (hasDailyPositionActivity(v) || v.value > 0))
     .sort((a, b) => b.value - a.value)
   // 同一资产跨账户合并展示
   const mergedRows = mergePositionsByAsset(allRows)
@@ -42,7 +43,7 @@ export function buildPositionTable(
       prevClose: quote?.prevCloseCny,
       now,
     })
-    const previousValueCny = previousCloseCny == null ? null : position.quantity * previousCloseCny
+    const previousValueCny = previousCloseCny == null ? null : dailyPnlBaseline(position.quantity, previousCloseCny, position.dailyActivity)
     const dayPnlCny = previousValueCny == null ? null : position.value - previousValueCny
     return {
       position,

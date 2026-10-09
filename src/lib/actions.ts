@@ -42,7 +42,7 @@ import {
   savingsEntryInputSchema,
   txInputSchema,
 } from './schemas'
-import { parseCsvRows, parsedTxKey, type CsvColumnMapping, type CsvLookup, type ParsedTx } from './csv'
+import { csvDuplicateKeys, parseCsvRows, parsedTxKey, type CsvColumnMapping, type CsvLookup, type ParsedTx } from './csv'
 import { buildSettlementLegs } from './engine/settlement'
 import { createsSettlementCycle } from './engine/settlement-account'
 import { parseTags, serializeTags } from './engine/groups'
@@ -1147,6 +1147,7 @@ export async function importTransactions(
     const lookup: CsvLookup = {
       accountByName: new Map(accounts.map((a) => [a.name, a.id])),
       assetBySymbol: new Map(assets.map((a) => [a.symbol.toUpperCase(), a.id])),
+      assetInfoById: new Map(assets.map((a) => [a.id, a])),
     }
     const parsed = parseCsvRows(rows, lookup)
     const validCandidates = parsed.filter((r): r is typeof r & { tx: ParsedTx } => r.ok && r.tx != null)
@@ -1155,7 +1156,7 @@ export async function importTransactions(
     const existingRows = dateTimes.length === 0 ? [] : await prisma.transaction.findMany({
       where: {
         familyId: ctx.familyId,
-        occurredAt: { gte: new Date(Math.min(...dateTimes)), lte: new Date(Math.max(...dateTimes)) },
+        occurredAt: { gte: new Date(Math.min(...dateTimes) - 86400000), lte: new Date(Math.max(...dateTimes) + 86400000) },
         voidedAt: null,
         internal: false,
         type: { not: 'REVERSAL' },
@@ -1176,8 +1177,9 @@ export async function importTransactions(
     const duplicates: { row: number; reason: string }[] = []
     const valid = validCandidates.filter((row) => {
       const key = parsedTxKey(row.tx)
-      if (knownKeys.has(key) || seenKeys.has(key)) {
-        duplicates.push({ row: row.row, reason: knownKeys.has(key) ? '账本已有相同流水' : '文件内重复行' })
+      const alreadyRecorded = csvDuplicateKeys(row, lookup).some((candidate) => knownKeys.has(candidate))
+      if (alreadyRecorded || seenKeys.has(key)) {
+        duplicates.push({ row: row.row, reason: alreadyRecorded ? '账本已有相同流水' : '文件内重复行' })
         return false
       }
       seenKeys.add(key)

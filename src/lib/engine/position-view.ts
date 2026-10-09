@@ -2,6 +2,7 @@
 import type { AssetClass } from './types'
 import type { ValuedPosition } from './valuation'
 import { livePreviousClose } from './portfolio-day'
+import { dailyPnlBaseline } from './daily-trades'
 
 /** 持仓项所需的报价视图（引擎里 EngineQuote 结构兼容，无需跨层引用） */
 export interface PositionQuoteView {
@@ -41,7 +42,7 @@ export function buildPositionItem(
     prevClose: quote?.prevCloseCny,
     now,
   })
-  const previousValueCny = previousCloseCny == null ? null : position.quantity * previousCloseCny
+  const previousValueCny = previousCloseCny == null ? null : dailyPnlBaseline(position.quantity, previousCloseCny, position.dailyActivity)
   const dayPnl = previousValueCny == null ? 0 : position.value - previousValueCny
   return {
     assetId: position.assetId,

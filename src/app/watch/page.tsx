@@ -6,6 +6,8 @@ import { WatchClient, type WatchHolding, type StaticRow } from '@/components/wat
 import { providerLabel } from '@/lib/market'
 import { marketChainLabel } from '@/lib/valuation-source'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
+import { dailyTradeActivities, hasDailyPositionActivity, isCurrentDailyTrade, transactionTradingDate, type DailyTradeActivity } from '@/lib/engine/daily-trades'
+import { positionKey } from '@/lib/engine/ledger'
 import { parseHoldingSort } from '@/lib/engine/holding-sort'
 import { parseWatchClassFilter } from '@/lib/engine/watch-filter'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
@@ -43,10 +45,33 @@ export default async function WatchPage({
     ? { ...benchmarkMeta, points: benchmarkPoints }
     : null
   const mergedPositions = mergePositionsByAsset(state.valued.filter((position) => isPortfolioAssetClass(position.asset.cls)))
+  // 报价冷启动可能仍是上一交易日。预先带上当前窗口内各场交易调整，供客户端新报价按日匹配。
+  const assetsById = new Map(state.assets.map((asset) => [asset.id, asset]))
+  const tradeDates = new Set(state.ledgerTxs.flatMap((tx) => {
+    const asset = assetsById.get(tx.assetId)
+    return asset && isCurrentDailyTrade(tx, asset, now) ? [transactionTradingDate(tx, asset)] : []
+  }))
+  const activitiesByAsset = new Map<string, DailyTradeActivity[]>()
+  for (const date of tradeDates) {
+    const byPosition = dailyTradeActivities(state.ledgerTxs, assetsById, () => date,
+      (currency) => state.currencyRates[currency as keyof typeof state.currencyRates] ?? 1, now)
+    for (const position of state.valued) {
+      const activity = byPosition.get(positionKey(position.accountId, position.assetId))
+      if (!activity) continue
+      const activities = activitiesByAsset.get(position.assetId) ?? []
+      const existing = activities.find((item) => item.tradingDate === date)
+      if (existing) {
+        existing.quantityDelta += activity.quantityDelta
+        existing.cashFlowCny += activity.cashFlowCny
+        existing.trades = [...(existing.trades ?? []), ...(activity.trades ?? [])]
+      } else activities.push({ ...activity, trades: [...(activity.trades ?? [])] })
+      activitiesByAsset.set(position.assetId, activities)
+    }
+  }
 
   // 行情类持仓（股票/ETF/基金/黄金）——参与曲线与实时估值表
   const marketPositions = mergedPositions.filter(
-    (v) => v.quantity > 1e-9 && !v.asset.manual && v.asset.cls !== 'CASH' && v.asset.cls !== 'REAL_ESTATE',
+    (v) => (hasDailyPositionActivity(v) || activitiesByAsset.has(v.assetId)) && !v.asset.manual && v.asset.cls !== 'CASH' && v.asset.cls !== 'REAL_ESTATE',
   )
   const holdings: WatchHolding[] = marketPositions.map((v) => {
     const quote = state.quotes.get(v.asset.symbol)
@@ -57,6 +82,7 @@ export default async function WatchPage({
       cls: v.asset.cls,
       currency: v.asset.currency,
       qty: v.quantity,
+      dailyActivities: activitiesByAsset.get(v.assetId),
       rateToCny: cnyRateFor(v.asset.symbol, rates),
       prevClose: quote?.prevClose ?? null,
       price: quote?.price ?? null,

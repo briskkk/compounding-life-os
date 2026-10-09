@@ -8,6 +8,9 @@ import { apiReadAuthCtx } from '@/lib/services/api-auth'
 import { projectGoalViews } from '@/lib/engine/goal-views'
 import { dateKeyAt } from '@/lib/engine/watch-market'
 import { livePreviousClose } from '@/lib/engine/portfolio-day'
+import { positionDayPnlCny } from '@/lib/engine/account-summary'
+import { buildPositionItem } from '@/lib/engine/position-view'
+import { hasDailyPositionActivity } from '@/lib/engine/daily-trades'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -50,13 +53,11 @@ export async function GET(req: NextRequest) {
       prevClose: quote?.prevCloseCny,
       now: quoteNow,
     })
-    if (prev != null && prev > 0) {
-      const prior = p.quantity * prev
-      dayPnl += value - prior
-    }
+    const positionPnl = positionDayPnlCny(p, prev) ?? 0
+    dayPnl += positionPnl
     const bucket = accountValue.get(p.accountId) ?? { marketValue: 0, dayPnl: 0 }
     bucket.marketValue += value
-    if (prev != null && prev > 0) bucket.dayPnl += value - p.quantity * prev
+    bucket.dayPnl += positionPnl
     accountValue.set(p.accountId, bucket)
   }
   const dayBaseline = totalAssets - dayPnl
@@ -179,23 +180,7 @@ export async function GET(req: NextRequest) {
     pendingSettlements,
     ledger: { hash: lastAudit?.hash?.slice(0, 8) ?? null, txCount: state.txCount },
     positions: state.valued
-      .filter((p) => p.asset.cls !== 'CASH' && Math.abs(p.quantity) > 1e-9)
-      .map((p) => {
-        const a = assetById.get(p.assetId)!
-        const quote = state.quotes.get(a.symbol)
-        return {
-          assetId: p.assetId,
-          symbol: a.symbol,
-          name: a.name,
-          cls: a.cls,
-          quantity: p.quantity,
-          avgCost: p.quantity > 0 ? p.costCny / p.quantity : null,
-          marketValue: p.value,
-          dayPnl: 0,
-          dayPnlPct: null,
-          source: quote?.source ?? p.priceSource,
-          manual: a.manual,
-        }
-      }),
+      .filter((p) => p.asset.cls !== 'CASH' && hasDailyPositionActivity(p))
+      .map((p) => buildPositionItem(p, state.quotes.get(p.asset.symbol), quoteNow)),
   })
 }

@@ -555,14 +555,14 @@ export interface IntradayDatum {
 }
 
 /** 当日盈亏 tooltip（含选中标的与组合市值） */
-function IntradayTooltip({ active, payload, label, assetName }: any) {
+function IntradayTooltip({ active, payload, label, assetName, estimated }: any) {
   if (!active || !payload?.length) return null
   const d = payload[0].payload as IntradayDatum
   return (
     <div className="rounded border border-line bg-panel2 px-3 py-2 text-xs shadow-2xl">
       <div className="num mb-1 text-ink-faint">{label}</div>
       <div className="flex items-center gap-2 py-0.5">
-        <span className="text-ink-dim">当日盈亏</span>
+        <span className="text-ink-dim">{estimated ? '当日盈亏（估算）' : '当日盈亏'}</span>
         <span className={`num ml-auto pl-3 ${d.pnl >= 0 ? 'text-up' : 'text-down'}`}>{fmtCNY(d.pnl, { sign: true })}</span>
       </div>
       {assetName && d.assetPnl != null && (
@@ -572,7 +572,7 @@ function IntradayTooltip({ active, payload, label, assetName }: any) {
         </div>
       )}
       <div className="flex items-center gap-2 py-0.5">
-        <span className="text-ink-dim">组合市值</span>
+        <span className="text-ink-dim">{estimated ? '持仓估算市值' : '组合市值'}</span>
         <span className="num ml-auto pl-3 text-ink">{fmtCNY(d.value)}</span>
       </div>
     </div>
@@ -592,10 +592,12 @@ export function IntradayChart({
   data,
   assetName,
   showAsset = false,
+  estimated = false,
 }: {
   data: IntradayDatum[]
   assetName?: string
   showAsset?: boolean
+  estimated?: boolean
 }) {
   const last = data.length > 0 ? data[data.length - 1].pnl : 0
   const color = pnlColor(last)
@@ -637,7 +639,7 @@ export function IntradayChart({
           ticks={ticks}
           tickFormatter={(v: number) => fmtCNY(v, { compact: true })}
         />
-        <Tooltip content={<IntradayTooltip assetName={showAsset ? assetName : undefined} />} />
+        <Tooltip content={<IntradayTooltip assetName={showAsset ? assetName : undefined} estimated={estimated} />} />
         <ReferenceLine y={0} stroke={C.line} />
         <Area type="monotone" dataKey="pnl" name="当日盈亏" stroke={color} strokeWidth={2.25} fill="url(#gDay)" dot={false} isAnimationActive={false} />
         {showAsset && (

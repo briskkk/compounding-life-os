@@ -1,8 +1,10 @@
 // 组合当日行情汇总：统一终端首页与看盘页的市值、昨收基准和盈亏口径
 import { livePreviousClose, liveQuoteAttribution, type PortfolioDayInput } from './portfolio-day'
+import { dailyPnlBaseline, type DailyTradeActivity } from './daily-trades'
 
 export interface DailyValuationItem {
   currentValueCny: number
+  /** 昨收持仓基准经当场买卖/收入/费用调整后的比较基准，不是原始昨日市值。 */
   previousValueCny: number | null
 }
 
@@ -53,9 +55,11 @@ export interface DailyQuoteBasis {
  * 2. 昨收必须与现价来自同一报价，且该报价的**北京归属日**属于当前实时口径
  *    （北京今天；美股另含北京晚间正在进行、归属明天的那一场，见 ADR-027）；
  * 3. 不再回退到分时序列或服务端旧值——回退会让「今日涨跌」代表不同的资产集合。
+ * 4. 以同一场交易的账本买卖、收入与费用调整基准，包含当天清仓的损益。
  */
 export function dailyQuoteValuation(input: {
   quantity: number
+  dailyActivity?: DailyTradeActivity
   quote: DailyQuoteBasis | null | undefined
   fallbackValueCny: number
   /** 所属资产（代码 / 币种 / 类别）决定北京归属偏移 */
@@ -79,7 +83,10 @@ export function dailyQuoteValuation(input: {
   })
   return {
     currentValueCny,
-    previousValueCny: previousClose == null ? null : input.quantity * previousClose * rate,
+    previousValueCny: previousClose == null ? null : dailyPnlBaseline(
+      input.quantity, previousClose * rate,
+      input.dailyActivity?.tradingDate === quote.tradingDate ? input.dailyActivity : undefined,
+    ),
     included: liveQuoteAttribution({
       asset: input.asset,
       exchangeTradingDate: quote.tradingDate ?? null,

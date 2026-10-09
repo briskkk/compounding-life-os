@@ -10,7 +10,7 @@ export function mergePositionsByAsset(positions: ValuedPosition[]): ValuedPositi
   for (const p of positions) {
     const existing = map.get(p.assetId)
     if (!existing) {
-      map.set(p.assetId, { ...p })
+      map.set(p.assetId, { ...p, ...(p.dailyActivity ? { dailyActivity: { ...p.dailyActivity, trades: [...(p.dailyActivity.trades ?? [])] } } : {}) })
       continue
     }
     existing.quantity += p.quantity
@@ -24,6 +24,14 @@ export function mergePositionsByAsset(positions: ValuedPosition[]): ValuedPositi
     existing.costCny += p.costCny
     existing.realizedCny += p.realizedCny
     existing.unrealized += p.unrealized
+    if (p.dailyActivity) {
+      if (!existing.dailyActivity) existing.dailyActivity = { ...p.dailyActivity, trades: [...(p.dailyActivity.trades ?? [])] }
+      else {
+        existing.dailyActivity.quantityDelta += p.dailyActivity.quantityDelta
+        existing.dailyActivity.cashFlowCny += p.dailyActivity.cashFlowCny
+        existing.dailyActivity.trades = [...(existing.dailyActivity.trades ?? []), ...(p.dailyActivity.trades ?? [])]
+      }
+    }
     if (p.manualValue != null) existing.manualValue = (existing.manualValue ?? 0) + p.manualValue
     if (p.lastValuationAt && (!existing.lastValuationAt || p.lastValuationAt > existing.lastValuationAt)) {
       existing.lastValuationAt = p.lastValuationAt

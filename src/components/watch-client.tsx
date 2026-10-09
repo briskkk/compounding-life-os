@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { buildIntradayCurves, type CurveHolding } from '@/lib/engine/intraday'
 import { dailyQuoteValuation, summarizeDailyPortfolio } from '@/lib/engine/daily-pnl'
+import type { DailyTradeActivity } from '@/lib/engine/daily-trades'
 import {
   HOLDING_SORT_HEADERS,
   holdingAriaSort,
@@ -52,6 +53,7 @@ export interface WatchHolding {
   cls: string
   currency: string
   qty: number
+  dailyActivities?: DailyTradeActivity[]
   rateToCny: number
   prevClose: number | null
   price: number | null
@@ -272,9 +274,11 @@ export function WatchClient({
     const price = quote?.rawPrice ?? holding.price
     const prevClose = quote?.rawPrevClose ?? holding.prevClose
     const tradingDate = quote?.tradingDate ?? holding.tradingDate
+    const dailyActivity = holding.dailyActivities?.find((activity) => activity.tradingDate === tradingDate)
     const asset = { symbol: holding.symbol, currency: holding.currency, cls: holding.cls }
     const { currentValueCny, previousValueCny, included } = dailyQuoteValuation({
       quantity: holding.qty,
+      dailyActivity,
       quote: price == null ? null : { price, prevClose, tradingDate },
       fallbackValueCny: holding.fallbackValueCny,
       // 归属口径统一按北京日（ADR-027）：美股美东 D 日计入北京 D+1
@@ -284,6 +288,7 @@ export function WatchClient({
     })
     return {
       ...holding,
+      dailyActivity,
       price,
       prevClose,
       changePct: price != null && prevClose ? price / prevClose - 1 : null,
@@ -299,6 +304,8 @@ export function WatchClient({
   // 今日盈亏的计入范围：北京归属日属于实时窗口（今天 / 进行中的明天场次）且有报价的标的
   const includedRows = rows.filter((row) => row.currentPortfolioDay && row.dayPnlCny != null).length
   const excludedRows = rows.length - includedRows
+  // 日期录入使用默认时刻；有交易的分钟路径是估算，实时金额仍以账本为准。
+  const hasDailyTrades = rows.some((row) => row.dailyActivity?.tradingDate === row.tradingDate)
 
   const { chartData, totalValue, totalPnl, dayPct, marketStatus, selectedPoints } = useMemo(() => {
     const curveHoldings: CurveHolding[] = rows.map((holding) => ({
@@ -306,6 +313,7 @@ export function WatchClient({
       qty: holding.qty,
       rateToCny: holding.rateToCny,
       prevClose: holding.prevClose,
+      trades: holding.dailyActivity?.trades,
     }))
     const currentPrice = new Map(rows.map((row) => [row.symbol, row.price]))
     const holdingBySymbol = new Map(rows.map((row) => [row.symbol, row]))
@@ -344,7 +352,6 @@ export function WatchClient({
       new Set(activeSymbols),
     )
     const curve = curves.curve
-    const lastPoint = curve.at(-1)
     const rowSummary = summarizeDailyPortfolio(
       rows.map((row) => ({
         currentValueCny: row.valueCny,
@@ -354,8 +361,8 @@ export function WatchClient({
       })),
       staticValueCny,
     )
-    const nextTotalValue = lastPoint?.value ?? rowSummary.valueCny
-    const nextTotalPnl = lastPoint?.pnl ?? rowSummary.pnlCny
+    const nextTotalValue = rowSummary.valueCny
+    const nextTotalPnl = rowSummary.pnlCny
     const baseline = nextTotalValue - nextTotalPnl
     const latestActivePoint = activeSeries.reduce(
       (latest, [, series]) => Math.max(latest, series.points.at(-1)?.t ?? 0),
@@ -374,7 +381,7 @@ export function WatchClient({
       marketStatus: latestActivePoint === 0 ? '休市' : currentLag <= 10 * 60_000 ? '交易中' : '已收市',
       selectedPoints: curves.series,
     }
-  }, [rows, seriesMap, staticValueCny, todayKey, now])
+  }, [rows, seriesMap, staticValueCny, todayKey, now, hasDailyTrades])
 
   // 表格行 ↔ 当日曲线联动：悬停预览、点击（或 Enter/空格）钉住，再点一次取消。
   const [hoveredSymbol, setHoveredSymbol] = useState<string | null>(null)
@@ -538,7 +545,7 @@ export function WatchClient({
         <div className="watch-chart-panel">
           <div className="watch-panel-heading">
             <h2>组合当日盈亏</h2>
-            <span>09:30—15:00 · 点选下方持仓可叠加</span>
+            <span>{hasDailyTrades ? '曲线按成交时间估算 · A股日期录入默认10:00 · 盈亏含账本费用' : '09:30—15:00 · 点选下方持仓可叠加'}</span>
           </div>
           <div className="chart-surface">
             {canCompareIntraday ? (
@@ -561,7 +568,7 @@ export function WatchClient({
                     </div>
                   )}
                 </div>
-                <IntradayChart data={chartPoints} assetName={activeRow?.name} showAsset={activeRow != null} />
+                <IntradayChart data={chartPoints} assetName={activeRow?.name} showAsset={activeRow != null} estimated={hasDailyTrades} />
               </>
             ) : (
               <div data-testid="watch-chart-empty" className="flex min-h-28 items-center justify-center border-y border-line text-xs text-ink-faint">

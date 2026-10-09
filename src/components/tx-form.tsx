@@ -11,6 +11,7 @@ import type { TxType } from '@/lib/engine/types'
 import { estimateShares, fundConfirmationDate, fundNavDate, fundSettlementDate, isQdiiFund } from '@/lib/engine/fund-order'
 import { isFundPurchaseSuspended, purchaseFeeReference } from '@/lib/engine/fund-policy'
 import { cx, fmtPrice, fmtQty } from '@/lib/format'
+import { defaultTransactionDate, isAShareAsset } from '@/lib/engine/trade-time'
 
 const NEEDS_QTY: TxType[] = ['BUY', 'SELL', 'TRANSFER_IN', 'TRANSFER_OUT']
 const NEEDS_PRICE: TxType[] = ['BUY', 'SELL']
@@ -272,7 +273,7 @@ export function TxForm({
       price: px,
       amount: amt ?? 0,
       fee: parseNum(feeText) ?? 0,
-      occurredAt: new Date(`${dateText}T12:00:00`),
+      occurredAt: defaultTransactionDate(dateText, selectedAsset),
       navDate: navDateValue,
       navSource,
       settlementDate: settleDateValue,
@@ -338,6 +339,7 @@ export function TxForm({
               }}
               className={inputCls}
             />
+            {selectedAsset && isAShareAsset(selectedAsset) && <span className="text-xs text-ink-faint">默认成交时间 10:00</span>}
           </Field>
           <Field label="类型">
             <select className={inputCls} value={type} onChange={(e) => switchType(e.target.value as TxType)}>

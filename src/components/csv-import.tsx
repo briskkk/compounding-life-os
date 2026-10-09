@@ -23,7 +23,7 @@ export function CsvImport({
   assets,
 }: {
   accounts: { id: string; name: string }[]
-  assets: { id: string; symbol: string; name: string }[]
+  assets: { id: string; symbol: string; name: string; cls: string }[]
 }) {
   const navigateAfterWrite = useNavigateAfterWrite()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -43,6 +43,7 @@ export function CsvImport({
     return {
       accountByName: new Map(accounts.map((a) => [a.name, a.id])),
       assetBySymbol: new Map(assets.map((a) => [a.symbol.toUpperCase(), a.id])),
+      assetInfoById: new Map(assets.map((a) => [a.id, a])),
     }
   }
 
@@ -203,7 +204,7 @@ export function CsvImport({
 
       <FormMsg msg={msg} />
       <p className="text-[12px] leading-relaxed text-ink-faint">
-        支持自动或手动字段映射、逐行修正、选择性导入、文件级与逐行重复识别。时间可选（HH:mm），基金买卖据此区分 15:00 前/后的成交净值日。
+        支持字段映射、逐行修正与重复识别。时间可选；A股默认10:00，明确时间保留，基金按15:00区分净值日。
       </p>
     </div>
   )

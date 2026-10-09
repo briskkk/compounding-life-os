@@ -7,6 +7,7 @@ import {
   pendingFundPurchasesAt,
   pendingSettlementsAt,
   roundMoney,
+  positionKey,
   type LedgerTx,
   type PendingFundPurchase,
   type PendingSettlement,
@@ -26,6 +27,7 @@ import { eastmoneyFundProvider } from './market/eastmoney-fund'
 import type { AssetInfo, TxInput } from './engine/types'
 import { mergePositionsByAsset } from './engine/merge'
 import { dailyQuoteValuation, summarizeDailyPortfolio } from './engine/daily-pnl'
+import { dailyTradeActivities, hasDailyPositionActivity, isCurrentDailyTrade, positionsWithDailyActivity } from './engine/daily-trades'
 import { attributionDateKey } from './engine/portfolio-day'
 import { buildSavingsOverview, type SavingsOverview } from './engine/savings'
 import type { QuoteData } from './market/provider'
@@ -121,15 +123,21 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
     occurredAt: e.occurredAt,
   }))
 
-  const positions = foldTransactions(ledgerTxs)
+  const now = new Date()
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset]))
+  const positions = positionsWithDailyActivity(foldTransactions(ledgerTxs), ledgerTxs, assetsById, now)
   const pendingFundPurchases = pendingFundPurchasesAt(ledgerTxs, new Date())
   const activeAssetIds = new Set(
     positions
       .filter((position) => Math.abs(position.quantity) > 1e-9)
       .map((position) => position.assetId),
   )
+  for (const tx of ledgerTxs) {
+    const asset = assetsById.get(tx.assetId)
+    if (asset && isCurrentDailyTrade(tx, asset, now)) activeAssetIds.add(asset.id)
+  }
 
-  // SSR 只处理当前真实持仓：已清仓的历史资产不再发起外部报价。
+  // 当前持仓与当场有交易的资产需要报价；保留当天清仓损益，排除历史清仓资产。
   // 首屏使用 PriceBar 中最近的真实行情，并在后台刷新 30s 内存缓存；无日线时保持引擎的成本回落。
   const listedAssets = assets.filter((asset) => (
     activeAssetIds.has(asset.id)
@@ -165,7 +173,9 @@ export async function loadEngineState(ctx: FamilyCtx): Promise<EngineState> {
   )
 
   const currencyRate = (cur: string) => (cur === 'USD' ? rates.USDCNY : cur === 'HKD' ? rates.HKDCNY : 1)
-  const valued = valuePositions(positions, new Map(assets.map((a) => [a.id, a])), (s) => quotes.get(s)?.priceCny, currencyRate)
+  const activities = dailyTradeActivities(ledgerTxs, assetsById, (s) => quotes.get(s)?.tradingDate, currencyRate, now)
+  const valued = valuePositions(positions, assetsById, (s) => quotes.get(s)?.priceCny, currencyRate)
+    .map((position) => ({ ...position, dailyActivity: activities.get(positionKey(position.accountId, position.assetId)) }))
   const metrics = aggregate(valued)
 
   // 在途资产：赎回未到账 + 净值份额待确认的申购（ADR-012 / ADR-019）
@@ -421,7 +431,7 @@ function livePortfolioObservation(
   const todayKey = dateKeyAt(now)
   const positions = mergePositionsByAsset(
     state.valued.filter((position) => isPortfolioAssetClass(position.asset.cls)),
-  ).filter((position) => Math.abs(position.quantity) > 1e-9)
+  ).filter(hasDailyPositionActivity)
   const marketPositions = positions.filter((position) => (
     !position.asset.manual
     && position.asset.cls !== 'CASH'
@@ -431,6 +441,7 @@ function livePortfolioObservation(
     const quote = state.quotes.get(position.asset.symbol)
     return dailyQuoteValuation({
       quantity: position.quantity,
+      dailyActivity: position.dailyActivity,
       quote: quote ? {
         price: quote.priceCny,
         prevClose: quote.prevCloseCny,
@@ -837,7 +848,7 @@ export async function getDashboard(period: ReviewPeriod = 'THIS_MONTH'): Promise
 
   const mergedPositions = mergePositionsByAsset(
     state.valued.filter((position) => isPortfolioAssetClass(position.asset.cls)),
-  ).filter((v) => Math.abs(v.quantity) > 1e-9)
+  ).filter(hasDailyPositionActivity)
   const quoteBySymbol = new Map(quotes.map((q) => [q.symbol, {
     ...q,
     tradingDate: state.quotes.get(q.symbol)?.tradingDate ?? null,
@@ -853,6 +864,7 @@ export async function getDashboard(period: ReviewPeriod = 'THIS_MONTH'): Promise
       // 与看盘、收益日历共用同一判定，避免同一时刻两套「今日涨跌」（见 dailyQuoteValuation）
       return dailyQuoteValuation({
         quantity: v.quantity,
+        dailyActivity: v.dailyActivity,
         quote: quote ? { price: quote.price, prevClose: quote.prevClose, tradingDate: quote.tradingDate } : null,
         fallbackValueCny: v.value,
         // 归属口径统一按北京日（ADR-027）：美股美东 D 日计入北京 D+1

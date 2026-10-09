@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyCsvMapping, parseCsvRows, parsedTxKey, suggestCsvMapping, type CsvLookup } from '@/lib/csv'
+import { applyCsvMapping, csvDuplicateKeys, parseCsvRows, parsedTxKey, suggestCsvMapping, type CsvLookup } from '@/lib/csv'
 
 const lookup: CsvLookup = {
   accountByName: new Map([['华泰证券', 'acc1']]),
@@ -10,6 +10,25 @@ const lookup: CsvLookup = {
 }
 
 describe('CSV 导入解析', () => {
+  it('A股日期导入默认北京时间10点，明确成交时间保留；识别旧版日期占位时间', () => {
+    const withInfo = { ...lookup, assetInfoById: new Map([['asset1', { symbol: '510300', cls: 'ETF' }]]) }
+    const raw = { 日期: '2026-10-09', 账户: '华泰证券', 代码: '510300', 类型: '买入', 数量: '100', 单价: '1' }
+    const [dateOnly, explicit] = parseCsvRows([raw, { ...raw, 时间: '11:23:45' }], withInfo)
+    expect(dateOnly.tx?.occurredAt.toISOString()).toBe('2026-10-09T02:00:00.000Z')
+    expect(explicit.tx?.occurredAt.toISOString()).toBe('2026-10-09T03:23:45.000Z')
+    const keys = csvDuplicateKeys(dateOnly, withInfo)
+    expect(keys).toContain(parsedTxKey({ ...dateOnly.tx!, occurredAt: new Date('2026-10-09T08:00:00+08:00') }))
+    expect(keys).toContain(parsedTxKey({ ...dateOnly.tx!, occurredAt: new Date('2026-10-09T12:00:00+08:00') }))
+    expect(csvDuplicateKeys(explicit, withInfo)).toEqual([parsedTxKey(explicit.tx!)])
+  })
+
+  it('场内LOF采用10点，场外基金不受A股默认时间影响', () => {
+    const raw = { 日期: '2026-10-09', 账户: '华泰证券', 代码: '161128', 类型: '买入', 数量: '100', 单价: '1' }
+    const lofLookup = { ...lookup, assetBySymbol: new Map([['161128', 'lof']]), assetInfoById: new Map([['lof', { symbol: '161128', cls: 'ETF' }]]) }
+    expect(parseCsvRows([raw], lofLookup)[0].tx?.occurredAt.toISOString()).toBe('2026-10-09T02:00:00.000Z')
+    const fundLookup = { ...lofLookup, assetInfoById: new Map([['lof', { symbol: '161128', cls: 'FUND' }]]) }
+    expect(parseCsvRows([raw], fundLookup)[0].tx?.occurredAt.toISOString()).toBe(new Date(raw.日期).toISOString())
+  })
   it('标准行解析成功（买入缺省金额 = 量×价）', () => {
     const [r] = parseCsvRows(
       [{ 日期: '2026-01-15', 账户: '华泰证券', 代码: '510300', 类型: '买入', 数量: '1000', 单价: '4.02', 费用: '0' }],
