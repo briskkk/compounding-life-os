@@ -66,10 +66,15 @@ test('今日买入与清仓：账户、持仓、看盘、总览、导出及移�
     await page.goto('/watch')
     await expect(page.getByTestId('watch-valuation-table').locator('tbody tr').filter({ hasText: name })).toContainText(amountText(expected))
     await expect(page.getByText('曲线按成交时间估算 · A股日期录入默认10:00 · 盈亏含账本费用')).toBeVisible()
-    await expect(page.getByTestId('watch-chart-empty')).toHaveCount(0)
-    const watchRow = page.getByTestId('watch-valuation-table').locator('tbody tr').filter({ hasText: name })
-    await watchRow.click()
-    await expect(page.locator('path[stroke-dasharray="5 3"]')).toHaveCount(1)
+    // 模拟报价日期可以是周末，但真实 A 股分钟源没有周末交易场次。
+    if (![0, 6].includes(new Date(`${today}T00:00:00Z`).getUTCDay())) {
+      await expect(page.getByTestId('watch-chart-empty')).toHaveCount(0)
+      const watchRow = page.getByTestId('watch-valuation-table').locator('tbody tr').filter({ hasText: name })
+      await watchRow.click()
+      await expect(page.locator('path[stroke-dasharray="5 3"]')).toHaveCount(1)
+    } else {
+      await expect(page.getByTestId('watch-chart-empty')).toHaveCount(1)
+    }
     await page.screenshot({ path: test.info().outputPath('watch-daily-trades.png'), fullPage: true })
     const watch = Number(await page.getByTestId('watch-today-pnl').getAttribute('data-amount'))
     await page.goto('/')

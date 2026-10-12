@@ -26,6 +26,11 @@
 /* ---------- 复盘常驻上下文条 ----------
    所选周期身份、收益对账、估值覆盖、基金在途与步骤进度在四步之间持续可见；
    正常状态保持低权重，异常项用语义色 + 文字标签，不依赖颜色单独表意。 */
+.portfolio-history .history-metrics strong:not(.num) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .review-context {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

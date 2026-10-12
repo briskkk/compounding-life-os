@@ -13,8 +13,8 @@ FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1
-# curl：行情传输兜底；sqlite：在线一致备份与完整性校验。
-RUN apk add --no-cache curl sqlite
+# curl：行情传输兜底；sqlite：一致备份；python3：发行商公开文件兼容传输。
+RUN apk add --no-cache curl sqlite python3
 COPY --from=build /app ./
 # schema 备份：数据卷首次挂载为空时由入口脚本恢复
 RUN cp /app/prisma/schema.prisma /app/schema.prisma.dist \

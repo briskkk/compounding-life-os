@@ -11,7 +11,7 @@ BEGIN
   FOREACH t IN ARRAY ARRAY[
     'Member', 'Account', 'Asset', 'Transaction',
     'Liability', 'LiabilityEntry', 'Goal', 'SavingsEntry',
-    'Snapshot', 'PortfolioReview', 'ImportBatch',
+    'Snapshot', 'PortfolioReview', 'ExposureDisclosure', 'InvestmentExperiment', 'ImportBatch',
     'AllocationTarget', 'StrategyTarget', 'CashPlan', 'InvestmentPlan', 'InvestmentPlanAsset', 'InvestmentPlanDayReview',
     'CorporateAction', 'FundTradePolicy', 'AuditLog'
   ]

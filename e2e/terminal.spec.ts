@@ -205,7 +205,8 @@ test('收益历史：支持预设周期、自定义日期、曲线与收益日�
   // 休市日明细：逐资产清单折叠为一行摘要（取本月已过的最近周六；月初还没有周六时回落上月）
   const now = new Date()
   const saturday = new Date(now)
-  saturday.setDate(now.getDate() - ((now.getDay() + 1) % 7))
+  // 今天由实时估算覆盖，休市断言应取已结束的周六。
+  saturday.setDate(now.getDate() - (((now.getDay() + 1) % 7) || 7))
   if (saturday.getMonth() !== now.getMonth()) {
     await calendar.getByRole('button', { name: '上一月' }).click()
   }

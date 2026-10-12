@@ -77,6 +77,8 @@ model FamilySpace {
   savingsEntries    SavingsEntry[]
   snapshots         Snapshot[]
   portfolioReviews  PortfolioReview[]
+  exposureDisclosures ExposureDisclosure[]
+  investmentExperiments InvestmentExperiment[]
   importBatches     ImportBatch[]
   allocationTargets AllocationTarget[]
   strategyTargets   StrategyTarget[]
@@ -581,6 +583,38 @@ model Snapshot {
   createdAt           DateTime    @default(now())
 
   @@unique([familyId, date])
+}
+
+// ADR-042：停用的旧披露档案，仅保留迁移、家庭隔离及备份/搬迁兼容；无业务读写入口。
+model ExposureDisclosure {
+  id            String      @id @default(cuid())
+  familyId      String
+  family        FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  symbol        String
+  reportDate    String
+  availableDate String
+  content       String
+  authorName    String
+  createdAt     DateTime    @default(now())
+
+  @@index([familyId, symbol, reportDate])
+}
+
+// ADR-042：停用的旧实验参数档案，仅保留历史记录及迁移兼容；不再运行实验。
+model InvestmentExperiment {
+  id            String      @id @default(cuid())
+  familyId      String
+  family        FamilySpace @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name          String
+  startDate     String
+  endDate       String
+  accountId     String?
+  methodVersion String
+  watermark     String
+  authorName    String
+  createdAt     DateTime    @default(now())
+
+  @@index([familyId, createdAt])
 }
 
 model PortfolioReview {

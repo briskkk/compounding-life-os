@@ -11,6 +11,7 @@ prisma/test.db
 prisma/schema.test.prisma
 prisma/generated
 backups
+.cache/product-information/
 test-results
 playwright-report
 *.tsbuildinfo

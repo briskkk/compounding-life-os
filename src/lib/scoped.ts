@@ -22,6 +22,8 @@ const SCOPED_MODELS = new Set([
   'SavingsEntry',
   'Snapshot',
   'PortfolioReview',
+  'ExposureDisclosure',
+  'InvestmentExperiment',
   'ImportBatch',
   'AllocationTarget',
   'StrategyTarget',

@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-09-28
+last_verified: 2026-10-10
 ---
 
 # 代码地图
@@ -63,6 +63,11 @@ Route Handlers：
 - `src/app/api/performance/route.ts`：收益归因（净投入/投资收益/TWR 累计与年化/XIRR）+ 风险指标（最大回撤/年化波动率）+ TWR/MWR/基准曲线。
 
 ## 服务端边界
+
+- `market/product-holdings.ts`：公开产品持仓契约与Zod校验，独立于研究模型。
+- `market/product-information.ts`：单产品持仓、报告期、行业及公告；缓存/超时与失败保留。`components/product-information.tsx` 与 `app/product-information.css` 仅服务资产详情；`api/positions/[assetId]/information` 先验证当前家庭资产归属。
+- `market/issuer-holdings.ts`：发行商JSON/XLSX/CSV身份与权重校验；`fund-investments.ts`：报告实际基金/股票持仓表；`product-source.ts`：固定公开源传输与独立缓存。只读取单产品，不递归组合图谱、不保存家庭研究记录。
+- 组合穿透与策略实验室已移除（ADR-042）；旧两表仅保留档案兼容。个人被忽略的 `counterfactual.ts` 不参与正式路由。
 
 - `src/lib/session.ts`：双通道会话（cookie / Bearer token → SHA-256 token 查找 → `Session` → `FamilyCtx`，兼容旧明文 token 迁移）。
 - `src/lib/auth/rate-limit.ts`：登录、注册与邀请加入的匿名键限速。

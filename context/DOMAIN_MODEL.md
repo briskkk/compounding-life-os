@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-09-23
+last_verified: 2026-10-10
 ---
 
 # 领域模型
@@ -106,6 +106,12 @@ last_verified: 2026-09-23
 - `FundCalibration`：估算涨幅与官方涨幅的逐日误差。
 - `MarketProviderDaily`：按来源、能力和日期累计真实调用成功率、延迟和错误；不参与估值。跨源持仓检查结果按家庭追加到 `AuditLog`。
 - `User` / `Session` / `Invite`：账号、会话与邀请，无家庭作用域（与行情表同类，不套 RLS）。
+
+### 停用研究档案与公开产品资料
+
+- ADR-042 已移除组合穿透与策略实验室。ExposureDisclosure、InvestmentExperiment 是旧研究档案表，保留已应用迁移、家庭隔离、RLS及备份/搬迁兼容；没有业务查询/保存入口，不参与财务折叠。
+- 资产详情公开产品资料使用市场层 ProductDisclosure/ProductHolding 契约；报告期、来源、取得日期、内容哈希、覆盖范围和限制独立保存于公开缓存，不含家庭资料，不写研究表、审计或财务表。
+- 发行商/转载报告按实际披露校验权重，来源全表不等于100%净资产；负现金有据保留，超限不归一化，未知身份不猜测。联接/FOF只列披露行，不计算家庭递归敞口。
 
 ## 核心计算口径
 

@@ -36,6 +36,7 @@ import type { ValuationStatus } from '@/lib/engine/valuation-status'
 import { TableScroll } from '@/components/table-scroll'
 import { BreadcrumbEntity } from '@/components/app-shell'
 import { HashOpenDetails } from '@/components/hash-open-details'
+import { AssetProductInformation } from '@/components/product-information'
 
 export const dynamic = 'force-dynamic'
 
@@ -461,6 +462,8 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
         series={assetHistory}
         longTerm={isLongTermAsset}
       />
+
+      {['ETF', 'FUND'].includes(asset.cls) && <AssetProductInformation assetId={asset.id} enabled={process.env.MARKET_PROVIDER !== 'simulated'} />}
 
       {asset.cls === 'FUND' && (
         <Panel

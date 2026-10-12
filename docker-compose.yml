@@ -11,7 +11,9 @@ services:
       # 故不再设置 DISABLE_SECURE_COOKIE（之前纯 HTTP 下为兼容而临时关闭）。
     volumes:
       - fwos-data:/app/prisma
+      - fwos-product-information:/app/.cache/product-information
     restart: unless-stopped
 
 volumes:
   fwos-data:
+  fwos-product-information:

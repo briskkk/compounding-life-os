@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-09-23
+last_verified: 2026-10-10
 ---
 
 # 已确认决策
@@ -45,6 +45,9 @@ last_verified: 2026-09-23
 | 跨市场收益按北京归属日归属 | 一场交易算在北京时间哪一天落定：美股美东 D 日计入北京 D+1；PriceBar 仍存交易所交易日，实时「今日涨跌」与日历/快照同口径 | [ADR-027](../docs/adr/027-beijing-attribution-of-exchange-sessions.md) |
 
 ## 补充已定规则
+
+- [ADR-042](../docs/adr/042-remove-research-modules.md)：按用户要求移除组合穿透与风险图谱、投资策略实验室及专属读写/计算。替代ADR-039及ADR-040/041的模块条款；旧表仅保留档案和迁移兼容，不自动恢复功能。
+- 资产详情产品资料继续遵守ADR-040/041的公开来源、实际披露权重、缓存/失败时间与外发边界；独立契约不依赖研究模块、不写家庭财务记录，见 [资料说明](../docs/product-information.md)。
 
 - 拆分发现与核对入账见 [ADR-020](../docs/adr/020-split-discovery-and-confirmation.md)：公开数据只生成线索，官方除权日及券商新增份额核对后幂等展开流水，并更新完整前复权历史。
 

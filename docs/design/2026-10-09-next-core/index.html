@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>家庭财富工作台 · 三项核心能力预览</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar" aria-label="现有一级导航示意">
+    <div class="brand"><span class="brand-mark">家</span><strong>家庭财富工作台</strong></div>
+    <p class="side-label">演示家庭</p>
+    <ul class="main-nav"><li>总览</li><li data-domain="exposure">资产</li><li>投资</li><li>记录</li><li data-domain="strategy">复盘</li><li data-domain="planning" class="active">目标</li></ul>
+    <div class="side-bottom">三项产品方向已确认<br><span>界面与计算设计草案</span></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><span id="breadcrumb">目标 / 家庭规划</span><a href="README.md">预览说明</a></header>
+    <main>
+      <div class="demo-notice"><strong>独立交互预览 · 全部为演示数据</strong><span>没有读取或保存真实家庭资产。策略曲线是预设样例，正式算法尚未接入。</span></div>
+      <nav class="module-nav" aria-label="三个核心模块预览">
+        <button type="button" data-view="planning" aria-current="page">家庭规划</button>
+        <button type="button" data-view="exposure">风险穿透</button>
+        <button type="button" data-view="strategy">策略实验室</button>
+      </nav>
+
+      <section id="planning" aria-labelledby="planning-title">
+        <header class="page-heading"><div><p class="eyebrow">未来 24 个月 · CNY · 示例基准日 2026-10-09</p><h1 id="planning-title">几件大事，能不能同时完成？</h1><p>比较继续工作与收入中断，找到现金约束和受影响的目标。</p></div><span class="status">试算</span></header>
+        <div class="planning-layout">
+          <section class="panel assumptions" aria-labelledby="assumption-title">
+            <div class="section-heading"><h2 id="assumption-title">两个方案共用的假设</h2><span>可编辑</span></div>
+            <form id="plan-form">
+              <label>可动用期初现金（万元）<input name="cash" type="number" min="0" max="100000" step="1" value="30" required></label>
+              <label>每月收入（万元）<input name="income" type="number" min="0" max="10000" step="0.1" value="4" required></label>
+              <div class="field-pair"><label>生活支出（万元/月）<input name="spend" type="number" min="0" max="10000" step="0.1" value="2" required></label><label>还款（万元/月）<input name="debt" type="number" min="0" max="10000" step="0.1" value="0.5" required></label></div>
+              <label>安全储备（万元）<input name="reserve" type="number" min="0" max="100000" step="1" value="12" required></label>
+              <div class="range-field"><label for="pause">方案 B：从第 7 个月中断收入 <strong id="pause-value">6 个月</strong></label><input id="pause" name="pause" type="range" min="0" max="12" step="1" value="6"></div>
+              <p class="subtle">假设不包含投资收益、资产出售或额外融资。</p>
+              <div id="input-error" class="input-error" role="alert" hidden>请补齐非负金额后试算。</div>
+            </form>
+          </section>
+          <div class="plan-results" id="plan-results">
+            <section class="verdict" aria-label="方案结论"><span class="eyebrow">先看约束</span><h2 id="plan-verdict">正在生成示例</h2><p id="plan-reason"></p></section>
+            <div class="metrics">
+              <article><span>继续工作 · 期末理论现金</span><strong id="base-end" class="num"></strong><small>目标均按期付款后</small></article>
+              <article><span>收入中断 · 期末理论现金</span><strong id="stress-end" class="num"></strong><small>负值表示尚无资金来源</small></article>
+              <article><span>收入中断 · 首次储备缺口</span><strong id="first-gap" class="num"></strong><small>相对用户设定的安全储备</small></article>
+            </div>
+            <section class="panel"><div class="section-heading"><h2>现金路径与安全储备</h2><div class="legend"><span class="key blue">继续工作</span><span class="key orange">收入中断</span><span class="key gray">安全储备</span></div></div><div id="plan-chart" class="chart"></div><p class="subtle">目标按期支出的理论路径；负余额表示方案需要补充资金，未假定自动借款。</p></section>
+          </div>
+        </div>
+        <section class="panel target-panel"><div class="section-heading"><h2>同一份资金，先承接哪些目标</h2><span>示例目标均为付款型</span></div><div class="table-scroll" tabindex="0" role="region" aria-label="目标约束表"><table><thead><tr><th scope="col">目标</th><th scope="col">付款时点</th><th scope="col" class="number">目标金额</th><th scope="col">继续工作</th><th scope="col">收入中断</th></tr></thead><tbody id="goal-rows"></tbody></table></div><p class="subtle">正式版本还会区分资金预留与消费付款；预留不改变账户现金。目标不满足时仍保留缺口，不自动改日期。</p></section>
+      </section>
+
+      <section id="exposure" aria-labelledby="exposure-title" hidden>
+        <header class="page-heading"><div><p class="eyebrow">当前产品价值 × 示例披露权重 · 不代表当前真实持仓</p><h1 id="exposure-title">分散的产品，可能持有同一家公司。</h1><p>合并直接持股与基金中的已披露暴露，把未披露部分保留下来。</p></div><span class="status warning">部分披露</span></header>
+        <div class="metrics exposure-metrics"><article><span>示例组合市值</span><strong class="num">100 万元</strong><small>三个基金产品 + 一项直接持股</small></article><article><span>已知底层暴露</span><strong class="num">43%</strong><small>按披露估算，共 43 万元</small></article><article><span>未知部分</span><strong class="num">57%</strong><small>保留 57 万元，不推断行业</small></article></div>
+        <div class="two-columns">
+          <section class="panel"><div class="section-heading"><h2>已知公司暴露</h2><span>占全部组合</span></div><div class="exposure-bars" id="exposure-bars"></div><div class="unknown-row"><span>未披露 / 未穿透</span><strong class="num">57%</strong></div><p class="subtle">基金内残差统一归入未知。示例未提供可独立识别的基金现金。</p></section>
+          <section class="panel"><div class="section-heading"><h2 id="source-title">公司甲 · 暴露来源</h2><span id="source-total" class="num"></span></div><div id="source-rows"></div><div class="evidence-note"><strong>披露时点不会变成今天的真实持仓</strong><p>示例基金报告期 2026-06-30，公告可得日 2026-08-31；用它映射当前产品价值，仅作结构估算。</p></div></section>
+        </div>
+        <section class="panel"><div class="section-heading"><h2>家庭共同依赖</h2><span>用户确认的关系 · 示例</span></div><div class="dependency"><div><strong>同一雇主</strong><p>工资收入与员工长期持股共同依赖雇主经营。</p></div><span class="status warning">尚无概率模型</span></div><p class="subtle">该关系不并入基金穿透的 100 万元分母；正式版本支持追溯确认来源。</p></section>
+      </section>
+
+      <section id="strategy" aria-labelledby="strategy-title" hidden>
+        <header class="page-heading"><div><p class="eyebrow">6 个月 · 可投资范围 · 预设路径样例</p><h1 id="strategy-title">这些操作，改变了怎样的路径？</h1><p>同一期初资本，比较实际路径与冻结起始持仓，并回看规则和当时判断。</p></div><span class="status warning">正式计算待实现</span></header>
+        <div class="metrics"><article><span>示例实际路径 · 期末</span><strong class="num">56 万元</strong><small>期初 50 万元；无外部资金流</small></article><article><span>示例冻结持仓 · 期末</span><strong class="num">54 万元</strong><small>路径为预设样例，不是正式回放</small></article><article><span>示例决策路径差额</span><strong class="num">+2 万元</strong><small>差额不直接称为 alpha</small></article></div>
+        <div class="two-columns strategy-layout"><section class="panel"><div class="section-heading"><h2>实际与冻结持仓</h2><div class="legend"><span class="key blue">实际路径</span><span class="key orange">冻结期初持仓</span></div></div><div id="strategy-chart" class="chart"></div><p class="subtle">纵轴为局部金额区间，便于查看两条示例路径的差异。</p><details class="rules"><summary>查看正式模板的计算规则</summary><ul><li>从区间起始日真实持仓与现金出发。</li><li>新增资金留现金；取款先用现金，不足明确失败。</li><li>主动买卖不执行；分红与公司行动按冻结份额核对。</li><li>缺价格、历史汇率或权益事件时保留资格缺口。</li></ul></details></section><section class="panel"><div class="section-heading"><h2>回看当时判断</h2><span>演示笔记</span></div><label class="event-label" for="event-choice">选择事件</label><select id="event-choice"><option value="buy">第 2 个月 · 加仓</option><option value="sell">第 4 个月 · 减仓</option></select><div id="decision-detail" class="decision-detail"></div><p class="subtle">正式记录须区分当时记录与事后补记，不按涨跌自动评判操作对错。</p></section></div>
+      </section>
+      <footer>产品方向已确认 · 计算规则与交互为设计草案 · 正式数据与计算尚未接入</footer>
+    </main>
+  </div>
+</body>
+</html>
