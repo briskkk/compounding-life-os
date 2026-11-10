@@ -10,7 +10,8 @@ import { TX_TYPE_LABEL } from '@/lib/labels'
 import type { TxType } from '@/lib/engine/types'
 import { estimateShares, fundConfirmationDate, fundNavDate, fundSettlementDate, isQdiiFund } from '@/lib/engine/fund-order'
 import { isFundPurchaseSuspended, purchaseFeeReference } from '@/lib/engine/fund-policy'
-import { cx, fmtPrice, fmtQty } from '@/lib/format'
+import { cx, fmtMoney, fmtPrice, fmtQty } from '@/lib/format'
+import { transactionPayment } from '@/lib/engine/transaction-payment'
 import { defaultTransactionDate, isAShareAsset } from '@/lib/engine/trade-time'
 
 const NEEDS_QTY: TxType[] = ['BUY', 'SELL', 'TRANSFER_IN', 'TRANSFER_OUT']
@@ -190,13 +191,19 @@ export function TxForm({
   const amount = parseNum(amountText)
   const price = parseNum(priceText)
   const quantity = parseNum(qtyText)
+  const fee = parseNum(feeText)
+  const tradeAmount = isFund && type === 'BUY' && fundMode === 'amount'
+    ? amount
+    : amount ?? (quantity != null && price != null ? quantity * price : null)
+  const paymentPreview = tradeAmount != null && tradeAmount > 0 && fee != null && fee >= 0
+    && (type === 'BUY' || type === 'SELL')
+    ? transactionPayment({ type, amount: tradeAmount, fee })
+    : null
 
   // 按金额申购的预计份额仅供录入预览，不写入账本持仓。
   const estimatedShareQty = isFund && type === 'BUY' && fundMode === 'amount' && amount != null && fundQuote
     ? estimateShares(amount, fundQuote.price)
     : null
-  // 卖出预计到账金额
-  const sellAmount = type === 'SELL' && quantity != null && price != null ? quantity * price : null
   const sellOvershoot = type === 'SELL' && quantity != null && holding != null && quantity > holding.availableQty + 1e-8
   const purchaseFeeEstimate = isFund && type === 'BUY' && fundPolicy && amount != null
     ? purchaseFeeReference(amount, fundPolicy.purchaseFeeRate)
@@ -489,8 +496,9 @@ export function TxForm({
         <Field
           label={
             type === 'VALUATION' ? '估值总额'
-              : isFund && type === 'BUY' && fundMode === 'amount' ? '申购金额'
-                : '金额（买卖可留空）'
+              : isFund && type === 'BUY' && fundMode === 'amount' ? '申购金额（不含手续费）'
+                : type === 'BUY' || type === 'SELL' ? '成交金额（不含手续费，可留空）'
+                  : '金额'
           }
           className={layout === 'compact' && !NEEDS_QTY.includes(type) ? 'col-span-2' : undefined}
           fieldKey="amount"
@@ -507,10 +515,23 @@ export function TxForm({
             required={!NEEDS_PRICE.includes(type) || (isFund && type === 'BUY' && fundMode === 'amount')}
           />
         </Field>
-        <Field label="费用" fieldKey="fee" error={fieldErrors?.fee}>
+        <Field label="手续费" fieldKey="fee" error={fieldErrors?.fee}>
           <input name="fee" type="number" min="0" step="any" value={feeText} onChange={(e) => setFeeText(e.target.value)} className={inputCls} />
         </Field>
           </div>
+
+          {(type === 'BUY' || type === 'SELL') && (
+            <div className="mt-3 text-[13px] text-ink-dim" aria-label="收付金额预览" aria-live="polite">
+              <p className="text-ink-faint">{isFund && type === 'BUY' && fundMode === 'amount' ? '申购金额不含手续费，手续费单独填写。' : '金额不含手续费；留空按数量 × 单价计算。'}</p>
+              {paymentPreview && (
+                <p className="mt-1" data-testid="transaction-payment-preview">
+                  {isFund && type === 'BUY' && fundMode === 'amount' ? '申购金额' : '成交金额'} <span className="num">{fmtMoney(tradeAmount!, selectedAsset?.currency ?? 'CNY')}</span>
+                  <span className="mx-2">·</span>手续费 <span className="num">{fmtMoney(fee!, selectedAsset?.currency ?? 'CNY')}</span>
+                  <span className="mx-2">·</span>{paymentPreview.label} <span className="num text-ink">{fmtMoney(paymentPreview.amount, selectedAsset?.currency ?? 'CNY')}</span>
+                </p>
+              )}
+            </div>
+          )}
 
           {/* 基金卖出：预计到账日（赎回在途） */}
           {isFund && type === 'SELL' && (
@@ -594,9 +615,9 @@ export function TxForm({
                   )}
                 </p>
               )}
-              {sellAmount != null && sellAmount > 0 && (
+              {paymentPreview && paymentPreview.amount > 0 && (
                 <p className="mt-1 text-ink-dim">
-                  预计到账 <span className="num text-accent">≈ {sellAmount.toFixed(2)}</span>
+                  卖出净额 <span className="num text-accent">{fmtMoney(paymentPreview.amount, selectedAsset?.currency ?? 'CNY')}</span>
                   {effectiveSettleDateText && <span className="text-ink-faint"> · {effectiveSettleDateText} 到账前计入在途资金</span>}
                 </p>
               )}

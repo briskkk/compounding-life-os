@@ -8,6 +8,117 @@ test.afterAll(async () => {
   await e2eDb.$disconnect()
 })
 
+test('资产流水录入：日期提示存在时首行输入框仍对齐', async ({ page }) => {
+  const member = await e2eDb.member.findFirstOrThrow({ where: { user: { email: 'e2e@test.local' } } })
+  for (const symbol of ['510300', '110022']) {
+    const asset = await e2eDb.asset.findFirstOrThrow({ where: { familyId: member.familyId, symbol } })
+    for (const theme of ['light', 'dark']) {
+      await page.context().addCookies([{ name: 'portfolio-theme', value: theme, url: 'http://localhost:3200' }])
+      await page.goto(`/positions/${asset.id}`)
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+      await page.locator('#new-transaction > summary').click()
+      const form = page.locator('#new-transaction form')
+      const date = form.locator('input[name="occurredAt"]')
+      await expect(date).toBeVisible()
+      await expect(form.getByText('默认成交时间 10:00')).toHaveCount(symbol === '510300' ? 1 : 0)
+      for (const width of [1280, 1440, 1920]) {
+        await page.setViewportSize({ width, height: 900 })
+        const controls = [
+          date,
+          form.locator('.tx-form-date-type select'),
+          form.locator('.tx-form-account > select'),
+          form.getByRole('combobox', { name: '资产' }).locator('..'),
+        ]
+        const boxes = await Promise.all(controls.map((control) => control.boundingBox()))
+        expect(boxes.every((box) => box != null)).toBe(true)
+        const tops = boxes.map((box) => box!.y)
+        const bottoms = boxes.map((box) => box!.y + box!.height)
+        expect(Math.max(...tops) - Math.min(...tops), `${symbol} ${theme} @${width} 顶部对齐`).toBeLessThanOrEqual(1)
+        expect(Math.max(...bottoms) - Math.min(...bottoms), `${symbol} ${theme} @${width} 底部对齐`).toBeLessThanOrEqual(1)
+        expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1)
+      }
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await form.evaluate((element) => {
+        window.scrollTo(0, window.scrollY + element.getBoundingClientRect().top - 100)
+      })
+      await page.screenshot({ path: test.info().outputPath(`entry-aligned-${symbol}-${theme}.png`) })
+      await page.setViewportSize({ width: 560, height: 900 })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1)
+    }
+  }
+})
+
+test('手续费：录入预览与三个流水入口区分成交金额和含费收付', async ({ page }) => {
+  test.setTimeout(120_000)
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/transactions#new-entry')
+  const form = page.locator('#new-entry form')
+  await form.locator('select[name="accountId"]').selectOption({ label: '华泰证券' })
+  const combo = form.getByRole('combobox', { name: '资产' })
+  await combo.fill('510300')
+  await page.keyboard.press('Enter')
+  await expect(combo).toHaveValue(/510300/)
+  await form.locator('input[name="quantity"]').fill('1200')
+  await form.locator('input[name="price"]').fill('1.123')
+  await form.getByLabel('手续费', { exact: true }).fill('0.25')
+  await expect(form.getByLabel('成交金额（不含手续费，可留空）')).toHaveValue('')
+  const preview = form.getByTestId('transaction-payment-preview')
+  await expect(preview).toContainText('成交金额 ¥1,347.60')
+  await expect(preview).toContainText('手续费 ¥0.25')
+  await expect(preview).toContainText('买入支出 ¥1,347.85')
+  await form.screenshot({ path: test.info().outputPath('fees-entry.png') })
+  for (const width of [560, 1280, 1440]) {
+    await page.setViewportSize({ width, height: 900 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1)
+  }
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await form.locator('input[name="amount"]').fill('900')
+  await expect(preview).toContainText('买入支出 ¥900.25')
+  await form.locator('input[name="amount"]').fill('')
+  const note = 'E2E 手续费金额显示'
+  await form.locator('input[name="note"]').fill(note)
+  await form.getByRole('button', { name: '写入账本' }).click()
+  await expect(page.getByTestId('write-flash')).toContainText('已写入账本')
+  const tx = await e2eDb.transaction.findFirstOrThrow({ where: { note, voidedAt: null } })
+  expect(Number(tx.amount)).toBeCloseTo(1347.6, 8)
+  expect(Number(tx.fee)).toBe(0.25)
+  const leg = await e2eDb.transaction.findFirstOrThrow({ where: { settleOfId: tx.id } })
+  expect(Number(leg.amount)).toBeCloseTo(1347.85)
+
+  for (const route of ['/transactions', `/positions/${tx.assetId}`, `/accounts/${tx.accountId}`]) {
+    for (const theme of ['light', 'dark']) {
+      await page.context().addCookies([{ name: 'portfolio-theme', value: theme, url: 'http://localhost:3200' }])
+      await page.goto(route)
+      const row = page.locator('tbody tr').filter({ hasText: note })
+      await expect(row).toHaveCount(1)
+      await expect(row.getByTestId('transaction-amount')).toHaveText('¥1,347.60')
+      await expect(row.getByTestId('transaction-fee')).toHaveText('¥0.25')
+      await expect(row.getByTestId('transaction-payment')).toHaveText('买入支出¥1,347.85')
+      await row.locator('xpath=ancestor::table').evaluate((table) => {
+        window.scrollTo(0, window.scrollY + table.getBoundingClientRect().top - 100)
+      })
+      const screenshotName = route.startsWith('/positions') ? 'asset' : route.startsWith('/accounts') ? 'account' : 'ledger'
+      await page.screenshot({ path: test.info().outputPath(`fees-${screenshotName}-${theme}.png`) })
+      for (const width of [560, 1280, 1440]) {
+        await page.setViewportSize({ width, height: 900 })
+        expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1)
+      }
+      await page.setViewportSize({ width: 1280, height: 900 })
+    }
+  }
+
+  await page.goto('/transactions#new-entry')
+  await form.getByLabel(/^类型/).selectOption('SELL')
+  await form.locator('input[name="quantity"]').fill('1200')
+  await form.locator('input[name="price"]').fill('1.123')
+  await form.getByLabel('手续费', { exact: true }).fill('0.25')
+  await expect(preview).toContainText('卖出净额 ¥1,347.35')
+  await form.getByLabel('手续费', { exact: true }).fill('0')
+  await expect(preview).toContainText('卖出净额 ¥1,347.60')
+  await form.getByLabel(/^类型/).selectOption('VALUATION')
+  await expect(preview).toHaveCount(0)
+})
+
 test('流水页：表格、筛选、冲正入口与导出链接', async ({ page }) => {
   await page.goto('/transactions')
   await expect(page.getByRole('heading', { level: 1, name: '交易流水' })).toBeVisible()

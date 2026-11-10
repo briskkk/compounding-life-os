@@ -37,6 +37,7 @@ import { TableScroll } from '@/components/table-scroll'
 import { BreadcrumbEntity } from '@/components/app-shell'
 import { HashOpenDetails } from '@/components/hash-open-details'
 import { AssetProductInformation } from '@/components/product-information'
+import { TransactionAmountCells, TransactionAmountHeaders } from '@/components/transaction-amounts'
 
 export const dynamic = 'force-dynamic'
 
@@ -661,7 +662,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
                     <th className="px-2 py-2.5 font-normal">账户</th>
                     <th className="px-2 py-2.5 text-right font-normal">数量</th>
                     <th className="px-2 py-2.5 text-right font-normal">单价</th>
-                    <th className="px-2 py-2.5 text-right font-normal">金额</th>
+                    <TransactionAmountHeaders />
                     <th className="px-2 py-2.5 text-right font-normal">备注</th>
                     <th className="px-4 py-2.5 text-right font-normal">操作</th>
                   </tr>
@@ -677,7 +678,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ as
                       <td className="px-2 py-2 text-ink-dim">{t.account.name}</td>
                       <td className="num px-2 py-2 text-right text-ink-dim">{t.quantity != null ? fmtQty(Number(t.quantity)) : '—'}</td>
                       <td className="num px-2 py-2 text-right text-ink-dim">{t.price != null ? fmtMoney(Number(t.price), asset.currency) : '—'}</td>
-                      <td className="num px-2 py-2 text-right text-ink">{fmtMoney(Number(t.amount), asset.currency)}</td>
+                      <TransactionAmountCells type={t.type} amount={Number(t.amount)} fee={Number(t.fee)} voidedAt={t.voidedAt} currency={asset.currency} />
                       <td className="max-w-[140px] truncate px-2 py-2 text-right text-[13px] text-ink-faint">{t.note ?? ''}</td>
                       <td className="px-4 py-2 text-right">
                         {t.voidedAt ? (

@@ -21,6 +21,7 @@ import { dateKeyAt } from '@/lib/engine/watch-market'
 import { livePreviousClose } from '@/lib/engine/portfolio-day'
 import { BreadcrumbEntity } from '@/components/app-shell'
 import { HashOpenDetails } from '@/components/hash-open-details'
+import { TransactionAmountCells, TransactionAmountHeaders } from '@/components/transaction-amounts'
 
 export const dynamic = 'force-dynamic'
 
@@ -285,7 +286,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
                   <th className="px-2 py-2.5 font-normal">类型</th>
                   <th className="px-2 py-2.5 font-normal">资产</th>
                   <th className="px-2 py-2.5 text-right font-normal">数量</th>
-                  <th className="px-2 py-2.5 text-right font-normal">金额</th>
+                  <TransactionAmountHeaders />
                   <th className="px-4 py-2.5 text-right font-normal">备注</th>
                 </tr>
               </thead>
@@ -296,7 +297,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
                     <td className="px-2 py-2.5"><Tag tone="dim">{TX_TYPE_LABEL[transaction.type]}</Tag>{transaction.internal && <span className="ml-1 text-[12px] text-ink-faint">结算</span>}</td>
                     <td className="px-2 py-2.5"><Link href={`/positions/${transaction.assetId}`} className="text-ink hover:text-accent">{transaction.asset.name}</Link></td>
                     <td className="num px-2 py-2.5 text-right text-ink-dim">{transaction.quantity != null ? fmtQty(Number(transaction.quantity)) : '—'}</td>
-                    <td className="num px-2 py-2.5 text-right text-ink">{fmtMoney(Number(transaction.amount), transaction.asset.currency)}</td>
+                    <TransactionAmountCells type={transaction.type} amount={Number(transaction.amount)} fee={Number(transaction.fee)} voidedAt={transaction.voidedAt} currency={transaction.asset.currency} />
                     <td className="max-w-[260px] truncate px-4 py-2.5 text-right text-[12px] text-ink-faint">{transaction.voidedAt ? '已冲正' : transaction.note ?? ''}</td>
                   </tr>
                 ))}

@@ -19,6 +19,7 @@ import { TableScroll } from '@/components/table-scroll'
 import { dateKeyAt } from '@/lib/engine/watch-market'
 import { settlementStatus } from '@/lib/engine/settlement-status'
 import { RecordDomainNav } from '@/components/record-domain-nav'
+import { TransactionAmountCells, TransactionAmountHeaders } from '@/components/transaction-amounts'
 
 export const dynamic = 'force-dynamic'
 
@@ -235,7 +236,7 @@ export default async function TransactionsPage({
         ) : (
           <TableScroll label="交易流水表">
           <table className="w-full text-[14px] whitespace-nowrap">
-            <caption className="sr-only">交易流水表：日期、类型、资产、账户、数量、单价、金额、净值日、结算日与操作</caption>
+            <caption className="sr-only">交易流水表：日期、类型、资产、账户、数量、单价、流水金额、手续费、含费收付、净值日、结算日与操作</caption>
             <thead>
               <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
                 <th scope="col" className="px-4 py-2.5 font-normal" aria-sort={txAriaSort(activeSort, 'date')}>
@@ -249,7 +250,7 @@ export default async function TransactionsPage({
                 <th scope="col" className="px-2 py-2.5 font-normal">账户</th>
                 <th scope="col" className="px-2 py-2.5 text-right font-normal">数量</th>
                 <th scope="col" className="px-2 py-2.5 text-right font-normal">单价</th>
-                <th scope="col" className="px-2 py-2.5 text-right font-normal">金额</th>
+                <TransactionAmountHeaders />
                 <th scope="col" className="px-2 py-2.5 text-right font-normal" aria-sort={txAriaSort(activeSort, 'navDate')}>净值日</th>
                 <th scope="col" className="px-2 py-2.5 text-right font-normal">结算日</th>
                 <th scope="col" className="px-2 py-2.5 text-right font-normal">备注</th>
@@ -279,18 +280,20 @@ export default async function TransactionsPage({
                   <td className="px-2 py-2 text-ink-dim">{t.account.name}</td>
                   <td className="num px-2 py-2 text-right text-ink-dim">{t.quantity != null ? fmtQty(Number(t.quantity)) : '—'}</td>
                   <td className="num px-2 py-2 text-right text-ink-dim">{t.price != null ? fmtMoney(Number(t.price), t.asset.currency) : '—'}</td>
-                  <td
-                    className={cx(
-                      'num px-2 py-2 text-right',
+                  <TransactionAmountCells
+                    type={t.type}
+                    amount={Number(t.amount)}
+                    fee={Number(t.fee)}
+                    voidedAt={t.voidedAt}
+                    currency={t.asset.currency}
+                    amountClassName={
                       t.type === 'DIVIDEND' || t.type === 'DEPOSIT' || t.type === 'INTEREST'
                         ? 'text-up'
                         : t.type === 'WITHDRAW' || t.type === 'FEE'
                           ? 'text-down'
-                          : 'text-ink',
-                    )}
-                  >
-                    {fmtMoney(Number(t.amount), t.asset.currency)}
-                  </td>
+                          : 'text-ink'
+                    }
+                  />
                   <td className="num px-2 py-2 text-right text-[13px] text-ink-dim" title="份额对应的净值日期（场外基金按 15:00 前后取当日或下一交易日）">
                     {t.navDate ? fmtDate(t.navDate) : '—'}
                   </td>
