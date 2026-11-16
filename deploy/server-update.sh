@@ -74,10 +74,13 @@ sleep 12
 ensure_backup() {
   chmod +x "$PROJECT_DIR/deploy/server-backup.sh"
 
+  # 日志目录必须可写: /var/log 对 ubuntu 不可写, 重定向失败会导致整条 cron 静默不执行
+  mkdir -p /opt/fwos-logs
+
   # 用临时文件重建 crontab, 避免 pipefail 在空 crontab 下误清/误判
   local tmp; tmp="$(mktemp)"
   crontab -l 2>/dev/null | grep -v "server-backup.sh" > "$tmp" || true
-  echo "0 3 * * * /opt/family-wealth-os/deploy/server-backup.sh >> /var/log/fwos-backup.log 2>&1" >> "$tmp"
+  echo "0 3 * * * /opt/family-wealth-os/deploy/server-backup.sh >> /opt/fwos-logs/fwos-backup.log 2>&1" >> "$tmp"
   crontab "$tmp"
   rm -f "$tmp"
 }
@@ -103,12 +106,15 @@ docker compose exec -T -e REFRESH_SLOT="$REFRESH_SLOT" app npx tsx scripts/refre
 EOF
   chmod +x "$PROJECT_DIR/deploy/server-refresh.sh"
 
+  # 日志目录必须可写: /var/log 对 ubuntu 不可写, 重定向失败会导致整条 cron 静默不执行
+  mkdir -p /opt/fwos-logs
+
   local tmp; tmp="$(mktemp)"
   crontab -l 2>/dev/null | grep -v "server-refresh.sh" > "$tmp" || true
-  echo "30 6 * * * /opt/family-wealth-os/deploy/server-refresh.sh us-close >> /var/log/fwos-refresh.log 2>&1" >> "$tmp"
-  echo "30 16 * * * /opt/family-wealth-os/deploy/server-refresh.sh cn-close >> /var/log/fwos-refresh.log 2>&1" >> "$tmp"
-  echo "30 22 * * * /opt/family-wealth-os/deploy/server-refresh.sh fund-nav >> /var/log/fwos-refresh.log 2>&1" >> "$tmp"
-  echo "15 10 * * 6 /opt/family-wealth-os/deploy/server-refresh.sh full >> /var/log/fwos-refresh.log 2>&1" >> "$tmp"
+  echo "30 6 * * * /opt/family-wealth-os/deploy/server-refresh.sh us-close >> /opt/fwos-logs/fwos-refresh.log 2>&1" >> "$tmp"
+  echo "30 16 * * * /opt/family-wealth-os/deploy/server-refresh.sh cn-close >> /opt/fwos-logs/fwos-refresh.log 2>&1" >> "$tmp"
+  echo "30 22 * * * /opt/family-wealth-os/deploy/server-refresh.sh fund-nav >> /opt/fwos-logs/fwos-refresh.log 2>&1" >> "$tmp"
+  echo "15 10 * * 6 /opt/family-wealth-os/deploy/server-refresh.sh full >> /opt/fwos-logs/fwos-refresh.log 2>&1" >> "$tmp"
   crontab "$tmp"
   rm -f "$tmp"
 }
