@@ -10,8 +10,6 @@ import type { DailyTradeActivity } from '@/lib/engine/daily-trades'
 import {
   HOLDING_SORT_HEADERS,
   holdingAriaSort,
-  holdingSortKey,
-  parseHoldingSort,
   sortHoldings,
   toggleHoldingSort,
   type HoldingSort,
@@ -24,11 +22,12 @@ import { IntradayChart } from './charts'
 import { cx, fmtCNY, fmtDateTime, fmtMoney, fmtPct, fmtQty } from '@/lib/format'
 import type { PriceSource } from '@/lib/engine/types'
 import type { AssetClass } from '@prisma/client'
-import { MarketSourceTag, PositionSourceTag, ValuationLegend } from './valuation-source'
+import { MarketSourceTag, PositionSourceTag } from './valuation-source'
 import { HoldingFilterBar, type HoldingFilterValue } from './holding-filter-bar'
 import {
   WATCH_OTHER_CLASS,
   parseWatchClassFilter,
+  parseWatchSort,
   type WatchClassFilter,
 } from '@/lib/engine/watch-filter'
 import {
@@ -39,8 +38,6 @@ import {
 } from '@/lib/engine/period-performance'
 import { alignBenchmark, type LoadedBenchmark } from '@/lib/engine/benchmark'
 import { riskMetrics } from '@/lib/engine/risk'
-import type { DataSettlementState } from '@/lib/engine/data-settlement'
-import { DataSettlementRail } from './data-settlement-rail'
 import { TableScroll } from './table-scroll'
 import { SortHeader } from './sort-header'
 import { attributionDateKey, liveQuoteAttribution } from '@/lib/engine/portfolio-day'
@@ -60,6 +57,7 @@ export interface WatchHolding {
   tradingDate: string | null
   source: string | null
   fallbackValueCny: number
+  costCny: number
   priceSource: PriceSource
   /** 基金模型估值的置信度（%）；低置信时来源列弱化标注。 */
   confidencePct?: number | null
@@ -71,6 +69,8 @@ export interface StaticRow {
   name: string
   valueCny: number
   note: string
+  unrealizedPnlCny: number | null
+  unrealizedPnlPct: number | null
   priceSource: PriceSource
   sourceLabel?: string
 }
@@ -79,7 +79,6 @@ interface QuoteLite {
   symbol: string
   price: number
   prevClose: number
-  changePct: number
   source: string
   asOf: string
   tradingDate?: string
@@ -93,9 +92,8 @@ const COLLAPSED_ROW_COUNT = 8
 const INTRADAY_TIME_FORMATTER = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
 const SORT_HEADERS: { key: HoldingSortKey; label: string }[] = [
-  { key: 'changePct', label: HOLDING_SORT_HEADERS.changePct },
+  { key: 'unrealizedPnl', label: HOLDING_SORT_HEADERS.unrealizedPnl },
   { key: 'value', label: HOLDING_SORT_HEADERS.value },
-  { key: 'dayPnl', label: HOLDING_SORT_HEADERS.dayPnl },
 ]
 
 export function WatchClient({
@@ -103,7 +101,6 @@ export function WatchClient({
   staticValueCny,
   staticInvestableValueCny,
   staticRows,
-  provider,
   historySeries,
   currentContributions,
   initialSort,
@@ -111,13 +108,12 @@ export function WatchClient({
   initialClass,
   initialOnlyExcluded,
   benchmark,
-  settlement,
+  historyHasGap,
 }: {
   holdings: WatchHolding[]
   staticValueCny: number
   staticInvestableValueCny: number
   staticRows: StaticRow[]
-  provider: string
   historySeries: PerformancePoint[]
   currentContributions: number
   initialSort: HoldingSort
@@ -125,7 +121,7 @@ export function WatchClient({
   initialClass: WatchClassFilter
   initialOnlyExcluded: boolean
   benchmark: LoadedBenchmark | null
-  settlement: DataSettlementState
+  historyHasGap: boolean
 }) {
   const [seriesMap, setSeriesMap] = useState<Map<string, IntradaySeries>>(new Map())
   const [quotes, setQuotes] = useState<Map<string, QuoteLite>>(new Map())
@@ -251,7 +247,7 @@ export function WatchClient({
     const nextQueryString = search ? `?${search}` : ''
     if (nextQueryString === appliedUrlRef.current) return
     appliedUrlRef.current = nextQueryString
-    const nextSort = parseHoldingSort(searchParams.get('sort') ?? undefined)
+    const nextSort = parseWatchSort(searchParams.get('sort') ?? undefined)
     const nextQuery = searchParams.get('q') ?? ''
     const nextClass = parseWatchClassFilter(searchParams.get('cls'))
     const nextExcluded = searchParams.get('excl') === '1'
@@ -286,28 +282,41 @@ export function WatchClient({
       now,
       rateToCny: holding.rateToCny,
     })
+    const attributionDate = attributionDateKey(asset, tradingDate)
+    let pnlNote: string | null = null
+    if (price == null) pnlNote = '无报价'
+    else if (attributionDate == null) pnlNote = '缺归属日'
+    else if (!included) pnlNote = '未计入'
+    else if (previousValueCny == null) pnlNote = '缺昨收'
+    else if (attributionDate > todayKey) pnlNote = '进行中'
+
+    const dayPnlCny = previousValueCny == null ? null : currentValueCny - previousValueCny
+    const unrealizedPnlCny = currentValueCny - holding.costCny
     return {
       ...holding,
       dailyActivity,
       price,
       prevClose,
-      changePct: price != null && prevClose ? price / prevClose - 1 : null,
       valueCny: currentValueCny,
-      dayPnlCny: previousValueCny == null ? null : currentValueCny - previousValueCny,
+      dayPnlCny,
+      dayPnlPct: dayPnlCny != null && previousValueCny != null && previousValueCny > 0
+        ? dayPnlCny / previousValueCny : null,
+      unrealizedPnlCny,
+      unrealizedPnlPct: holding.costCny > 0 ? unrealizedPnlCny / holding.costCny : null,
       tradingDate,
-      attributionDate: attributionDateKey(asset, tradingDate),
+      attributionDate,
+      pnlNote,
       currentPortfolioDay: included,
       source: quote?.source ?? series?.source ?? holding.source ?? null,
       confidencePct: quote?.confidencePct ?? holding.confidencePct ?? null,
     }
-  }), [holdings, quotes, seriesMap, now])
+  }), [holdings, quotes, seriesMap, now, todayKey])
   // 今日盈亏的计入范围：北京归属日属于实时窗口（今天 / 进行中的明天场次）且有报价的标的
-  const includedRows = rows.filter((row) => row.currentPortfolioDay && row.dayPnlCny != null).length
-  const excludedRows = rows.length - includedRows
+  const excludedRows = rows.filter((row) => row.dayPnlCny == null).length
   // 日期录入使用默认时刻；有交易的分钟路径是估算，实时金额仍以账本为准。
   const hasDailyTrades = rows.some((row) => row.dailyActivity?.tradingDate === row.tradingDate)
 
-  const { chartData, totalValue, totalPnl, dayPct, marketStatus, selectedPoints } = useMemo(() => {
+  const { chartData, totalPnl, dayPct, marketStatus, selectedPoints } = useMemo(() => {
     const curveHoldings: CurveHolding[] = rows.map((holding) => ({
       symbol: holding.symbol,
       qty: holding.qty,
@@ -375,7 +384,6 @@ export function WatchClient({
         pnl: point.pnl,
         value: point.value,
       })),
-      totalValue: nextTotalValue,
       totalPnl: nextTotalPnl,
       dayPct: baseline > 0 ? nextTotalPnl / baseline : null,
       marketStatus: latestActivePoint === 0 ? '休市' : currentLag <= 10 * 60_000 ? '交易中' : '已收市',
@@ -433,10 +441,10 @@ export function WatchClient({
   }, [benchmark, historySeries, livePerformancePoint, todayKey])
 
   // 表格行 = 有行情的标的 + 常量计值项（现金/手工估值/在途）。
-  // 常量项没有行情，因此不参与涨跌幅与当日盈亏排序，恒沉底。
+  // 常量计值项固定列在行情标的之后。
   const allRows = useMemo(() => [
     ...rows.map((row) => ({ ...row, kind: 'market' as const, sortable: true as const })),
-    ...staticRows.map((row) => ({ ...row, kind: 'static' as const, sortable: false as const, changePct: null, dayPnlCny: null })),
+    ...staticRows.map((row) => ({ ...row, kind: 'static' as const, sortable: false as const })),
   ], [rows, staticRows])
 
   const shownRows = useMemo(() => {
@@ -448,19 +456,13 @@ export function WatchClient({
         const bucket: WatchClassFilter = row.kind === 'market' ? row.cls as WatchClassFilter : WATCH_OTHER_CLASS
         if (bucket !== classFilter) return false
       }
-      if (onlyExcluded && !(row.kind === 'market' && !row.currentPortfolioDay)) return false
+      if (onlyExcluded && !(row.kind === 'market' && row.dayPnlCny == null)) return false
       return true
     })
   }, [allRows, classFilter, onlyExcluded, query])
 
   const displayRows = useMemo(() => {
-    const sortable = shownRows.filter((row) => row.sortable).map((row) => ({
-      ...row,
-      name: row.name,
-      valueCny: row.valueCny,
-      changePct: 'changePct' in row ? row.changePct : null,
-      dayPnlCny: 'dayPnlCny' in row ? row.dayPnlCny : null,
-    }))
+    const sortable = shownRows.filter((row) => row.sortable)
     const pinned = shownRows.filter((row) => !row.sortable)
     return [...sortHoldings(sortable, sort), ...pinned]
   }, [shownRows, sort])
@@ -487,6 +489,7 @@ export function WatchClient({
   const hasFilter = query.trim() !== '' || classFilter != null || onlyExcluded
   const filterValue: HoldingFilterValue = { query, classFilter, onlyExcluded }
   const canCompareIntraday = chartData.length > 1
+  const pnlTone = totalPnl >= 0 ? 'text-up' : 'text-down'
   const tableRows = hasFilter || showAllRows ? displayRows : displayRows.slice(0, COLLAPSED_ROW_COUNT)
   const hiddenRowCount = displayRows.length - tableRows.length
 
@@ -510,54 +513,40 @@ export function WatchClient({
   return (
     <div className="page-shell watch-workbench">
       <header className="watch-workbench-header">
-        <div>
-          <div className="page-kicker">今天 · 北京归属日 {todayKey}</div>
-          <h1 className="page-title">组合今天发生了什么</h1>
-          <p className="page-description">只保留今日变化、异常和实时估值；历史趋势进入复盘。</p>
-        </div>
-        <div className="watch-workbench-result">
-          <strong
-            className={cx('num', totalPnl >= 0 ? 'text-up' : 'text-down')}
-            data-testid="watch-today-pnl"
-            data-amount={totalPnl.toFixed(2)}
-          >
-            {fmtCNY(totalPnl, { sign: true })}
-          </strong>
-          <span className={cx('num', totalPnl >= 0 ? 'text-up' : 'text-down')}>
-            {dayPct != null ? fmtPct(dayPct, { sign: true }) : '—'}
-          </span>
-          <small>{asOf ? `更新于 ${fmtDateTime(asOf)}` : '分钟级行情加载中…'}</small>
-        </div>
+        <h1 className="page-title">看盘</h1>
+        <InvestmentDomainNav active="today" />
       </header>
 
-      <InvestmentDomainNav active="today" />
-
-      <div className="watch-workbench-status" aria-label="今日估值摘要">
-        <span>可投资组合实时估值 <b className="num">{fmtCNY(totalValue)}</b></span>
-        <span>行情标的 <b className="num">{rows.length}</b> 个</span>
-        <span title="未计入不等于零盈亏">今日盈亏已计入 <b className="num">{includedRows}</b> 只 · 未计入 <b className="num">{excludedRows}</b> 只</span>
-        <span>{marketStatus} · {provider} · 30 秒刷新</span>
-      </div>
-
-      <DataSettlementRail state={settlement} />
-
-      <section className="watch-monitor-grid" aria-label="今日组合监控">
+      <section className="watch-monitor-grid" aria-labelledby="watch-today-title">
         <div className="watch-chart-panel">
           <div className="watch-panel-heading">
-            <h2>组合当日盈亏</h2>
-            <span>{hasDailyTrades ? '曲线按成交时间估算 · A股日期录入默认10:00 · 盈亏含账本费用' : '09:30—15:00 · 点选下方持仓可叠加'}</span>
+            <h2 id="watch-today-title">组合当日盈亏</h2>
+            <span>北京归属日 <time dateTime={todayKey}>{todayKey}</time></span>
           </div>
-          <div className="chart-surface">
+          <div className="watch-workbench-result">
+            <strong className={cx('num', pnlTone)} data-testid="watch-today-pnl" data-amount={totalPnl.toFixed(2)}>
+              {fmtCNY(totalPnl, { sign: true })}
+            </strong>
+            <span className={cx('num', dayPct == null ? 'text-ink-faint' : pnlTone)}>
+              {fmtPct(dayPct, { sign: true })}
+            </span>
+          </div>
+          <div className="watch-chart-evidence">
+            {asOf && <span>更新于 {fmtDateTime(asOf)}</span>}
+            {excludedRows > 0 && (
+              <a href="#watch-valuation" className="watch-pnl-note">{excludedRows} 项未计入今日盈亏 →</a>
+            )}
+            {hasDailyTrades && <span>曲线按成交时间估算 · 盈亏含账本费用</span>}
+          </div>
+          <div className="watch-chart">
             {canCompareIntraday ? (
               <>
-                {/* 固定保留标的信息槽位。若按 hover 条件挂载整行，鼠标跨过相邻表格行时
-                    会先 leave 再 enter，使上方曲线面板高度反复变化；页面位于下半部时，
-                    Safari/Chrome 的滚动补偿会表现为整页上下抖动。 */}
-                <div className="mb-2 flex min-h-5 items-center gap-2 text-[12px]">
-                  {activeRow && (
-                    <div className="flex items-center gap-2" data-testid="watch-chart-asset" data-symbol={activeRow.symbol}>
-                      <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: (activeRow.dayPnlCny ?? 0) >= 0 ? 'var(--color-up)' : 'var(--color-down)' }} />
-                      <span className="text-ink-dim">
+                <IntradayChart data={chartPoints} assetName={activeRow?.name} showAsset={activeRow != null} estimated={hasDailyTrades} />
+                {/* 预览与提示共用一行，悬停时保持图表高度不变。 */}
+                <div className="watch-chart-legend">
+                  {activeRow ? (
+                    <div className="watch-chart-selection" data-testid="watch-chart-asset" data-symbol={activeRow.symbol}>
+                      <span className="truncate" title={activeRow.name}>
                         {activeRow.name} · 当日 {activeRow.dayPnlCny != null ? fmtCNY(activeRow.dayPnlCny, { sign: true }) : '无数据'}
                       </span>
                       {selectedSymbol === activeRow.symbol && (
@@ -566,78 +555,105 @@ export function WatchClient({
                         </button>
                       )}
                     </div>
-                  )}
+                  ) : <span>点选下方持仓叠加曲线</span>}
                 </div>
-                <IntradayChart data={chartPoints} assetName={activeRow?.name} showAsset={activeRow != null} estimated={hasDailyTrades} />
               </>
             ) : (
-              <div data-testid="watch-chart-empty" className="flex min-h-28 items-center justify-center border-y border-line text-xs text-ink-faint">
+              <div data-testid="watch-chart-empty" className="flex min-h-28 items-center justify-center text-xs text-ink-faint">
                 {rows.length === 0 ? '暂无行情类持仓' : marketStatus === '休市' ? '休市 · 今日暂无分时行情' : '分时数据加载中…'}
               </div>
             )}
           </div>
         </div>
 
-        <aside className="watch-attention" aria-label="今天需要留意">
-          <div className="watch-panel-heading"><h2>今天需要留意</h2></div>
-          {dailyLeaders.best ? (
-            <div className="watch-attention-item">
-              <span>贡献最多</span>
-              <strong>{dailyLeaders.best.name}</strong>
-              <small className={cx('num', (dailyLeaders.best.dayPnlCny ?? 0) >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(dailyLeaders.best.dayPnlCny ?? 0, { sign: true })}</small>
+        <div className="watch-context">
+          <aside className="watch-attention" aria-labelledby="watch-attention-title">
+            <div className="watch-panel-heading">
+              <h2 id="watch-attention-title">今天需要留意</h2>
+              <Link href="/review?period=THIS_MONTH">复盘本月 →</Link>
             </div>
-          ) : <div className="watch-attention-empty">今日暂无可比较的持仓贡献。</div>}
-          {dailyLeaders.worst && (dailyLeaders.worst.dayPnlCny ?? 0) < 0 ? (
-            <div className="watch-attention-item">
-              <span>拖累最多</span>
-              <strong>{dailyLeaders.worst.name}</strong>
-              <small className="num text-down">{fmtCNY(dailyLeaders.worst.dayPnlCny ?? 0, { sign: true })}</small>
+            {dailyLeaders.best ? (
+              <div className="watch-attention-item">
+                <span>贡献最多</span>
+                <strong>{dailyLeaders.best.name}</strong>
+                <b className={cx('num', (dailyLeaders.best.dayPnlCny ?? 0) >= 0 ? 'text-up' : 'text-down')}>
+                  {fmtCNY(dailyLeaders.best.dayPnlCny ?? 0, { sign: true })}
+                </b>
+              </div>
+            ) : <p className="watch-attention-empty">今日暂无可比较的持仓贡献。</p>}
+            {dailyLeaders.worst && (dailyLeaders.worst.dayPnlCny ?? 0) < 0 && (
+              <div className="watch-attention-item">
+                <span>拖累最多</span>
+                <strong>{dailyLeaders.worst.name}</strong>
+                <b className="num text-down">{fmtCNY(dailyLeaders.worst.dayPnlCny ?? 0, { sign: true })}</b>
+              </div>
+            )}
+          </aside>
+          <section className="watch-history-snapshot" aria-labelledby="watch-history-title">
+            <div className="watch-panel-heading">
+              <h2 id="watch-history-title">近 30 日表现</h2>
+              <Link href="/review/returns">打开收益历史 →</Link>
             </div>
-          ) : null}
-          <Link href="/review?period=THIS_MONTH" className="watch-attention-link">复盘本月 →</Link>
-        </aside>
+            <p>{historySummary.performance.startDate ?? '—'} — {historySummary.performance.endDate ?? '—'}</p>
+            {historyHasGap && <Link href="/health" className="text-xs text-amber">历史收盘数据有缺口 →</Link>}
+            <div className="watch-history-metrics">
+              <div>
+                <span>组合 TWR</span>
+                <strong className={cx('num', historySummary.performance.pct == null ? 'text-ink-faint' : historySummary.performance.pct >= 0 ? 'text-up' : 'text-down')}>
+                  {fmtPct(historySummary.performance.pct, { sign: true })}
+                </strong>
+              </div>
+              <div>
+                <span>同期{benchmark?.label ?? '基准'}</span>
+                <strong className={cx('num', historySummary.benchmarkPct == null ? 'text-ink-faint' : historySummary.benchmarkPct >= 0 ? 'text-up' : 'text-down')}>
+                  {fmtPct(historySummary.benchmarkPct, { sign: true })}
+                </strong>
+              </div>
+              <div>
+                <span>最大回撤</span>
+                <strong className={cx('num', historySummary.maxDrawdown == null ? 'text-ink-faint' : 'text-down')}>
+                  {fmtPct(historySummary.maxDrawdown)}
+                </strong>
+              </div>
+            </div>
+          </section>
+        </div>
       </section>
 
-      <section className="watch-history-snapshot" aria-labelledby="watch-history-title">
-        <div className="watch-history-heading">
-          <div>
-            <h2 id="watch-history-title">近 30 日表现</h2>
-            <p>{historySummary.performance.startDate ?? '—'} — {historySummary.performance.endDate ?? '—'} · 完整区间、贡献与风险进入复盘</p>
-          </div>
-          <Link href="/review/returns">打开收益历史 →</Link>
-        </div>
-        <div className="watch-history-metrics">
-          <div><span>组合 TWR</span><strong className={cx('num', historySummary.performance.pct == null ? 'text-ink-faint' : historySummary.performance.pct >= 0 ? 'text-up' : 'text-down')}>{fmtPct(historySummary.performance.pct, { sign: true })}</strong></div>
-          <div><span>同期{benchmark?.label ?? '基准'}</span><strong className={cx('num', historySummary.benchmarkPct == null ? 'text-ink-faint' : historySummary.benchmarkPct >= 0 ? 'text-up' : 'text-down')}>{fmtPct(historySummary.benchmarkPct, { sign: true })}</strong></div>
-          <div><span>最大回撤</span><strong className={cx('num', historySummary.maxDrawdown == null ? 'text-ink-faint' : 'text-down')}>{fmtPct(historySummary.maxDrawdown)}</strong></div>
-        </div>
-      </section>
-
-      <Panel title="实时估值" bodyClassName="p-0">
-        <div className="border-b border-line px-4 py-2.5"><ValuationLegend /></div>
+      <Panel
+        title="实时估值"
+        id="watch-valuation"
+        bodyClassName="p-0"
+        right={<span className="text-right text-xs text-ink-dim">可投资组合 <b className="num">{fmtCNY(liveInvestableValue)}</b></span>}
+      >
         <HoldingFilterBar value={filterValue} classCounts={classCounts} matched={shownRows.length} total={allRows.length} onChange={applyFilter} />
         <TableScroll label="看盘持仓实时估值表（点列头排序，点行在曲线上叠加该标的）">
-          <table className="w-full text-[14px]" data-testid="watch-valuation-table">
+          <table className="watch-valuation-table" data-testid="watch-valuation-table">
             <caption className="sr-only">实时估值明细</caption>
             <thead>
               <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
                 <th scope="col" className="px-4 py-2.5 font-normal" aria-sort={holdingAriaSort(sort, 'name')}>
                   <SortHeader label="资产" sortKey="name" sort={sort} onClick={() => applySort('name-asc')} />
                 </th>
-                <th scope="col" className="px-2 py-2.5 text-right font-normal">数量</th>
-                <th scope="col" className="px-2 py-2.5 text-right font-normal">现价</th>
+                <th scope="col" aria-sort={holdingAriaSort(sort, 'dayPnl')} className="px-2 py-2.5 text-right font-normal">
+                  <SortHeader label={HOLDING_SORT_HEADERS.dayPnl} sortKey="dayPnl" sort={sort} className="justify-end" onClick={() => applySortKey('dayPnl')} />
+                </th>
                 {SORT_HEADERS.map((header) => (
-                  <th key={header.key} scope="col" aria-sort={holdingAriaSort(sort, header.key)} className={cx('px-2 py-2.5 text-right font-normal', header.key === 'value' && 'min-w-[7.5rem]')}>
+                  <th key={header.key} scope="col" aria-sort={holdingAriaSort(sort, header.key)} className="px-2 py-2.5 text-right font-normal">
                     <SortHeader label={header.label} sortKey={header.key} sort={sort} className="justify-end" onClick={() => applySortKey(header.key)} />
                   </th>
                 ))}
+                <th scope="col" className="px-2 py-2.5 text-right font-normal">数量</th>
+                <th scope="col" className="px-2 py-2.5 text-right font-normal">现价</th>
+                <th scope="col" className="px-2 py-2.5 text-right font-normal">昨收</th>
+                <th scope="col" className="px-2 py-2.5 text-right font-normal">行情归属日</th>
                 <th scope="col" className="px-4 py-2.5 text-right font-normal">来源</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60">
               {displayRows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-[13px] text-ink-faint">
+                  <td colSpan={9} className="px-4 py-10 text-center text-[13px] text-ink-faint">
                     当前筛选下没有标的
                     {hasFilter && <button type="button" onClick={() => applyFilter({ query: '', classFilter: null, onlyExcluded: false })} className="ml-3 text-ink-dim transition-colors hover:text-ink">清除筛选</button>}
                   </td>
@@ -679,33 +695,25 @@ export function WatchClient({
                   </Link>
                   <div className="num text-[12px] text-ink-faint">{r.symbol}</div>
                 </td>
-                <td className="num px-2 py-2.5 text-right text-ink-dim">{fmtQty(r.qty)}</td>
-                <td className="num px-2 py-2.5 text-right text-ink">{r.price != null ? fmtMoney(r.price, r.currency) : '—'}</td>
-                <td className={cx('num px-2 py-2.5 text-right', r.changePct == null ? 'text-ink-faint' : r.changePct >= 0 ? 'text-up' : 'text-down')}>
-                  {r.changePct != null ? fmtPct(r.changePct, { sign: true }) : '—'}
+                <td className={cx('watch-pnl-cell num px-2 py-2.5 text-right', r.dayPnlCny == null ? 'text-ink-faint' : r.dayPnlCny >= 0 ? 'text-up' : 'text-down')}>
+                  {r.dayPnlCny != null ? fmtCNY(r.dayPnlCny, { sign: true }) : '—'}
+                  {r.dayPnlPct != null && <div className="text-xs font-normal opacity-80">{fmtPct(r.dayPnlPct, { sign: true })}</div>}
+                </td>
+                <td className={cx('num px-2 py-2.5 text-right', r.unrealizedPnlCny >= 0 ? 'text-up' : 'text-down')}>
+                  {fmtCNY(r.unrealizedPnlCny, { sign: true })}
+                  {r.unrealizedPnlPct != null && <div className="text-xs opacity-80">{fmtPct(r.unrealizedPnlPct, { sign: true })}</div>}
                 </td>
                 <td className="num px-2 py-2.5 text-right text-ink">{fmtCNY(r.valueCny)}</td>
-                <td className={cx('num px-2 py-2.5 text-right', r.dayPnlCny == null ? 'text-ink-faint' : r.dayPnlCny >= 0 ? 'text-up' : 'text-down')}>
-                  {r.dayPnlCny != null ? fmtCNY(r.dayPnlCny, { sign: true }) : '—'}
-                  {/* 归属日不是北京今天时必须说清楚：此时该行不计入今日盈亏（旧条件是
-                      dayPnlCny != null && !currentPortfolioDay，互斥因而永远不显示） */}
-                  {!r.currentPortfolioDay && (r.attributionDate || r.price == null) && (
-                    <div className="mt-0.5 text-[12px] font-normal text-ink-faint">
-                      {r.price == null
-                        ? '无行情 · 不计入今日盈亏'
-                        : `${r.cls === 'FUND' ? '净值日' : '行情归属日'} ${r.attributionDate} · 不计入今日盈亏${r.changePct != null ? `（该场涨跌 ${fmtPct(r.changePct, { sign: true })}）` : ''}`}
-                    </div>
-                  )}
-                  {/* 北京晚间正在进行的海外场次归属北京明天：实时计入，但会落进明天那一格 */}
-                  {r.currentPortfolioDay && r.attributionDate != null && r.attributionDate > todayKey && r.dayPnlCny != null && (
-                    <div className="mt-0.5 text-[12px] font-normal text-ink-faint">
-                      进行中场次 · 归属北京 {r.attributionDate}
-                    </div>
-                  )}
+                <td className="num px-2 py-2.5 text-right text-ink-dim">{fmtQty(r.qty)}</td>
+                <td className="num px-2 py-2.5 text-right">{r.price != null ? fmtMoney(r.price, r.currency) : '—'}</td>
+                <td className="num px-2 py-2.5 text-right text-ink-dim">{r.prevClose != null ? fmtMoney(r.prevClose, r.currency) : '—'}</td>
+                <td className="px-2 py-2.5 text-right text-xs text-ink-dim">
+                  {r.attributionDate ? <time dateTime={r.attributionDate}>{r.attributionDate}</time> : '—'}
+                  {r.pnlNote && <span className="block text-ink-faint">{r.pnlNote}</span>}
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   {r.source ? (
-                    <MarketSourceTag source={r.source} showProvider confidencePct={r.confidencePct} />
+                    <MarketSourceTag source={r.source} confidencePct={r.confidencePct} />
                   ) : (
                     <PositionSourceTag priceSource={r.priceSource} />
                   )}
@@ -719,11 +727,15 @@ export function WatchClient({
                   ) : <span className="text-ink-dim">{r.name}</span>}
                   <div className="num text-[12px] text-ink-faint">{r.symbol}</div>
                 </td>
-                <td className="px-2 py-2.5" colSpan={3}>
-                  <span className="text-[12px] text-ink-faint">{r.note}</span>
+                <td className="num px-2 py-2.5 text-right text-ink-faint">—</td>
+                <td className={cx('num px-2 py-2.5 text-right', r.unrealizedPnlCny == null ? 'text-ink-faint' : r.unrealizedPnlCny >= 0 ? 'text-up' : 'text-down')}>
+                  {r.unrealizedPnlCny != null ? fmtCNY(r.unrealizedPnlCny, { sign: true }) : '—'}
+                  {r.unrealizedPnlPct != null && <div className="text-xs opacity-80">{fmtPct(r.unrealizedPnlPct, { sign: true })}</div>}
                 </td>
                 <td className="num px-2 py-2.5 text-right text-ink-dim">{fmtCNY(r.valueCny)}</td>
-                <td className="num px-2 py-2.5 text-right text-ink-faint">—</td>
+                <td className="px-2 py-2.5 text-right" colSpan={4}>
+                  <span className="text-[12px] text-ink-faint">{r.note}</span>
+                </td>
                 <td className="px-4 py-2.5 text-right">
                   {r.sourceLabel
                     ? <span className="text-[12px] text-ink-faint">{r.sourceLabel}</span>

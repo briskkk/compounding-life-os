@@ -3,13 +3,10 @@ import { getWatchData, loadBenchmarkSeries } from '@/lib/queries'
 import { cnyRateFor } from '@/lib/market/fx'
 import { SetupScreen } from '@/components/ui'
 import { WatchClient, type WatchHolding, type StaticRow } from '@/components/watch-client'
-import { providerLabel } from '@/lib/market'
-import { marketChainLabel } from '@/lib/valuation-source'
 import { mergePositionsByAsset } from '@/lib/engine/merge'
 import { dailyTradeActivities, hasDailyPositionActivity, isCurrentDailyTrade, transactionTradingDate, type DailyTradeActivity } from '@/lib/engine/daily-trades'
 import { positionKey } from '@/lib/engine/ledger'
-import { parseHoldingSort } from '@/lib/engine/holding-sort'
-import { parseWatchClassFilter } from '@/lib/engine/watch-filter'
+import { parseWatchClassFilter, parseWatchSort } from '@/lib/engine/watch-filter'
 import { isPortfolioAssetClass } from '@/lib/asset-classification'
 import { BENCHMARK_INDICES, DEFAULT_BENCHMARK_SYMBOL, type LoadedBenchmark } from '@/lib/engine/benchmark'
 import { performancePresetRange } from '@/lib/engine/period-performance'
@@ -25,6 +22,7 @@ export default async function WatchPage({
   if (!watchData) return <SetupScreen />
 
   const state = watchData.state
+  const { settledStatus, settledGapCount } = watchData.settlement
   const rates = { USDCNY: state.currencyRates.USD, HKDCNY: state.currencyRates.HKD }
   const now = new Date()
   const snapshotRange = performancePresetRange('LAST_30_DAYS', now)
@@ -89,6 +87,7 @@ export default async function WatchPage({
       tradingDate: quote?.tradingDate ?? null,
       source: quote?.source ?? null,
       fallbackValueCny: v.value,
+      costCny: v.costCny,
       priceSource: v.priceSource,
     }
   })
@@ -109,6 +108,8 @@ export default async function WatchPage({
           ? '按成本计值 · 无分时数据'
           : `${v.asset.cls === 'CASH' ? '现金' : '手工估值'} · 无分时数据`,
       valueCny: v.value,
+      unrealizedPnlCny: v.asset.cls === 'CASH' ? null : v.unrealized,
+      unrealizedPnlPct: v.unrealizedPct,
       priceSource: v.priceSource,
     })).filter((row) => Math.abs(row.valueCny) >= 0.01),
     ...(Math.abs(state.inTransit) >= 0.01 ? [{
@@ -117,8 +118,10 @@ export default async function WatchPage({
       name: '在途资产',
       note: `申购待确认 ${state.pendingFundPurchases.length} 笔 · 赎回待到账 ${state.pendingSettlements.length} 笔`,
       valueCny: state.inTransit,
+      unrealizedPnlCny: null,
+      unrealizedPnlPct: null,
       priceSource: 'FACE' as const,
-      sourceLabel: '账本在途金额',
+      sourceLabel: '账本在途',
     }] : []),
   ]
 
@@ -128,7 +131,6 @@ export default async function WatchPage({
       staticValueCny={staticValueCny}
       staticInvestableValueCny={staticInvestableValueCny}
       staticRows={staticRows}
-      provider={marketChainLabel(providerLabel()).label}
       historySeries={compactHistorySeries.map((point) => ({
         date: point.date,
         netWorth: point.investable,
@@ -139,12 +141,12 @@ export default async function WatchPage({
         valuationGaps: point.valuationGaps,
       }))}
       currentContributions={watchData.currentContributions}
-      initialSort={parseHoldingSort(sp.sort)}
+      initialSort={parseWatchSort(sp.sort)}
       initialQuery={sp.q ?? ''}
       initialClass={parseWatchClassFilter(sp.cls)}
       initialOnlyExcluded={sp.excl === '1'}
       benchmark={benchmark}
-      settlement={watchData.settlement}
+      historyHasGap={settledStatus === 'PARTIAL' || settledStatus === 'NO_UPDATE' || settledGapCount > 0}
     />
   )
 }

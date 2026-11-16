@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import type { PriceSource } from '@/lib/engine/types'
 import {
   marketValuationSource,
@@ -10,7 +9,7 @@ import { Tag } from './ui'
 
 export function SourceTag({ meta, showProvider = false }: { meta: ValuationSourceMeta; showProvider?: boolean }) {
   return (
-    <span title={meta.description} className="inline-flex">
+    <span title={!showProvider && meta.provider ? `${meta.provider} · ${meta.description}` : meta.description} className="inline-flex">
       <Tag tone={meta.tone}>
         {meta.label}
         {showProvider && meta.provider ? ` · ${meta.provider}` : ''}
@@ -73,7 +72,7 @@ export interface ValuationSummaryItem {
   value: number
 }
 
-export function ValuationSourceSummary({ items, className }: { items: ValuationSummaryItem[]; className?: string }) {
+export function ValuationSourceSummary({ items }: { items: ValuationSummaryItem[] }) {
   const groups = {
     observed: { count: 0, value: 0 },
     estimated: { count: 0, value: 0 },
@@ -84,43 +83,28 @@ export function ValuationSourceSummary({ items, className }: { items: ValuationS
     groups[meta.quality].count++
     groups[meta.quality].value += item.value
   }
-  const total = groups.observed.value + groups.estimated.value + groups.fallback.value
+  if (!items.length) return null
+  const rows = [
+    { key: 'observed', label: '可观测数据', dot: 'bg-info' },
+    { key: 'estimated', label: '手动估值', dot: 'bg-violet' },
+    { key: 'fallback', label: '回退/模拟', dot: 'bg-amber' },
+  ] as const
 
   return (
-    <div className={cx('source-summary flex flex-wrap items-center gap-x-7 gap-y-3 px-5 py-4 text-[15px]', className)}>
-      <span className="font-medium text-ink-dim">当前估值口径</span>
-      <span className="text-ink-faint">
-        <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-info" />
-        可观测数据 <span className="num text-ink">{groups.observed.count} 项 · {fmtCNY(groups.observed.value)}</span>
-      </span>
-      <span className="text-ink-faint">
-        <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-violet" />
-        手动估值 <span className="num text-ink">{groups.estimated.count} 项 · {fmtCNY(groups.estimated.value)}</span>
-      </span>
-      <span className={groups.fallback.count > 0 ? 'text-amber' : 'text-ink-faint'}>
-        <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber" />
-        回退/模拟 <span className="num">{groups.fallback.count} 项 · {fmtCNY(groups.fallback.value)}</span>
-      </span>
-      <span className="ml-auto text-ink-faint">
-        总计 <span className="num text-ink">{fmtCNY(total)}</span>
-        <span className="mx-2">·</span>
-        <Link href="/positions" className="hover:text-accent">查看来源明细 →</Link>
-      </span>
-    </div>
-  )
-}
-
-export function ValuationLegend({ className }: { className?: string }) {
-  return (
-    <div className={cx('flex flex-wrap items-center gap-2 text-[12px] text-ink-faint', className)}>
-      <span>来源说明：</span>
-      <MarketSourceTag source="TENCENT" />
-      <MarketSourceTag source="EASTMONEY-FUND" />
-      <MarketSourceTag source="FUND-ENGINE" />
-      <PositionSourceTag priceSource="MANUAL" />
-      <PositionSourceTag priceSource="COST" />
-      <MarketSourceTag source="SIMULATED" />
-      <span className="ml-1">鼠标停留可查看口径。</span>
-    </div>
+    <details className="text-[13px] text-ink-dim">
+      <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-2">
+        <span>估值来源明细</span>
+        {groups.fallback.count > 0 && <span className="text-amber">{groups.fallback.count} 项回退/模拟</span>}
+        <span aria-hidden="true">⌄</span>
+      </summary>
+      <div className="flex flex-wrap gap-x-5 gap-y-2 pb-2">
+        {rows.filter(({ key }) => groups[key].count > 0).map(({ key, label, dot }) => (
+          <span key={key}>
+            <i aria-hidden="true" className={cx('mr-1.5 inline-block h-1.5 w-1.5 rounded-full', dot)} />
+            {label} <span className="num text-ink">{groups[key].count} 项 · {fmtCNY(groups[key].value)}</span>
+          </span>
+        ))}
+      </div>
+    </details>
   )
 }

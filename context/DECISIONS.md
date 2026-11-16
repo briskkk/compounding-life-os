@@ -34,6 +34,7 @@ last_verified: 2026-10-10
 | 分组编辑只列当前持仓 | 结构分析只整理当前有持仓的可投资资产；已清仓资产可在非组合分组维度回看 | [ADR-037](../docs/adr/037-current-holdings-group-editor.md)（替代 ADR-036 的编辑范围条款） |
 | 组合分组复盘只选当前持仓 | 组合分组候选和收益成员只含当前持仓；大类、风格、市场、标签仍可回看已清仓资产 | [ADR-038](../docs/adr/038-current-holdings-strategy-review.md)（替代 ADR-037 的组合分组历史成员条款） |
 | 运行核对只追加证据 | 实时/结算分轨；账户对账、任务与到账确认写审计凭证，不建立可写余额 | [ADR-017](../docs/adr/017-operational-evidence-not-second-ledger.md) |
+| 看盘估值证据随相关数字展示 | 行情异常和所影响的盈亏或历史表现就近关联，估值明细进入对应表格 | [ADR-043](../docs/adr/043-inline-valuation-evidence.md)（替代 ADR-017 的状态行展示条款） |
 | 运营事件、基金规则与行情质量分层 | 公司行动展开为流水；规则与质量只保存证据，不自动改持仓、费用或行情源 | [ADR-018](../docs/adr/018-operational-ledgers-and-market-quality.md) |
 | 份额未知的基金申购先记录金额 | `PENDING` BUY 不猜净值份额，必须现金联动；金额作为在途资产派生，官方确认走冲正替换 | [ADR-019](../docs/adr/019-pending-fund-purchase-evidence.md) |
 | 定投计划只定义节奏，实际投入由账本派生 | 同币种候选资产可合并核对；计划不自动生成流水、下单或独立收益 | [ADR-023](../docs/adr/023-investment-plan-ledger-reconciliation.md) |

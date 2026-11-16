@@ -73,31 +73,34 @@ test('看盘页：列头排序写入 URL、aria-sort 只标注当前列', async 
   await page.goto('/watch')
   await expect(page.getByTestId('watch-valuation-table').locator('thead th')).toHaveText([
     /资产/,
+    /当日盈亏（¥）/,
+    /未实现盈亏/,
+    /市值（¥）/,
     '数量',
     '现价',
-    /涨跌幅/,
-    /市值（¥）/,
-    /当日盈亏（¥）/,
+    '昨收',
+    '行情归属日',
     '来源',
   ])
   // 默认市值降序：URL 不带参数，但列头必须如实标注
   await expect(page.getByRole('columnheader', { name: '按市值（¥）降序排序' })).toHaveAttribute('aria-sort', 'descending')
-  await expect(page.getByRole('columnheader', { name: '按涨跌幅排序' })).toHaveAttribute('aria-sort', 'none')
+  await expect(page.getByRole('columnheader', { name: '按未实现盈亏排序' })).toHaveAttribute('aria-sort', 'none')
 
   // 换列排序从「大到小」开始，并写进 URL
-  await page.getByRole('button', { name: '按涨跌幅排序' }).click()
-  await expect(page).toHaveURL(/sort=changePct-desc/)
-  await expect(page.getByRole('columnheader', { name: '按涨跌幅降序排序' })).toHaveAttribute('aria-sort', 'descending')
+  await page.getByRole('button', { name: '按未实现盈亏排序' }).click()
+  await expect(page).toHaveURL(/sort=unrealizedPnl-desc/)
+  await expect(page.getByRole('columnheader', { name: '按未实现盈亏降序排序' })).toHaveAttribute('aria-sort', 'descending')
+  await expect(page.getByTestId('watch-row').first().locator('td').nth(2).locator('div')).toHaveText(/^[+-]?\d+(\.\d+)?%$/)
   await expect(page.getByRole('columnheader', { name: '按市值（¥）排序' })).toHaveAttribute('aria-sort', 'none')
 
   // 同列再点切到升序
-  await page.getByRole('button', { name: '按涨跌幅降序排序' }).click()
-  await expect(page).toHaveURL(/sort=changePct-asc/)
-  await expect(page.getByRole('columnheader', { name: '按涨跌幅升序排序' })).toHaveAttribute('aria-sort', 'ascending')
+  await page.getByRole('button', { name: '按未实现盈亏降序排序' }).click()
+  await expect(page).toHaveURL(/sort=unrealizedPnl-asc/)
+  await expect(page.getByRole('columnheader', { name: '按未实现盈亏升序排序' })).toHaveAttribute('aria-sort', 'ascending')
 
   // 刷新后排序保留
   await page.reload()
-  await expect(page.getByRole('columnheader', { name: '按涨跌幅升序排序' })).toHaveAttribute('aria-sort', 'ascending')
+  await expect(page.getByRole('columnheader', { name: '按未实现盈亏升序排序' })).toHaveAttribute('aria-sort', 'ascending')
 
   // 切回市值：先降序（不入 URL），再点一次回到升序
   await page.getByRole('button', { name: '按市值（¥）排序' }).click()
@@ -111,6 +114,10 @@ test('看盘页：列头排序写入 URL、aria-sort 只标注当前列', async 
   await page.getByRole('button', { name: '按名称排序' }).click()
   await expect(page).toHaveURL(/sort=name-asc/)
   await expect(page.getByRole('columnheader', { name: '按名称排序' })).toHaveAttribute('aria-sort', 'ascending')
+  await page.goto('/watch?sort=weight-asc')
+  await expect(page.getByRole('columnheader', { name: '按市值（¥）升序排序' })).toHaveAttribute('aria-sort', 'ascending')
+  await page.goto('/watch?sort=changePct-asc')
+  await expect(page.getByRole('columnheader', { name: '按市值（¥）降序排序' })).toHaveAttribute('aria-sort', 'descending')
 })
 
 test('看盘页：筛选条可按名称搜索、按大类与未计入状态过滤', async ({ page }) => {
@@ -155,9 +162,9 @@ test('看盘页：筛选条可按名称搜索、按大类与未计入状态过�
 })
 
 test('看盘页：排序与筛选状态可深链，且不污染今日盈亏口径', async ({ page }) => {
-  await page.goto('/watch?sort=changePct-asc&q=ETF&cls=ETF')
+  await page.goto('/watch?sort=unrealizedPnl-asc&q=ETF&cls=ETF')
   await expect(page.getByLabel('搜索标的名称或代码')).toHaveValue('ETF')
-  await expect(page.getByRole('columnheader', { name: '按涨跌幅升序排序' })).toHaveAttribute('aria-sort', 'ascending')
+  await expect(page.getByRole('columnheader', { name: '按未实现盈亏升序排序' })).toHaveAttribute('aria-sort', 'ascending')
   await expect(page.getByRole('button', { name: /^ETF/ })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByTestId('watch-today-pnl')).toBeVisible()
 })
@@ -266,17 +273,22 @@ test('看盘页：归属日不是北京今天时，当日盈亏显示「—」�
   await page.getByLabel('搜索标的名称或代码').fill('110022')
   const row = watchRows(page).filter({ hasText: '110022' }).first()
   await expect(row).toBeVisible()
-  await expect(page.getByText(/今日盈亏已计入 \d+ 只 · 未计入 \d+ 只/)).toBeVisible()
-  await expect(row.getByText(/净值日 2026-09-14 · 不计入今日盈亏/)).toBeVisible()
-  // 该行不应有今日盈亏数字（只有「—」与口径说明）
-  await expect(row.locator('td').nth(5)).toContainText('—')
+  await expect(page.getByRole('link', { name: /\d+ 项未计入今日盈亏/ })).toHaveAttribute('href', '#watch-valuation')
+  const attribution = row.locator('td').nth(7)
+  await expect(attribution.locator('time')).toHaveText('2026-09-14')
+  await expect(attribution.getByText('未计入', { exact: true })).toBeVisible()
+  await expect(row.locator('td').nth(1)).toHaveText('—')
+  await expect(row.locator('td').nth(2)).toHaveText(/^[+-]¥/)
+  await expect(row.locator('td').nth(6)).toHaveText(/^¥\d/)
+  await expect(row.locator('td').last()).not.toContainText(' · ')
+  await page.getByRole('button', { name: '未计入今日盈亏' }).click()
+  await expect(row).toBeVisible()
 })
 
 test('看盘页：总资产与近 30 日快照同页可读，完整历史进入复盘', async ({ page }) => {
   await page.goto('/watch')
 
-  // 总资产（实时估值口径）在首屏状态行上
-  await expect(page.getByText(/可投资组合实时估值/)).toBeVisible()
+  await expect(page.locator('#watch-valuation header')).toContainText('可投资组合')
 
   const history = page.getByRole('region', { name: /近 30 日表现/ })
   await expect(history.getByText('组合 TWR', { exact: true })).toBeVisible()

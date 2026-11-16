@@ -76,7 +76,7 @@ export function reviewDomainHref(view: ReviewDomainView, context: ReviewWorkspac
 export function ReviewDomainNav({ active, params }: { active: ReviewDomainView; params: ReviewWorkspaceParams }) {
   const context = reviewWorkspaceContext(params)
   return (
-    <nav className="workflow-domain-nav review-domain-nav" aria-label="复盘视图">
+    <nav className="workflow-domain-nav" aria-label="复盘视图">
       {REVIEW_DOMAIN_VIEWS.map((view) => (
         <Link
           key={view.key}

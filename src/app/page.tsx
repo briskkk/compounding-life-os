@@ -194,7 +194,6 @@ export default async function OverviewPage({
         weight: allocationTotal > 0 ? largestInvestablePosition.investable / allocationTotal : 0,
       }
     : null
-  const pendingFundCount = d.state.pendingFundPurchases.length
   const primaryGoal = d.goals[0]
   const valuationCoverage = d.review.valuationCoverage
   const latestValuationDate = d.review.latestValuationDate
@@ -257,22 +256,8 @@ export default async function OverviewPage({
 
       <header className="overview-page-header">
         <div>
-          <div className="eyebrow">家庭账本 · 当前状态</div>
           <h1>家庭财富总览</h1>
-          <p className="overview-page-note">看清家底，也看见每一步积累。</p>
         </div>
-        <nav className="overview-period-tabs" aria-label="总览周期">
-          {PERIODS.map((item) => (
-            <Link
-              key={item.key}
-              href={periodHref(item.value)}
-              aria-current={period === item.key ? 'page' : undefined}
-              data-period={item.value}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
       </header>
 
       <section className="overview-scope-strip" aria-label="家庭财富三个口径">
@@ -302,15 +287,9 @@ export default async function OverviewPage({
       </section>
 
       <section className="overview-evidence" aria-label="数据证据">
-        <span className={cx('overview-evidence-state', valuationNotice.warning && 'is-warning')}>
-          <i aria-hidden="true" />{valuationNotice.label}
-        </span>
+        {valuationNotice.warning && <span className="overview-evidence-state is-warning">{valuationNotice.label}</span>}
         <span>估值日 <b className="num">{latestValuationDate ?? '—'}</b></span>
         <span>估值覆盖 <b className="num">{fmtPct(valuationCoverage)}</b></span>
-        <span>
-          份额待确认 <b className="num">{pendingFundCount}</b>
-          <Link href="/fund-confirmations">基金确认 →</Link>
-        </span>
         <span>
           {d.review.valuationGapCount > 0
             ? <><b className="num">{d.review.valuationGapCount}</b> 项估值缺口<Link href="/health">数据健康 →</Link></>
@@ -329,8 +308,20 @@ export default async function OverviewPage({
         <div className="overview-section-heading">
           <div>
             <h2 id="overview-performance-title">{periodLabel}投资表现</h2>
+            <ScopeLabel scope="INVESTABLE" badgeClassName="is-inline" />
           </div>
-          <span><ScopeLabel scope="INVESTABLE" badgeClassName="is-inline" /></span>
+          <nav className="overview-period-tabs" aria-label="总览周期">
+            {PERIODS.map((item) => (
+              <Link
+                key={item.key}
+                href={periodHref(item.value)}
+                aria-current={period === item.key ? 'page' : undefined}
+                data-period={item.value}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
         </div>
 
         <div className="overview-performance-grid">
@@ -354,11 +345,7 @@ export default async function OverviewPage({
           <div className="overview-performance-summary">
             <span>{periodLabel}可投资资产变化</span>
             <strong className={cx('num', (periodChange ?? 0) >= 0 ? 'text-up' : 'text-down')}>{money(periodChange, true)}</strong>
-            <small>
-              {periodChange == null
-                ? '本周期尚无可对账变化'
-                : <>由净投入 {money(performance.netFlow, true)} 与投资收益 {money(performance.amount, true)} 共同构成</>}
-            </small>
+            {periodChange == null && <small>本周期尚无可对账变化</small>}
             <Link href={reviewHref}>查看完整复盘 →</Link>
           </div>
         </div>
@@ -374,10 +361,10 @@ export default async function OverviewPage({
         </div>
       </section>
 
-      <section className="overview-main-grid">
-        <div className="overview-chart-surface">
+      <div className="overview-support-grid">
+        <section className="overview-chart-surface" aria-labelledby="overview-chart-title">
           <div className="overview-section-heading">
-            <div><h2>财富轨迹</h2></div>
+            <div><h2 id="overview-chart-title">财富轨迹</h2></div>
             <span>轨迹至 {wealthChartSeries.length ? fmtDate(wealthChartSeries[wealthChartSeries.length - 1].date) : '—'}</span>
           </div>
           <div className="overview-chart-summary">
@@ -386,8 +373,7 @@ export default async function OverviewPage({
             <span>累计投资收益 <b className={cx('num', d.attribution.gain >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(d.attribution.gain, { sign: true })}</b></span>
           </div>
           <WealthChart data={wealthChartSeries} showRange height={270} />
-        </div>
-
+        </section>
         <aside className="overview-tasks" aria-labelledby="overview-tasks-title">
           <div className="overview-section-heading">
             <div><h2 id="overview-tasks-title">待办</h2></div>
@@ -404,7 +390,7 @@ export default async function OverviewPage({
               {tasks.map((task) => (
                 <li key={task.key}>
                   <Link href={task.href}>
-                    <span className="overview-task-count num">{task.count}</span>
+                    <span className="overview-task-count num" data-task={task.key}>{task.count}</span>
                     <span className="overview-task-body">
                       <strong>{task.title}</strong>
                       <small>{taskDetail(task)}</small>
@@ -417,7 +403,7 @@ export default async function OverviewPage({
           )}
           <p className="overview-tasks-note">待核对不等于未执行；实际结果以平台与账本流水为准。</p>
         </aside>
-      </section>
+      </div>
 
       <section className="overview-secondary-grid">
         <div className="overview-compact-panel">
@@ -518,7 +504,6 @@ export default async function OverviewPage({
           marketSource: d.state.quotes.get(position.asset.symbol)?.source,
           value: position.value,
         }))}
-        className="overview-source-summary"
       />
     </div>
   )

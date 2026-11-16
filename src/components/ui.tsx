@@ -27,19 +27,21 @@ export function PageHeader({
 
 export function Panel({
   title,
+  id,
   right,
   className,
   bodyClassName,
   children,
 }: {
   title: string
+  id?: string
   right?: ReactNode
   className?: string
   bodyClassName?: string
   children: ReactNode
 }) {
   return (
-    <section className={cx('section-panel', className)}>
+    <section id={id} className={cx('section-panel', className)}>
       <header className="flex min-h-14 items-center justify-between gap-4 pb-5">
         <div className="flex items-baseline gap-2.5">
           <h2 className="text-[19px] font-medium text-ink">{title}</h2>

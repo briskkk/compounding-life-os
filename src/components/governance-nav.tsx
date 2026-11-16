@@ -9,7 +9,7 @@ const destinations = [
 
 export function GovernanceNav({ active }: { active: typeof destinations[number]['key'] }) {
   return (
-    <nav aria-label="数据治理视图" className="governance-nav">
+    <nav aria-label="数据治理视图" className="workflow-domain-nav">
       {destinations.map((item) => (
         <Link key={item.key} href={item.href} aria-current={active === item.key ? 'page' : undefined}>
           {item.label}

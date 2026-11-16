@@ -13,16 +13,6 @@
    深层覆盖（媒体查询、状态变体）继续与本文件的规则放在一起，不再追加到 globals.css 末尾。
    ============================================================================ */
 
-/* ---------- 复盘域二级入口（月结 / 周期复盘 / 收益历史 / 长期复盘 / 决策库） ----------
-   网格列数与 .workflow-domain-nav 的其余领域一起定义在 globals.css；
-   这里只补复盘域自己的窄屏行为，保持与其他领域一致（容器内滚动，不顶出页面）。 */
-@media (max-width: 1180px) {
-  .review-domain-nav {
-    grid-template-columns: repeat(6, minmax(140px, 1fr));
-    overflow-x: auto;
-  }
-}
-
 /* ---------- 复盘常驻上下文条 ----------
    所选周期身份、收益对账、估值覆盖、基金在途与步骤进度在四步之间持续可见；
    正常状态保持低权重，异常项用语义色 + 文字标签，不依赖颜色单独表意。 */
@@ -36,10 +26,7 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.75rem 1.5rem;
-  padding: 0.85rem 1.1rem;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
-  background: var(--color-panel);
+  padding-block: 0.4rem;
 }
 
 .review-context-identity {
@@ -47,8 +34,6 @@
   min-width: 0;
   flex-direction: column;
   gap: 0.15rem;
-  padding-right: 1.25rem;
-  border-right: 1px solid var(--color-line);
 }
 
 .review-context-identity span {
@@ -136,11 +121,6 @@
   .review-context-status {
     grid-column: 1 / -1;
     grid-row: 2;
-  }
-
-  .review-context-identity {
-    border-right: 0;
-    padding-right: 0;
   }
 }
 

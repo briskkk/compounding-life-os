@@ -118,6 +118,8 @@ export function AppShell({
   const searchInput = useRef<HTMLInputElement>(null)
   const commandBox = useRef<HTMLDivElement>(null)
   const returnFocus = useRef<HTMLElement | null>(null)
+  const sidebar = useRef<HTMLElement>(null)
+  const mobileMenu = useRef<HTMLButtonElement>(null)
   const pageName = PAGE_NAMES.find(([prefix]) => prefix === '/' ? pathname === '/' : pathname.startsWith(prefix))?.[1] ?? '家庭财富终端'
   // 父级面包屑：取导航里匹配当前路径的最长前缀（不含当前页自身）
   const parentCrumb = NAV_GROUPS
@@ -191,13 +193,28 @@ export function AppShell({
   }, [pathname])
 
   useEffect(() => {
+    if (!mobileOpen) return
+    const nav = sidebar.current
+    const link = nav?.querySelector<HTMLElement>('a[aria-current="page"]')
+      ?? nav?.querySelector<HTMLElement>('.terminal-nav-item')
+    link?.focus()
+  }, [mobileOpen])
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k' && authenticated) {
         event.preventDefault()
-        returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+        const focused = document.activeElement
+        returnFocus.current = sidebar.current?.contains(focused) && mobileMenu.current?.getClientRects().length
+          ? mobileMenu.current
+          : focused instanceof HTMLElement ? focused : null
+        setMobileOpen(false)
         setSearchOpen(true)
       }
       if (event.key === 'Escape') {
+        if (sidebar.current?.contains(document.activeElement) && mobileMenu.current?.getClientRects().length) {
+          mobileMenu.current.focus()
+        }
         setSearchOpen(false)
         setMobileOpen(false)
       }
@@ -256,8 +273,11 @@ export function AppShell({
 
       <div className={`terminal-frame${collapsed ? ' is-collapsed' : ''}${mobileOpen ? ' is-mobile-open' : ''}`}>
       <a href="#main-content" className="terminal-skip-link">跳至主要内容</a>
-      <button type="button" className="terminal-mobile-scrim" aria-label="关闭导航" onClick={() => setMobileOpen(false)} />
-      <aside className="terminal-sidebar">
+      <button type="button" className="terminal-mobile-scrim" aria-label="关闭导航" onClick={() => {
+        setMobileOpen(false)
+        mobileMenu.current?.focus()
+      }} />
+      <aside className="terminal-sidebar" id="terminal-sidebar" ref={sidebar}>
         <div className="terminal-brand">
           <div className="terminal-brand-mark wealth-brand-mark" aria-hidden="true"><i /><i /><i /></div>
           <div className="terminal-brand-copy"><strong>{brandName}</strong><small>让每一份积累，看得见。</small></div>
@@ -280,7 +300,7 @@ export function AppShell({
 
       <div className="terminal-workspace">
         <header className="terminal-topbar">
-          <button type="button" className="terminal-icon-button terminal-mobile-menu" onClick={() => setMobileOpen(true)} aria-label="打开导航">
+          <button type="button" ref={mobileMenu} className="terminal-icon-button terminal-mobile-menu" onClick={() => setMobileOpen(true)} aria-label="打开导航" aria-controls="terminal-sidebar" aria-expanded={mobileOpen}>
             <TerminalIcon name="panel" />
           </button>
           <nav className="terminal-breadcrumb" aria-label="面包屑">

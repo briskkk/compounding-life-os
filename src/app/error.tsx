@@ -23,7 +23,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
   return (
     <div className="flex min-h-[70vh] items-center justify-center py-10">
       <section
-        className="w-full max-w-xl rounded-xl border border-line bg-panel p-8"
+        className="workspace-message w-full max-w-xl bg-panel p-8"
         role="alert"
         aria-labelledby="route-error-title"
       >

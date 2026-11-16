@@ -37,7 +37,7 @@ last_verified: 2026-10-10
 - `src/components/sort-header.tsx`、`src/components/position-sort-header.tsx`、`src/lib/engine/holding-sort.ts`：看盘与持仓共用的列头排序控件；排序键、升降序切换、`aria-sort` 与无障碍文案的唯一来源都在引擎里（持仓页按 URL 服务端排序，看盘页客户端排序）。
 - `src/lib/engine/intraday.ts`：`buildIntradayCurves` 返回组合曲线与逐标的当日盈亏序列（看盘行 ↔ 曲线联动），`buildPortfolioCurve` 是它的薄包装。
 - `src/components/terminal-icon.tsx`：壳层和主导航共用的线性 SVG 图标集。
-- `src/app/globals.css`、`src/app/themes.css`：默认浅色家庭财富工作台与用户可选深色主题；品牌蓝用于交互，红绿只用于财务方向或异常语义，并保留财务精度和桌面信息密度。
+- `src/app/globals.css`、`src/app/themes.css`、`src/app/doodle-workspace.css`：手绘涂鸦纸面、主题与共享控件；财务方向、估值和告警继续使用各自的语义色。视觉约定见 [design.md](../design.md)。
 - `src/lib/colors.ts`：Recharts 与构成图使用的 JS 色板，必须与 CSS 主题中的黑、绿、青蓝、橙及涨跌状态色同步。
 
 Route Handlers：
@@ -116,7 +116,7 @@ Route Handlers：
 
 - `src/app/health/page.tsx`：家庭数据质量检查队列、安全修复、行情任务时间线与基金确认闭环。
 - `src/app/reconciliation/page.tsx`、`src/components/reconciliation-form.tsx`：外部账户余额与账本派生余额的追加式核对凭证。
-- `src/lib/engine/data-settlement.ts`、`src/components/data-settlement-rail.tsx`：实时/已结算证据计算与看盘低权重数据状态行；总览仅显示摘要，详细证据进入健康中心。
+- `src/lib/engine/data-settlement.ts`：区分实时估值和可复核快照。看盘把异常放在对应数字旁，详细证据进入数据健康和估值明细。
 - `src/app/allocation/page.tsx`、`src/lib/engine/allocation-drift.ts`、`strategy-allocation.ts`：资产大类与自定义组合目标、容忍带及事实性偏离计算。
 - `src/app/accounts/page.tsx` 的 `calendar` 视图、`src/lib/engine/cash-calendar.ts`：**只合并账本实际发生的买入/卖出与赎回在途到账**；定投计划节点与手工资金计划都不进日历（计划不是流水）。资金计划的维护（列表、新建、移除）在账户概览。
 - `src/app/investment-plans/page.tsx`、`src/lib/engine/investment-plan.ts`：工作日/每周/每月计划节点与同币种有效 BUY 的月度核对，区分已录、用户已核对未买、待核对与未到期；计划节点不自动写账本或收益。

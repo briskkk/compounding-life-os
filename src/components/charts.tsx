@@ -98,12 +98,6 @@ export function WealthChart({
     <div>
       <ResponsiveContainer width="100%" height={height}>
         <ComposedChart data={ranged} margin={{ top: 12, right: 4, bottom: 0, left: 4 }}>
-          <defs>
-            <linearGradient id="gNW" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={C.info} stopOpacity={0.18} />
-              <stop offset="100%" stopColor={C.info} stopOpacity={0} />
-            </linearGradient>
-          </defs>
           <XAxis
             dataKey="date"
             tick={{ fill: C.inkFaint, fontSize: 11 }}
@@ -121,7 +115,7 @@ export function WealthChart({
             tickFormatter={fmtCNYAxis}
           />
           <Tooltip content={<DarkTooltip />} />
-          <Area type="monotone" dataKey="netWorth" name="净资产" stroke={C.info} strokeWidth={2.25} fill="url(#gNW)" dot={false} isAnimationActive={false} />
+          <Area type="monotone" dataKey="netWorth" name="净资产" stroke={C.info} strokeWidth={2.25} fill={C.info} fillOpacity={0.11} dot={false} isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
       {ranged.length > 0 && (
@@ -213,12 +207,6 @@ export function PortfolioReturnChart({ data, benchmarkLabel = '基准' }: { data
   return (
     <ResponsiveContainer width="100%" height={280}>
       <ComposedChart data={data} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
-        <defs>
-          <linearGradient id="gPortfolioReturn" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={C.info} stopOpacity={0.18} />
-            <stop offset="100%" stopColor={C.info} stopOpacity={0} />
-          </linearGradient>
-        </defs>
         <CartesianGrid stroke={C.line} strokeDasharray="2 8" vertical={false} />
         <XAxis
           dataKey="date"
@@ -257,7 +245,7 @@ export function PortfolioReturnChart({ data, benchmarkLabel = '基准' }: { data
           name="累计收益率"
           stroke={C.info}
           strokeWidth={2.25}
-          fill="url(#gPortfolioReturn)"
+          fill={C.info} fillOpacity={0.11}
           dot={false}
           isAnimationActive={false}
         />
@@ -338,12 +326,6 @@ export function PortfolioPctChart({ data, benchmarkLabel = '基准' }: { data: P
   return (
     <ResponsiveContainer width="100%" height={280}>
       <ComposedChart data={data} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
-        <defs>
-          <linearGradient id="gPortfolioPct" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={C.info} stopOpacity={0.18} />
-            <stop offset="100%" stopColor={C.info} stopOpacity={0} />
-          </linearGradient>
-        </defs>
         <CartesianGrid stroke={C.line} strokeDasharray="2 8" vertical={false} />
         <XAxis
           dataKey="date"
@@ -369,7 +351,7 @@ export function PortfolioPctChart({ data, benchmarkLabel = '基准' }: { data: P
           name="时间加权"
           stroke={C.info}
           strokeWidth={2.25}
-          fill="url(#gPortfolioPct)"
+          fill={C.info} fillOpacity={0.11}
           dot={false}
           isAnimationActive={false}
         />
@@ -406,7 +388,6 @@ export function PortfolioPctChart({ data, benchmarkLabel = '基准' }: { data: P
 /** 单金额轴曲线：累计收益金额（amber）或可投资资产（info）随区间变化。 */
 export function PortfolioMoneyChart({ data, dataKey, name }: { data: PortfolioReturnDatum[]; dataKey: 'amount' | 'netWorth'; name: string }) {
   const color = dataKey === 'amount' ? C.amber : C.info
-  const gradientId = `gPortfolioMoney-${dataKey}`
   // 显式刻度：窄区间下 recharts 自动刻度格式化后会重名
   let lo = 0
   let hi = 0
@@ -419,12 +400,6 @@ export function PortfolioMoneyChart({ data, dataKey, name }: { data: PortfolioRe
   return (
     <ResponsiveContainer width="100%" height={280}>
       <ComposedChart data={data} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.18} />
-            <stop offset="100%" stopColor={color} stopOpacity={0} />
-          </linearGradient>
-        </defs>
         <CartesianGrid stroke={C.line} strokeDasharray="2 8" vertical={false} />
         <XAxis
           dataKey="date"
@@ -450,7 +425,7 @@ export function PortfolioMoneyChart({ data, dataKey, name }: { data: PortfolioRe
           name={name}
           stroke={color}
           strokeWidth={2.25}
-          fill={`url(#${gradientId})`}
+          fill={color} fillOpacity={0.11}
           dot={false}
           isAnimationActive={false}
         />
@@ -492,7 +467,7 @@ function markerShape(m: TradeMarker) {
     const label = m.type === 'BUY' ? '买入' : '卖出'
     return (
       <g>
-        <circle cx={cx} cy={cy} r={4.5} fill={color} stroke="#101214" strokeWidth={1.5} />
+        <circle cx={cx} cy={cy} r={4.5} fill={color} stroke={C.panel} strokeWidth={1.5} />
         <title>{`${label} ${m.qty > 0 ? fmtQty(m.qty) : ''} @ ${fmtPrice(m.price)}${m.note ? ` · ${m.note}` : ''}`}</title>
       </g>
     )
@@ -519,12 +494,6 @@ export function PriceLineChart({
   return (
     <ResponsiveContainer width="100%" height={220}>
       <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-        <defs>
-          <linearGradient id="gPx" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.2} />
-            <stop offset="100%" stopColor={color} stopOpacity={0} />
-          </linearGradient>
-        </defs>
         <CartesianGrid stroke={C.line} strokeDasharray="2 8" vertical={false} />
         <XAxis dataKey="date" tick={{ fill: C.inkFaint, fontSize: 11 }} tickLine={false} axisLine={{ stroke: C.line }} minTickGap={60} />
         <YAxis
@@ -537,7 +506,7 @@ export function PriceLineChart({
           tickFormatter={fmtAxis}
         />
         <Tooltip content={<DarkTooltip money={false} />} />
-        <Area type="monotone" dataKey="close" name="收盘价" stroke={color} strokeWidth={1.5} fill="url(#gPx)" dot={false} />
+        <Area type="monotone" dataKey="close" name="收盘价" stroke={color} strokeWidth={1.5} fill={color} fillOpacity={0.11} dot={false} />
         {markers.map((m) => (
           <ReferenceDot key={`${m.date}-${m.type}`} x={m.date} y={m.price} shape={markerShape(m)} />
         ))}
@@ -621,27 +590,21 @@ export function IntradayChart({
   // 显式漂亮数刻度：窄盈亏域下 recharts 自动刻度经 fmtCNY 格式化后会重名/错位
   const ticks = niceTicks(domain[0], domain[1])
   return (
-    <ResponsiveContainer width="100%" height={260}>
+    <ResponsiveContainer width="100%" height={230}>
       <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-        <defs>
-          <linearGradient id="gDay" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.22} />
-            <stop offset="100%" stopColor={color} stopOpacity={0} />
-          </linearGradient>
-        </defs>
         <XAxis dataKey="time" tick={{ fill: C.inkFaint, fontSize: 12 }} tickLine={false} axisLine={false} minTickGap={80} />
         <YAxis
           tick={{ fill: C.inkFaint, fontSize: 12 }}
           tickLine={false}
           axisLine={false}
-          width={84}
+          width={70}
           domain={domain}
           ticks={ticks}
           tickFormatter={(v: number) => fmtCNY(v, { compact: true })}
         />
         <Tooltip content={<IntradayTooltip assetName={showAsset ? assetName : undefined} estimated={estimated} />} />
         <ReferenceLine y={0} stroke={C.line} />
-        <Area type="monotone" dataKey="pnl" name="当日盈亏" stroke={color} strokeWidth={2.25} fill="url(#gDay)" dot={false} isAnimationActive={false} />
+        <Area type="monotone" dataKey="pnl" name="当日盈亏" stroke={color} strokeWidth={2.25} fill={color} fillOpacity={0.07} dot={false} isAnimationActive={false} />
         {showAsset && (
           <Line
             type="monotone"

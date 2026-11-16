@@ -65,7 +65,7 @@ test('今日买入与清仓：账户、持仓、看盘、总览、导出及移�
 
     await page.goto('/watch')
     await expect(page.getByTestId('watch-valuation-table').locator('tbody tr').filter({ hasText: name })).toContainText(amountText(expected))
-    await expect(page.getByText('曲线按成交时间估算 · A股日期录入默认10:00 · 盈亏含账本费用')).toBeVisible()
+    await expect(page.getByText('曲线按成交时间估算 · 盈亏含账本费用')).toBeVisible()
     // 模拟报价日期可以是周末，但真实 A 股分钟源没有周末交易场次。
     if (![0, 6].includes(new Date(`${today}T00:00:00Z`).getUTCDay())) {
       await expect(page.getByTestId('watch-chart-empty')).toHaveCount(0)
@@ -90,6 +90,10 @@ test('今日买入与清仓：账户、持仓、看盘、总览、导出及移�
     const closed = await (await page.request.get('/api/positions')).json()
     expect(closed.positions.find((item: { assetId: string }) => item.assetId === asset.id)).toMatchObject({ quantity: 0 })
     expect(closed.positions.find((item: { assetId: string }) => item.assetId === asset.id).dayPnl).toBeCloseTo(closedPnl)
+    await page.goto(`/watch?q=${symbol}`)
+    const closedRow = page.getByTestId('watch-row').filter({ hasText: name })
+    await expect(closedRow.getByRole('cell').nth(1)).toContainText(amountText(closedPnl))
+    await expect(closedRow.getByRole('cell').nth(2)).toHaveText('+¥0.00')
   } finally {
     await db.transaction.deleteMany({ where: { accountId: account.id } })
     await db.account.delete({ where: { id: account.id } })

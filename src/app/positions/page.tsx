@@ -14,7 +14,7 @@ import { cx, fmtCNY, fmtCNYExact, fmtPct, fmtPrice, fmtQty } from '@/lib/format'
 import { C, CLASS_COLORS, SLICE_PALETTE } from '@/lib/colors'
 import type { AssetClass, AssetStyle } from '@/lib/engine/types'
 import { CompositionChart, type CompositionDimension } from '@/components/composition-chart'
-import { PositionSourceTag, ValuationLegend, ValuationSourceSummary } from '@/components/valuation-source'
+import { PositionSourceTag, ValuationSourceSummary } from '@/components/valuation-source'
 import { holdingAriaSort } from '@/lib/engine/holding-sort'
 import { PositionSortHeader } from '@/components/position-sort-header'
 import { isInvestableAsset, isPortfolioAssetClass } from '@/lib/asset-classification'
@@ -156,11 +156,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="page-shell positions-shell">
-      <PageHeader
-        title="资产与持仓"
-        description="查看资产位置、价值、盈亏与估值依据；在途资金单列。"
-        right={<ScopeLabel scope="INVESTABLE" className="asset-page-scope" />}
-      />
+      <PageHeader title="资产与持仓" />
 
       <AssetDomainNav active={activeView} />
 
@@ -257,9 +253,6 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                   return { id: a.id, name: a.name, accountId: pos?.accountId ?? '', current: pos?.value ?? null }
                 })}
               />
-              <div className="border-b border-line px-4 py-2.5">
-                <ValuationLegend />
-              </div>
               <TableScroll label="持仓明细表">
               <table className="w-full text-[14px] whitespace-nowrap">
               <thead>

@@ -3,6 +3,15 @@
 // 放在纯引擎模块里而不是组件文件里：`'use client'` 模块的导出在服务端会编译成客户端引用，
 // 服务端组件直接调用会报 "Attempted to call … from the server but … is on the client"。
 import type { AssetClass } from '@prisma/client'
+import { parseHoldingSort, type HoldingSort } from './holding-sort'
+
+export function parseWatchSort(value: string | undefined): HoldingSort {
+  const sort = parseHoldingSort(value)
+  if (sort === 'weight-asc') return 'value-asc'
+  if (sort === 'weight-desc') return 'value-desc'
+  if (sort === 'changePct-asc' || sort === 'changePct-desc') return 'value-desc'
+  return sort
+}
 
 /** 筛选条只在看盘会出现的大类上提供 chip；其余大类（现金/房产）归入「其他」。 */
 export const WATCH_FILTER_CLASSES: AssetClass[] = ['STOCK', 'ETF', 'FUND', 'GOLD']
