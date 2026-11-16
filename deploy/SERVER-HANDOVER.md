@@ -32,7 +32,7 @@ ssh -i /Users/hua/.ssh/MBP.pem -o StrictHostKeyChecking=no ubuntu@111.229.116.22
 | 磁盘 | `/` 共 69G，已用 35G，可用 32G（**53%**） |
 | 防火墙 | `ufw` 入站放通 `22 / 80 / 443` |
 | 代码目录 | `/opt/family-wealth-os`（git 仓库，远程 `origin/main`） |
-| GitHub 权限 | Deploy Key `~/.ssh/fwos_deploy`，可拉取私有仓库 `briskkk/family-wealth-os` |
+| GitHub 权限 | Deploy Key `~/.ssh/fwos_deploy`，用于拉取 `briskkk/compounding-life-os` |
 
 ---
 

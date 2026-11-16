@@ -10,8 +10,10 @@
 
 | 位置 | 是否 git 仓库 | 说明 |
 |------|--------------|------|
-| **本地 Mac** `/Users/hua/Projects/Portfolio` | ✅ 是 | `origin` = `git@github.com:briskkk/family-wealth-os.git`，分支 `main` |
-| **腾讯云服务器** `/opt/family-wealth-os` | ✅ 是 | `origin` = `git@github.com:briskkk/family-wealth-os.git`，分支 `main`，已配 GitHub Deploy Key（`~/.ssh/fwos_deploy`） |
+| **本地 Mac** `/Users/hua/Projects/Portfolio` | ✅ 是 | `origin` = `git@github.com:briskkk/compounding-life-os.git`，分支 `main` |
+| **腾讯云服务器** `/opt/family-wealth-os` | ✅ 是 | 分支 `main`，已配 GitHub Deploy Key（`~/.ssh/fwos_deploy`） |
+
+GitHub 会把旧仓库地址重定向到 `briskkk/compounding-life-os`。现有检出可使用 `git remote set-url origin git@github.com:briskkk/compounding-life-os.git` 更新远程地址。
 
 现在**两条更新路径都可用**，任选其一：
 - **路径 A（服务器为中心，推荐）**：SSH 上服务器直接 `bash deploy/server-update.sh` —— 拉 GitHub → 重建 → **自动修复 schema 同步坑**（见第 2 节）。
@@ -69,7 +71,7 @@ cat /home/ubuntu/.ssh/fwos_deploy.pub
 把输出的**公钥**复制下来。
 
 ### 2.2 在 GitHub 添加为 Deploy Key
-仓库 `briskkk/family-wealth-os` → **Settings → Deploy keys → Add deploy key**
+仓库 `briskkk/compounding-life-os` → **Settings → Deploy keys → Add deploy key**
 - Title：`fwos-prod-server`
 - Key：粘贴上面的公钥
 - 勾选 **Allow write access** 留空（只读即可）
