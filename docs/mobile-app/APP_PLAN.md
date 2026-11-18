@@ -25,6 +25,8 @@ Family Wealth OS 的移动端客户端,独立新建项目(不在本仓库开发)
 移动端 APP ──HTTPS──> 本服务(腾讯云) /api/* ──> 同一引擎/数据库
 ```
 
+macOS 菜单栏客户端也走这条链路，代码在本仓库 `desktop/`（[ADR-044](../adr/044-macos-menu-bar-client.md)）。它不另建账本。iOS 仍是独立项目。
+
 - **认证**:双通道中的 **Bearer token** 通道。`POST /api/auth/login` 返回 token,后续请求带 `Authorization: Bearer <token>`。
 - 会话 30 天过期,登出即撤销(服务端删 Session)。
 - 生产环境必须 HTTPS(腾讯云 nginx 已支持);APP 侧配置 API 基址即可,无需 cookie。

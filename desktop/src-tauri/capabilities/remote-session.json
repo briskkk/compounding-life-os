@@ -1,0 +1,14 @@
+{
+  "identifier": "remote-session",
+  "description": "远程网页只能回传登录接口已经返回的会话令牌，或在登出时清除它。",
+  "windows": ["main"],
+  "remote": {
+    "urls": [
+      "https://www.huayanpei.com/*",
+      "https://huayanpei.com/*",
+      "http://localhost:3000/*",
+      "http://127.0.0.1:3000/*"
+    ]
+  },
+  "permissions": ["allow-store-session-token", "allow-clear-session"]
+}

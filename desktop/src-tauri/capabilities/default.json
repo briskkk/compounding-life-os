@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "本地壳层权限。远程网页不使用这份能力。",
+  "windows": ["main"],
+  "permissions": ["core:default", "notification:default"]
+}

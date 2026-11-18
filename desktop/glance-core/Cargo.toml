@@ -1,0 +1,12 @@
+[package]
+name = "glance-core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77"
+description = "Menu bar formatting and todo reminders for the Family Wealth macOS client"
+license = "UNLICENSED"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

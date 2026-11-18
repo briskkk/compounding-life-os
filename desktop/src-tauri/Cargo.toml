@@ -1,0 +1,29 @@
+[package]
+name = "family-wealth-terminal"
+version = "0.1.0"
+description = "家庭财富终端 macOS 菜单栏客户端"
+authors = ["compounding-life-os"]
+edition = "2021"
+rust-version = "1.90"
+license = "UNLICENSED"
+publish = false
+
+[lib]
+name = "family_wealth_terminal"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+glance-core = { path = "../glance-core" }
+keyring = "2"
+objc = "0.2"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-notification = "2"
+tauri-plugin-single-instance = "2"
+tokio = { version = "1", features = ["macros", "rt", "sync", "time"] }
+url = "2"

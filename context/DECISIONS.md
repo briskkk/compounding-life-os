@@ -44,6 +44,7 @@ last_verified: 2026-10-10
 | 定投未买入由用户按日核对 | 同日已买入写账本，未买入只存可撤销的计划核对证据；确认状态不改变计划金额或财务口径 | [ADR-026](../docs/adr/026-investment-plan-no-buy-review.md) |
 | 资金日历只呈现真实账本活动 | 只展示有效 BUY/SELL 与赎回到账在途；手工资金计划回到账户概览维护，定投计划在定投页核对，不与已发生流水混排 | [ADR-031](../docs/adr/031-cash-calendar-ledger-activity-only.md)（替代 ADR-029） |
 | 跨市场收益按北京归属日归属 | 一场交易算在北京时间哪一天落定：美股美东 D 日计入北京 D+1；PriceBar 仍存交易所交易日，实时「今日涨跌」与日历/快照同口径 | [ADR-027](../docs/adr/027-beijing-attribution-of-exchange-sessions.md) |
+| macOS 客户端只做远程外壳 | 菜单栏与窗口不另建账本；盈亏读现有 summary，三类待办只透出总览引擎 | [ADR-044](../docs/adr/044-macos-menu-bar-client.md) |
 
 ## 补充已定规则
 

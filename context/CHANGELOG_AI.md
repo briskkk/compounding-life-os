@@ -6,6 +6,12 @@ last_verified: 2026-10-12
 
 # AI 工作变更记录
 
+## 2026-11-18 · macOS 菜单栏客户端
+
+- 新增 `desktop/`：Tauri 菜单栏外壳，主窗口打开现有网站。今日盈亏读取已有的 `GET /api/mobile/summary`，不在客户端重算。
+- 新增只读 `GET /api/desktop/tasks`，与总览页共用 `buildOverviewTasks`。生产未部署前，菜单栏只根据 summary 的待确认申购提示基金份额，不把定投和对账显示成零。
+- 接受 [ADR-044](../docs/adr/044-macos-menu-bar-client.md)。本机无法打出 macOS `.app`。Vitest 95 个文件 660/660、`npx tsc --noEmit` 与 `glance-core` 13/13 通过。
+
 ## 2026-11-16 · 总览宽度与看盘布局
 
 - 总览沿用共享工作区宽度。看盘把当日盈亏和分时曲线合为一个面板，右侧集中展示持仓贡献和近 30 日表现。

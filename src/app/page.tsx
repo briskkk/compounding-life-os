@@ -17,9 +17,8 @@ import type { AssetClass } from '@/lib/engine/types'
 import type { ReviewPeriod } from '@/lib/engine/review'
 import { compactRecentSeries } from '@/lib/engine/series-sampling'
 import { attributionDateKey } from '@/lib/engine/portfolio-day'
-import { dateKeyAt } from '@/lib/engine/watch-market'
-import { buildOverviewTasks, type OverviewTask } from '@/lib/engine/overview-tasks'
-import type { InvestmentPlanInput, InvestmentPlanBuy } from '@/lib/engine/investment-plan'
+import type { OverviewTask } from '@/lib/engine/overview-tasks'
+import { loadOverviewTasks } from '@/lib/services/overview-tasks'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,17 +50,6 @@ function targetMonth(months: number | null): string {
   return fmtMonth(date)
 }
 
-/** 对账凭证 detail 的读取口径（与月结中心一致）：version 1 且 asOfDate 落在该月 */
-function reconciliationAccountId(detail: string | null, month: string, entityId: string | null): string | null {
-  if (!detail || !entityId) return null
-  try {
-    const parsed = JSON.parse(detail) as { version?: number; asOfDate?: string }
-    return parsed.version === 1 && parsed.asOfDate?.startsWith(month) ? entityId : null
-  } catch {
-    return null
-  }
-}
-
 /** 待办证据行：金额与日期按可读中文拼装，数字仍来自引擎返回值 */
 function taskDetail(task: OverviewTask): string {
   if (task.key === 'FUND_CONFIRMATION') {
@@ -91,29 +79,10 @@ export default async function OverviewPage({
   const db = scopedDb(prisma, d.ctx)
 
   const now = new Date()
-  const currentMonth = dateKeyAt(now).slice(0, 7)
-  const monthStart = new Date(`${currentMonth}-01T00:00:00+08:00`)
-  const [accountCount, registeredAssetCount, monthTxs, reconcileLogs, accounts, planRows, monthBuys, planReviews] = await Promise.all([
+  const [accountCount, registeredAssetCount, tasks] = await Promise.all([
     db.account.count(),
     db.asset.count({ where: { cls: { not: 'CASH' } } }),
-    db.transaction.findMany({
-      where: { occurredAt: { gte: monthStart, lte: now }, voidedAt: null },
-      select: { accountId: true },
-    }),
-    db.auditLog.findMany({
-      where: { action: 'RECONCILE', entity: 'Account' },
-      select: { entityId: true, detail: true },
-    }),
-    db.account.findMany({ select: { id: true, name: true } }),
-    db.investmentPlan.findMany({ include: { assets: true }, orderBy: { createdAt: 'asc' } }),
-    db.transaction.findMany({
-      where: { type: 'BUY', voidedAt: null, occurredAt: { gte: monthStart, lte: now } },
-      select: { id: true, accountId: true, assetId: true, amount: true, occurredAt: true, navSource: true },
-    }),
-    db.investmentPlanDayReview.findMany({
-      where: { scheduledDate: { gte: monthStart, lte: now } },
-      select: { planId: true, scheduledDate: true, revokedAt: true },
-    }),
+    loadOverviewTasks(d.ctx, d.state.pendingFundPurchases, d.state.assets, d.state.currencyRates, now),
   ])
 
   const setupSteps = [
@@ -122,40 +91,6 @@ export default async function OverviewPage({
     { done: d.state.txCount > 0, title: '录入首笔流水', why: '手工录入一笔，或用 CSV 批量导入历史', href: '/transactions#new-entry', action: '录入流水 →' },
   ]
   const setupDone = setupSteps.every((step) => step.done)
-
-  // ── 待办证据：本月有账本活动但尚无当月对账凭证的账户 ──────────────────
-  const reconciledAccounts = new Set(reconcileLogs.flatMap((log) => {
-    const id = reconciliationAccountId(log.detail, currentMonth, log.entityId)
-    return id ? [id] : []
-  }))
-  const accountNameById = new Map(accounts.map((account) => [account.id, account.name]))
-  const unreconciledAccounts = [...new Set(monthTxs.map((tx) => tx.accountId))]
-    .filter((accountId) => !reconciledAccounts.has(accountId))
-    .map((accountId) => accountNameById.get(accountId) ?? '未命名账户')
-
-  // 定投待核对：与定投页同一输入形状（计划 + 当月有效 BUY + 计划日核对证据）
-  const investmentPlanInputs: InvestmentPlanInput[] = planRows.map((plan) => ({
-    id: plan.id,
-    name: plan.name,
-    amount: Number(plan.amount),
-    currency: plan.currency,
-    cadence: plan.cadence,
-    scheduleDay: plan.scheduleDay,
-    startDate: plan.startDate,
-    endDate: plan.endDate,
-    status: plan.status,
-    endedAt: plan.endedAt,
-    accountId: plan.accountId,
-    assetIds: plan.assets.map((item) => item.assetId),
-  }))
-  const investmentPlanBuys: InvestmentPlanBuy[] = monthBuys.map((buy) => ({
-    id: buy.id,
-    accountId: buy.accountId,
-    assetId: buy.assetId,
-    amount: Number(buy.amount),
-    occurredAt: buy.occurredAt,
-    navSource: buy.navSource,
-  }))
 
   const m = d.state.metrics
   const valuationRows = mergePositionsByAsset(d.state.valued)
@@ -220,20 +155,6 @@ export default async function OverviewPage({
     if (!latestValuationDate) return { warning: true, label: '暂无估值日期' }
     return { warning: false, label: '数据已更新' }
   })()
-
-  const tasks = buildOverviewTasks({
-    pendingFundPurchases: d.state.pendingFundPurchases.map((item) => ({
-      assetName: d.state.assets.find((asset) => asset.id === item.assetId)?.name ?? '基金申购',
-      amount: item.amount * (d.state.currencyRates[item.currency as keyof typeof d.state.currencyRates] ?? 1),
-      navDate: item.navDate.toISOString().slice(0, 10),
-    })),
-    plans: investmentPlanInputs,
-    buys: investmentPlanBuys,
-    planReviews,
-    unreconciledAccounts,
-    month: currentMonth,
-    now,
-  })
 
   return (
     <div className="page-shell overview-dashboard">

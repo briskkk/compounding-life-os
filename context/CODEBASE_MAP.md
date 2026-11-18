@@ -52,7 +52,8 @@ Route Handlers：
 - `src/app/api/family/route.ts`：家庭创建与信息；`family/members`：成员列表、角色、移除、重置密码；`family/invites`：邀请码生成/撤销；`family/join`：凭码加入；`family/switch`：切换家庭；`family/reset`：清空家庭数据。
 - `src/app/api/admin/backup/route.ts`：手动备份与最近备份列表（OWNER）。
 - `src/app/api/positions/route.ts`、`positions/[assetId]/route.ts`：持仓与资产详情（移动端）；列表附投资风格、境内/境外市场分组、互斥组合分组与自定义标签。
-- `src/app/api/mobile/summary/route.ts`：移动端总览/账户/FIRE 数据包。
+- `src/app/api/mobile/summary/route.ts`：移动端总览/账户/FIRE 数据包。macOS 菜单栏的今日盈亏、净资产和可投资资产也读这里。
+- `src/app/api/desktop/tasks/route.ts`：macOS 菜单栏待办。只读透出 `buildOverviewTasks`，与总览页共用 `src/lib/services/overview-tasks.ts`。
 - `src/app/api/mobile/returns-calendar/route.ts`：与 Web 看盘同源的日/月/年收益日历、估值缺口和当日流水。
 - `src/app/api/transactions/route.ts`：移动端流水幂等写入（`Idempotency-Key`）与游标分页列表。
 - `src/app/api/reviews/route.ts`、`reviews/current/route.ts`：已保存复盘游标列表、复盘证据包与笔记写入；月度证据支持 `month=YYYY-MM` 历史自然月深链。
@@ -155,6 +156,12 @@ Route Handlers：
 - `src/lib/market/intraday.ts`、`yahoo.ts`：分钟线。
 - `src/lib/market/symbols.ts`、`lookup.ts`：市场代码与资产识别。
 - `src/lib/market/simulated.ts`：仅显式模拟环境。
+
+## macOS 客户端
+
+- `desktop/`：Tauri 菜单栏外壳。主窗口加载现有网站，轮询既有 summary 与 `/api/desktop/tasks`。令牌进系统钥匙串。
+- `desktop/glance-core/`：菜单文案、红涨绿跌着色和待办提醒规则，可在非 macOS 上测试。
+- 运行说明见 [desktop/README.md](../desktop/README.md)，决策见 [ADR-044](../docs/adr/044-macos-menu-bar-client.md)。
 
 ## 数据与运维
 
