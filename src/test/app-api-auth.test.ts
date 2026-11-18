@@ -7,6 +7,7 @@ import { GET as monthlySummaryGET } from '@/app/api/monthly-summary/route'
 import { GET as monthlyTrendGET } from '@/app/api/monthly-trend/route'
 import { GET as assetsGET } from '@/app/api/assets/route'
 import { GET as performanceGET } from '@/app/api/performance/route'
+import { GET as desktopTasksGET } from '@/app/api/desktop/tasks/route'
 import { POST as transactionPOST } from '@/app/api/transactions/route'
 
 // 鉴权顺序改为「用户会话优先」后，handler 会先调用 getSession()；测试直接调用 handler
@@ -23,6 +24,7 @@ const routes = [
   { name: 'monthly-trend', handler: monthlyTrendGET },
   { name: 'assets', handler: assetsGET },
   { name: 'performance', handler: performanceGET },
+  { name: 'desktop/tasks', handler: desktopTasksGET },
 ] as const
 
 function makeRequest(path: string, token?: string): NextRequest {
