@@ -153,7 +153,8 @@ pub fn clear_session_state(app: &AppHandle) {
 }
 
 fn bump(app: &AppHandle) {
-    let mut generation = app.state::<AppState>().generation.lock().unwrap_or_else(|err| err.into_inner());
+    let state = app.state::<AppState>();
+    let mut generation = state.generation.lock().unwrap_or_else(|err| err.into_inner());
     *generation = generation.wrapping_add(1);
 }
 
