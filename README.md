@@ -1,4 +1,4 @@
-# Family Wealth OS · 家庭财富终端
+# Compounding Life OS · 复利生活
 
 可自托管的家庭财富工作台。以交易流水为账本，追踪家庭净资产、投资表现与退休目标。
 
