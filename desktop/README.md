@@ -57,7 +57,7 @@ npm test
 npm run dev
 ```
 
-`npm test` 只跑与界面无关的解析和提醒规则。`npm run dev` 会打开菜单栏应用，默认连接生产站点。
+`npm test` 只跑与界面无关的解析和提醒规则。`npm run dev` 要在 `desktop/` 里执行：Tauri 用这个目录启动 `scripts/dev-server.mjs`，然后打开菜单栏应用，默认连接生产站点。
 
 本机网页在另一个终端执行仓库根目录的 `npm run dev`（端口 3000）后，在菜单栏里选择「本机开发 localhost:3000」，或启动时指定：
 

@@ -79,4 +79,30 @@ mod source_guard {
             }
         }
     }
+
+    /// `npm run dev` starts Tauri with cwd = `desktop/` (the package.json directory).
+    /// `frontendDist` stays relative to `src-tauri/tauri.conf.json`.
+    #[test]
+    fn before_dev_command_resolves_from_the_npm_package_directory() {
+        let desktop = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let conf_path = desktop.join("src-tauri/tauri.conf.json");
+        let conf: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&conf_path).expect("tauri.conf.json")).unwrap();
+        let command = conf["build"]["beforeDevCommand"]
+            .as_str()
+            .expect("beforeDevCommand");
+        let script = command
+            .split_whitespace()
+            .find(|part| part.ends_with(".mjs"))
+            .expect("dev server script");
+        assert!(
+            desktop.join(script).is_file(),
+            "beforeDevCommand {command:?} must name a file under desktop/, not src-tauri/"
+        );
+        let frontend = conf["build"]["frontendDist"].as_str().expect("frontendDist");
+        assert!(
+            conf_path.parent().unwrap().join(frontend).is_dir(),
+            "frontendDist is relative to tauri.conf.json"
+        );
+    }
 }
