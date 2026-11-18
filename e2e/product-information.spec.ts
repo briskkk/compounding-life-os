@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { PrismaClient } from '@prisma/client'
+import fs from 'node:fs/promises'
 import path from 'node:path'
 
 const db = new PrismaClient({ datasourceUrl: `file:${path.resolve('prisma/e2e.db')}` })
@@ -63,7 +64,9 @@ test('资产详情独立显示公开产品持仓与公告，刷新不写账本�
     await page.setViewportSize({ width, height: 1000 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1)
   }
-  await page.screenshot({ path: '/private/tmp/portfolio-retired-research-product-information.png', fullPage: true })
+  const screenshotPath = test.info().outputPath('portfolio-retired-research-product-information.png')
+  await fs.mkdir(path.dirname(screenshotPath), { recursive: true })
+  await page.screenshot({ path: screenshotPath, fullPage: true })
   const foreign = await db.familySpace.create({ data: { name: '产品资料隔离测试' } })
   try {
     const other = await db.asset.create({ data: { familyId: foreign.id, symbol: '999900', name: '其它家庭测试资产', cls: 'FUND' } })
