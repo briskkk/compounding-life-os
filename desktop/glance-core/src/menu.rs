@@ -6,8 +6,8 @@ use crate::summary::SummaryGlance;
 use crate::tasks::TaskSnap;
 use crate::url_base::ServerPreset;
 
-/// 待办轮询不得快于 15 分钟。手动刷新不受这条后台节奏限制。
-pub const POLL_INTERVAL: Duration = Duration::from_secs(15 * 60);
+/// 后台自动刷新间隔。菜单里的「立即刷新」另走手动通道，不受这个间隔限制。
+pub const POLL_INTERVAL: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TaskSource {
@@ -348,6 +348,6 @@ mod tests {
             .unwrap()
             .is_empty());
         assert!(notifications_due(Some(&baseline), &TaskSource::Unavailable).is_none());
-        assert_eq!(POLL_INTERVAL.as_secs(), 15 * 60);
+        assert_eq!(POLL_INTERVAL.as_secs(), 60);
     }
 }

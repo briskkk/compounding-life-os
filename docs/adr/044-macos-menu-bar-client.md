@@ -9,4 +9,4 @@ macOS 客户端放在本仓库 `desktop/`，用系统菜单栏、主窗口和通
 
 菜单栏的今日盈亏、涨跌幅、净资产和可投资资产读取生产环境已有的 `GET /api/mobile/summary`。基金份额待确认、定投节点待核对和账户待对账仍由总览引擎 `buildOverviewTasks` 得出；网页总览与 `GET /api/desktop/tasks` 共用同一装配。后一个接口只读，并沿用 Cookie / Bearer 会话。生产站点部署该接口之前，菜单栏只根据 summary 里的 `pendingPurchases` 提示基金份额待确认，不把另外两类待办显示成零。
 
-登录继续使用 `POST /api/auth/login`。网页窗口持有 `fw_session` cookie，菜单栏轮询使用同一枚 Bearer token。令牌只进系统钥匙串，不进仓库、日志或配置文件。后台待办轮询不少于 15 分钟。
+登录继续使用 `POST /api/auth/login`。网页窗口持有 `fw_session` cookie，菜单栏轮询使用同一枚 Bearer token。令牌只进系统钥匙串，不进仓库、日志或配置文件。后台自动刷新每 60 秒一次；菜单里的立即刷新不受这个间隔限制。
