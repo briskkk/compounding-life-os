@@ -5,7 +5,7 @@
   "identifier": "com.huayanpei.family-wealth",
   "build": {
     "frontendDist": "../ui",
-    "devUrl": "http://127.0.0.1:1420",
+    "devUrl": "http://127.0.0.1:31420",
     "beforeDevCommand": "node scripts/dev-server.mjs"
   },
   "app": {

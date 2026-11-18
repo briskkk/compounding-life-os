@@ -104,5 +104,20 @@ mod source_guard {
             conf_path.parent().unwrap().join(frontend).is_dir(),
             "frontendDist is relative to tauri.conf.json"
         );
+
+        let dev_url = conf["build"]["devUrl"].as_str().expect("devUrl");
+        assert_eq!(dev_url, "http://127.0.0.1:31420");
+        let server = fs::read_to_string(desktop.join("scripts/dev-server.mjs")).unwrap();
+        let launcher = fs::read_to_string(desktop.join("scripts/tauri-dev.mjs")).unwrap();
+        let package = fs::read_to_string(desktop.join("package.json")).unwrap();
+        for source in [dev_url, server.as_str(), launcher.as_str()] {
+            assert!(!source.contains(":1420"), "do not bind the crowded dev port: {source}");
+        }
+        assert!(server.contains("const DEFAULT_PORT = 31420"));
+        assert!(server.contains("CLO_DEV_PORT"));
+        assert!(launcher.contains("const DEFAULT_PORT = 31420"));
+        assert!(launcher.contains("CLO_DEV_PORT"));
+        assert!(launcher.contains("devUrl"));
+        assert!(package.contains("node scripts/tauri-dev.mjs"));
     }
 }
