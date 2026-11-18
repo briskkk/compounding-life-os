@@ -118,6 +118,15 @@ mod source_guard {
         assert!(launcher.contains("const DEFAULT_PORT = 31420"));
         assert!(launcher.contains("CLO_DEV_PORT"));
         assert!(launcher.contains("devUrl"));
+        assert!(launcher.contains("'build'"));
+        assert!(launcher.contains("'--debug'"));
+        assert!(launcher.contains("'--bundles'"));
+        assert!(launcher.contains("bundle/macos"));
+        assert!(launcher.contains("com.huayanpei.family-wealth"));
+        assert!(
+            !launcher.contains("'dev'") && !launcher.contains("\"dev\""),
+            "npm run dev must open a .app, not `tauri dev`'s identifier-less binary"
+        );
         assert!(package.contains("node scripts/tauri-dev.mjs"));
     }
 }

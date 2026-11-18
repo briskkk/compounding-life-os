@@ -57,7 +57,11 @@ npm test
 npm run dev
 ```
 
-`npm test` 只跑与界面无关的解析和提醒规则。`npm run dev` 要在 `desktop/` 里执行：Tauri 用这个目录启动 `scripts/dev-server.mjs`，然后打开菜单栏应用，默认连接生产站点。开发用静态页监听 `127.0.0.1:31420`。这个端口仍被占用时，换一个再启动：
+`npm test` 只跑与界面无关的解析和提醒规则。`npm run dev` 要在 macOS 的 `desktop/` 里执行。它会构建调试包 `src-tauri/target/debug/bundle/macos/家庭财富终端.app` 并打开这个 `.app`，不会直接运行 `target/debug/family-wealth-terminal`。
+
+那个裸二进制没有 `Info.plist`，`CFBundleIdentifier` 是空的。macOS 这时只在屏幕左上角显示「家庭财富终端」应用菜单，菜单栏右侧不会出现「请登录」或当日盈亏。调试包和 `npm run build` 的发行包使用同一个 `CFBundleIdentifier`：`com.huayanpei.family-wealth`。发行包正在运行时要先退出，再执行 `npm run dev`，否则相同的 bundle id 会让新实例交给已经打开的发行包。
+
+开发用静态页监听 `127.0.0.1:31420`。这个端口仍被占用时，换一个再启动：
 
 ```bash
 CLO_DEV_PORT=31421 npm run dev
