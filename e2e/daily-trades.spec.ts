@@ -22,6 +22,22 @@ test('今日买入与清仓：账户、持仓、看盘、总览、导出及移�
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date())
     test.skip(quote.tradingDate !== today, '当日交易回归需要有效的今日报价')
     const occurredAt = new Date(`${today}T10:00:00+08:00`)
+    // 金额回归使用模拟报价；分钟线同样固定在浏览器边界，避免 CI 依赖境内实时源。
+    const hasMinutes = ![0, 6].includes(new Date(`${today}T00:00:00Z`).getUTCDay())
+    await page.route('**/api/intraday?**', async (route) => {
+      const requested = new URL(route.request().url()).searchParams.get('symbols')?.split(',') ?? []
+      const series = hasMinutes && requested.includes(symbol) ? {
+        [symbol]: {
+          symbol, currency: 'CNY', prevClose: quote.prevClose, source: 'E2E-FIXTURE',
+          points: [
+            { t: new Date(`${today}T09:30:00+08:00`).getTime(), price: quote.prevClose },
+            { t: new Date(`${today}T09:59:00+08:00`).getTime(), price: quote.prevClose },
+            { t: new Date(`${today}T10:01:00+08:00`).getTime(), price: quote.price },
+          ],
+        },
+      } : {}
+      await route.fulfill({ json: { asOf: new Date().toISOString(), series } })
+    })
     const previousDate = new Date(occurredAt.getTime() - 86400000)
     const buyPrice = quote.prevClose * 0.9
     await db.transaction.createMany({ data: [
@@ -66,8 +82,8 @@ test('今日买入与清仓：账户、持仓、看盘、总览、导出及移�
     await page.goto('/watch')
     await expect(page.getByTestId('watch-valuation-table').locator('tbody tr').filter({ hasText: name })).toContainText(amountText(expected))
     await expect(page.getByText('曲线按成交时间估算 · 盈亏含账本费用')).toBeVisible()
-    // 模拟报价日期可以是周末，但真实 A 股分钟源没有周末交易场次。
-    if (![0, 6].includes(new Date(`${today}T00:00:00Z`).getUTCDay())) {
+    // 固定分钟证据覆盖曲线和选中标的叠加；周末保留无分钟证据边界。
+    if (hasMinutes) {
       await expect(page.getByTestId('watch-chart-empty')).toHaveCount(0)
       const watchRow = page.getByTestId('watch-valuation-table').locator('tbody tr').filter({ hasText: name })
       await watchRow.click()
