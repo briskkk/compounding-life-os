@@ -45,6 +45,8 @@ last_verified: 2026-10-10
 | 资金日历只呈现真实账本活动 | 只展示有效 BUY/SELL 与赎回到账在途；手工资金计划回到账户概览维护，定投计划在定投页核对，不与已发生流水混排 | [ADR-031](../docs/adr/031-cash-calendar-ledger-activity-only.md)（替代 ADR-029） |
 | 跨市场收益按北京归属日归属 | 一场交易算在北京时间哪一天落定：美股美东 D 日计入北京 D+1；PriceBar 仍存交易所交易日，实时「今日涨跌」与日历/快照同口径 | [ADR-027](../docs/adr/027-beijing-attribution-of-exchange-sessions.md) |
 
+| 桌面摘要只用真实用户会话 | glance 复用 Web 看盘估值，tasks 复用总览待办；均附用户/家庭 scope，private/no-store，无全局 Key 回落 | [ADR-045](../docs/adr/045-desktop-session-glance.md) |
+
 ## 补充已定规则
 
 - [ADR-042](../docs/adr/042-remove-research-modules.md)：按用户要求移除组合穿透与风险图谱、投资策略实验室及专属读写/计算。替代ADR-039及ADR-040/041的模块条款；旧表仅保留档案和迁移兼容，不自动恢复功能。

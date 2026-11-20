@@ -1,21 +1,22 @@
-// GET /api/desktop/tasks — 菜单栏待办只读接口。
-// 认证与其它 APP 读接口相同：Cookie 会话（fw_session）或 Authorization: Bearer <登录会话>。
-// 待办按总览页同一形状交给 buildOverviewTasks，不重放持仓、不取行情、不重建快照。
-import { type NextRequest, NextResponse } from 'next/server'
-import { apiReadAuthCtx } from '@/lib/services/api-auth'
+// GET /api/desktop/tasks — macOS 菜单栏待办。
+// 只读，必须真实 Cookie / Bearer 用户会话，不回落全局只读 Key。
+// 三条待办来自总览引擎 buildOverviewTasks，本路由不重算份额、定投或对账。
+import { type NextRequest } from 'next/server'
+import { apiWriteAuthCtx } from '@/lib/services/api-auth'
 import { loadOverviewTasks } from '@/lib/services/overview-tasks'
+import { desktopJson, desktopScope } from '@/lib/services/desktop-api'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const auth = await apiReadAuthCtx(req)
-  if (!auth.ctx) return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status })
   try {
-    const tasks = await loadOverviewTasks(auth.ctx)
+    const auth = await apiWriteAuthCtx(req)
+    if (!auth.ctx?.userId) return desktopJson({ ok: false, error: 'User session required' }, 401)
+    const [tasks, scope] = await Promise.all([loadOverviewTasks(auth.ctx), desktopScope(auth.ctx)])
     const totalCount = tasks.reduce((sum, task) => sum + task.count, 0)
-    return NextResponse.json({ ok: true, totalCount, tasks })
+    return desktopJson({ ok: true, scope, totalCount, tasks })
   } catch {
-    return NextResponse.json({ ok: false, error: '待办读取失败' }, { status: 500 })
+    return desktopJson({ ok: false, error: '待办读取失败' }, 500)
   }
 }

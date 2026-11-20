@@ -7,7 +7,6 @@ import { GET as monthlySummaryGET } from '@/app/api/monthly-summary/route'
 import { GET as monthlyTrendGET } from '@/app/api/monthly-trend/route'
 import { GET as assetsGET } from '@/app/api/assets/route'
 import { GET as performanceGET } from '@/app/api/performance/route'
-import { GET as desktopTasksGET } from '@/app/api/desktop/tasks/route'
 import { GET as mobileSummaryGET } from '@/app/api/mobile/summary/route'
 import { POST as transactionPOST } from '@/app/api/transactions/route'
 
@@ -25,7 +24,6 @@ const routes = [
   { name: 'monthly-trend', handler: monthlyTrendGET, withOk: false },
   { name: 'assets', handler: assetsGET, withOk: false },
   { name: 'performance', handler: performanceGET, withOk: false },
-  { name: 'desktop/tasks', handler: desktopTasksGET, withOk: true },
   { name: 'mobile/summary', handler: mobileSummaryGET, withOk: true },
 ] as const
 

@@ -11,6 +11,11 @@ vi.mock('@/lib/session', () => ({
   }),
 }))
 
+vi.mock('@/lib/services/desktop-api', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/lib/services/desktop-api')>(),
+  desktopScope: async () => ({ userId: 'user-a', familyId: 'family-a', familyName: '甲家' }),
+}))
+
 vi.mock('@/lib/services/overview-tasks', () => ({
   loadOverviewTasks: vi.fn(),
 }))
@@ -52,6 +57,7 @@ describe('GET /api/desktop/tasks', () => {
     const json = await res.json()
     expect(json).toEqual({
       ok: true,
+      scope: { userId: 'user-a', familyId: 'family-a', familyName: '甲家' },
       totalCount: 3,
       tasks: [
         {
@@ -80,7 +86,7 @@ describe('GET /api/desktop/tasks', () => {
     loadTasks.mockResolvedValue([])
     const res = await GET(new NextRequest('http://localhost/api/desktop/tasks'))
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ ok: true, totalCount: 0, tasks: [] })
+    expect(await res.json()).toEqual({ ok: true, scope: { userId: 'user-a', familyId: 'family-a', familyName: '甲家' }, totalCount: 0, tasks: [] })
   })
 
   it('读取失败时返回 ok: false', async () => {

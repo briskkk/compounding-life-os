@@ -14,7 +14,6 @@ const APP_ROUTES = [
   '/api/goals',
   '/api/mobile/summary',
   '/api/mobile/returns-calendar?month=2026-06',
-  '/api/desktop/tasks',
 ]
 
 function currentMonth(): string {

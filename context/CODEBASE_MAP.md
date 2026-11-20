@@ -53,6 +53,8 @@ Route Handlers：
 - `src/app/api/admin/backup/route.ts`：手动备份与最近备份列表（OWNER）。
 - `src/app/api/positions/route.ts`、`positions/[assetId]/route.ts`：持仓与资产详情（移动端）；列表附投资风格、境内/境外市场分组、互斥组合分组与自定义标签。
 - `src/app/api/mobile/summary/route.ts`：移动端总览/账户/FIRE 数据包。
+- `src/app/api/desktop/glance/route.ts`：真实用户会话的轻量摘要，复用引擎资产与 Web 当日损益；时间与覆盖契约见 `docs/desktop/API.md`。
+- `src/app/api/desktop/tasks/route.ts`：真实用户会话的总览待办，附用户/家庭 scope；不加载持仓或行情。
 - `src/app/api/mobile/returns-calendar/route.ts`：与 Web 看盘同源的日/月/年收益日历、估值缺口和当日流水。
 - `src/app/api/transactions/route.ts`：移动端流水幂等写入（`Idempotency-Key`）与游标分页列表。
 - `src/app/api/reviews/route.ts`、`reviews/current/route.ts`：已保存复盘游标列表、复盘证据包与笔记写入；月度证据支持 `month=YYYY-MM` 历史自然月深链。
