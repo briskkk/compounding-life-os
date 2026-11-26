@@ -26,6 +26,7 @@ test('历史基金流水：北京时间当日净值可按份额或金额录入',
         await form.locator('input[name="quantity"]').fill('10')
         await form.locator('input[name="price"]').fill('2')
       } else {
+        await form.getByRole('button', { name: '按金额申购' }).click()
         await form.locator('input[name="amount"]').fill('1000')
       }
       await expect(form.getByLabel('基金确认摘要')).toContainText('成交净值日 2026-10-26')
