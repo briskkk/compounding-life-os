@@ -83,8 +83,18 @@ test('组合目标不足 100% 时说明差额并可指定分组补足后保存',
   await expect(page.getByRole('status').getByText(/还差 31\.4%/)).toBeVisible()
   for (const width of [560, 800, 1280]) {
     await page.setViewportSize({ width, height: 900 })
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
-    expect(overflow, `${width}px 下目标差额操作区溢出`).toBeLessThanOrEqual(1)
+    const layout = await page.evaluate(() => {
+      const { clientWidth, scrollWidth } = document.documentElement
+      const overflow = scrollWidth - clientWidth
+      const offenders = overflow > 1
+        ? [...document.querySelectorAll('header, main, main *')]
+          .filter((element) => element.getBoundingClientRect().right > clientWidth + 1)
+          .slice(-12)
+          .map((element) => `${element.tagName.toLowerCase()}.${element.getAttribute('class') ?? ''}`)
+        : []
+      return { overflow, offenders }
+    })
+    expect(layout.overflow, `${width}px 下目标差额操作区溢出：${layout.offenders.join(', ')}`).toBeLessThanOrEqual(1)
   }
   await page.getByRole('button', { name: '保存组合目标' }).click()
   await expect(page.locator('.allocation-editor-footer').getByRole('alert')).toContainText('还差 31.4%')

@@ -7189,6 +7189,12 @@ nav[aria-label="主导航"] a {
   gap: 0.8rem;
 }
 
+.allocation-drift-label > div,
+.allocation-editor-rows > label > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .allocation-drift-label > i {
   width: 4px;
   height: 32px;
@@ -7301,6 +7307,11 @@ nav[aria-label="主导航"] a {
   align-items: center;
   gap: 0.4rem;
   width: 95px;
+}
+
+.allocation-tolerance input {
+  width: 100%;
+  min-width: 0;
 }
 
 .allocation-editor-rows {
@@ -10025,7 +10036,7 @@ html[data-theme='light'] .terminal-main .overview-net-worth {
 @media (max-width: 900px) {
   .allocation-status-hero,
   .allocation-workbench {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .allocation-status-hero {
@@ -10057,7 +10068,7 @@ html[data-theme='light'] .terminal-main .overview-net-worth {
   .allocation-status-metrics > div:first-child { border-top: 0; }
 
   .allocation-drift-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.75rem;
     padding: 1rem;
   }
