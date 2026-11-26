@@ -195,10 +195,10 @@ export function parseCsvRows(rows: Record<string, string>[], lookup: CsvLookup):
     const timeRaw = mapped.time
     const assetId = mapped.symbol ? lookup.assetBySymbol.get(mapped.symbol.toUpperCase()) : undefined
     const asset = assetId ? lookup.assetInfoById?.get(assetId) : undefined
-    // 日期 + 可选时间（HH:mm 或 HH:mm:ss，本地时刻）：基金买卖据此区分 15:00 前/后的成交净值日
+    // A股及场外基金的明确成交时间按北京时间解析；基金据此区分 15:00 临界。
     let occurredAt: Date | null = null
     if (dateRaw && timeRaw) {
-      occurredAt = new Date(`${dateRaw}T${timeRaw}${asset && isAShareAsset(asset) ? '+08:00' : ''}`)
+      occurredAt = new Date(`${dateRaw}T${timeRaw}${asset && (isAShareAsset(asset) || asset.cls === 'FUND') ? '+08:00' : ''}`)
     } else if (dateRaw) {
       occurredAt = asset && isAShareAsset(asset) && /^\d{4}-\d{2}-\d{2}$/.test(dateRaw)
         ? defaultTransactionDate(dateRaw, asset)

@@ -2,6 +2,7 @@
 // 纯函数、零依赖：Web 表单与移动端共用同一套确认口径。
 // 交易日历采用已公布的中国市场休市安排；覆盖范围外明确回退周末规则。
 import { isChinaFundTradingDay } from './china-trading-calendar'
+import { dateKeyAt } from './watch-market'
 
 /** QDII 指数型基金的估值驱动表（仅用于可代理估值的纳指产品）。 */
 export const QDII_INDEX_MAP: Record<string, { index: string; name: string }> = {
@@ -35,13 +36,11 @@ export function isQdiiFund(symbol: string, name?: string): boolean {
 const DAY = 86400000
 
 function dayStart(d: Date): Date {
-  const x = new Date(d)
-  x.setHours(0, 0, 0, 0)
-  return x
+  return new Date(`${dateKeyAt(d)}T00:00:00+08:00`)
 }
 
 export function isWeekend(d: Date): boolean {
-  const day = d.getDay()
+  const day = new Date(`${dateKeyAt(d)}T00:00:00Z`).getUTCDay()
   return day === 0 || day === 6
 }
 
@@ -56,7 +55,7 @@ export function nextTradingDay(d: Date): Date {
 
 /** 15:00 收盘临界点：之后下单视为次一交易日订单 */
 export function isBeforeCutoff(at: Date): boolean {
-  return at.getHours() < 15
+  return (at.getUTCHours() + 8) % 24 < 15
 }
 
 /**

@@ -3,6 +3,7 @@
 // 2025: https://www.sse.com.cn/disclosure/dealinstruc/closed/c/c_20241223_10767110.shtml
 // 2026: https://www.sse.com.cn/disclosure/announcement/general/c/c_20251222_10802507.shtml
 // 基金公司仍可能因境外市场或自身安排暂停申赎；此表只替代“仅跳周末”的通用基线。
+import { dateKeyAt } from './watch-market'
 
 const CLOSED_RANGES = [
   ['2024-01-01', '2024-01-01'],
@@ -27,25 +28,18 @@ const CLOSED_RANGES = [
   ['2026-10-01', '2026-10-07'],
 ] as const
 
-function localDateKey(date: Date): string {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('-')
-}
-
 function closedByPublishedCalendar(key: string): boolean {
   return CLOSED_RANGES.some(([from, to]) => key >= from && key <= to)
 }
 
 export function isChinaFundTradingDay(date: Date): boolean {
-  const day = date.getDay()
+  const key = dateKeyAt(date)
+  const day = new Date(`${key}T00:00:00Z`).getUTCDay()
   if (day === 0 || day === 6) return false
-  return !closedByPublishedCalendar(localDateKey(date))
+  return !closedByPublishedCalendar(key)
 }
 
 export function chinaFundCalendarCoverage(date: Date): 'PUBLISHED' | 'WEEKEND_ONLY' {
-  const year = date.getFullYear()
+  const year = Number(dateKeyAt(date).slice(0, 4))
   return year >= 2024 && year <= 2026 ? 'PUBLISHED' : 'WEEKEND_ONLY'
 }

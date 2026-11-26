@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { applyCsvMapping, csvDuplicateKeys, parseCsvRows, parsedTxKey, suggestCsvMapping, type CsvLookup } from '@/lib/csv'
+import { fundNavDate } from '@/lib/engine/fund-order'
+import { dateKeyAt } from '@/lib/engine/watch-market'
 
 const lookup: CsvLookup = {
   accountByName: new Map([['华泰证券', 'acc1']]),
@@ -10,6 +12,21 @@ const lookup: CsvLookup = {
 }
 
 describe('CSV 导入解析', () => {
+  it.each([
+    ['10:30:00', '2026-10-26T02:30:00.000Z', '2026-10-26'],
+    ['15:00:00', '2026-10-26T07:00:00.000Z', '2026-10-27'],
+  ])('基金 CSV 的明确时间按北京时间解析并推算净值日：%s', (time, instant, navDay) => {
+    const fundLookup: CsvLookup = {
+      accountByName: lookup.accountByName,
+      assetBySymbol: new Map([['016701', 'fund']]),
+      assetInfoById: new Map([['fund', { symbol: '016701', cls: 'FUND' }]]),
+    }
+    const [row] = parseCsvRows([{ 日期: '2026-10-26', 时间: time, 账户: '华泰证券', 代码: '016701', 类型: '买入', 数量: '100', 单价: '1' }], fundLookup)
+    expect(row.ok).toBe(true)
+    expect(row.tx?.occurredAt.toISOString()).toBe(instant)
+    expect(dateKeyAt(fundNavDate(row.tx!.occurredAt, { qdii: true }))).toBe(navDay)
+  })
+
   it('A股日期导入默认北京时间10点，明确成交时间保留；识别旧版日期占位时间', () => {
     const withInfo = { ...lookup, assetInfoById: new Map([['asset1', { symbol: '510300', cls: 'ETF' }]]) }
     const raw = { 日期: '2026-10-09', 账户: '华泰证券', 代码: '510300', 类型: '买入', 数量: '100', 单价: '1' }

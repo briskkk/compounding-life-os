@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { fmtCNY, fmtMonth, firePaceNote } from '../lib/format'
+import { fmtCNY, fmtDate, fmtDateTime, fmtMonth, firePaceNote } from '../lib/format'
+
+describe('日期展示统一使用北京时间', () => {
+  it('基金净值日零点不因服务端使用 UTC 而显示为前一天', () => {
+    expect(fmtDate(new Date('2026-10-26T00:00:00+08:00'))).toBe('2026-10-26')
+    expect(fmtDate('2026-10-25T16:00:00.000Z')).toBe('2026-10-26')
+    expect(fmtDate('2026-10-26')).toBe('2026-10-26')
+  })
+
+  it('日期与时分在跨日、跨年边界使用同一时区', () => {
+    expect(fmtDateTime('2026-10-25T16:00:00.000Z')).toBe('2026-10-26 00:00')
+    expect(fmtDateTime('2026-12-31T16:30:00.000Z')).toBe('2027-01-01 00:30')
+    expect(fmtDateTime(new Date('2026-10-26T07:00:00.000Z'))).toBe('2026-10-26 15:00')
+  })
+})
 
 describe('fmtCNY compact（坐标轴标签）', () => {
   it('整万/整亿去掉多余的 .0', () => {

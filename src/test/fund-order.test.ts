@@ -5,10 +5,10 @@ import { chinaFundCalendarCoverage, isChinaFundTradingDay } from '@/lib/engine/c
 import { foldTransactions, holdingsIndex, pendingFundPurchasesAt, pendingSettlementsAt, type LedgerTx } from '@/lib/engine/ledger'
 import { assertTransactionRules, assertTransactionTimeline } from '@/lib/transaction-rules'
 import { buildSettlementLegs } from '@/lib/engine/settlement'
+import { dateKeyAt } from '@/lib/engine/watch-market'
 
-const D = (s: string) => new Date(`${s}T12:00:00`)
-// 本地日期键（与系统中国时区口径一致；不用 toISOString 避免 UTC 差一天）
-const key = (d: Date) => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
+const D = (s: string) => new Date(`${s}T12:00:00+08:00`)
+const key = (d: Date) => dateKeyAt(d)
 
 function tx(partial: Partial<LedgerTx> & Pick<LedgerTx, 'type'>): LedgerTx {
   return {
@@ -26,34 +26,34 @@ function tx(partial: Partial<LedgerTx> & Pick<LedgerTx, 'type'>): LedgerTx {
 
 describe('基金确认日推算（fund-order）', () => {
   it('工作日 15:00 前下单按当日净值确认', () => {
-    const nav = fundNavDate(D('2025-01-06'), { qdii: false, submittedAt: new Date('2025-01-06T10:00:00') })
+    const nav = fundNavDate(D('2025-01-06'), { qdii: false, submittedAt: new Date('2025-01-06T10:00:00+08:00') })
     expect(key(nav)).toBe('2025-01-06')
   })
 
   it('15:00 后下单顺延到次一交易日', () => {
-    const nav = fundNavDate(D('2025-01-06'), { qdii: false, submittedAt: new Date('2025-01-06T15:30:00') })
+    const nav = fundNavDate(D('2025-01-06'), { qdii: false, submittedAt: new Date('2025-01-06T15:30:00+08:00') })
     expect(key(nav)).toBe('2025-01-07')
   })
 
   it('历史补录按记录时刻区分 15:00 临界：同日 10:30 卖出按当日净值，16:00 卖出按次日净值', () => {
-    const morning = fundNavDate(D('2025-01-06'), { qdii: false, submittedAt: new Date('2025-01-06T10:30:00') })
+    const morning = fundNavDate(D('2025-01-06'), { qdii: false, submittedAt: new Date('2025-01-06T10:30:00+08:00') })
     expect(key(morning)).toBe('2025-01-06')
-    const evening = fundNavDate(D('2025-01-06'), { qdii: false, submittedAt: new Date('2025-01-06T16:00:00') })
+    const evening = fundNavDate(D('2025-01-06'), { qdii: false, submittedAt: new Date('2025-01-06T16:00:00+08:00') })
     expect(key(evening)).toBe('2025-01-07')
   })
 
   it('周末下单顺延到周一；QDII 的 T+2 确认不改变成交净值日', () => {
     const sat = fundNavDate(D('2025-01-04'), { qdii: false, submittedAt: D('2025-01-04') })
     expect(key(sat)).toBe('2025-01-06')
-    const qdii = fundNavDate(D('2025-01-06'), { qdii: true, submittedAt: new Date('2025-01-06T10:00:00') })
+    const qdii = fundNavDate(D('2025-01-06'), { qdii: true, submittedAt: new Date('2025-01-06T10:00:00+08:00') })
     expect(key(qdii)).toBe('2025-01-06')
     expect(key(fundConfirmationDate(qdii, { qdii: true }))).toBe('2025-01-08')
   })
 
   it('019671 在 8/20 15:00 前卖出采用 8/20 净值，T+2 仅表示确认延迟', () => {
     const qdii = isQdiiFund('019671', '广发港股创新药ETF联接(QDII)C')
-    const before = fundNavDate(D('2026-08-20'), { qdii, submittedAt: new Date('2026-08-20T10:00:00') })
-    const after = fundNavDate(D('2026-08-20'), { qdii, submittedAt: new Date('2026-08-20T16:00:00') })
+    const before = fundNavDate(D('2026-08-20'), { qdii, submittedAt: new Date('2026-08-20T10:00:00+08:00') })
+    const after = fundNavDate(D('2026-08-20'), { qdii, submittedAt: new Date('2026-08-20T16:00:00+08:00') })
     expect(key(before)).toBe('2026-08-20')
     expect(key(after)).toBe('2026-08-21')
     expect(key(fundConfirmationDate(before, { qdii }))).toBe('2026-08-24')
@@ -89,6 +89,29 @@ describe('基金确认日推算（fund-order）', () => {
   it('公开日历覆盖范围外明确回退周末规则', () => {
     expect(chinaFundCalendarCoverage(D('2026-08-24'))).toBe('PUBLISHED')
     expect(chinaFundCalendarCoverage(D('2027-01-04'))).toBe('WEEKEND_ONLY')
+  })
+
+  it('北京时间周一零点的净值日，普通基金 T+1、QDII T+2 不受 UTC 前一天影响', () => {
+    const nav = new Date('2026-10-25T16:00:00.000Z')
+    expect(isChinaFundTradingDay(nav)).toBe(true)
+    expect(key(fundConfirmationDate(nav, { qdii: false }))).toBe('2026-10-27')
+    expect(key(fundConfirmationDate(nav, { qdii: true }))).toBe('2026-10-28')
+    expect(key(fundSettlementDate(nav, { qdii: false }))).toBe('2026-10-28')
+    expect(key(fundSettlementDate(nav, { qdii: true }))).toBe('2026-11-02')
+  })
+
+  it.each([
+    ['2026-10-26T06:59:59Z', '2026-10-26'],
+    ['2026-10-26T07:00:00Z', '2026-10-27'],
+    ['2026-10-25T16:01:00Z', '2026-10-26'],
+    ['2026-10-07T16:01:00Z', '2026-10-08'],
+  ])('按北京时间处理 15 点和休市边界：%s', (input, expected) => {
+    expect(key(fundNavDate(new Date(input), { qdii: true }))).toBe(expected)
+  })
+
+  it('日历覆盖年份也按北京时间跨年', () => {
+    expect(chinaFundCalendarCoverage(new Date('2023-12-31T16:00:00Z'))).toBe('PUBLISHED')
+    expect(chinaFundCalendarCoverage(new Date('2026-12-31T16:00:00Z'))).toBe('WEEKEND_ONLY')
   })
 })
 

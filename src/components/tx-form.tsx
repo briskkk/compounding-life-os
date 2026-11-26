@@ -10,16 +10,12 @@ import { TX_TYPE_LABEL } from '@/lib/labels'
 import type { TxType } from '@/lib/engine/types'
 import { estimateShares, fundConfirmationDate, fundNavDate, fundSettlementDate, isQdiiFund } from '@/lib/engine/fund-order'
 import { isFundPurchaseSuspended, purchaseFeeReference } from '@/lib/engine/fund-policy'
-import { cx, fmtMoney, fmtPrice, fmtQty } from '@/lib/format'
+import { cx, fmtDate, fmtMoney, fmtPrice, fmtQty } from '@/lib/format'
 import { transactionPayment } from '@/lib/engine/transaction-payment'
 import { defaultTransactionDate, isAShareAsset } from '@/lib/engine/trade-time'
 
 const NEEDS_QTY: TxType[] = ['BUY', 'SELL', 'TRANSFER_IN', 'TRANSFER_OUT']
 const NEEDS_PRICE: TxType[] = ['BUY', 'SELL']
-
-function localDateInput(date: Date): string {
-  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-')
-}
 
 /** 卖出时按账户 + 资产定位的当前持仓（服务端折叠注入） */
 export interface HoldingInfo {
@@ -101,7 +97,7 @@ export function TxForm({
   const requestKeyRef = useRef<string>(newRequestKey())
   const submittingRef = useRef(false)
   const formRef = useRef<HTMLFormElement>(null)
-  const [dateText, setDateText] = useState(localDateInput(new Date()))
+  const [dateText, setDateText] = useState(fmtDate(new Date()))
   const [qtyText, setQtyText] = useState('')
   const [priceText, setPriceText] = useState('')
   const [amountText, setAmountText] = useState('')
@@ -127,10 +123,9 @@ export function TxForm({
 
   const holding = holdings[`${accountId}:${assetId}`] ?? null
   const qdii = isFund ? isQdiiFund(selectedAsset?.symbol ?? '', selectedAsset?.name) : false
-  const orderDate = new Date(`${dateText}T12:00:00`)
+  const orderDate = new Date(`${dateText}T12:00:00+08:00`)
   // 以 15:00 前/后选择构造临界探针（前后各留余量），决定成交净值所属日
-  const cutoffProbe = new Date(orderDate.getTime())
-  cutoffProbe.setHours(beforeCutoff ? 9 : 16, 0, 0, 0)
+  const cutoffProbe = new Date(`${dateText}T${beforeCutoff ? '09' : '16'}:00:00+08:00`)
   const navDate = isFund && (type === 'BUY' || type === 'SELL')
     ? fundNavDate(orderDate, { qdii, submittedAt: cutoffProbe })
     : null
@@ -138,8 +133,8 @@ export function TxForm({
     ? fundSettlementDate(navDate, { qdii })
     : null
   const confirmationDate = navDate ? fundConfirmationDate(navDate, { qdii }) : null
-  const effectiveSettleDateText = settleTouched ? settleDateText : (defaultSettleDate ? localDateInput(defaultSettleDate) : '')
-  const fundNavLabel = navDate ? localDateInput(navDate) : null
+  const effectiveSettleDateText = settleTouched ? settleDateText : (defaultSettleDate ? fmtDate(defaultSettleDate) : '')
+  const fundNavLabel = navDate ? fmtDate(navDate) : null
   const fundPolicy = selectedAsset?.fundPolicy ?? null
   const purchaseSuspended = Boolean(isFund && type === 'BUY' && fundPolicy && isFundPurchaseSuspended(orderDate, {
     purchaseSuspendedFrom: fundPolicy.purchaseSuspendedFrom ? new Date(fundPolicy.purchaseSuspendedFrom) : null,
@@ -254,7 +249,7 @@ export function TxForm({
       amt = qty * px
     }
     if (isFund && type === 'SELL' && effectiveSettleDateText) {
-      settleDateValue = new Date(`${effectiveSettleDateText}T12:00:00`)
+      settleDateValue = new Date(`${effectiveSettleDateText}T12:00:00+08:00`)
     }
 
     if (sellOvershoot) {
@@ -569,7 +564,7 @@ export function TxForm({
           )}
           {qdii && confirmationDate && (
             <p className="mt-1 text-ink-dim">
-              预计确认日 <span className="num text-ink">{localDateInput(confirmationDate)}</span>
+              预计确认日 <span className="num text-ink">{fmtDate(confirmationDate)}</span>
               <span className="text-ink-faint"> · QDII · T+2 确认</span>
             </p>
           )}

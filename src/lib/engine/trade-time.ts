@@ -7,6 +7,7 @@ export function isAShareAsset(asset: { symbol: string; cls: string }): boolean {
 
 /** 日期录入的产品默认时刻，不代表券商确认的真实成交时间。 */
 export function defaultTransactionDate(date: string, asset?: { symbol: string; cls: string }): Date {
+  if (asset?.cls === 'FUND') return new Date(`${date}T12:00:00+08:00`)
   return asset && isAShareAsset(asset)
     ? new Date(`${date}T10:00:00+08:00`)
     : new Date(`${date}T12:00:00`)
