@@ -1,4 +1,13 @@
 // 展示格式化：精确金额默认（两位小数）；万/亿缩写仅在图表轴等空间受限处显式开启
+import { dateKeyAt } from '@/lib/engine/watch-market'
+
+const beijingTimeFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Shanghai',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ')
 }
@@ -62,12 +71,12 @@ export function firePaceNote(estimatedMonths: number | null, monthsLeft: number)
 
 export function fmtDate(d: Date | string): string {
   const date = typeof d === 'string' ? new Date(d) : d
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  return dateKeyAt(date)
 }
 
 export function fmtDateTime(d: Date | string): string {
   const date = typeof d === 'string' ? new Date(d) : d
-  return `${fmtDate(date)} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  return `${fmtDate(date)} ${beijingTimeFormatter.format(date)}`
 }
 
 /** 中式配色：涨/正 = 红（up），跌/负 = 绿（down） */
