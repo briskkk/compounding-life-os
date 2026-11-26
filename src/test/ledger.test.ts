@@ -18,6 +18,24 @@ function tx(partial: Partial<LedgerTx> & Pick<LedgerTx, 'type'>): LedgerTx {
 }
 
 describe('账本折叠（移动平均成本）', () => {
+  it.each([0, 2])('基金确认份额舍入后，成本仍按实际成交金额加 %s 元费用累计', (fee) => {
+    const [position] = foldTransactions([
+      tx({ type: 'BUY', assetClass: 'FUND', quantity: 489.30, price: 2.0437, amount: 1000, fee }),
+    ])
+    expect(position.quantity).toBe(489.30)
+    expect(position.costBasis).toBe(1000 + fee)
+  })
+
+  it('基金按确认净值全部赎回后，舍入损失从实际申购成本释放', () => {
+    const [position] = foldTransactions([
+      tx({ type: 'BUY', assetClass: 'FUND', quantity: 489.30, price: 2.0437, amount: 1000 }),
+      tx({ type: 'SELL', assetClass: 'FUND', quantity: 489.30, price: 2.0437, amount: 999.98241, occurredAt: D('2025-02-01') }),
+    ])
+    expect(position.quantity).toBe(0)
+    expect(position.costBasis).toBe(0)
+    expect(position.realizedPnl).toBeCloseTo(-0.01759, 6)
+  })
+
   it('买入累计数量与成本', () => {
     const [pos] = foldTransactions([
       tx({ type: 'BUY', quantity: 100, price: 10, amount: 1000 }),

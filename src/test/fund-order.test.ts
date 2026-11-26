@@ -1,6 +1,6 @@
 // 基金确认/到账推算 + 账本可用份额与在途资金（ADR-012）
 import { describe, expect, it } from 'vitest'
-import { estimateShares, fundConfirmationDate, fundNavDate, fundSettlementDate, isQdiiFund, nextTradingDay } from '@/lib/engine/fund-order'
+import { canConfirmFundShares, estimateShares, fundConfirmationDate, fundNavDate, fundSettlementDate, isQdiiFund, nextTradingDay } from '@/lib/engine/fund-order'
 import { chinaFundCalendarCoverage, isChinaFundTradingDay } from '@/lib/engine/china-trading-calendar'
 import { foldTransactions, holdingsIndex, pendingFundPurchasesAt, pendingSettlementsAt, type LedgerTx } from '@/lib/engine/ledger'
 import { assertTransactionRules, assertTransactionTimeline } from '@/lib/transaction-rules'
@@ -9,6 +9,22 @@ import { dateKeyAt } from '@/lib/engine/watch-market'
 
 const D = (s: string) => new Date(`${s}T12:00:00+08:00`)
 const key = (d: Date) => dateKeyAt(d)
+
+describe('平台确认份额的舍入边界', () => {
+  it.each([
+    [489.30, true], [489.31, true], [489.32, false], [489.29, false],
+    [489.305, false], [0, false], [1e-9, false], [-1, false], [Number.NaN, false], [Number.POSITIVE_INFINITY, false],
+  ])('1000 元、净值 2.0437 时平台 %s 份可确认：%s', (quantity, expected) => {
+    expect(canConfirmFundShares(1000, 2.0437, quantity)).toBe(expected)
+  })
+
+  it('份额舍入范围按净值缩放，不受固定金额容差替代', () => {
+    expect(canConfirmFundShares(1000, 10, 99.99)).toBe(true)
+    expect(canConfirmFundShares(1000, 0.01, 99999)).toBe(false)
+    expect(canConfirmFundShares(0, 2.0437, 489.30)).toBe(false)
+    expect(canConfirmFundShares(1000, 0, 489.30)).toBe(false)
+  })
+})
 
 function tx(partial: Partial<LedgerTx> & Pick<LedgerTx, 'type'>): LedgerTx {
   return {
@@ -220,6 +236,13 @@ describe('申购待确认（pendingFundPurchasesAt）', () => {
 })
 
 describe('基金交易规则（容差与可用份额）', () => {
+  it('高净值基金的一个最小份额舍入能通过金额校验，超出仍拒绝', () => {
+    const draft = { type: 'BUY' as const, quantity: 99.99, price: 10, amount: 1000, occurredAt: D('2026-10-26') }
+    const asset = { cls: 'FUND' as const, manual: false }
+    expect(() => assertTransactionRules(draft, asset)).not.toThrow()
+    expect(() => assertTransactionRules({ ...draft, quantity: 99.98 }, asset)).toThrow(/成交金额/)
+  })
+
   const fund = { cls: 'FUND' as const, manual: false }
   const stock = { cls: 'STOCK' as const, manual: false }
 

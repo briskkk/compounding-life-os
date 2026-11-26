@@ -43,7 +43,8 @@ export function applyTransaction(pos: Position, tx: TxInput, cls: AssetClass): v
   switch (tx.type) {
     case 'BUY': {
       pos.quantity += q
-      pos.costBasis = roundMoney(pos.costBasis + q * p + tx.fee)
+      // 基金确认份额舍入不改变实际成交支出（ADR-002）。
+      pos.costBasis = roundMoney(pos.costBasis + (cls === 'FUND' ? tx.amount : q * p) + tx.fee)
       break
     }
     case 'SELL': {

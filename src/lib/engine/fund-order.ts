@@ -91,7 +91,17 @@ export function fundSettlementDate(navDate: Date, opts: { qdii: boolean }): Date
   return d
 }
 
-/** 按金额申购的预计份额（基金份额按两位小数确认） */
+export const FUND_SHARE_STEP = 0.01
+
+/** 平台确认份额可采用不同舍入方式，差异限于一个最小份额单位。 */
+export function canConfirmFundShares(amount: number, nav: number, quantity: number): boolean {
+  if (![amount, nav, quantity].every((value) => Number.isFinite(value) && value > 0)) return false
+  const roundedQuantity = Math.round(quantity * 100) / 100
+  if (roundedQuantity <= 0 || Math.abs(quantity - roundedQuantity) > 1e-8) return false
+  return Math.abs(quantity - amount / nav) <= FUND_SHARE_STEP + 1e-8
+}
+
+/** 按金额申购的预计份额（仅供预填，平台确认份额优先）。 */
 export function estimateShares(amount: number, nav: number): number {
   if (nav <= 0) return 0
   return Math.round((amount / nav) * 100) / 100
