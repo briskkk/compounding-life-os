@@ -65,12 +65,16 @@ test('资产设置：无流水资产可完整修改并安全删除', async ({ pa
 })
 
 test('总览、看盘与账户的今日盈亏使用同一交易日口径', async ({ page }) => {
-  // 先预热行情缓存：冷启动时服务端 SWR 会先用持久化行情的 stale 值渲染一次，
-  // 与看盘的实时值可能差一次刷新（实测 overview 与 watch 各差 525 元）。
-  // 本用例验证的是「口径是否一致」，因此先让缓存进入 fresh 状态再比较。
-  await page.goto('/watch')
-  await page.getByTestId('watch-today-pnl').waitFor()
-  await page.waitForTimeout(800)
+  // 等待报价请求完成来预热共享缓存；固定等待 800ms 不能保证慢源已经返回。
+  // 比较同一份报价证据，分钟线与下一次轮询不应改变本次跨页面口径断言。
+  const response = await page.request.get('/api/prices?symbols=600519,300750,510300,110022,AU9999')
+  expect(response.ok()).toBe(true)
+  const prices = await response.json()
+  expect(prices.quotes.map((quote: { symbol: string }) => quote.symbol)).toEqual(
+    expect.arrayContaining(['600519', '300750', '510300', 'AU9999']),
+  )
+  await page.route('**/api/prices?**', (route) => route.fulfill({ json: prices }))
+  await page.route('**/api/intraday?**', (route) => route.fulfill({ json: { asOf: new Date().toISOString(), series: {} } }))
 
   await page.goto('/')
   const overviewAmount = await page.getByTestId('overview-today-pnl').getAttribute('data-amount')
