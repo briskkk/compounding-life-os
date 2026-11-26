@@ -271,6 +271,39 @@ describe('correctEstimatedFundTransactionRecord（官方净值修正）', () => 
 })
 
 describe('基金确认共享服务（Web Action / App REST 同源）', () => {
+  it('平台确认 489.30 份时保留实际份额、1000 元金额及原手续费和现金腿', async () => {
+    const navDate = new Date('2026-05-07T00:00:00+08:00')
+    const original = await base.$transaction((tx) => createTransactionRecord(tx, ctx, {
+      accountId: brokerId, assetId: fundId, type: 'BUY', quantity: null, price: null,
+      amount: 1000, fee: 0, occurredAt: new Date('2026-05-07T10:00:00+08:00'),
+      navDate, navSource: 'PENDING', note: '平台实际确认份额', settleCash: true,
+    }))
+    await base.priceBar.create({ data: { symbol: 'SVCF01', date: navDate, close: 2.0437, source: 'EASTMONEY-FUND' } })
+    expect((await previewFundOfficialNavRecord(base, ctx, original.id)).calculatedQuantity).toBe(489.31)
+    const beforeCount = await base.transaction.count({ where: { familyId: famId } })
+    for (const invalid of [489.32, 489.305, 0, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(confirmFundOfficialNavRecord(base, ctx, original.id, invalid)).rejects.toThrow()
+    }
+    await expect(confirmFundOfficialNavRecord(base, { ...ctx, familyId: 'another-family' }, original.id, 489.30)).rejects.toThrow()
+    await expect(base.$transaction((tx) => correctEstimatedFundTransactionRecord(tx, ctx, original.id, 2.0437, 489.32))).rejects.toThrow(/舍入范围/)
+    expect(await base.transaction.count({ where: { familyId: famId } })).toBe(beforeCount)
+    expect((await base.transaction.findUniqueOrThrow({ where: { id: original.id } })).voidedAt).toBeNull()
+    const result = await confirmFundOfficialNavRecord(base, ctx, original.id, 489.30)
+    expect(result.newQuantity).toBe(489.30)
+    const corrected = await base.transaction.findUniqueOrThrow({ where: { id: result.id } })
+    expect(Number(corrected.quantity)).toBe(489.30)
+    expect(Number(corrected.price)).toBe(2.0437)
+    expect(Number(corrected.amount)).toBe(1000)
+    expect(Number(corrected.fee)).toBe(0)
+    expect(corrected.navSource).toBe('OFFICIAL')
+    expect((await base.transaction.findUniqueOrThrow({ where: { id: original.id } })).voidedAt).not.toBeNull()
+    const cashLeg = await base.transaction.findFirstOrThrow({ where: { settleOfId: corrected.id, voidedAt: null } })
+    expect(Number(cashLeg.amount)).toBe(1000)
+    expect((await base.transaction.findFirstOrThrow({ where: { settleOfId: original.id } })).voidedAt).not.toBeNull()
+    const audit = await base.auditLog.findFirstOrThrow({ where: { entityId: corrected.id, action: 'FUND_NAV_CORRECT' } })
+    expect(audit.detail).toContain('参考 489.31，平台确认 489.3')
+  })
+
   it('从已落库官方净值确认 PENDING 申购并重建为 OFFICIAL 流水', async () => {
     const navDate = new Date('2026-05-06T00:00:00+08:00')
     const original = await base.$transaction((tx) => createTransactionRecord(tx, ctx, {
@@ -299,7 +332,7 @@ describe('基金确认共享服务（Web Action / App REST 同源）', () => {
       calculatedQuantity: 400,
       source: 'EASTMONEY-FUND',
     })
-    await expect(confirmFundOfficialNavRecord(base, ctx, original.id, 399.99)).rejects.toThrow(/平台份额与账本推算不一致/)
+    await expect(confirmFundOfficialNavRecord(base, ctx, original.id, 399.98)).rejects.toThrow(/超出舍入范围/)
     expect((await base.transaction.findUnique({ where: { id: original.id } }))?.voidedAt).toBeNull()
 
     const result = await confirmFundOfficialNavRecord(base, ctx, original.id, 400)

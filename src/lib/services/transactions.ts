@@ -7,7 +7,7 @@ import { rebuildSnapshots } from '@/lib/snapshots'
 import type { FamilyCtx } from '@/lib/scoped'
 import { buildSettlementLegs } from '@/lib/engine/settlement'
 import { foldTransactions, roundMoney, type LedgerTx } from '@/lib/engine/ledger'
-import { estimateShares, fundConfirmationDate, fundNavDate, isQdiiFund } from '@/lib/engine/fund-order'
+import { canConfirmFundShares, estimateShares, fundConfirmationDate, fundNavDate, isQdiiFund } from '@/lib/engine/fund-order'
 import { isFundPurchaseSuspended } from '@/lib/engine/fund-policy'
 import { assertTransactionRules, assertTransactionTimeline, type TransactionDraft } from '@/lib/transaction-rules'
 import type { TxInputData } from '@/lib/schemas'
@@ -285,6 +285,7 @@ export async function correctEstimatedFundTransactionRecord(
   ctx: FamilyCtx,
   id: string,
   officialNav: number,
+  confirmedQuantity?: number,
 ): Promise<{
   id: string
   affectedSince: Date
@@ -308,9 +309,14 @@ export async function correctEstimatedFundTransactionRecord(
   }
   const oldQuantity = Number(original.quantity ?? 0)
   const oldPrice = Number(original.price ?? 0)
-  const newQuantity = original.type === 'BUY'
+  if (confirmedQuantity != null && (original.type !== 'BUY'
+    || !canConfirmFundShares(Number(original.amount), officialNav, confirmedQuantity))) {
+    throw new Error('平台确认份额无效或差异超出舍入范围')
+  }
+  const buyQuantity = confirmedQuantity == null
     ? estimateShares(Number(original.amount), officialNav)
-    : oldQuantity
+    : Math.round(confirmedQuantity * 100) / 100
+  const newQuantity = original.type === 'BUY' ? buyQuantity : oldQuantity
   if (newQuantity <= 0) throw new Error('官方净值无法得到有效份额')
   const newAmount = original.type === 'BUY'
     ? Number(original.amount)
@@ -340,7 +346,8 @@ export async function correctEstimatedFundTransactionRecord(
     action: 'FUND_NAV_CORRECT',
     entity: 'Transaction',
     entityId: corrected.id,
-    detail: `${original.id}：${oldPrice} → ${officialNav}；${oldQuantity} → ${newQuantity}`,
+    detail: `${original.id}：${oldPrice} → ${officialNav}；${oldQuantity} → ${newQuantity}`
+      + (confirmedQuantity == null ? '' : `；参考 ${estimateShares(Number(original.amount), officialNav)}，平台确认 ${newQuantity}`),
   })
   return {
     id: corrected.id,

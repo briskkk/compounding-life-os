@@ -2,7 +2,7 @@ import type { PrismaClient } from '@prisma/client'
 import { auditedTransaction, recordAudit } from '@/lib/audit'
 import type { FamilyCtx } from '@/lib/scoped'
 import { dateKeyAt } from '@/lib/engine/watch-market'
-import { estimateShares } from '@/lib/engine/fund-order'
+import { canConfirmFundShares, estimateShares } from '@/lib/engine/fund-order'
 import { fundNavQuoteOnDate } from '@/lib/market/fund-nav'
 import { correctEstimatedFundTransactionRecord, rebuildSnapshotsForFamily } from './transactions'
 
@@ -84,12 +84,16 @@ export async function confirmFundOfficialNavRecord(
       throw new Error('平台确认份额必须为正数')
     }
     const normalized = Math.round(confirmedQuantity * 100) / 100
-    if (Math.abs(normalized - preview.calculatedQuantity) > 0.005) {
-      throw new Error(`平台份额与账本推算不一致：平台 ${normalized.toFixed(2)} 份，账本 ${preview.calculatedQuantity.toFixed(2)} 份`)
+    if (Math.abs(normalized - confirmedQuantity) > 1e-8) throw new Error('平台确认份额最多保留两位小数')
+    if (preview.type === 'BUY' && !canConfirmFundShares(preview.amount, preview.officialNav, normalized)) {
+      throw new Error(`平台份额差异超出舍入范围：平台 ${normalized.toFixed(2)} 份，参考 ${preview.calculatedQuantity.toFixed(2)} 份；请核对金额、费用和净值日`)
+    }
+    if (preview.type === 'SELL' && Math.abs(normalized - preview.calculatedQuantity) > 0.005) {
+      throw new Error('赎回确认不能修改已记录份额')
     }
   }
   const corrected = await auditedTransaction(db, ctx.familyId, (txDb) =>
-    correctEstimatedFundTransactionRecord(txDb, ctx, id, preview.officialNav),
+    correctEstimatedFundTransactionRecord(txDb, ctx, id, preview.officialNav, preview.type === 'BUY' ? confirmedQuantity : undefined),
   )
   const warning = await rebuildSnapshotsForFamily(db, ctx.familyId, corrected.affectedSince)
   return { ...corrected, warning }

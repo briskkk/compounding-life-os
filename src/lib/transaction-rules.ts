@@ -1,4 +1,5 @@
 import type { AssetClass } from './engine/types'
+import { FUND_SHARE_STEP } from './engine/fund-order'
 
 export interface TransactionDraft {
   type: 'BUY' | 'SELL' | 'DIVIDEND' | 'INTEREST' | 'FEE' | 'DEPOSIT' | 'WITHDRAW' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'VALUATION' | 'VEST' | 'SHARE_ADJUSTMENT' | 'COST_ADJUSTMENT'
@@ -60,9 +61,9 @@ export function assertTransactionRules(
     const expected = (draft.quantity ?? 0) * (draft.price ?? 0)
     // 基金份额按两位小数确认，「金额 = 份额 × 净值」存在舍入误差；其余资产保持严格口径
     const tolerance = asset.cls === 'FUND'
-      ? Math.max(0.05, Math.abs(expected) * 1e-5)
+      ? Math.max(0.05, Math.abs(expected) * 1e-5, Math.abs(draft.price ?? 0) * FUND_SHARE_STEP)
       : Math.max(0.01, Math.abs(expected) * 1e-8)
-    if (Math.abs(draft.amount - expected) > tolerance) {
+    if (Math.abs(draft.amount - expected) > tolerance + EPSILON) {
       throw new Error(`成交金额应等于数量 × 单价（应为 ${expected.toFixed(2)}）`)
     }
   }
