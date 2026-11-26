@@ -4,26 +4,26 @@
 @import "./review-workspace.css";
 
 @theme {
-  --color-bg: #201d19;
-  --color-panel: #29241f;
-  --color-panel2: #362e26;
-  --color-line: #55493b;
-  --color-ink: #fbf0dc;
-  --color-ink-dim: #dccbb2;
-  --color-ink-faint: #c7b8a1;
-  --color-accent: #81ded1;
-  --color-up: #ffa184;
-  --color-down: #8ed7ab;
-  --color-info: #81ded1;
-  --color-violet: #c6adfa;
-  --color-teal: #76d5cb;
-  --color-amber: #f1c964;
+  --color-bg: #121315;
+  --color-panel: #1a1c1f;
+  --color-panel2: #24262b;
+  --color-line: #35383f;
+  --color-ink: #f4f4f5;
+  --color-ink-dim: #b4b4be;
+  --color-ink-faint: #a1a1aa;
+  --color-accent: #f4f4f5;
+  --color-up: #ff9aa8;
+  --color-down: #79d4aa;
+  --color-info: #92b8ff;
+  --color-violet: #c4b5fd;
+  --color-teal: #79d4c5;
+  --color-amber: #f4c274;
   /* 错误/危险语义色：与涨跌色分离（浅色主题见 themes.css） */
-  --color-danger: #ff9292;
-  /* 强调色底上的文字色：保证浅色主题下也满足对比度（勿硬编码 #201d19） */
-  --color-on-accent: #201d19;
-  --font-sans: Nunito, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  --font-display: "Baloo 2", "PingFang SC", "Trebuchet MS", "Microsoft YaHei", system-ui, sans-serif;
+  --color-danger: #ffb0a8;
+  /* 强调色底上的文字色：保证浅色主题下也满足对比度（勿硬编码 #121315） */
+  --color-on-accent: #18181b;
+  --font-sans: "Inter Variable", "Noto Sans SC Variable", system-ui, sans-serif;
+  --font-display: var(--font-sans);
   /* 原有等宽类保留为排版入口，金额继续用 tabular-nums 对齐。 */
   --font-mono: var(--font-sans);
   /* 字号下限：正文之外的最小一级。低于 12px 的中文与数字在 1440 以下难以辨认，
@@ -1033,7 +1033,7 @@ body {
   min-width: 320px;
   background: var(--color-bg);
   color: var(--color-ink);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-family: var(--font-sans);
   font-size: 16px;
   line-height: 1.6;
   letter-spacing: -0.008em;
@@ -1066,7 +1066,7 @@ select {
   letter-spacing: -0.01em;
 }
 
-/* 数据表格统一走等宽栈：拉丁/数字用 JetBrains Mono，中文回退苹方 */
+/* 中文使用 Noto Sans SC，英文与数字使用 Inter；金额单独启用等宽数字。 */
 td,
 th {
   font-family: var(--font-mono);
@@ -1089,7 +1089,7 @@ th {
   padding-block: 3.5rem 5rem;
 }
 
-/* 持仓页首屏节奏：hero → 估值口径 → 筛选 → 表格之间用区间距下限（40px），让表头进入首屏 */
+/* 兼容页面基础结构；正式工作区的紧凑间距由 compound-workspace.css 统一。 */
 .positions-shell {
   gap: 2.5rem;
 }
@@ -2626,7 +2626,7 @@ button.returns-cal-cell:hover {
   grid-template-columns: minmax(0, 1fr) clamp(300px, 28%, 380px);
   border: 1px solid var(--color-line);
   border-radius: var(--terminal-radius);
-  background: var(--doodle-sheet);
+  background: var(--color-panel);
 }
 
 .watch-chart-panel,
@@ -8259,14 +8259,14 @@ nav[aria-label="主导航"] a {
 :root {
   --terminal-sidebar: 248px;
   --terminal-topbar: 68px;
-  --terminal-radius: 2px;
-  --radius-xs: 2px;
-  --radius-sm: 2px;
-  --radius-md: 2px;
-  --radius-lg: 2px;
-  --radius-pill: 2px;
-  --shadow-card: 4px 4px 0 var(--doodle-yellow);
-  --shadow-pop: 5px 5px 0 var(--doodle-teal);
+  --terminal-radius: 10px;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+  --shadow-card: none;
+  --shadow-pop: 0 16px 48px rgba(0, 0, 0, 0.18);
   --terminal-surface-hover: color-mix(in srgb, var(--color-accent) 5.5%, transparent);
 }
 
@@ -9353,11 +9353,6 @@ kbd {
 .terminal-main .overview-equation > div:nth-of-type(3) {
   border-color: color-mix(in srgb, var(--color-down) 18%, transparent);
   background: color-mix(in srgb, var(--color-down) 4%, transparent);
-}
-
-.terminal-main .overview-equation-result {
-  border-color: color-mix(in srgb, var(--color-accent) 32%, var(--color-line)) !important;
-  background: color-mix(in srgb, var(--color-accent) 8%, transparent) !important;
 }
 
 @media (min-width: 1025px) and (max-width: 1360px) {

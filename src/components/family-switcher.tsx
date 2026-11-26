@@ -2,6 +2,7 @@
 
 // 家庭切换：列出当前账号所属的家庭，切换当前会话家庭
 import { useTransition } from 'react'
+import { ROLE_LABEL } from '@/lib/labels'
 
 export interface FamilyOption {
   id: string
@@ -31,7 +32,7 @@ export function FamilySwitcher({ families, currentFamilyId }: { families: Family
     >
       {families.map((f) => (
         <option key={f.id} value={f.id}>
-          {f.name} · {f.role}
+          {f.name} · {ROLE_LABEL[f.role] ?? f.role}
         </option>
       ))}
     </select>

@@ -116,7 +116,7 @@ export default async function GoalsPage() {
       <header className="goal-page-header">
         <div>
           <h1>目标测算</h1>
-          <p>从真实账本出发，回答什么时候达标、每月需要投入多少</p>
+          <p>基于账本测算达成时间与所需月投入</p>
         </div>
         <Tag tone={primary ? 'info' : 'amber'}>{primary ? '1 个主目标' : '尚未保存目标'}</Tag>
       </header>
@@ -166,14 +166,14 @@ export default async function GoalsPage() {
 
           <section aria-labelledby="goal-scenario-title">
             <div className="goal-section-head">
-              <div><h2 id="goal-scenario-title">目标日可能落在哪里</h2></div>
+              <div><h2 id="goal-scenario-title">目标日资产情景</h2></div>
               <span>同一组合模型的 P10 / P50 / P90 结果</span>
             </div>
             <div className="goal-scenario-grid">
               {[
-                { label: '保守区间', value: finalPoint.p10, suffix: 'P10' },
-                { label: '基准中位', value: finalPoint.p50, suffix: 'P50' },
-                { label: '乐观区间', value: finalPoint.p90, suffix: 'P90' },
+                { label: '较低情景', value: finalPoint.p10, suffix: 'P10' },
+                { label: '中位情景', value: finalPoint.p50, suffix: 'P50' },
+                { label: '较高情景', value: finalPoint.p90, suffix: 'P90' },
               ].map((item) => (
                 <div key={item.label}>
                   <span>{item.label} · {item.suffix}</span>
@@ -187,15 +187,15 @@ export default async function GoalsPage() {
 
           <section className="goal-capital-bridge" aria-labelledby="goal-bridge-title">
             <div className="goal-section-head">
-              <div><h2 id="goal-bridge-title">本金和复利各贡献多少</h2></div>
-              <span>基准中位 · 目标日期</span>
+              <div><h2 id="goal-bridge-title">本金与收益构成</h2></div>
+              <span>中位情景 · 目标日期</span>
             </div>
             <div className="goal-bridge-equation">
               <div><span>当前资本</span><strong>{fmtCNY(primary.current)}</strong></div>
               <b>+</b>
               <div><span>后续计划投入</span><strong>{fmtCNY(primary.monthlyContribution * primary.monthsLeft)}</strong></div>
               <b>+</b>
-              <div><span>预计复利增值</span><strong className={growthAtDate >= 0 ? 'text-up' : 'text-down'}>{fmtCNY(growthAtDate)}</strong></div>
+              <div><span>预计投资收益</span><strong className={growthAtDate >= 0 ? 'text-up' : 'text-down'}>{fmtCNY(growthAtDate)}</strong></div>
               <b>=</b>
               <div><span>目标日预计资产</span><strong>{fmtCNY(finalPoint.p50)}</strong></div>
             </div>
@@ -203,7 +203,7 @@ export default async function GoalsPage() {
 
           <section className="goal-evidence" aria-labelledby="goal-evidence-title">
             <div className="goal-section-head">
-              <div><h2 id="goal-evidence-title">这次测算用了什么</h2></div>
+              <div><h2 id="goal-evidence-title">测算依据</h2></div>
               <span>事实、假设与模型分开显示</span>
             </div>
             <div className="goal-evidence-grid">
@@ -263,7 +263,7 @@ export default async function GoalsPage() {
 
               {goals.length > 1 && (
                 <section aria-labelledby="saved-goals-title">
-                  <div className="goal-section-head"><div><h2 id="saved-goals-title">既有其他目标</h2></div><span>默认只使用最早到期的一项作为主目标</span></div>
+                  <div className="goal-section-head"><div><h2 id="saved-goals-title">其他目标</h2></div><span>默认只使用最早到期的一项作为主目标</span></div>
                   <div className="goal-portfolio-list">
                     {goals.slice(1).map((goal) => (
                       <details key={goal.id}>

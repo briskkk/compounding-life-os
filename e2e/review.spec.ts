@@ -3,9 +3,9 @@ import { expect, test } from '@playwright/test'
 test('组合复盘：归因切换、周期深链与草稿保存', async ({ page }) => {
   await page.goto('/review')
 
-  await expect(page.getByRole('heading', { level: 1, name: '这段时间，钱为什么变了' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '周期复盘' })).toBeVisible()
   await expect(page.getByText('本月投资收益')).toBeVisible()
-  await expect(page.getByRole('heading', { name: '利润和亏损由谁贡献' })).toBeHidden()
+  await expect(page.getByRole('heading', { name: '收益归因' })).toBeHidden()
   await expect(page.getByLabel('结果可用性')).toContainText('收益对账')
 
   // 四步复盘：默认先看结果，再进入归因证据
@@ -14,7 +14,7 @@ test('组合复盘：归因切换、周期深链与草稿保存', async ({ page 
   await expect(page.getByText('资金体验 MWR（区间）')).toBeVisible()
   await workflow.getByRole('button', { name: /2 · 归因/ }).click()
   await expect(page).toHaveURL(/step=attribution/)
-  await expect(page.getByRole('heading', { name: '利润和亏损由谁贡献' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '收益归因' })).toBeVisible()
   await expect(page.locator('.review-contribution-list').getByText('待对账差额')).toHaveCount(0)
   await expect(page.getByLabel('收益对账状态')).toBeHidden()
   await page.getByRole('tab', { name: '对账与在途' }).click()
@@ -24,7 +24,7 @@ test('组合复盘：归因切换、周期深链与草稿保存', async ({ page 
 
   // 页面不得嵌套 <main>（外壳已提供唯一 main），且步骤条停在顶栏下方不遮挡顶栏控件
   await expect(page.locator('main')).toHaveCount(1)
-  await expect(page.locator('.review-workflow-nav')).toHaveCSS('top', '76px')
+  await expect(page.locator('.review-workflow-nav')).toHaveCSS('top', '64px')
   await page.evaluate(() => window.scrollTo(0, 1200))
   await page.waitForTimeout(300)
   const occluded = await page.evaluate(() => {
@@ -51,7 +51,7 @@ test('组合复盘：归因切换、周期深链与草稿保存', async ({ page 
   await page.getByRole('link', { name: '本季度' }).click()
   await expect(page).toHaveURL(/period=THIS_QUARTER/)
   await expect(page).toHaveURL(/step=behavior/)
-  await expect(page.getByRole('heading', { name: '本期做过什么决定' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '交易回顾' })).toBeVisible()
 
   await page.getByRole('navigation', { name: '复盘步骤' }).getByRole('button', { name: /4 · 结论/ }).click()
   await expect(page).toHaveURL(/step=conclusion/)
@@ -221,7 +221,7 @@ test('决策库：事件表、资格与 1280/1440 无溢出', async ({ page }) =
   for (const width of [1280, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/review/decisions')
-    await expect(page.getByRole('heading', { name: '每笔买卖，后来发生了什么' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '决策库' })).toBeVisible()
     // 核心三列（此后 90/180 个估值日、数据状态）在任何宽度都要可见；
     // 低优先列只在 1440px 以上显示，1280px 下隐藏以省出横向空间
     await expect(page.getByRole('columnheader', { name: '此后 90 个估值日' })).toBeVisible()
@@ -256,8 +256,8 @@ test('周期复盘四步切换，长期复盘章节导航保持可用', async ({
   await expect(nav.locator('button[aria-current="step"]')).toHaveCount(1)
   await nav.getByRole('button', { name: /3 · 行为与风险/ }).click()
   await expect(nav.getByRole('button', { name: /3 · 行为与风险/ })).toHaveAttribute('aria-current', 'step')
-  await expect(page.getByRole('heading', { name: '风险结构如何变化' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '利润和亏损由谁贡献' })).toBeHidden()
+  await expect(page.getByRole('heading', { name: '风险变化' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '收益归因' })).toBeHidden()
 
   // 长期复盘同样有章节条并跟随滚动
   await page.goto('/review/history')

@@ -74,7 +74,7 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
       <header className="review-header">
         <div>
           <div className="page-kicker">决策库 · 可投资组合 · {data.rangeStart} — {data.rangeEnd}</div>
-          <h1 className="page-title">每笔买卖，后来发生了什么</h1>
+          <h1 className="page-title">决策库</h1>
           <p className="page-description">按账本还原买卖及其后续表现；数据不足时只显示“观察中”，不补估算值。</p>
         </div>
       </header>
@@ -92,7 +92,7 @@ export function DecisionLibraryClient({ data }: { data: DecisionLibraryPageData 
         <div className="review-section-heading">
           <div>
             <span>02</span>
-            <div><h2 title="只比较完整持仓段；卖出后的表现只统计数据完整的观察窗口">持有多久，卖出后怎么走</h2></div>
+            <div><h2 title="只比较完整持仓段；卖出后的表现只统计数据完整的观察窗口">持有与卖后表现</h2></div>
           </div>
         </div>
         <div className="review-risk-layout">

@@ -93,7 +93,7 @@ test('今日买入与清仓：账户、持仓、看盘、总览、导出及移�
     }
     await page.screenshot({ path: test.info().outputPath('watch-daily-trades.png'), fullPage: true })
     const watch = Number(await page.getByTestId('watch-today-pnl').getAttribute('data-amount'))
-    await page.goto('/')
+    await page.goto('/?view=investment')
     expect(Number(await page.getByTestId('overview-today-pnl').getAttribute('data-amount'))).toBe(watch)
     await page.goto('/accounts')
     expect(Number(await page.getByTestId('accounts-today-pnl').getAttribute('data-amount'))).toBe(watch)

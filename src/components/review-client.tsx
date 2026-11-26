@@ -328,7 +328,7 @@ export function ReviewClient({ data, initialStep }: { data: ReviewPageData; init
     <div className="review-body">
       <header className="review-header">
         <div>
-          <h1 className="page-title" title="按结果、归因、行为与风险、结论四步完成一次复盘；所选周期与证据状态在四步之间保持可见">这段时间，钱为什么变了</h1>
+          <h1 className="page-title" title="按结果、归因、行为与风险、结论四步完成一次复盘；所选周期与证据状态在四步之间保持可见">周期复盘</h1>
           <p className="page-description">四步完成一次复盘，所选周期与证据状态全程可见。</p>
         </div>
         <div className="review-range-controls">
@@ -456,7 +456,7 @@ export function ReviewClient({ data, initialStep }: { data: ReviewPageData; init
 
       <section id="attribution-contribution" className="section-panel review-section" hidden={step !== 'attribution' || attributionView !== 'contribution'}>
         <div className="review-section-heading">
-          <div><span>2.1</span><h2 title="金额贡献与 TWR 百分点分别对账，不把在途或估值差额摊给任何标的">利润和亏损由谁贡献</h2></div>
+          <div><span>2.1</span><h2 title="金额贡献与 TWR 百分点分别对账，不把在途或估值差额摊给任何标的">收益归因</h2></div>
           <div className="review-tabs" role="tablist" aria-label="贡献维度">
             {([['asset', '按标的'], ['source', '按来源'], ['class', '按资产类别']] as const).map(([key, label]) => (
               <button key={key} type="button" role="tab" aria-selected={dimension === key} className={dimension === key ? 'is-active' : ''} onClick={() => setDimension(key)}>{label}</button>
@@ -541,7 +541,7 @@ export function ReviewClient({ data, initialStep }: { data: ReviewPageData; init
 
       <section id="attribution-timing" className="section-panel review-section" hidden={step !== 'attribution' || attributionView !== 'timing'}>
         <div className="review-section-heading">
-          <div><span>2.2</span><h2 title="只统计有效收益观察日；休市、纯资金流和无更新日不会被当作涨跌">收益发生在什么时候</h2></div>
+          <div><span>2.2</span><h2 title="只统计有效收益观察日；休市、纯资金流和无更新日不会被当作涨跌">收益分布</h2></div>
         </div>
         <div className="review-stat-grid">
           <Metric label="盈利日 / 观察日" value={`${result.timing.positiveDays} / ${result.timing.observedDays}`} />
@@ -563,7 +563,7 @@ export function ReviewClient({ data, initialStep }: { data: ReviewPageData; init
 
       <section id="decisions" className="section-panel review-section" hidden={step !== 'behavior'}>
         <div className="review-section-heading">
-          <div><span>3.1</span><h2 title="把建仓、加仓、减仓和清仓放回当时的账本记录，区间后收益仅作事实回看">本期做过什么决定</h2></div>
+          <div><span>3.1</span><h2 title="把建仓、加仓、减仓和清仓放回当时的账本记录，区间后收益仅作事实回看">交易回顾</h2></div>
         </div>
         <div className="review-stat-grid review-stat-grid-four">
           <Metric label="买入金额" value={fmtCNY(result.behavior.buyAmount)} />
@@ -588,7 +588,7 @@ export function ReviewClient({ data, initialStep }: { data: ReviewPageData; init
 
       <section id="risk" className="section-panel review-section" hidden={step !== 'behavior'}>
         <div className="review-section-heading">
-          <div><span>3.2</span><h2 title="复核集中度、现金、外币暴露和估值完整性，不生成自动化投资建议">风险结构如何变化</h2></div>
+          <div><span>3.2</span><h2 title="复核集中度、现金、外币暴露和估值完整性，不生成自动化投资建议">风险变化</h2></div>
         </div>
         <div className="review-risk-layout">
           <div className="review-risk-table">
@@ -613,7 +613,7 @@ export function ReviewClient({ data, initialStep }: { data: ReviewPageData; init
 
       <section id="notes" className="section-panel review-section review-notes" hidden={step !== 'conclusion'}>
         <div className="review-section-heading">
-          <div><span>4</span><h2 title="记录哪些判断被验证、哪些只是运气，以及下一周期要继续观察的事实">写下自己的判断</h2></div>
+          <div><span>4</span><h2 title="记录哪些判断被验证、哪些只是运气，以及下一周期要继续观察的事实">复盘笔记</h2></div>
           {data.savedReview && (
             <div className="review-saved-state">
               <b>{data.savedReview.status === 'COMPLETED' ? '已完成' : '草稿'}</b>

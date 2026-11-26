@@ -22,13 +22,13 @@ export const C = {
 } as const
 
 export const CLASS_COLORS: Record<string, string> = {
-  STOCK: C.up,
-  FUND: C.info,
+  STOCK: C.info,
+  FUND: C.violet,
   ETF: C.teal,
   CASH: C.inkFaint,
-  GOLD: C.accent,
-  REAL_ESTATE: C.violet,
-  HUAWEI_STOCK: C.amber,
+  GOLD: C.amber,
+  REAL_ESTATE: C.inkDim,
+  HUAWEI_STOCK: C.accent,
 }
 
 // 构成图切片配色：非类别维度按序取色（灰阶留给「未分类 / 未分组」切片）

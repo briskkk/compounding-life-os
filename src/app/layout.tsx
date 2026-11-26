@@ -1,12 +1,14 @@
 import type { Metadata } from 'next'
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import '@fontsource-variable/inter'
+import '@fontsource-variable/noto-sans-sc'
 import './globals.css'
 import './themes.css'
 import './governance-workspace.css'
 import './decisions.css'
 import './product-information.css'
-import './doodle-workspace.css'
+import './compound-workspace.css'
 import { prisma } from '@/lib/db'
 import { getSession, hasSession } from '@/lib/session'
 import { BRAND_NAME, BRAND_NAME_EN } from '@/lib/brand'
@@ -16,8 +18,8 @@ import { marketChainLabel } from '@/lib/valuation-source'
 import { AppShell } from '@/components/app-shell'
 
 export const metadata: Metadata = {
-  title: `${BRAND_NAME_EN} · ${BRAND_NAME}`,
-  description: '以交易流水为唯一事实源的家庭财富操作系统',
+  title: BRAND_NAME_EN === BRAND_NAME ? BRAND_NAME : `${BRAND_NAME_EN} · ${BRAND_NAME}`,
+  description: '家庭资产、投资表现与目标管理',
 }
 
 export const dynamic = 'force-dynamic'
@@ -61,7 +63,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           brandNameEn={BRAND_NAME_EN}
           familyName={family?.name}
           dateLabel={dateStr}
-          marketLabel={marketChain.label}
+          marketWarning={marketChain.tone === 'down' ? null : marketChain.label}
           marketDescription={marketChain.description}
           memberName={ctx?.memberName}
           role={ctx?.role}

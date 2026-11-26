@@ -156,7 +156,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="page-shell positions-shell">
-      <PageHeader title="资产与持仓" />
+      <PageHeader title="资产" />
 
       <AssetDomainNav active={activeView} />
 
@@ -167,9 +167,9 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
           <p>现金与可交易资产 + 在途</p>
         </div>
         <div>
-          <span>已确认组合资产</span>
+          <span title="含房产，不含在途资金和长期持股">持仓总市值</span>
           <strong className="num">{fmtCNY(totalHeld)}</strong>
-          <p>不含 {fmtCNY(state.inTransit)} 在途资金</p>
+          <p>含房产 · 不含在途 {fmtCNY(state.inTransit)}</p>
         </div>
         <div>
           <span>未实现盈亏</span>
@@ -233,7 +233,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                 title="导出当前筛选与排序的持仓，跨账户合并，不含在途资金"
                 className="inline-flex min-h-10 items-center rounded-lg border border-line px-3 text-[13px] text-ink-dim hover:border-accent hover:text-accent"
               >
-                ↓ 导出持仓 CSV
+                导出持仓 CSV
               </a>
               {activeTag && (
                 <Link href={`/positions?sort=${activeSort}${activeClass ? `&cls=${activeClass}` : ''}`} className="text-[12px] text-ink-faint hover:text-ink">
@@ -254,7 +254,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                 })}
               />
               <TableScroll label="持仓明细表">
-              <table className="w-full text-[14px] whitespace-nowrap">
+              <table className="positions-table w-full text-[14px] whitespace-nowrap">
               <thead>
                 <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
                   <th scope="col" className="px-4 py-2.5 font-normal" aria-sort={holdingAriaSort(activeSort, 'name')}>

@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-10-10
+last_verified: 2026-11-26
 ---
 
 # 代码地图
@@ -12,7 +12,7 @@ last_verified: 2026-10-10
 
 | 领域 | 页面/API | 主要数据与交互 |
 | --- | --- | --- |
-| 总览 | `src/app/page.tsx` | `getDashboard(period)`；净资产、周/月/季可投资资产结果桥、贡献来源、财富轨迹、构成、状态与主目标入口 |
+| 总览 | `src/app/page.tsx` | `getDashboard(period)`；`/` 展示家庭资产、净资产走势、构成图与分类明细；`/?view=investment` 展示组合收益、曲线、投资账户和年度对比（`overview-book-details.tsx`） |
 | 持仓 | `src/app/positions/page.tsx` | `loadEngineState`；配置、分组、列头排序（市值/当日盈亏/未实现盈亏/权重/名称）、当日盈亏；结构视图只对当前持仓直接整理风格、组合分组与标签 |
 | 资产详情 | `src/app/positions/[assetId]/page.tsx` | 价格/净值历史、基金估值、持仓概览、流水与带账本锁的安全编辑/删除 |
 | 看盘 | `src/app/watch/page.tsx` | `getWatchData` + 默认基准；盘中曲线、今日贡献/拖累、结算状态、近 30 日三项快照与实时估值表（默认 8 项，筛选或显式展开后展示全部）；排序与筛选状态走 `sort`/`q`/`cls`/`excl` 深链；点表格行在曲线上叠加该标的当日盈亏 |
@@ -37,8 +37,8 @@ last_verified: 2026-10-10
 - `src/components/sort-header.tsx`、`src/components/position-sort-header.tsx`、`src/lib/engine/holding-sort.ts`：看盘与持仓共用的列头排序控件；排序键、升降序切换、`aria-sort` 与无障碍文案的唯一来源都在引擎里（持仓页按 URL 服务端排序，看盘页客户端排序）。
 - `src/lib/engine/intraday.ts`：`buildIntradayCurves` 返回组合曲线与逐标的当日盈亏序列（看盘行 ↔ 曲线联动），`buildPortfolioCurve` 是它的薄包装。
 - `src/components/terminal-icon.tsx`：壳层和主导航共用的线性 SVG 图标集。
-- `src/app/globals.css`、`src/app/themes.css`、`src/app/doodle-workspace.css`：手绘涂鸦纸面、主题与共享控件；财务方向、估值和告警继续使用各自的语义色。视觉约定见 [design.md](../design.md)。
-- `src/lib/colors.ts`：Recharts 与构成图使用的 JS 色板，必须与 CSS 主题中的黑、绿、青蓝、橙及涨跌状态色同步。
+- `src/app/globals.css`、`src/app/themes.css`、`src/app/compound-workspace.css`：Compound Life 中性工作台、主题与共享控件；`layout.tsx` 导入本地托管的 Inter Variable 与 Noto Sans SC Variable 字体；财务方向、估值和告警继续使用各自的语义色。视觉约定见 [design.md](../design.md)。
+- `src/lib/colors.ts`：Recharts 与构成图使用的 JS 色板，通过 CSS 变量读取信息、分类及涨跌语义色，分类不借用盈利色。
 
 Route Handlers：
 

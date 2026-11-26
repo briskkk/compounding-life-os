@@ -1,13 +1,13 @@
-// 总览：家庭财富工作台首屏。
-// 顺序按「结论 → 解释 → 证据」：三口径家底 → 数据证据 → 周期投资表现与结果桥 →
-// 财富轨迹与待办 → 可投资资产构成与主目标。所有数字来自账本、快照与复盘引擎，
-// 页面不做任何前端财务推算（见 ADR-003 / ADR-006 / ADR-035）。
+// 总览按家庭资产与投资表现分视图，沿用同一账本、快照与复盘引擎。
 import Link from 'next/link'
-import { getDashboard } from '@/lib/queries'
+import { getDashboard, type DashboardData } from '@/lib/queries'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { Empty, SetupScreen, ScopeLabel } from '@/components/ui'
-import { WealthChart } from '@/components/charts'
+import { HouseholdCompositionChart, OverviewPerformanceChart, WealthChart } from '@/components/charts'
+import { OverviewAnnualReturns, OverviewInvestmentAccounts } from '@/components/overview-book-details'
+import { wealthScope } from '@/lib/wealth-scope'
+import { isInvestableAsset } from '@/lib/asset-classification'
 import { C, CLASS_COLORS } from '@/lib/colors'
 import { ASSET_CLASS_LABEL } from '@/lib/labels'
 import { cx, fmtCNY, fmtDate, fmtMonth, fmtPct } from '@/lib/format'
@@ -29,14 +29,14 @@ const PERIODS: { key: ReviewPeriod; label: string; value: string }[] = [
   { key: 'THIS_QUARTER', label: '本季度', value: 'quarter' },
 ]
 
-function periodFrom(value?: string): ReviewPeriod {
+function periodFrom(value?: string): ReviewPeriod | undefined {
   if (value === 'week') return 'THIS_WEEK'
   if (value === 'quarter') return 'THIS_QUARTER'
-  return 'THIS_MONTH'
+  if (value === 'month') return 'THIS_MONTH'
 }
 
 function periodHref(value: string): string {
-  return value === 'month' ? '/' : `/?period=${value}`
+  return value === 'month' ? '/?view=investment' : `/?view=investment&period=${value}`
 }
 
 function money(value: number | null, sign = false): string {
@@ -79,15 +79,33 @@ function taskDetail(task: OverviewTask): string {
   return task.detail
 }
 
-export default async function OverviewPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ period?: string }>
+export default async function OverviewPage({ searchParams }: {
+  searchParams: Promise<{ view?: string; period?: string }>
 }) {
-  const params = await searchParams
-  const period = periodFrom(params.period)
+  const { view, period: periodParam } = await searchParams
+  const selectedPeriod = periodFrom(periodParam)
+  // 旧版周、月、季链接继续打开投资表现。
+  const isInvestment = view === 'investment' || (view == null && selectedPeriod != null)
+  const period = selectedPeriod ?? 'THIS_MONTH'
   const d = await getDashboard(period)
   if (!d) return <SetupScreen />
+
+  return (
+    <div className="page-shell overview-dashboard">
+      <header className="overview-page-header">
+        <h1>总览</h1>
+        {d.ctx.role !== 'VIEWER' && <Link href="/transactions#new-entry" className="overview-entry-action">＋ 录入流水</Link>}
+      </header>
+      <nav className="workflow-domain-nav" aria-label="总览视图">
+        <Link href="/" prefetch={false} aria-current={!isInvestment ? 'page' : undefined} className={cx(!isInvestment && 'is-active')}>家庭资产</Link>
+        <Link href={isInvestment && selectedPeriod && periodParam ? periodHref(periodParam) : '/?view=investment'} prefetch={false} aria-current={isInvestment ? 'page' : undefined} className={cx(isInvestment && 'is-active')}>投资表现</Link>
+      </nav>
+      {isInvestment ? <InvestmentOverview d={d} period={period} /> : <HouseholdOverview d={d} />}
+    </div>
+  )
+}
+
+async function HouseholdOverview({ d }: { d: DashboardData }) {
   const db = scopedDb(prisma, d.ctx)
 
   const now = new Date()
@@ -158,13 +176,15 @@ export default async function OverviewPage({
   }))
 
   const m = d.state.metrics
-  const valuationRows = mergePositionsByAsset(d.state.valued)
-  const performance = d.review.performance
-  const periodLabel = performance.label
-  const periodChange = performance.baseNetWorth != null && performance.endNetWorth != null
-    ? performance.endNetWorth - performance.baseNetWorth
-    : null
-  const reviewHref = `/review?period=${period}`
+  const householdAssets = m.netWorth + d.state.inTransit
+  const accountNames = new Map(accounts.map(({ id, name }) => [id, name]))
+  const holdings = d.state.valued.filter(({ value }) => value !== 0).sort((a, b) => b.value - a.value)
+  const householdComposition = [
+    { label: '现金', value: m.liquidity.cash, color: C.inkFaint, holdings: holdings.filter(({ asset }) => asset.cls === 'CASH') },
+    { label: '投资资产', value: m.liquidity.market, color: C.info, holdings: holdings.filter(({ asset }) => asset.cls !== 'CASH' && isInvestableAsset(asset)) },
+    { label: '低流动性资产', value: m.liquidity.illiquid, color: C.violet, holdings: holdings.filter(({ asset }) => asset.cls !== 'CASH' && !isInvestableAsset(asset)) },
+    { label: '在途资金', value: d.state.inTransit, color: C.amber, holdings: [] },
+  ].filter(({ value, holdings }) => value !== 0 || holdings.length > 0)
   const wealthChartSeries = compactRecentSeries(d.series.map((point) => ({
     date: point.date,
     netWorth: point.netWorth,
@@ -172,54 +192,7 @@ export default async function OverviewPage({
     contributions: point.contributions,
   })))
 
-  const allocationByClass = new Map<AssetClass, number>()
-  for (const position of d.state.valued) {
-    if (position.investable <= 0.005) continue
-    allocationByClass.set(
-      position.asset.cls,
-      (allocationByClass.get(position.asset.cls) ?? 0) + position.investable,
-    )
-  }
-  const allocationRows = [...allocationByClass.entries()]
-    .map(([key, value]) => ({ key, label: ASSET_CLASS_LABEL[key], value, color: CLASS_COLORS[key] }))
-    .sort((a, b) => b.value - a.value)
-  const allocationTotal = allocationRows.reduce((sum, item) => sum + item.value, 0) + d.state.inTransit
-  const largestInvestablePosition = valuationRows.reduce<(typeof valuationRows)[number] | null>((largest, position) => {
-    if (position.asset.cls === 'CASH' || position.investable <= 0.005) return largest
-    return !largest || position.investable > largest.investable ? position : largest
-  }, null)
-  const concentration = largestInvestablePosition
-    ? {
-        name: largestInvestablePosition.asset.name,
-        weight: allocationTotal > 0 ? largestInvestablePosition.investable / allocationTotal : 0,
-      }
-    : null
   const primaryGoal = d.goals[0]
-  const valuationCoverage = d.review.valuationCoverage
-  const latestValuationDate = d.review.latestValuationDate
-
-  // 数据质量结论：除缺口外还要看估值日是否落后于已取得的最新行情交易日，
-  // 否则“数据已更新”会在行情已更新的情况下持续显示为正常。
-  const valuationNotice = (() => {
-    if (d.review.valuationGapCount > 0) {
-      return { warning: true, label: `${d.review.valuationGapCount} 项数据待更新` }
-    }
-    // 估值日与行情日都折算成北京归属日再比较（ADR-027），避免跨时区差一天误报
-    const heldAssets = [...new Map(d.state.valued.map((position) => [position.asset.symbol, position.asset])).values()]
-    const quoteDates = heldAssets
-      .map((asset) => attributionDateKey(
-        { symbol: asset.symbol, currency: asset.currency, cls: asset.cls },
-        d.state.quotes.get(asset.symbol)?.tradingDate,
-      ))
-      .filter((value): value is string => Boolean(value))
-      .sort()
-    const newestQuoteDate = quoteDates.length > 0 ? quoteDates[quoteDates.length - 1] : null
-    if (newestQuoteDate && latestValuationDate && latestValuationDate < newestQuoteDate) {
-      return { warning: true, label: `估值日落后最新行情（${newestQuoteDate}）` }
-    }
-    if (!latestValuationDate) return { warning: true, label: '暂无估值日期' }
-    return { warning: false, label: '数据已更新' }
-  })()
 
   const tasks = buildOverviewTasks({
     pendingFundPurchases: d.state.pendingFundPurchases.map((item) => ({
@@ -236,7 +209,7 @@ export default async function OverviewPage({
   })
 
   return (
-    <div className="page-shell overview-dashboard">
+    <>
       {!setupDone && (
         <section className="overview-setup" aria-labelledby="overview-setup-title">
           <div className="overview-section-heading">
@@ -253,130 +226,90 @@ export default async function OverviewPage({
           </div>
         </section>
       )}
-
-      <header className="overview-page-header">
-        <div>
-          <h1>家庭财富总览</h1>
-        </div>
-      </header>
-
-      <section className="overview-scope-strip" aria-label="家庭财富三个口径">
-        <article className="overview-scope is-primary">
-          <header><ScopeLabel scope="NET_WORTH" /></header>
-          <strong className="num overview-scope-value" data-testid="overview-net-worth">{fmtCNY(d.state.netWorth)}</strong>
-          <p>全部资产减负债，包含房产与长期持股</p>
-        </article>
-        <article className="overview-scope">
-          <header><ScopeLabel scope="INVESTABLE" /></header>
-          <strong className="num overview-scope-value" data-testid="overview-investable">{fmtCNY(d.state.investable)}</strong>
-          <p>
-            {d.state.inTransit > 0
-              ? <>含在途 {fmtCNY(d.state.inTransit)} · <Link href="/accounts?view=calendar">在途明细 →</Link></>
-              : '现金、基金、ETF、股票与黄金，不含房产'}
-          </p>
-        </article>
-        <article className="overview-scope" data-testid="overview-liabilities">
-          <header><span className="overview-scope-label">家庭负债<em className="scope-badge">总资产中的减项</em></span></header>
-          <strong className="num overview-scope-value">{fmtCNY(d.state.liabilitiesTotal)}</strong>
-          <p>
-            {d.state.liabilities.length > 0
-              ? <>{d.state.liabilities.length} 项负债 · 负债率 <span className="num">{fmtPct(m.netWorth > 0 ? d.state.liabilitiesTotal / m.netWorth : 0)}</span></>
-              : '当前没有登记负债'}
-          </p>
-        </article>
-      </section>
-
-      <section className="overview-evidence" aria-label="数据证据">
-        {valuationNotice.warning && <span className="overview-evidence-state is-warning">{valuationNotice.label}</span>}
-        <span>估值日 <b className="num">{latestValuationDate ?? '—'}</b></span>
-        <span>估值覆盖 <b className="num">{fmtPct(valuationCoverage)}</b></span>
-        <span>
-          {d.review.valuationGapCount > 0
-            ? <><b className="num">{d.review.valuationGapCount}</b> 项估值缺口<Link href="/health">数据健康 →</Link></>
-            : <Link href="/health">数据健康 →</Link>}
-        </span>
-        <span className="overview-evidence-pnl" data-testid="overview-today-pnl" data-amount={d.marketDayPnl.toFixed(2)}>
-          <ScopeLabel scope="MARKET_DAY_PNL" badgeClassName="is-inline" />
-          <b className={cx('num', (d.marketDayPnl ?? 0) >= 0 ? 'text-up' : 'text-down')}>
-            {(d.marketDayPnl ?? 0) >= 0 ? '+' : '−'}{fmtCNY(Math.abs(d.marketDayPnl ?? 0))}
-            <em>{fmtPct(d.marketDayPnlPct, { sign: true })}</em>
-          </b>
-        </span>
-      </section>
-
-      <section className="overview-performance" aria-labelledby="overview-performance-title">
-        <div className="overview-section-heading">
-          <div>
-            <h2 id="overview-performance-title">{periodLabel}投资表现</h2>
-            <ScopeLabel scope="INVESTABLE" badgeClassName="is-inline" />
+      <div className="overview-book-top">
+        <section className="overview-compact-panel overview-balance-card" aria-label="家庭资产摘要">
+          <div className="overview-balance-primary">
+            <ScopeLabel scope="TOTAL_ASSETS" />
+            <strong className="num" data-testid="overview-total-assets">{fmtCNY(householdAssets)}</strong>
+            <small>含在途资金 · 未扣负债</small>
           </div>
-          <nav className="overview-period-tabs" aria-label="总览周期">
-            {PERIODS.map((item) => (
-              <Link
-                key={item.key}
-                href={periodHref(item.value)}
-                aria-current={period === item.key ? 'page' : undefined}
-                data-period={item.value}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-
-        <div className="overview-performance-grid">
-          <div className="overview-performance-metrics">
+          <div className="overview-balance-metrics">
             <div>
-              <span>投资收益</span>
-              <strong className={cx('num', (performance.amount ?? 0) >= 0 ? 'text-up' : 'text-down')}>{money(performance.amount, true)}</strong>
-              <small>{performance.basisDate ?? '—'} → {performance.endDate ?? '—'} · 已扣除外部资金流</small>
+              <ScopeLabel scope="NET_WORTH" />
+              <strong className="num" data-testid="overview-net-worth">{fmtCNY(d.state.netWorth)}</strong>
+              <small>含房产与长期资产</small>
+            </div>
+            <div data-testid="overview-liabilities">
+              <Link href="/accounts">负债 →</Link>
+              <strong className="num">{fmtCNY(d.state.liabilitiesTotal)}</strong>
             </div>
             <div>
-              <span>外部净投入</span>
-              <strong className="num">{money(performance.netFlow, true)}</strong>
-              <small>转入减转出，不含内部买卖与结算腿</small>
-            </div>
-            <div>
-              <span>组合收益率 TWR</span>
-              <strong className={cx('num', (performance.pct ?? 0) >= 0 ? 'text-up' : 'text-down')}>{fmtPct(performance.pct, { sign: true })}</strong>
-              <small>时间加权，衡量组合路径</small>
+              <span title="负债占家庭总资产的比例">负债率</span>
+              <strong className="num">{fmtPct(householdAssets > 0 ? d.state.liabilitiesTotal / householdAssets : null)}</strong>
             </div>
           </div>
-          <div className="overview-performance-summary">
-            <span>{periodLabel}可投资资产变化</span>
-            <strong className={cx('num', (periodChange ?? 0) >= 0 ? 'text-up' : 'text-down')}>{money(periodChange, true)}</strong>
-            {periodChange == null && <small>本周期尚无可对账变化</small>}
-            <Link href={reviewHref}>查看完整复盘 →</Link>
-          </div>
-        </div>
-
-        <div className="overview-equation" aria-label={`${periodLabel}结果桥`}>
-          <div><span><ScopeLabel scope="PERIOD_START_INVESTABLE" badgeClassName="is-inline" /></span><strong className="num">{money(performance.baseNetWorth)}</strong></div>
-          <i aria-hidden="true">+</i>
-          <div><span>净投入</span><strong className="num">{money(performance.netFlow, true)}</strong></div>
-          <i aria-hidden="true">+</i>
-          <div><span>投资收益</span><strong className={cx('num', (performance.amount ?? 0) >= 0 ? 'text-up' : 'text-down')}>{money(performance.amount, true)}</strong></div>
-          <i aria-hidden="true">=</i>
-          <div className="overview-equation-result"><span><ScopeLabel scope="PERIOD_END_INVESTABLE" badgeClassName="is-inline" /></span><strong className="num">{money(performance.endNetWorth)}</strong></div>
-        </div>
-      </section>
-
-      <div className="overview-support-grid">
-        <section className="overview-chart-surface" aria-labelledby="overview-chart-title">
-          <div className="overview-section-heading">
-            <div><h2 id="overview-chart-title">财富轨迹</h2></div>
-            <span>轨迹至 {wealthChartSeries.length ? fmtDate(wealthChartSeries[wealthChartSeries.length - 1].date) : '—'}</span>
-          </div>
-          <div className="overview-chart-summary">
-            <span>净资产 <b className="num">{fmtCNY(d.state.netWorth)}</b></span>
-            <span>累计净投入 <b className="num">{fmtCNY(d.attribution.contributions)}</b></span>
-            <span>累计投资收益 <b className={cx('num', d.attribution.gain >= 0 ? 'text-up' : 'text-down')}>{fmtCNY(d.attribution.gain, { sign: true })}</b></span>
-          </div>
-          <WealthChart data={wealthChartSeries} showRange height={270} />
         </section>
+
+        <section className="overview-chart-surface overview-book-trend" aria-labelledby="overview-chart-title">
+          <div className="overview-section-heading">
+            <h2 id="overview-chart-title">净资产走势</h2>
+            <span>截至 {wealthChartSeries.length ? fmtDate(wealthChartSeries[wealthChartSeries.length - 1].date) : '—'}</span>
+          </div>
+          <WealthChart data={wealthChartSeries} showRange height={168} />
+        </section>
+      </div>
+
+      <section className="overview-compact-panel overview-household-composition" aria-labelledby="overview-household-title">
+        <div className="overview-section-heading">
+          <h2 id="overview-household-title">家庭资产构成</h2>
+          <Link href="/accounts">账户与负债 →</Link>
+        </div>
+        {householdComposition.length === 0 ? <Empty>暂无家庭资产</Empty> : (
+          <>
+            <HouseholdCompositionChart
+              groups={householdComposition.map(({ label, value, color }) => ({ label, value, color }))}
+              assets={householdAssets}
+              liabilities={d.state.liabilitiesTotal}
+              netWorth={d.state.netWorth}
+            />
+            <div className="overview-asset-groups">
+              <div className="overview-asset-group-head" aria-hidden="true">
+                <span>资产类别</span><span>占总资产</span><span>金额</span>
+              </div>
+              {householdComposition.map(({ label, value, color, holdings: positions }) => {
+                const values = (
+                  <>
+                    <span><i style={{ background: color }} />{label}</span>
+                    <span className="num">{fmtPct(householdAssets > 0 ? value / householdAssets : null)}</span>
+                    <strong className="num">{fmtCNY(value)}</strong>
+                  </>
+                )
+                return positions.length > 0 ? (
+                  <details key={label}>
+                    <summary className="overview-asset-group-row">{values}</summary>
+                    <ul className="overview-asset-group-items">
+                      {positions.map((position) => (
+                        <li key={`${position.accountId}:${position.assetId}`}>
+                          <span>{position.asset.name}</span>
+                          <Link href={`/accounts/${position.accountId}`}>{accountNames.get(position.accountId) ?? '查看账户'} →</Link>
+                          <strong className="num">{fmtCNY(position.value)}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ) : (
+                  <Link key={label} className="overview-asset-group-row" href="/accounts?view=calendar">{values}</Link>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </section>
+
+      <div className="overview-secondary-grid">
         <aside className="overview-tasks" aria-labelledby="overview-tasks-title">
           <div className="overview-section-heading">
-            <div><h2 id="overview-tasks-title">待办</h2></div>
+            <div><h2 id="overview-tasks-title">待核对</h2></div>
             {tasks.length > 0 && <span>{tasks.reduce((sum, task) => sum + task.count, 0)} 项待核对</span>}
           </div>
           {tasks.length === 0 ? (
@@ -392,7 +325,7 @@ export default async function OverviewPage({
                   <Link href={task.href}>
                     <span className="overview-task-count num" data-task={task.key}>{task.count}</span>
                     <span className="overview-task-body">
-                      <strong>{task.title}</strong>
+                      <strong>{{ FUND_CONFIRMATION: '基金份额待确认', INVESTMENT_PLAN: '定投记录待核对', ACCOUNT_RECONCILIATION: '账户待对账' }[task.key]}</strong>
                       <small>{taskDetail(task)}</small>
                     </span>
                     <span className="overview-task-action">{task.action} →</span>
@@ -401,37 +334,8 @@ export default async function OverviewPage({
               ))}
             </ul>
           )}
-          <p className="overview-tasks-note">待核对不等于未执行；实际结果以平台与账本流水为准。</p>
+          <p className="overview-tasks-note">待核对不等于未执行，以平台记录为准。</p>
         </aside>
-      </div>
-
-      <section className="overview-secondary-grid">
-        <div className="overview-compact-panel">
-          <div className="overview-section-heading">
-            <div><h2>可投资资产构成</h2></div>
-            <Link href="/positions">查看持仓 →</Link>
-          </div>
-          {allocationRows.length === 0 && d.state.inTransit <= 0 ? <Empty>暂无可投资资产</Empty> : (
-            <>
-              <div className="overview-allocation-track" aria-label="可投资资产构成">
-                {allocationRows.map((item) => (
-                  <i key={item.key} style={{ width: `${allocationTotal > 0 ? item.value / allocationTotal * 100 : 0}%`, background: item.color }} />
-                ))}
-                {d.state.inTransit > 0 && <i style={{ width: `${d.state.inTransit / allocationTotal * 100}%`, background: C.amber }} />}
-              </div>
-              <div className="overview-allocation-list">
-                {allocationRows.map((item) => (
-                  <div key={item.key}><i style={{ background: item.color }} /><span>{item.label}</span><strong className="num">{fmtCNY(item.value)}</strong><em className="num">{fmtPct(allocationTotal > 0 ? item.value / allocationTotal : 0)}</em></div>
-                ))}
-                {d.state.inTransit > 0 && <div><i style={{ background: C.amber }} /><span>在途资金</span><strong className="num">{fmtCNY(d.state.inTransit)}</strong><em className="num">{fmtPct(allocationTotal > 0 ? d.state.inTransit / allocationTotal : 0)}</em></div>}
-              </div>
-              <p className="overview-allocation-note">
-                构成按可投资资产口径；最大可投资持仓 {concentration ? `${concentration.name} ${fmtPct(concentration.weight)}` : '暂无非现金持仓'}
-              </p>
-            </>
-          )}
-        </div>
-
         <div className="overview-compact-panel overview-goal-panel">
           <div className="overview-section-heading">
             <div><h2>主目标进度</h2></div>
@@ -459,11 +363,199 @@ export default async function OverviewPage({
             </>
           )}
         </div>
+      </div>
+
+      <ValuationSourceSummary
+        items={mergePositionsByAsset(d.state.valued).map((position) => ({
+          priceSource: position.priceSource,
+          marketSource: d.state.quotes.get(position.asset.symbol)?.source,
+          value: position.value,
+        }))}
+      />
+    </>
+  )
+}
+
+function InvestmentOverview({ d, period }: { d: DashboardData; period: ReviewPeriod }) {
+  const valuationRows = mergePositionsByAsset(d.state.valued.filter(({ asset }) => isInvestableAsset(asset)))
+  const performance = d.review.performance
+  const periodLabel = performance.label
+  const reviewHref = `/review?period=${period}`
+  const allocationByClass = new Map<AssetClass, number>()
+  for (const position of d.state.valued) {
+    if (position.investable <= 0.005) continue
+    allocationByClass.set(
+      position.asset.cls,
+      (allocationByClass.get(position.asset.cls) ?? 0) + position.investable,
+    )
+  }
+  const allocationRows = [...allocationByClass.entries()]
+    .map(([key, value]) => ({ key, label: ASSET_CLASS_LABEL[key], value, color: CLASS_COLORS[key] }))
+    .sort((a, b) => b.value - a.value)
+  const allocationTotal = allocationRows.reduce((sum, item) => sum + item.value, 0) + d.state.inTransit
+  const largestInvestablePosition = valuationRows.reduce<(typeof valuationRows)[number] | null>((largest, position) => {
+    if (position.asset.cls === 'CASH' || position.investable <= 0.005) return largest
+    return !largest || position.investable > largest.investable ? position : largest
+  }, null)
+  const concentration = largestInvestablePosition
+    ? {
+        name: largestInvestablePosition.asset.name,
+        weight: allocationTotal > 0 ? largestInvestablePosition.investable / allocationTotal : 0,
+      }
+    : null
+  const valuationCoverage = d.review.valuationCoverage
+  const latestValuationDate = d.review.latestValuationDate
+
+  // 数据质量结论：除缺口外还要看估值日是否落后于已取得的最新行情交易日，
+  // 否则“数据已更新”会在行情已更新的情况下持续显示为正常。
+  const valuationNotice = (() => {
+    if (d.review.valuationGapCount > 0) {
+      return { warning: true, label: `${d.review.valuationGapCount} 项数据待更新` }
+    }
+    // 估值日与行情日都折算成北京归属日再比较（ADR-027），避免跨时区差一天误报
+    const heldAssets = [...new Map(valuationRows.map((position) => [position.asset.symbol, position.asset])).values()]
+    const quoteDates = heldAssets
+      .map((asset) => attributionDateKey(
+        { symbol: asset.symbol, currency: asset.currency, cls: asset.cls },
+        d.state.quotes.get(asset.symbol)?.tradingDate,
+      ))
+      .filter((value): value is string => Boolean(value))
+      .sort()
+    const newestQuoteDate = quoteDates.length > 0 ? quoteDates[quoteDates.length - 1] : null
+    if (newestQuoteDate && latestValuationDate && latestValuationDate < newestQuoteDate) {
+      return { warning: true, label: `估值日落后最新行情（${newestQuoteDate}）` }
+    }
+    if (!latestValuationDate) return { warning: true, label: '暂无估值日期' }
+    return { warning: false, label: '数据已更新' }
+  })()
+
+  return (
+    <>
+      <section className="overview-performance" aria-labelledby="overview-performance-title">
+        <div className="overview-section-heading">
+          <div>
+            <h2 id="overview-performance-title">{periodLabel}投资表现</h2>
+            <span className="overview-scope-label">可投资组合</span>
+          </div>
+          <div className="overview-performance-actions">
+            <nav className="overview-period-tabs" aria-label="总览周期">
+              {PERIODS.map((item) => (
+                <Link
+                  key={item.key}
+                  href={periodHref(item.value)}
+                  aria-current={period === item.key ? 'page' : undefined}
+                  data-period={item.value}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+            <Link href={reviewHref}>查看复盘 →</Link>
+          </div>
+        </div>
+
+        <div className="overview-performance-grid">
+          <div className="overview-investment-summary" role="region" aria-label="投资摘要">
+            <div className="overview-balance-primary">
+              <ScopeLabel scope="INVESTABLE" />
+              <strong className="num" data-testid="overview-investable">{fmtCNY(d.state.investable)}</strong>
+              {d.state.inTransit > 0 && <small>含在途 {fmtCNY(d.state.inTransit)}</small>}
+            </div>
+            <div className="overview-performance-metrics">
+              <div>
+                <span>投资收益</span>
+                <strong className={cx('num', (performance.amount ?? 0) >= 0 ? 'text-up' : 'text-down')}>{money(performance.amount, true)}</strong>
+              </div>
+              <div>
+                <span>组合收益率 TWR</span>
+                <strong className={cx('num', (performance.pct ?? 0) >= 0 ? 'text-up' : 'text-down')}>{fmtPct(performance.pct, { sign: true })}</strong>
+              </div>
+              <div>
+                <span title="组合外部流入减流出，不含内部买卖与结算">净投入</span>
+                <strong className="num">{money(performance.netFlow, true)}</strong>
+              </div>
+            </div>
+            <div className="overview-book-day" data-testid="overview-today-pnl" data-amount={d.marketDayPnl.toFixed(2)}>
+              <ScopeLabel scope="MARKET_DAY_PNL" />
+              <strong className={cx('num', d.marketDayPnl > 0 && 'text-up', d.marketDayPnl < 0 && 'text-down')}>
+                {fmtCNY(d.marketDayPnl, { sign: true })} · {fmtPct(d.marketDayPnlPct, { sign: true })}
+              </strong>
+              <Link href="/watch">看盘 →</Link>
+            </div>
+          </div>
+          <OverviewPerformanceChart
+            data={performance.curve.map(({ date, pct, amount, netWorth }) => ({ date, pct, amount, netWorth }))}
+            hasReturnObservation={performance.pct != null && performance.curve.some((point) => point.dailyPct != null)}
+          />
+        </div>
+
+        <section className="overview-evidence" aria-label="数据证据">
+          {valuationNotice.warning && <span className="overview-evidence-state is-warning">{valuationNotice.label}</span>}
+          <span>估值日 <b className="num">{latestValuationDate ?? '—'}</b></span>
+          <span>估值覆盖 <b className="num">{fmtPct(valuationCoverage)}</b></span>
+          <span>
+            {d.review.valuationGapCount > 0
+              ? <><b className="num">{d.review.valuationGapCount}</b> 项估值缺口<Link href="/health">数据健康 →</Link></>
+              : <Link href="/health">数据健康 →</Link>}
+          </span>
+        </section>
+
+        <details className="overview-book-reconciliation">
+          <summary>期初与期末对账</summary>
+          <div className="overview-equation" aria-label={`${periodLabel}结果桥`}>
+            <div>
+              <span title={wealthScope('PERIOD_START_INVESTABLE').detail}>期初可投资资产</span>
+              <strong className="num">{money(performance.baseNetWorth)}</strong>
+              {performance.basisDate && <time className="num" dateTime={performance.basisDate}>{performance.basisDate}</time>}
+            </div>
+            <i aria-hidden="true">+</i>
+            <div><span>净投入</span><strong className="num">{money(performance.netFlow, true)}</strong></div>
+            <i aria-hidden="true">+</i>
+            <div><span>投资收益</span><strong className={cx('num', (performance.amount ?? 0) >= 0 ? 'text-up' : 'text-down')}>{money(performance.amount, true)}</strong></div>
+            <i aria-hidden="true">=</i>
+            <div className="overview-equation-result">
+              <span title={wealthScope('PERIOD_END_INVESTABLE').detail}>期末可投资资产</span>
+              <strong className="num">{money(performance.endNetWorth)}</strong>
+              {performance.endDate && <time className="num" dateTime={performance.endDate}>{performance.endDate}</time>}
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <OverviewInvestmentAccounts dashboard={d} />
+      <OverviewAnnualReturns series={d.series} />
+
+      <div className="overview-secondary-grid">
+        <div className="overview-compact-panel">
+          <div className="overview-section-heading">
+            <div><h2>可投资资产构成</h2></div>
+            <Link href="/positions">查看持仓 →</Link>
+          </div>
+          {allocationRows.length === 0 && d.state.inTransit <= 0 ? <Empty>暂无可投资资产</Empty> : (
+            <>
+              <div className="overview-allocation-track" aria-label="可投资资产构成">
+                {allocationRows.map((item) => (
+                  <i key={item.key} style={{ width: `${allocationTotal > 0 ? item.value / allocationTotal * 100 : 0}%`, background: item.color }} />
+                ))}
+                {d.state.inTransit > 0 && <i style={{ width: `${d.state.inTransit / allocationTotal * 100}%`, background: C.amber }} />}
+              </div>
+              <div className="overview-allocation-list">
+                {allocationRows.map((item) => (
+                  <div key={item.key}><i style={{ background: item.color }} /><span>{item.label}</span><strong className="num">{fmtCNY(item.value)}</strong><em className="num">{fmtPct(allocationTotal > 0 ? item.value / allocationTotal : 0)}</em></div>
+                ))}
+                {d.state.inTransit > 0 && <div><i style={{ background: C.amber }} /><span>在途资金</span><strong className="num">{fmtCNY(d.state.inTransit)}</strong><em className="num">{fmtPct(allocationTotal > 0 ? d.state.inTransit / allocationTotal : 0)}</em></div>}
+              </div>
+              <p className="overview-allocation-note">
+                构成按可投资资产口径；最大可投资持仓 {concentration ? `${concentration.name} ${fmtPct(concentration.weight)}` : '暂无非现金持仓'}
+              </p>
+            </>
+          )}
+        </div>
 
         <div className="overview-compact-panel">
           <div className="overview-section-heading">
             <div><h2>在途与资金状态</h2></div>
-            <Link href="/health">健康中心 →</Link>
+            <Link href="/accounts?view=calendar">资金日历 →</Link>
           </div>
           <div className="overview-state-list">
             <Link href="/accounts?view=calendar" className={d.state.pendingSettlements.length + d.state.pendingFundPurchases.length > 0 ? 'is-info' : 'is-ok'}>
@@ -472,15 +564,9 @@ export default async function OverviewPage({
             <Link href="/fund-confirmations" className={d.state.pendingFundPurchases.length > 0 ? 'is-warning' : 'is-ok'}>
               <i aria-hidden="true" /><span className="num">{d.state.pendingFundPurchases.length}</span><strong>{d.state.pendingFundPurchases.length > 0 ? '笔基金份额待确认' : '无待确认基金份额'}</strong>
             </Link>
-            <Link href="/health" className={d.review.valuationGapCount > 0 ? 'is-warning' : 'is-ok'}>
-              <i aria-hidden="true" /><span className="num">{fmtPct(valuationCoverage)}</span><strong>{d.review.valuationGapCount > 0 ? `${d.review.valuationGapCount} 项资产估值存在缺口` : '当前估值无缺口'}</strong>
-            </Link>
-            <Link href="/allocation" className={concentration && concentration.weight > 0.25 ? 'is-warning' : 'is-info'}>
-              <i aria-hidden="true" /><span className="num">{concentration ? fmtPct(concentration.weight) : '—'}</span><strong>{concentration ? `最大可投资持仓 · ${concentration.name}` : '暂无非现金持仓'}</strong>
-            </Link>
           </div>
         </div>
-      </section>
+      </div>
 
       {d.state.pendingSettlements.length > 0 && (
         <section className="overview-transit-list" aria-label="赎回在途">
@@ -505,6 +591,6 @@ export default async function OverviewPage({
           value: position.value,
         }))}
       />
-    </div>
+    </>
   )
 }

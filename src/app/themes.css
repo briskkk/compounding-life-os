@@ -1,40 +1,25 @@
 html {
   color-scheme: dark;
-  /* 深色保留纸面明度差、虚线与硬边色影。标记色和财务语义色各自独立。 */
-  --doodle-stroke: #a89579;
-  --doodle-control-border: #9a876e;
-  --doodle-sheet: color-mix(in srgb, var(--color-panel) 80%, var(--color-panel2));
-  --doodle-yellow: #e9bf55;
-  --doodle-teal: #60b9ad;
-  --doodle-red: #e98c78;
-  --doodle-ink-on-marker: #2c2c2c;
-  --doodle-wash: #3d3321;
 }
 
 html[data-theme='light'] {
   color-scheme: light;
-  --color-bg: #fffef5;
-  --color-panel: #fffef5;
-  --color-panel2: #f6f0dc;
-  --color-line: #d8cfbb;
-  --color-ink: #2c2c2c;
-  --color-ink-dim: #544e43;
-  --color-ink-faint: #605b50;
-  --color-accent: #145d54;
-  --color-info: #145d54;
-  --color-up: #982c26;
-  --color-down: #166153;
-  --color-violet: #684285;
-  --color-teal: #196b68;
-  --color-amber: #775202;
-  --color-danger: #a22936;
-  --color-on-accent: #fffef5;
-  --surface-1: rgba(79, 67, 34, 0.04);
-  --surface-2: rgba(79, 67, 34, 0.08);
-  --doodle-stroke: #2c2c2c;
-  --doodle-control-border: #897b63;
-  --doodle-yellow: #ffd93d;
-  --doodle-teal: #4ecdc4;
-  --doodle-red: #ff6b6b;
-  --doodle-wash: #fff8d4;
+  --color-bg: #fafafa;
+  --color-panel: #ffffff;
+  --color-panel2: #f4f4f5;
+  --color-line: #e4e4e7;
+  --color-ink: #18181b;
+  --color-ink-dim: #52525b;
+  --color-ink-faint: #64646e;
+  --color-accent: #18181b;
+  --color-info: #2457bd;
+  --color-up: #b42336;
+  --color-down: #157348;
+  --color-violet: #6941a5;
+  --color-teal: #14685e;
+  --color-amber: #8a4b08;
+  --color-danger: #9b1c1c;
+  --color-on-accent: #ffffff;
+  --surface-1: rgba(24, 24, 27, 0.025);
+  --surface-2: rgba(24, 24, 27, 0.055);
 }

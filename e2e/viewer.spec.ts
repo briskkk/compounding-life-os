@@ -16,7 +16,7 @@ test('只读账号：写入入口一律以统一提示说明，不静默消失',
   const notice = page.getByTestId('readonly-notice')
 
   await page.goto('/positions')
-  const exportLink = page.getByRole('link', { name: '↓ 导出持仓 CSV' })
+  const exportLink = page.getByRole('link', { name: '导出持仓 CSV' })
   await expect(exportLink).toBeVisible()
   const positionsExport = await page.request.get((await exportLink.getAttribute('href'))!)
   expect(positionsExport.ok()).toBe(true)

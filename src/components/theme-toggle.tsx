@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 export function ThemeToggle({ initialTheme }: { initialTheme: 'light' | 'dark' }) {
   const [theme, setTheme] = useState(initialTheme)
-  const label = theme === 'dark' ? '切换到浅色皮肤' : '切换到深色皮肤'
+  const label = theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'
 
   function toggle() {
     const next = theme === 'dark' ? 'light' : 'dark'

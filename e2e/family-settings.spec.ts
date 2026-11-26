@@ -39,11 +39,12 @@ test('多家庭：创建家庭、数据隔离与切换', async ({ browser }) => 
     // 新家庭无种子数据：总市值等关键金额为 0 / 占位
     await page.goto('/')
     const main = page.locator('main')
-    await expect(main).toContainText('在途与资金状态')
+    await expect(main).toContainText('暂无家庭资产')
+    await expect(main.getByTestId('overview-net-worth')).toHaveText('¥0.00')
     // 切回种子家庭，数据恢复（净资产可见）
-    await page.getByLabel('切换家庭').selectOption({ label: '沈家 · 财富空间 · OWNER' })
+    await page.getByLabel('切换家庭').selectOption({ label: '沈家 · 财富空间 · 所有者' })
     await expect(page).toHaveURL('/')
-    await expect(page.locator('main').getByText('总资产 − 负债')).toBeVisible()
+    await expect(page.locator('main').getByText('含房产与长期资产')).toBeVisible()
     await expect(page.locator('main').getByText(/¥\d[\d,]*\.\d{2}/).first()).toBeVisible()
   } finally {
     await ctx.close()

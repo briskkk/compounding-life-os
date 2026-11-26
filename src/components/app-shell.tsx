@@ -12,6 +12,7 @@ import { FlashBanner } from '@/components/flash-banner'
 import { WriteFlashProvider } from '@/lib/write-navigation'
 import { ConfirmProvider } from '@/components/confirm-dialog'
 import { TerminalIcon, type TerminalIconName } from '@/components/terminal-icon'
+import { ROLE_LABEL } from '@/lib/labels'
 
 const PAGE_NAMES: Array<[string, string]> = [
   ['/investment-plans', '定投'],
@@ -83,7 +84,7 @@ interface AppShellProps {
   brandNameEn: string
   familyName?: string
   dateLabel: string
-  marketLabel: string
+  marketWarning: string | null
   marketDescription: string
   memberName?: string
   role?: string
@@ -99,7 +100,7 @@ export function AppShell({
   brandName,
   familyName,
   dateLabel,
-  marketLabel,
+  marketWarning,
   marketDescription,
   memberName,
   role,
@@ -120,7 +121,7 @@ export function AppShell({
   const returnFocus = useRef<HTMLElement | null>(null)
   const sidebar = useRef<HTMLElement>(null)
   const mobileMenu = useRef<HTMLButtonElement>(null)
-  const pageName = PAGE_NAMES.find(([prefix]) => prefix === '/' ? pathname === '/' : pathname.startsWith(prefix))?.[1] ?? '家庭财富终端'
+  const pageName = PAGE_NAMES.find(([prefix]) => prefix === '/' ? pathname === '/' : pathname.startsWith(prefix))?.[1] ?? brandName
   // 父级面包屑：取导航里匹配当前路径的最长前缀（不含当前页自身）
   const parentCrumb = NAV_GROUPS
     .flatMap((group) => group.links)
@@ -258,7 +259,7 @@ export function AppShell({
       <div className="auth-frame">
         <header className="auth-brand">
           <div className="terminal-brand-mark wealth-brand-mark" aria-hidden="true"><i /><i /><i /></div>
-          <div><strong>{brandName}</strong><small>让每一份积累，看得见。</small></div>
+          <div><strong>{brandName}</strong><small>家庭财富工作台</small></div>
           <ThemeToggle initialTheme={initialTheme} />
         </header>
         <main id="main-content" className="auth-main">{children}</main>
@@ -280,20 +281,22 @@ export function AppShell({
       <aside className="terminal-sidebar" id="terminal-sidebar" ref={sidebar}>
         <div className="terminal-brand">
           <div className="terminal-brand-mark wealth-brand-mark" aria-hidden="true"><i /><i /><i /></div>
-          <div className="terminal-brand-copy"><strong>{brandName}</strong><small>让每一份积累，看得见。</small></div>
+          <div className="terminal-brand-copy"><strong>{brandName}</strong><small>{familyName ?? '家庭空间'}</small></div>
           <button type="button" className="terminal-icon-button terminal-collapse" onClick={toggleCollapsed} aria-label={collapsed ? '展开侧栏' : '收起侧栏'} title={collapsed ? '展开侧栏' : '收起侧栏'}>
             <TerminalIcon name="panel" />
           </button>
         </div>
         <Nav />
-        <Link href="/health" className="terminal-health" title={marketDescription}>
-          <span className="terminal-health-ring"><i /></span>
-          <span><strong>数据状态</strong><small>{marketLabel}</small></span>
+        <Link href="/health" className="terminal-health" aria-label={marketWarning ? `数据状态 · ${marketWarning}` : '数据状态'} title={marketDescription}>
+          <span className={`terminal-health-ring${marketWarning ? ' is-warning' : ''}`} aria-hidden="true">
+            <TerminalIcon name="shield" />
+          </span>
+          <span><strong>数据状态</strong>{marketWarning && <small>{marketWarning}</small>}</span>
           <TerminalIcon name="chevron" />
         </Link>
         <div className="terminal-user">
           <span>{(memberName ?? '家').slice(0, 2).toUpperCase()}</span>
-          <div><strong>{familyName ?? '家庭空间'}</strong><small>{memberName} · {role}</small></div>
+          <div><strong>{familyName ?? '家庭空间'}</strong><small>{memberName} · {role ? ROLE_LABEL[role] ?? role : ''}</small></div>
           <LogoutButton />
         </div>
       </aside>
@@ -303,28 +306,30 @@ export function AppShell({
           <button type="button" ref={mobileMenu} className="terminal-icon-button terminal-mobile-menu" onClick={() => setMobileOpen(true)} aria-label="打开导航" aria-controls="terminal-sidebar" aria-expanded={mobileOpen}>
             <TerminalIcon name="panel" />
           </button>
-          <nav className="terminal-breadcrumb" aria-label="面包屑">
-            <Link href="/">家庭财富</Link>
-            <b aria-hidden>/</b>
-            {parentCrumb && (
-              <>
-                <Link href={parentCrumb.href}>{parentCrumb.label}</Link>
-                <b aria-hidden>/</b>
-              </>
-            )}
-            <strong aria-current="page">{pageName}</strong>
-            {entity && (
-              <>
-                <b aria-hidden>/</b>
-                <span className="terminal-breadcrumb-entity">{entity}</span>
-              </>
-            )}
-          </nav>
+          <div className="terminal-top-context">
+            <nav className="terminal-breadcrumb" aria-label="面包屑">
+              <Link href="/">家庭财富</Link>
+              <b aria-hidden>/</b>
+              {parentCrumb && (
+                <>
+                  <Link href={parentCrumb.href}>{parentCrumb.label}</Link>
+                  <b aria-hidden>/</b>
+                </>
+              )}
+              <strong aria-current="page">{pageName}</strong>
+              {entity && (
+                <>
+                  <b aria-hidden>/</b>
+                  <span className="terminal-breadcrumb-entity">{entity}</span>
+                </>
+              )}
+            </nav>
+            <span className="terminal-date num">{dateLabel}</span>
+          </div>
           <button type="button" className="terminal-search-trigger" onClick={openSearch} aria-label="打开页面搜索">
-            <TerminalIcon name="search" /><span>搜索并前往页面</span><kbd>⌘ K</kbd>
+            <TerminalIcon name="search" /><span>搜索页面</span><kbd>⌘ K</kbd>
           </button>
           <div className="terminal-top-actions">
-            <div className="terminal-market" title={marketDescription}><i /><span>{marketLabel}</span><b>{dateLabel}</b></div>
             {canWrite && <RefreshPricesButton />}
             <ThemeToggle initialTheme={initialTheme} />
             {families.length > 1 && currentFamilyId && <FamilySwitcher families={families} currentFamilyId={currentFamilyId} />}

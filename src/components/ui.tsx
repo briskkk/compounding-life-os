@@ -167,7 +167,7 @@ export function ScopeLabel({ scope, className, badgeClassName }: { scope: Wealth
 export function ReadOnlyNotice({ what, className }: { what: string; className?: string }) {
   return (
     <p role="status" data-testid="readonly-notice" className={cx('read-only-notice', className)}>
-      只读成员：{what}。需要写入请联系家庭 OWNER。
+      只读成员：{what}。需要修改请联系家庭所有者。
     </p>
   )
 }

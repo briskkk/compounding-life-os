@@ -8,7 +8,7 @@ test('持仓导出：下载当前筛选和排序，明细顺序与页面一致',
   const table = page.getByRole('region', { name: '持仓明细表' })
   const names = await table.locator('tbody tr td:first-child a').allTextContents()
   expect(names.length).toBeGreaterThan(0)
-  const link = page.getByRole('link', { name: '↓ 导出持仓 CSV' })
+  const link = page.getByRole('link', { name: '导出持仓 CSV' })
   await expect(link).toHaveAttribute('href', '/api/export/positions?sort=name-asc&cls=STOCK')
   const downloadEvent = page.waitForEvent('download')
   await link.click()
@@ -27,7 +27,7 @@ test('持仓导出：下载当前筛选和排序，明细顺序与页面一致',
 test('持仓导出：无匹配返回表头，标签筛选链接保留中文', async ({ page, request }) => {
   const tag = '没有这项标签'
   await page.goto(`/positions?tag=${encodeURIComponent(tag)}&sort=value-asc`)
-  const link = page.getByRole('link', { name: '↓ 导出持仓 CSV' })
+  const link = page.getByRole('link', { name: '导出持仓 CSV' })
   const href = await link.getAttribute('href')
   expect(new URL(href!, 'http://localhost').searchParams.get('tag')).toBe(tag)
   const response = await request.get(href!)

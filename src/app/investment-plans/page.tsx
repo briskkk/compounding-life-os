@@ -251,7 +251,7 @@ export default async function InvestmentPlansPage({
     <div className="page-shell investment-plans-page">
       <PageHeader
         title="定投核对"
-        description="计划定义节奏，账本记录实际投入；未买结论需人工确认。"
+        description="按平台记录核对实际买入或未买入。"
         right={(
           <div className="flex flex-wrap items-center justify-end gap-4">
             <Link href="/accounts?view=calendar" className="text-[13px] text-ink-dim transition-colors hover:text-accent">资金日历 →</Link>

@@ -5,7 +5,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-const CSS_FILES = ['src/app/globals.css', 'src/app/decisions.css', 'src/app/themes.css', 'src/app/doodle-workspace.css']
+const CSS_FILES = ['src/app/globals.css', 'src/app/decisions.css', 'src/app/themes.css', 'src/app/compound-workspace.css']
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {

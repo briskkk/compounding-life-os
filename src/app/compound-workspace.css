@@ -1,0 +1,356 @@
+/* Compound Life · 中性财富工作台。共享视觉在此维护，财务与页面结构沿用原有工作流。 */
+:root {
+  --terminal-sidebar: 224px;
+  --terminal-topbar: 64px;
+  --workspace-content: 1600px;
+}
+
+body { font-family: var(--font-sans); letter-spacing: 0; }
+button, input, select, textarea { font-family: inherit; }
+
+.terminal-sidebar {
+  padding: 22px 12px 16px;
+  background: var(--color-panel);
+}
+
+.terminal-brand { gap: 6px; padding: 0 4px 18px; }
+.terminal-brand-mark.wealth-brand-mark { display: none; }
+.terminal-brand-copy strong { font-size: 19px; font-weight: 500; letter-spacing: -0.04em; }
+.terminal-brand-copy small { margin-top: 7px; font-size: var(--font-size-micro); color: var(--color-ink-faint); }
+.terminal-collapse { width: 28px; height: 30px; border: 0; }
+.terminal-nav-group > p { margin: 12px 12px 10px; font-weight: 400; letter-spacing: 0; }
+.terminal-nav-item { min-height: 42px; margin-block: 4px; gap: 12px; font-size: 14px; font-weight: 400; }
+.terminal-nav-item:hover { background: var(--color-panel2); }
+.terminal-nav-item.is-active { background: var(--color-accent); color: var(--color-on-accent); font-weight: 500; }
+.terminal-nav-item.is-active svg { color: currentColor; }
+.terminal-health { border-top: 1px solid var(--color-line); border-radius: 0; padding-top: 16px; }
+.terminal-health-ring svg { width: 16px; height: 16px; color: var(--color-ink-faint); }
+.terminal-health-ring.is-warning svg { color: var(--color-amber); }
+.terminal-user > span, .terminal-profile > span { background: var(--color-panel2); color: var(--color-ink-dim); }
+.terminal-user { padding-inline: 4px; }
+.terminal-frame.is-collapsed { --terminal-sidebar: 64px; }
+.terminal-frame.is-collapsed .terminal-collapse { position: static; }
+.terminal-frame.is-collapsed .terminal-nav { padding-top: 0; }
+
+.terminal-topbar {
+  grid-template-columns: minmax(0, 1fr) clamp(200px, 20%, 300px) minmax(0, 1fr);
+  gap: 12px;
+  padding-inline: 28px;
+  background: var(--color-panel);
+  backdrop-filter: none;
+}
+.terminal-top-context { display: flex; min-width: 0; align-items: center; gap: 16px; }
+.terminal-date { flex: none; color: var(--color-ink-faint); font-size: var(--font-size-micro); white-space: nowrap; }
+.terminal-breadcrumb { min-width: 0; gap: 8px; white-space: nowrap; overflow: hidden; }
+.terminal-breadcrumb > a { overflow: hidden; text-overflow: ellipsis; }
+.terminal-breadcrumb > strong { flex: 0 0 auto; font-weight: 500; }
+.terminal-search-trigger { border: 1px solid var(--color-line); background: var(--color-bg); }
+.terminal-search-trigger:hover { background: var(--color-panel2); }
+.terminal-search-trigger svg { flex: 0 0 auto; }
+.terminal-search-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.terminal-search-trigger kbd { border: 0; background: transparent; box-shadow: none; }
+.terminal-profile { padding-inline: 4px; }
+.terminal-top-actions > select + .terminal-profile b { display: none; }
+.terminal-top-actions { gap: 8px; }
+
+.terminal-main { width: min(100% - 56px, var(--workspace-content)); }
+.terminal-main > .page-shell { gap: 20px; padding-block: 26px 48px; }
+.terminal-main .page-header { min-height: 0; padding: 0; align-items: center; gap: 12px 20px; }
+.terminal-main :is(h1.page-title, .overview-page-header h1, .goal-page-header h1) {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+}
+.terminal-main :is(h2, h3, h4, strong, b) { font-weight: 500; }
+.terminal-main .page-description { max-width: 56rem; margin-top: 7px; font-size: 13px; line-height: 1.65; }
+.terminal-main :is(.page-kicker, .eyebrow) { font-weight: 400; letter-spacing: 0; }
+.terminal-main .section-panel { padding: 16px 20px 0; background: var(--color-panel); }
+.terminal-main .section-panel > header { min-height: 36px; padding-bottom: 12px; flex-wrap: wrap; }
+.terminal-main .section-panel > header :is(h2, span) { font-size: 14px; letter-spacing: 0; font-weight: 500; }
+.terminal-main .table-scroll { margin-inline: -20px; }
+.terminal-main table { font-size: 14px; }
+.terminal-main thead { background: var(--color-panel2); font-size: var(--font-size-micro); }
+.terminal-main thead th { letter-spacing: 0; }
+.terminal-main tbody td { padding-block: 13px; }
+.terminal-main :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='hidden'], [type='file']), select, textarea) {
+  border-color: var(--color-line);
+  border-style: solid;
+  border-radius: var(--radius-sm);
+  background: var(--color-panel);
+}
+.terminal-main :is(input, select, textarea):focus {
+  border-color: var(--color-info);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-info) 12%, transparent);
+}
+:is(.terminal-main, .auth-main) :is(button, a).bg-accent {
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  color: var(--color-on-accent);
+  box-shadow: none;
+}
+:is(.terminal-main, .auth-main) :is(button, a).bg-accent:hover:not(:disabled) { opacity: 0.88; }
+:is(.terminal-main, .terminal-topbar, .terminal-sidebar, .auth-frame, .terminal-command, dialog)
+  :is(a, button, input, select, textarea, summary, [tabindex='0']):focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 3px;
+}
+.terminal-nav-item.is-active:focus-visible { outline-offset: -4px; }
+.terminal-command-results :is(a, input):focus-visible { outline-offset: -4px; }
+.terminal-command { backdrop-filter: none; }
+.terminal-command-box, html :is(.confirm-dialog, .goal-dialog, .investment-plan-edit-dialog) {
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
+  box-shadow: var(--shadow-pop);
+}
+.terminal-command-results a.is-active { background: var(--color-panel2); }
+.terminal-command-group > a { min-height: 44px; }
+.auth-brand { background: var(--color-panel); }
+.auth-brand > div:nth-child(2) { flex: 1; }
+.auth-brand strong { font-size: 20px; font-weight: 500; letter-spacing: -0.03em; }
+.auth-brand small { letter-spacing: 0; }
+
+/* 总览：家底、投资结果和证据保持分层，金额不省略。 */
+.terminal-main .overview-dashboard { gap: 20px; padding-block-start: 26px; }
+.terminal-main .overview-page-header { min-height: 0; padding: 0; align-items: center; }
+.overview-entry-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.overview-dashboard .scope-badge { border: 0; background: transparent; padding-inline: 0; }
+.overview-balance-card .scope-badge,
+.overview-investment-summary .scope-badge { display: none; }
+.overview-book-top { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.terminal-main .overview-balance-card { display: flex; flex-direction: column; justify-content: center; gap: 24px; min-width: 0; }
+.overview-balance-primary { display: grid; gap: 4px; }
+.overview-balance-primary > span,
+.overview-balance-metrics :is(span, a) { color: var(--color-ink-dim); font-size: 13px; }
+.overview-balance-primary > strong { font-size: clamp(24px, 3vw, 36px); line-height: 1.25; overflow-wrap: anywhere; }
+.overview-balance-card small,
+.overview-balance-primary small { color: var(--color-ink-faint); font-size: var(--font-size-micro); }
+.overview-balance-metrics { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.1fr) minmax(0, .55fr); gap: 12px; }
+.overview-balance-metrics > div { display: grid; gap: 3px; align-content: start; }
+.overview-balance-metrics strong { font-size: clamp(14px, 1.35vw, 20px); overflow-wrap: anywhere; }
+.overview-book-trend [aria-label='净资产走势区间'] { margin-top: 4px; font-size: 13px; }
+.overview-book-trend [aria-label='净资产走势区间'] button { padding: 5px 8px; }
+.overview-asset-flow { padding: 12px 0; }
+.overview-asset-flow .overview-curve-tabs { justify-content: flex-end; }
+.overview-asset-groups { margin-top: 10px; }
+.overview-asset-group-head,
+.overview-asset-group-row,
+.overview-asset-group-items li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(80px, .3fr) minmax(90px, .32fr); gap: 12px; align-items: center; padding: 10px 12px; }
+.overview-asset-group-head { background: var(--color-panel2); color: var(--color-ink-dim); font-size: var(--font-size-micro); }
+.overview-asset-group-row { border-bottom: 1px solid var(--color-line); cursor: pointer; font-size: 13px; }
+.overview-asset-group-row > span:first-child { display: flex; align-items: center; gap: 8px; }
+.overview-asset-group-row > span:first-child i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; }
+.overview-asset-group-row > span:first-child::before { content: '›'; color: var(--color-ink-faint); font-size: 15px; }
+.overview-asset-groups details[open] summary > span:first-child::before { transform: rotate(90deg); }
+.overview-asset-group-head > :not(:first-child),
+.overview-asset-group-row > :not(:first-child),
+.overview-asset-group-items li > :not(:first-child) { text-align: right; overflow-wrap: anywhere; }
+.overview-asset-group-items { background: var(--color-bg); }
+.overview-asset-group-items li { padding-left: 30px; font-size: 13px; }
+.overview-asset-group-items a,
+.overview-book-link,
+.overview-book-table a { color: var(--color-info); }
+.terminal-main .overview-book-table { margin: 0; }
+.overview-book-table table { width: 100%; }
+.overview-book-table :is(th, td) { padding: 10px 12px; text-align: right; white-space: nowrap; }
+.overview-book-table :is(th, td):first-child { text-align: left; }
+.overview-book-table tbody th { font-weight: 400; }
+.overview-book-table tbody tr + tr { border-top: 1px solid var(--color-line); }
+.overview-book-table small { display: block; color: var(--color-ink-faint); font-size: var(--font-size-micro); }
+.overview-benchmark-note { margin-top: 10px; color: var(--color-ink-faint); font-size: var(--font-size-micro); }
+.terminal-main .overview-evidence {
+  min-height: 0;
+  margin-top: -8px;
+  padding: 0;
+  gap: 8px 16px;
+  border: 0;
+  background: transparent;
+}
+.terminal-main .overview-evidence > span { min-width: 0; min-height: 0; border: 0; padding: 0; white-space: normal; }
+.terminal-main .overview-evidence-state.is-warning { color: var(--color-amber); }
+.terminal-main .overview-performance { padding: 20px; background: var(--color-panel); }
+.terminal-main .overview-section-heading { align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+.terminal-main .overview-section-heading h2 { font-size: 16px; font-weight: 500; }
+.overview-performance .overview-section-heading > div { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
+.overview-performance-actions > a { font-size: var(--font-size-micro); color: var(--color-info); }
+.terminal-main .overview-period-tabs { border: 1px solid var(--color-line); border-radius: var(--radius-sm); padding: 2px; gap: 2px; }
+.terminal-main .overview-period-tabs a { min-width: 50px; min-height: 30px; border-radius: var(--radius-xs); padding-inline: 8px; font-size: var(--font-size-micro); }
+.terminal-main .overview-period-tabs a[aria-current='page'] { color: var(--color-on-accent); background: var(--color-accent); }
+.overview-performance .overview-performance-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: 24px;
+  margin-top: 16px;
+}
+.overview-performance .overview-performance-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  gap: 16px;
+}
+.overview-performance .overview-performance-metrics > div { min-height: 0; padding: 0; border: 0; }
+.overview-performance .overview-performance-metrics strong { margin-top: 4px; font-size: clamp(15px, 1.3vw, 22px); font-weight: 500; }
+.overview-investment-summary { display: grid; min-width: 0; gap: 16px; padding-block: 10px; }
+.overview-book-day { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; font-size: 13px; }
+.overview-book-day > span, .overview-book-reconciliation summary { color: var(--color-ink-dim); }
+.overview-book-day > a { color: var(--color-info); }
+.terminal-main .overview-performance .overview-evidence { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--color-line); }
+.overview-book-reconciliation summary { width: fit-content; margin-top: 10px; font-size: 13px; cursor: pointer; }
+.overview-performance-chart { min-width: 0; padding-left: 20px; border-left: 1px solid var(--color-line); }
+.overview-curve-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.overview-curve-tabs button {
+  min-height: 32px;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-dim);
+  font-size: var(--font-size-micro);
+}
+.overview-curve-tabs button:hover,
+.overview-curve-tabs button[aria-pressed='true'] {
+  background: var(--color-panel2);
+  color: var(--color-ink);
+}
+.overview-curve-empty {
+  display: grid;
+  min-height: 185px;
+  place-items: center;
+  color: var(--color-ink-faint);
+  font-size: 13px;
+}
+.terminal-main .overview-secondary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.terminal-main .overview-secondary-grid > :first-child { grid-column: auto; }
+.overview-performance .overview-equation {
+  grid-template-columns: minmax(0, 1.15fr) auto minmax(0, .85fr) auto minmax(0, .85fr) auto minmax(0, 1.15fr);
+  align-items: start;
+  gap: 8px;
+  border-top: 1px solid var(--color-line);
+  padding-top: 14px;
+  margin-top: 18px;
+}
+.terminal-main .overview-performance .overview-equation > div { min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.terminal-main .overview-performance .overview-equation > i { display: block; align-self: center; }
+.terminal-main .overview-performance .overview-equation strong { font-size: 13px; font-weight: 500; white-space: normal; overflow-wrap: anywhere; }
+.terminal-main .overview-performance .overview-equation span { font-size: var(--font-size-micro); white-space: normal; }
+.overview-equation time { display: block; margin-top: 4px; color: var(--color-ink-faint); font-size: var(--font-size-micro); }
+.terminal-main :is(.overview-chart-surface, .overview-tasks, .overview-compact-panel) { padding: 20px; background: var(--color-panel); }
+.terminal-main .overview-task-list li { border-top: 1px solid var(--color-line); }
+.terminal-main .overview-task-list li:first-child { border-top: 0; }
+.terminal-main .overview-task-list a { padding-block: 14px; }
+.terminal-main .overview-task-count { border-radius: var(--radius-sm); background: var(--color-panel2); color: var(--color-ink-dim); font-size: 14px; }
+.terminal-main .overview-task-body strong { font-size: 13px; white-space: normal; }
+.terminal-main .overview-task-body small { font-size: var(--font-size-micro); line-height: 1.6; }
+.terminal-main .overview-task-action { font-size: var(--font-size-micro); color: var(--color-info); }
+.terminal-main .overview-tasks-note { padding: 0; border: 0; font-size: var(--font-size-micro); }
+.terminal-main .overview-task-done { min-height: 0; }
+
+/* 资产与记录：压缩摘要，完整列和来源保留在可横滚表格中。 */
+.terminal-main > .positions-shell { gap: 12px; }
+.terminal-main .asset-summary-grid { border: 0; border-block: 1px solid var(--color-line); border-radius: 0; background: transparent; }
+.terminal-main .asset-summary-grid > div { min-height: 0; padding: 12px 18px; }
+.terminal-main .asset-summary-grid > div:first-child { padding-left: 0; }
+.terminal-main .asset-summary-grid > div:last-child { padding-right: 0; }
+.terminal-main .asset-summary-grid strong { margin-top: 5px; font-size: clamp(20px, 1.8vw, 26px); font-weight: 500; overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+.terminal-main .asset-summary-grid p { margin-top: 5px; }
+.terminal-main .asset-filter-bar { padding-bottom: 10px; border: 0; gap: 6px; }
+.terminal-main .asset-filter-bar a { padding: 6px 12px; font-size: 13px; }
+.terminal-main .workflow-domain-nav { padding: 0 0 10px; gap: 20px; border: 0; border-bottom: 1px solid var(--color-line); border-radius: 0; background: transparent; }
+.terminal-main .workflow-domain-nav a { padding: 7px 10px; font-size: 13px; }
+.terminal-main .workflow-domain-nav a strong { font-weight: 400; }
+.terminal-main .workflow-domain-nav a.is-active { background: var(--color-panel2); color: var(--color-ink); }
+.positions-shell .valuation-tools { margin-top: -4px; }
+.positions-shell .valuation-tools > button { min-height: 34px; padding: 6px 12px; color: var(--color-ink-dim); font-size: 13px; }
+.positions-shell .positions-table td:first-child { min-width: 220px; max-width: 340px; white-space: normal; }
+.positions-shell .positions-table td:first-child > div { align-items: flex-start; }
+.positions-shell .positions-table td:first-child i { flex: 0 0 auto; margin-top: 8px; }
+.terminal-main .asset-in-transit { min-height: 0; padding: 16px 20px; background: var(--color-panel); }
+.terminal-main :is(.operations-summary, .investment-plan-console, .investment-plan-ledger, .investment-plan-editor, .investment-plan-quick-entry) { background: var(--color-panel); box-shadow: none; }
+.terminal-main :is(.investment-plan-console, .investment-plan-ledger, .investment-plan-editor) > header { padding: 16px 20px; }
+.terminal-main :is(.investment-plan-console, .investment-plan-ledger, .investment-plan-editor, .investment-plan-quick-entry) h2 { font-size: 16px; }
+.terminal-main .investment-plan-summary > div { min-height: 0; padding: 16px; }
+.terminal-main .investment-plan-summary strong { font-size: 20px; overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+.terminal-main .investment-plan-summary > div.is-pending { background: color-mix(in srgb, var(--color-amber) 6%, var(--color-panel)); box-shadow: none; }
+.terminal-main .investment-plan-row h3 { font-size: 14px; }
+.terminal-main .investment-plan-row { border-radius: 0; }
+.terminal-main .investment-plan-batch-bar { background: var(--color-panel); backdrop-filter: none; }
+
+/* 复盘、目标和治理共享相同字号与材质，证据和写入确认继续使用原组件。 */
+.terminal-main .goal-page-header { padding-bottom: 16px; align-items: center; }
+.terminal-main .goal-section-head h2, .terminal-main .review-section-head h2 { font-size: 16px; }
+.terminal-main .goal-summary-answer > strong { font-size: clamp(24px, 3vw, 36px); }
+.terminal-main .goal-summary-head h2 { margin-top: 4px; font-size: 24px; }
+.terminal-main .goal-summary { padding: 20px; gap: 20px; background: var(--color-panel); }
+.terminal-main .goal-answer-grid > div { min-height: 0; padding: 12px 0; background: transparent; }
+.terminal-main .goal-answer-grid > div + div { padding-left: 16px; border-left: 1px solid var(--color-line); }
+.terminal-main .goal-answer-block { background: var(--color-panel); }
+.terminal-main .governance-overview { background: var(--color-panel); }
+.terminal-main .review-status-chip.eligible { color: var(--color-info); border-color: var(--color-info); background: color-mix(in srgb, var(--color-info) 7%, transparent); }
+.terminal-main .review-status-chip.blocked { color: var(--color-danger); border-color: var(--color-danger); background: color-mix(in srgb, var(--color-danger) 7%, transparent); }
+.terminal-main .history-evidence-row { background: var(--color-panel); }
+.terminal-main .recharts-cartesian-axis-tick-value { font-size: var(--font-size-micro); }
+.terminal-main .section-panel :is(.section-panel, .history-evidence-row) { box-shadow: none; }
+.terminal-main .review-context-item.is-matched b { color: var(--color-info); }
+.terminal-main .review-context-item.is-review b { color: var(--color-amber); }
+.terminal-main .watch-workbench-result strong { font-size: clamp(28px, 3vw, 36px); font-weight: 500; }
+.terminal-main .watch-workbench-result span { font-weight: 500; }
+.terminal-main .watch-valuation-table .watch-pnl-cell { font-weight: 500; }
+
+@media (max-width: 1360px) {
+  :root { --terminal-sidebar: 208px; }
+  .terminal-brand-copy strong { font-size: 18px; }
+  .terminal-topbar { padding-inline: 24px; }
+  .terminal-date { display: none; }
+  .terminal-main { width: min(100% - 48px, var(--workspace-content)); }
+}
+
+@media (max-width: 1180px) {
+  :root { --terminal-sidebar: 0px; }
+  .terminal-sidebar { width: 248px; visibility: hidden; }
+  .terminal-frame.is-mobile-open .terminal-sidebar { visibility: visible; }
+  .terminal-topbar { grid-template-columns: auto minmax(0, 1fr) auto max-content; }
+  .terminal-search-trigger { display: inline-grid; place-items: center; width: 38px; padding: 0; }
+  .terminal-search-trigger :is(span, kbd) { display: none; }
+  .terminal-main { width: min(100% - 40px, var(--workspace-content)); }
+  .terminal-main .asset-summary-grid > div:nth-child(3) { padding-left: 0; }
+}
+
+@media (max-width: 900px) {
+  .terminal-main .overview-secondary-grid,
+  .overview-performance .overview-performance-grid { grid-template-columns: minmax(0, 1fr); }
+  .overview-performance-chart { padding: 12px 0 0; border-left: 0; border-top: 1px solid var(--color-line); }
+  .overview-book-top { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 760px) {
+  .terminal-main { width: min(100% - 32px, var(--workspace-content)); }
+  .terminal-topbar { gap: 6px; padding-inline: 12px; }
+  .terminal-breadcrumb > a { display: none; }
+  .terminal-main > .page-shell { gap: 18px; padding-block-start: 22px; }
+  .terminal-main .overview-dashboard { gap: 18px; }
+  .terminal-main .overview-performance { padding: 16px; }
+  .overview-curve-tabs button { padding-inline: 9px; }
+  .overview-asset-flow { display: none; }
+  .overview-asset-group-head,
+  .overview-asset-group-row,
+  .overview-asset-group-items li { grid-template-columns: minmax(0, 1fr) minmax(50px, .35fr) minmax(74px, .55fr); gap: 6px; }
+  .overview-performance .overview-equation { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .terminal-main .overview-performance .overview-equation > i { display: none; }
+  .terminal-main :is(.overview-chart-surface, .overview-tasks, .overview-compact-panel) { padding: 16px; }
+}

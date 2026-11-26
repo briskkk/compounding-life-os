@@ -1,6 +1,6 @@
 'use client'
 
-// 图表组件（recharts，深色终端主题）
+// 图表组件：颜色与字体随应用主题切换。
 import { useMemo, useState } from 'react'
 import {
   Area,
@@ -14,12 +14,13 @@ import {
   ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
+  Sankey,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
 import { C } from '@/lib/colors'
-import { fmtCNY, fmtPrice, fmtQty } from '@/lib/format'
+import { fmtCNY, fmtPct, fmtPrice, fmtQty } from '@/lib/format'
 import { niceTicks } from '@/lib/engine/axis-ticks'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -100,14 +101,14 @@ export function WealthChart({
         <ComposedChart data={ranged} margin={{ top: 12, right: 4, bottom: 0, left: 4 }}>
           <XAxis
             dataKey="date"
-            tick={{ fill: C.inkFaint, fontSize: 11 }}
+            tick={{ fill: C.inkFaint, fontSize: 12 }}
             tickLine={false}
             axisLine={false}
             minTickGap={80}
           />
           <YAxis
             width={56}
-            tick={{ fill: C.inkFaint, fontSize: 11 }}
+            tick={{ fill: C.inkFaint, fontSize: 12 }}
             tickLine={false}
             axisLine={false}
             domain={domain}
@@ -115,14 +116,14 @@ export function WealthChart({
             tickFormatter={fmtCNYAxis}
           />
           <Tooltip content={<DarkTooltip />} />
-          <Area type="monotone" dataKey="netWorth" name="净资产" stroke={C.info} strokeWidth={2.25} fill={C.info} fillOpacity={0.11} dot={false} isAnimationActive={false} />
+          <Line type="monotone" dataKey="netWorth" name="净资产" stroke={C.ink} strokeWidth={1.75} dot={false} isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
       {ranged.length > 0 && (
         <p className="mt-3 text-[13px] text-ink-faint">纵轴刻度 {fmtCNYAxis(domain[0])} – {fmtCNYAxis(domain[1])}（非零起点）</p>
       )}
       {showRange && (
-        <div className="mt-5 flex justify-end gap-3 text-[15px]" role="group" aria-label="财富轨迹区间">
+        <div className="mt-5 flex justify-end gap-3 text-[15px]" role="group" aria-label="净资产走势区间">
           {WEALTH_RANGES.map(({ key }) => (
             <button
               key={key}
@@ -131,7 +132,7 @@ export function WealthChart({
               onClick={() => setRange(key)}
               className={range === key ? 'rounded-lg bg-accent px-3 py-2 text-bg' : 'rounded-lg px-3 py-2 text-ink-faint transition-colors hover:text-ink'}
             >
-              {key}
+              {{ '3M': '近3个月', '1Y': '近1年', ALL: '全部' }[key]}
             </button>
           ))}
         </div>
@@ -210,14 +211,14 @@ export function PortfolioReturnChart({ data, benchmarkLabel = '基准' }: { data
         <CartesianGrid stroke={C.line} strokeDasharray="2 8" vertical={false} />
         <XAxis
           dataKey="date"
-          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tick={{ fill: C.inkFaint, fontSize: 12 }}
           tickLine={false}
           axisLine={false}
           minTickGap={64}
         />
         <YAxis
           yAxisId="rate"
-          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tick={{ fill: C.inkFaint, fontSize: 12 }}
           tickLine={false}
           axisLine={false}
           width={54}
@@ -228,7 +229,7 @@ export function PortfolioReturnChart({ data, benchmarkLabel = '基准' }: { data
         <YAxis
           yAxisId="amount"
           orientation="right"
-          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tick={{ fill: C.inkFaint, fontSize: 12 }}
           tickLine={false}
           axisLine={false}
           width={72}
@@ -306,7 +307,11 @@ function PortfolioPctTooltip({ active, payload, label, benchmarkLabel = '基准'
 }
 
 /** 单百分比轴：时间加权 vs 资金加权（Modified Dietz）vs 基准的累计收益率曲线。 */
-export function PortfolioPctChart({ data, benchmarkLabel = '基准' }: { data: PortfolioReturnDatum[]; benchmarkLabel?: string }) {
+export function PortfolioPctChart({ data, benchmarkLabel = '基准', height = 280 }: {
+  data: PortfolioReturnDatum[]
+  benchmarkLabel?: string
+  height?: number
+}) {
   // 显式刻度：窄区间下 recharts 自动刻度格式化后会重名
   let pctLo = 0
   let pctHi = 0
@@ -324,18 +329,18 @@ export function PortfolioPctChart({ data, benchmarkLabel = '基准' }: { data: P
   }
   const pctTicks = niceTicks(pctLo, pctHi)
   return (
-    <ResponsiveContainer width="100%" height={280}>
+    <ResponsiveContainer width="100%" height={height}>
       <ComposedChart data={data} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid stroke={C.line} strokeDasharray="2 8" vertical={false} />
         <XAxis
           dataKey="date"
-          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tick={{ fill: C.inkFaint, fontSize: 12 }}
           tickLine={false}
           axisLine={false}
           minTickGap={64}
         />
         <YAxis
-          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tick={{ fill: C.inkFaint, fontSize: 12 }}
           tickLine={false}
           axisLine={false}
           width={54}
@@ -386,7 +391,12 @@ export function PortfolioPctChart({ data, benchmarkLabel = '基准' }: { data: P
 }
 
 /** 单金额轴曲线：累计收益金额（amber）或可投资资产（info）随区间变化。 */
-export function PortfolioMoneyChart({ data, dataKey, name }: { data: PortfolioReturnDatum[]; dataKey: 'amount' | 'netWorth'; name: string }) {
+export function PortfolioMoneyChart({ data, dataKey, name, height = 280 }: {
+  data: PortfolioReturnDatum[]
+  dataKey: 'amount' | 'netWorth'
+  name: string
+  height?: number
+}) {
   const color = dataKey === 'amount' ? C.amber : C.info
   // 显式刻度：窄区间下 recharts 自动刻度格式化后会重名
   let lo = 0
@@ -398,18 +408,18 @@ export function PortfolioMoneyChart({ data, dataKey, name }: { data: PortfolioRe
   }
   const ticks = niceTicks(lo, hi)
   return (
-    <ResponsiveContainer width="100%" height={280}>
+    <ResponsiveContainer width="100%" height={height}>
       <ComposedChart data={data} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid stroke={C.line} strokeDasharray="2 8" vertical={false} />
         <XAxis
           dataKey="date"
-          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tick={{ fill: C.inkFaint, fontSize: 12 }}
           tickLine={false}
           axisLine={false}
           minTickGap={64}
         />
         <YAxis
-          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tick={{ fill: C.inkFaint, fontSize: 12 }}
           tickLine={false}
           axisLine={false}
           width={72}
@@ -431,6 +441,115 @@ export function PortfolioMoneyChart({ data, dataKey, name }: { data: PortfolioRe
         />
       </ComposedChart>
     </ResponsiveContainer>
+  )
+}
+
+const OVERVIEW_CURVES = [
+  { key: 'pct', label: '收益率', name: '时间加权收益率' },
+  { key: 'amount', label: '累计收益', name: '区间累计投资收益' },
+  { key: 'netWorth', label: '资产走势', name: '可投资资产' },
+] as const
+
+export function OverviewPerformanceChart({ data, hasReturnObservation }: {
+  data: PortfolioReturnDatum[]
+  hasReturnObservation: boolean
+}) {
+  const [curveKey, setCurveKey] = useState<typeof OVERVIEW_CURVES[number]['key']>('pct')
+  const curve = OVERVIEW_CURVES.find(({ key }) => key === curveKey) ?? OVERVIEW_CURVES[0]
+  const hasData = curveKey === 'netWorth' ? data.length >= 2 : hasReturnObservation
+
+  return (
+    <div className="overview-performance-chart">
+      <div className="overview-curve-tabs" role="group" aria-label="投资曲线">
+        {OVERVIEW_CURVES.map(({ key, label }) => (
+          <button key={key} type="button" aria-pressed={key === curveKey} onClick={() => setCurveKey(key)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <section aria-label={curve.name}>
+        {!hasData ? (
+          <p className="overview-curve-empty">{curveKey === 'netWorth' ? '暂无足够的估值记录' : '暂无足够的收益记录'}</p>
+        ) : curve.key === 'pct' ? (
+          <PortfolioPctChart data={data} height={185} />
+        ) : (
+          <PortfolioMoneyChart data={data} dataKey={curve.key} name={curve.name} height={185} />
+        )}
+      </section>
+    </div>
+  )
+}
+
+export function HouseholdCompositionChart({ groups, assets, liabilities, netWorth }: {
+  groups: { label: string; value: number; color: string }[]
+  assets: number
+  liabilities: number
+  netWorth: number
+}) {
+  const [mode, setMode] = useState<'amount' | 'ratio' | 'label'>('amount')
+  if (assets <= 0 || netWorth < 0 || liabilities < 0 || groups.some(({ value }) => value < 0)) return null
+
+  const sources = groups.filter(({ value }) => value > 0)
+  const uses = [
+    { name: '净资产', value: netWorth, color: C.info },
+    { name: '负债', value: liabilities, color: C.amber },
+  ].filter(({ value }) => value > 0)
+  const totalIndex = sources.length
+  const data = {
+    nodes: [
+      ...sources.map(({ label, ...group }) => ({ name: label, ...group })),
+      { name: '总资产', value: assets, color: C.inkDim },
+      ...uses,
+    ],
+    links: [
+      ...sources.map(({ value }, index) => ({ source: index, target: totalIndex, value })),
+      ...uses.map(({ value }, index) => ({ source: totalIndex, target: totalIndex + index + 1, value })),
+    ],
+  }
+
+  return (
+    <div className="overview-asset-flow">
+      <div className="overview-curve-tabs" role="group" aria-label="资产构成图显示方式">
+        <button type="button" aria-pressed={mode === 'amount'} onClick={() => setMode('amount')}>金额</button>
+        <button type="button" aria-pressed={mode === 'ratio'} onClick={() => setMode('ratio')}>占比</button>
+        <button type="button" aria-pressed={mode === 'label'} onClick={() => setMode('label')}>仅名称</button>
+      </div>
+      <div role="img" aria-label="资产构成与净资产、负债的关系。各类资产明细见下方列表。">
+        <ResponsiveContainer width="100%" height={206}>
+          <Sankey
+            data={data}
+            margin={{ top: 18, right: 164, bottom: 18, left: 172 }}
+            nodePadding={18}
+            nodeWidth={8}
+            sort={false}
+            link={{ stroke: C.info, strokeOpacity: 0.17 }}
+            node={({ x, y, width, height, index, payload }: {
+              x: number; y: number; width: number; height: number; index: number
+              payload: { name: string; value: number; color: string }
+            }) => {
+              const source = index < totalIndex
+              const anchorX = source ? x - 10 : x + width + 10
+              const value = mode === 'ratio' ? fmtPct(payload.value / assets) : fmtCNY(payload.value)
+              return (
+                <g>
+                  <rect x={x} y={y} width={width} height={height} rx={2} fill={payload.color} />
+                  <text
+                    x={anchorX}
+                    y={y + height / 2}
+                    dy="0.35em"
+                    textAnchor={source ? 'end' : 'start'}
+                    fontSize={12}
+                    fill={C.ink}
+                  >
+                    {payload.name}{mode === 'label' ? '' : ` · ${value}`}
+                  </text>
+                </g>
+              )
+            }}
+          />
+        </ResponsiveContainer>
+      </div>
+    </div>
   )
 }
 
@@ -495,9 +614,9 @@ export function PriceLineChart({
     <ResponsiveContainer width="100%" height={220}>
       <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid stroke={C.line} strokeDasharray="2 8" vertical={false} />
-        <XAxis dataKey="date" tick={{ fill: C.inkFaint, fontSize: 11 }} tickLine={false} axisLine={{ stroke: C.line }} minTickGap={60} />
+        <XAxis dataKey="date" tick={{ fill: C.inkFaint, fontSize: 12 }} tickLine={false} axisLine={{ stroke: C.line }} minTickGap={60} />
         <YAxis
-          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tick={{ fill: C.inkFaint, fontSize: 12 }}
           tickLine={false}
           axisLine={false}
           width={64}
@@ -699,8 +818,8 @@ export function CandleChart({
     <ResponsiveContainer width="100%" height={240}>
       <ComposedChart data={ranged} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid stroke={C.line} strokeDasharray="2 8" vertical={false} />
-        <XAxis dataKey="date" tick={{ fill: C.inkFaint, fontSize: 11 }} tickLine={false} axisLine={{ stroke: C.line }} minTickGap={60} />
-        <YAxis domain={['auto', 'auto']} tick={{ fill: C.inkFaint, fontSize: 11 }} tickLine={false} axisLine={false} width={64} ticks={ticks} tickFormatter={fmtAxis} />
+        <XAxis dataKey="date" tick={{ fill: C.inkFaint, fontSize: 12 }} tickLine={false} axisLine={{ stroke: C.line }} minTickGap={60} />
+        <YAxis domain={['auto', 'auto']} tick={{ fill: C.inkFaint, fontSize: 12 }} tickLine={false} axisLine={false} width={64} ticks={ticks} tickFormatter={fmtAxis} />
         <Tooltip content={<CandleTooltip />} />
         <Bar dataKey="range" shape={<CandleShape />} isAnimationActive={false} maxBarSize={8} />
         {markers.map((m) => (
@@ -733,9 +852,9 @@ export function ProjectionChart({
     <ResponsiveContainer width="100%" height={240}>
       <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid stroke={C.line} strokeDasharray="2 8" vertical={false} />
-        <XAxis dataKey="label" tick={{ fill: C.inkFaint, fontSize: 11 }} tickLine={false} axisLine={{ stroke: C.line }} minTickGap={60} />
+        <XAxis dataKey="label" tick={{ fill: C.inkFaint, fontSize: 12 }} tickLine={false} axisLine={{ stroke: C.line }} minTickGap={60} />
         <YAxis
-          tick={{ fill: C.inkFaint, fontSize: 11 }}
+          tick={{ fill: C.inkFaint, fontSize: 12 }}
           tickLine={false}
           axisLine={false}
           width={64}
@@ -749,7 +868,7 @@ export function ProjectionChart({
         {dynamicTarget ? (
           <Line type="monotone" dataKey="target" name={targetLabel} stroke={C.up} strokeWidth={1.25} strokeDasharray="4 6" dot={false} isAnimationActive={false} />
         ) : (
-          <ReferenceLine y={target} stroke={C.up} strokeDasharray="4 6" label={{ value: targetLabel, fill: C.up, fontSize: 11, position: 'insideTopRight' }} />
+          <ReferenceLine y={target} stroke={C.up} strokeDasharray="4 6" label={{ value: targetLabel, fill: C.up, fontSize: 12, position: 'insideTopRight' }} />
         )}
       </ComposedChart>
     </ResponsiveContainer>
@@ -794,7 +913,7 @@ export function SavingsRateChart({ data, target = 0.3 }: { data: SavingsRateDatu
           y={target}
           stroke={C.inkFaint}
           strokeDasharray="4 7"
-          label={{ value: `计划 ${Math.round(target * 100)}%`, fill: C.inkFaint, fontSize: 11, position: 'insideTopRight' }}
+          label={{ value: `计划 ${Math.round(target * 100)}%`, fill: C.inkFaint, fontSize: 12, position: 'insideTopRight' }}
         />
         {/* 不 connectNulls：缺流水的月份断开，避免把「没有数据」画成连续趋势 */}
         <Line type="monotone" dataKey="rate" name="储蓄率" stroke={C.info} strokeWidth={2} dot={{ r: 3, fill: C.info, strokeWidth: 0 }} isAnimationActive={false} />

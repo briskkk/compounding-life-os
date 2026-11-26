@@ -1,0 +1,79 @@
+{
+  "status": "implemented-local-verified",
+  "source_changes": true,
+  "artifacts": [
+    {
+      "file": "design-01-overview.png",
+      "width": 1487,
+      "height": 1058,
+      "sha256": "2295656f6b523e1a2a92019b8ec5f923192618b7a5f90f705cf24188abe828ed"
+    },
+    {
+      "file": "design-02-trend.png",
+      "width": 1487,
+      "height": 1058,
+      "sha256": "e34846f1c4f48302e753883cd651d4410164ba35945ee9825682f7f07ae10b2d"
+    },
+    {
+      "file": "design-03-ledger.png",
+      "width": 1487,
+      "height": 1058,
+      "sha256": "d8e58010c7ac5a17451319accc459f36f6b4d8dbc904ecdb6754fed560dc7b49"
+    }
+  ],
+  "interactive_artifacts": [
+    {
+      "file": "prototype.html",
+      "bytes": 439776,
+      "sha256": "405f63b52cedc450b927dad7c867626eada9eaa4cb962fb55b8a05257feeaa2d"
+    },
+    {
+      "file": "interactive-review.html",
+      "bytes": 439479,
+      "sha256": "7ceded1a189daaad137e146fdf8d78248e9170743e5ae5b21285a6a8001e482e"
+    },
+    {
+      "file": "prototype-source.html",
+      "bytes": 59369,
+      "sha256": "487795932be6652fe7453e0173f915d2ddd2fa5a717eeb39880722b59fefb22c"
+    },
+    {
+      "file": "COPY_GUIDE.md",
+      "bytes": 9048,
+      "sha256": "70eb4fd7b5d9cef99c76def58a09c854c3c3dff619451b8e7df7e6d5b3a1bdc7"
+    },
+    {
+      "file": "REVIEW_NOTES.md",
+      "bytes": 3209,
+      "sha256": "05e4a2f449699b68bc970e9e00de58498e9956e04628c1481ef9f0ad1d911890"
+    }
+  ],
+  "font": "D: Inter Variable + Noto Sans SC Variable",
+  "implementation_artifacts": [
+    {
+      "file": "IMPLEMENTATION.md",
+      "bytes": 2935,
+      "sha256": "67aba88ee45b930b1b4705e630a06e4a3afcf21412821cfb2eeebaed3ffc3fda"
+    },
+    {
+      "file": "08-implemented-overview-light.jpg",
+      "bytes": 96493,
+      "sha256": "f64390dfe488bda5db6fec193ec28a1fdf98775dcbccdcb3a6d7d945ef887b12"
+    },
+    {
+      "file": "09-implemented-assets-dark.jpg",
+      "bytes": 93465,
+      "sha256": "dd745191e24dbd90832d1e4c094cc5e528128cf50fe69446f54ef0c3f49c51ac"
+    },
+    {
+      "file": "10-implemented-ledger-dark.jpg",
+      "bytes": 101101,
+      "sha256": "21d69276798ae7c18ac793c0f4f4796892cb00870fd3b53470ffe9e7bd9a890a"
+    },
+    {
+      "file": "11-implemented-review-dark.jpg",
+      "bytes": 74775,
+      "sha256": "c2c307c5b3e4e3a4fa01963815604231266dc1d94a8a3ed096477f1523196f3f"
+    }
+  ]
+}

@@ -1,0 +1,330 @@
+<style>
+/* FONT_FACES */
+#compound-life-review{--cl-bg:#fafafa;--cl-surface:#fff;--cl-ink:#18181b;--cl-muted:#66666f;--cl-line:#e5e5e9;--cl-soft:#f4f4f5;--cl-up:#b42336;--cl-down:#157348;--cl-warn:#8a4b08;--cl-warn-bg:#fff5df;--cl-focus:#2457bd;--cl-font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue','Noto Sans',Arial,sans-serif;color:var(--cl-ink);font:14px/1.55 var(--cl-font);color-scheme:light;text-align:left;position:relative;isolation:isolate}
+#compound-life-review[data-theme=dark]{--cl-bg:#131416;--cl-surface:#1b1c20;--cl-ink:#f4f4f5;--cl-muted:#b4b4be;--cl-line:#36383f;--cl-soft:#25272c;--cl-up:#ff9aa8;--cl-down:#79d4aa;--cl-warn:#f4c274;--cl-warn-bg:#382b18;--cl-focus:#92b8ff;color-scheme:dark}
+#compound-life-review *{box-sizing:border-box}
+#compound-life-review [hidden]{display:none!important}
+#compound-life-review button,#compound-life-review input,#compound-life-review select,#compound-life-review textarea{font:inherit;color:inherit}
+#compound-life-review button{cursor:default}
+#compound-life-review button:focus-visible,#compound-life-review input:focus-visible,#compound-life-review select:focus-visible,#compound-life-review textarea:focus-visible{outline:2px solid var(--cl-focus);outline-offset:3px}
+#compound-life-review h1,#compound-life-review h2,#compound-life-review h3,#compound-life-review p{margin:0}
+#compound-life-review h1{font-size:24px;font-weight:500;letter-spacing:-.025em;line-height:1.4}
+#compound-life-review h2{font-size:16px;font-weight:500;letter-spacing:-.01em}
+#compound-life-review h3{font-size:14px;font-weight:500}
+#compound-life-review b,#compound-life-review strong{font-weight:500}
+#compound-life-review a{color:var(--cl-focus)}
+#compound-life-review .cl-muted{color:var(--cl-muted)}
+#compound-life-review .cl-small{font-size:12px}
+#compound-life-review .cl-number{font-variant-numeric:tabular-nums;font-feature-settings:'tnum';white-space:nowrap;letter-spacing:-.015em}
+#compound-life-review .cl-up{color:var(--cl-up)}
+#compound-life-review .cl-down{color:var(--cl-down)}
+#compound-life-review .cl-reviewbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;background:var(--cl-soft);border-bottom:1px solid var(--cl-line)}
+#compound-life-review .cl-reviewbar>span{font-size:12px;color:var(--cl-muted)}
+#compound-life-review .cl-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#compound-life-review .cl-button{border:1px solid var(--cl-line);border-radius:6px;background:var(--cl-surface);padding:7px 12px;line-height:1.4;white-space:nowrap;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;color:var(--cl-ink)}
+#compound-life-review .cl-button:hover{background:var(--cl-soft)}
+#compound-life-review .cl-primary{background:var(--cl-ink);color:var(--cl-surface);border-color:var(--cl-ink)}
+#compound-life-review .cl-primary:hover{background:var(--cl-ink);opacity:.88}
+#compound-life-review .cl-button[aria-pressed=true]{background:var(--cl-ink);color:var(--cl-surface);border-color:var(--cl-ink)}
+#compound-life-review .cl-textbutton{border:0;background:none;padding:4px 0;color:var(--cl-focus);font-size:13px;text-align:left}
+#compound-life-review .cl-badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;line-height:1.5;background:var(--cl-soft);padding:2px 8px;border-radius:5px;color:var(--cl-muted);white-space:nowrap}
+#compound-life-review .cl-warning{color:var(--cl-warn);background:var(--cl-warn-bg)}
+#compound-life-review .cl-shell{display:grid;grid-template-columns:208px minmax(0,1fr);background:var(--cl-bg);border:1px solid var(--cl-line);border-top:0;min-height:780px}
+#compound-life-review .cl-sidebar{background:var(--cl-surface);border-right:1px solid var(--cl-line);padding:23px 14px;display:flex;flex-direction:column;gap:26px}
+#compound-life-review .cl-brand{font-size:19px;letter-spacing:-.045em;font-weight:500;white-space:nowrap;padding:0 8px}
+#compound-life-review .cl-family{font-size:12px;color:var(--cl-muted);padding:0 8px;margin-top:-22px}
+#compound-life-review .cl-nav{display:grid;gap:5px}
+#compound-life-review .cl-nav button{border:0;background:transparent;border-radius:6px;padding:10px 12px;text-align:left;display:flex;align-items:center;gap:12px;color:var(--cl-muted)}
+#compound-life-review .cl-nav button[aria-current=page]{background:var(--cl-ink);color:var(--cl-surface)}
+#compound-life-review .cl-nav button:hover:not([aria-current=page]){background:var(--cl-soft);color:var(--cl-ink)}
+#compound-life-review .cl-nav .cl-nav-mark{font-size:11px;opacity:.6;width:14px;font-family:var(--cl-font)}
+#compound-life-review .cl-sidebar-bottom{margin-top:auto;border-top:1px solid var(--cl-line);padding:18px 8px 0;display:grid;gap:10px}
+#compound-life-review .cl-workspace{min-width:0}
+#compound-life-review .cl-topbar{height:64px;border-bottom:1px solid var(--cl-line);background:var(--cl-surface);display:flex;align-items:center;justify-content:space-between;padding:0 28px;gap:16px}
+#compound-life-review .cl-topbar .cl-crumb{font-size:13px;color:var(--cl-muted)}
+#compound-life-review .cl-search-shortcut{display:inline-flex;gap:46px;align-items:center;color:var(--cl-muted)}
+#compound-life-review .cl-main{padding:26px 28px 32px}
+#compound-life-review .cl-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:23px;flex-wrap:wrap}
+#compound-life-review .cl-titlegroup{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#compound-life-review .cl-sectionhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+#compound-life-review .cl-sectionhead small{font-size:12px;color:var(--cl-muted)}
+#compound-life-review .cl-summary{display:grid;grid-template-columns:1.1fr 1fr .85fr;padding:20px 0 22px;border-top:1px solid var(--cl-line);border-bottom:1px solid var(--cl-line);gap:22px}
+#compound-life-review .cl-summary>div+div{border-left:1px solid var(--cl-line);padding-left:24px}
+#compound-life-review .cl-label{font-size:13px;color:var(--cl-muted);display:flex;gap:6px;align-items:center}
+#compound-life-review .cl-value{font-size:clamp(22px,2.1vw,31px);font-weight:500;line-height:1.45;margin:5px 0 3px;letter-spacing:-.04em}
+#compound-life-review .cl-help{border:0;background:var(--cl-soft);color:var(--cl-muted);border-radius:50%;width:16px;height:16px;padding:0;line-height:16px;font-size:11px}
+#compound-life-review .cl-evidence{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:12px 0 24px;font-size:12px;color:var(--cl-muted)}
+#compound-life-review .cl-panel{padding:20px;background:var(--cl-surface);border:1px solid var(--cl-line);border-radius:8px;min-width:0}
+#compound-life-review .cl-performance{margin-bottom:22px}
+#compound-life-review .cl-segments{display:inline-flex;border:1px solid var(--cl-line);padding:2px;border-radius:6px;background:var(--cl-surface);gap:2px}
+#compound-life-review .cl-segments button{border:0;border-radius:4px;padding:5px 10px;background:transparent;color:var(--cl-muted);font-size:12px;white-space:nowrap}
+#compound-life-review .cl-segments button[aria-pressed=true]{background:var(--cl-ink);color:var(--cl-surface)}
+#compound-life-review .cl-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;margin-bottom:20px}
+#compound-life-review .cl-metricvalue{font-size:25px;font-weight:500;margin-top:4px;line-height:1.5;letter-spacing:-.03em}
+#compound-life-review .cl-bridge{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px solid var(--cl-line);padding-top:16px;font-size:12px}
+#compound-life-review .cl-bridge>span{display:flex;gap:7px;align-items:center}
+#compound-life-review .cl-bridge em{font-style:normal;color:var(--cl-muted)}
+#compound-life-review .cl-support{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(230px,1fr);gap:20px}
+#compound-life-review .cl-chart{width:100%;display:block;height:auto;min-height:160px;overflow:visible}
+#compound-life-review .cl-chart text{font-family:var(--cl-font);fill:var(--cl-muted);font-size:11px}
+#compound-life-review .cl-chart .cl-grid{stroke:var(--cl-line);stroke-width:1}
+#compound-life-review .cl-chart .cl-curve{fill:none;stroke:var(--cl-ink);stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round}
+#compound-life-review .cl-task{display:flex;align-items:center;justify-content:space-between;gap:12px;border:0;border-bottom:1px solid var(--cl-line);padding:15px 0;background:transparent;width:100%;text-align:left;font-size:13px}
+#compound-life-review .cl-task:last-child{border-bottom:0}
+#compound-life-review .cl-task span:last-child{color:var(--cl-muted)}
+#compound-life-review .cl-domaintabs{display:flex;gap:24px;border-bottom:1px solid var(--cl-line);margin-bottom:20px;overflow-x:auto}
+#compound-life-review .cl-domaintabs button{border:0;border-bottom:2px solid transparent;background:transparent;color:var(--cl-muted);padding:0 0 11px;white-space:nowrap;font-size:13px}
+#compound-life-review .cl-domaintabs button[aria-pressed=true]{color:var(--cl-ink);border-color:var(--cl-ink)}
+#compound-life-review .cl-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:20px 0 12px}
+#compound-life-review .cl-field{border:1px solid var(--cl-line);border-radius:6px;padding:8px 10px;background:var(--cl-surface);min-width:0;max-width:100%}
+#compound-life-review .cl-search{width:210px}
+#compound-life-review .cl-tablewrap{overflow-x:auto;background:var(--cl-surface);border:1px solid var(--cl-line);border-radius:8px}
+#compound-life-review table{width:100%;border-collapse:collapse;font-size:13px}
+#compound-life-review th{text-align:left;font-weight:400;color:var(--cl-muted);background:var(--cl-soft);padding:11px 14px;white-space:nowrap;font-size:12px}
+#compound-life-review td{padding:14px;border-top:1px solid var(--cl-line);vertical-align:middle}
+#compound-life-review td.cl-assetname{min-width:185px;max-width:240px}
+#compound-life-review td.cl-assetname button{border:0;padding:0;background:transparent;text-align:left;color:var(--cl-ink);font-weight:500;white-space:normal}
+#compound-life-review td.cl-assetname small{display:block;font-size:11px;color:var(--cl-muted);margin-top:3px;font-weight:400}
+#compound-life-review .cl-alignright{text-align:right}
+#compound-life-review th button{border:0;padding:0;background:transparent;color:inherit;font:inherit}
+#compound-life-review .cl-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;color:var(--cl-muted);font-size:12px}
+#compound-life-review .cl-empty{padding:50px 20px;text-align:center;color:var(--cl-muted)}
+#compound-life-review .cl-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:24px}
+#compound-life-review .cl-steps button{border:1px solid var(--cl-line);background:var(--cl-surface);border-radius:6px;padding:10px;color:var(--cl-muted)}
+#compound-life-review .cl-steps button[aria-pressed=true]{border-color:var(--cl-ink);color:var(--cl-ink);background:var(--cl-soft)}
+#compound-life-review .cl-reviewcontent{min-height:290px}
+#compound-life-review .cl-notegrid{display:grid;gap:16px}
+#compound-life-review .cl-notegrid label{display:grid;gap:7px;font-size:13px}
+#compound-life-review textarea{resize:vertical;width:100%;min-height:75px}
+#compound-life-review .cl-goalgrid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+#compound-life-review .cl-formgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+#compound-life-review .cl-formgrid label{display:grid;gap:6px;font-size:13px}
+#compound-life-review .cl-formgrid .cl-full{grid-column:1/-1}
+#compound-life-review .cl-overlay{position:absolute;inset:0;z-index:30;display:flex;align-items:flex-start;justify-content:center;padding:70px 20px;background:rgb(0 0 0/.28);backdrop-filter:blur(2px)}
+#compound-life-review .cl-dialog{width:min(660px,100%);background:var(--cl-surface);border:1px solid var(--cl-line);border-radius:10px;padding:24px;box-shadow:0 16px 64px rgb(0 0 0/.16)}
+#compound-life-review .cl-dialog-wide{width:min(870px,100%)}
+#compound-life-review .cl-dialogfooter{border-top:1px solid var(--cl-line);padding-top:18px;margin-top:22px;display:flex;justify-content:flex-end;gap:8px}
+#compound-life-review .cl-dialog p{font-size:13px;line-height:1.8;color:var(--cl-muted);margin-top:8px}
+#compound-life-review .cl-details{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:22px 0}
+#compound-life-review .cl-details>div{border-bottom:1px solid var(--cl-line);padding-bottom:10px}
+#compound-life-review .cl-error{color:var(--cl-up);font-size:13px;margin-top:10px}
+#compound-life-review .cl-toast{position:absolute;top:70px;right:18px;background:var(--cl-ink);color:var(--cl-surface);padding:11px 16px;border-radius:7px;z-index:50;max-width:calc(100% - 36px);font-size:13px;box-shadow:0 4px 20px rgb(0 0 0/.12)}
+#compound-life-review .cl-fontrow{display:grid;grid-template-columns:155px 1fr 85px;gap:18px;align-items:center;padding:17px 0;border-top:1px solid var(--cl-line)}
+#compound-life-review .cl-fontrow .cl-fontsample{font-size:16px;line-height:1.8}
+#compound-life-review .cl-fontrow .cl-fontsample strong{font-size:24px;font-weight:500;letter-spacing:-.03em}
+#compound-life-review .cl-fontrow small{font-size:12px;display:block;color:var(--cl-muted)}
+#compound-life-review .cl-change{padding:16px 0;border-top:1px solid var(--cl-line);display:grid;grid-template-columns:24px 1fr;gap:12px}
+#compound-life-review .cl-change p{margin-top:5px}
+#compound-life-review .cl-change .cl-old{color:var(--cl-muted);font-size:12px;margin-top:5px}
+#compound-life-review .cl-minirows{margin:14px 0}
+#compound-life-review .cl-minirows>div{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--cl-line);font-size:13px}
+@media(min-width:1600px){#compound-life-review .cl-main{padding:28px 40px;max-width:1550px;margin:0 auto}}
+@media(max-width:1100px){#compound-life-review .cl-shell{grid-template-columns:168px minmax(0,1fr)}#compound-life-review .cl-sidebar{padding:22px 10px}#compound-life-review .cl-brand{font-size:17px;padding:0 4px}#compound-life-review .cl-main{padding:22px}#compound-life-review .cl-topbar{padding:0 22px}#compound-life-review .cl-summary{gap:14px}#compound-life-review .cl-summary>div+div{padding-left:14px}#compound-life-review .cl-value{font-size:23px}#compound-life-review .cl-metricvalue{font-size:22px}#compound-life-review .cl-support{grid-template-columns:minmax(0,1.45fr) minmax(210px,1fr)}}
+@media(max-width:800px){#compound-life-review .cl-shell{display:block;min-height:0}#compound-life-review .cl-sidebar{border-right:0;border-bottom:1px solid var(--cl-line);padding:16px;gap:14px}#compound-life-review .cl-family,#compound-life-review .cl-sidebar-bottom{display:none}#compound-life-review .cl-nav{display:flex;gap:4px;flex-wrap:wrap}#compound-life-review .cl-nav button{padding:8px 12px}#compound-life-review .cl-nav-mark{display:none}#compound-life-review .cl-topbar{height:52px;padding:0 18px}#compound-life-review .cl-main{padding:22px 18px}#compound-life-review .cl-search-shortcut{gap:20px}#compound-life-review .cl-support{grid-template-columns:1fr 1fr}#compound-life-review .cl-fontrow{grid-template-columns:130px 1fr;gap:12px}#compound-life-review .cl-fontrow>button{grid-column:2;justify-self:start}#compound-life-review .cl-goalgrid{grid-template-columns:1fr}}
+@media(max-width:560px){#compound-life-review .cl-topbar .cl-crumb,#compound-life-review .cl-topbar .cl-search-shortcut kbd{display:none}#compound-life-review .cl-summary{grid-template-columns:1fr;gap:15px;padding:18px 0}#compound-life-review .cl-summary>div+div{border-left:0;padding-left:0}#compound-life-review .cl-summary>div{display:grid;grid-template-columns:1fr auto;align-items:baseline;column-gap:10px}#compound-life-review .cl-summary small{grid-column:1/-1}#compound-life-review .cl-value{font-size:25px;margin:0}#compound-life-review .cl-metrics{grid-template-columns:1fr;gap:13px}#compound-life-review .cl-metrics>div{display:flex;justify-content:space-between;align-items:center;gap:12px}#compound-life-review .cl-metricvalue{margin:0;font-size:23px}#compound-life-review .cl-support{grid-template-columns:1fr}#compound-life-review .cl-bridge{gap:8px 12px;justify-content:flex-start}#compound-life-review .cl-steps{grid-template-columns:1fr 1fr}#compound-life-review .cl-formgrid,#compound-life-review .cl-details{grid-template-columns:1fr}#compound-life-review .cl-formgrid .cl-full{grid-column:auto}#compound-life-review .cl-overlay{padding:20px 10px}#compound-life-review .cl-dialog{padding:18px}#compound-life-review .cl-fontrow{grid-template-columns:1fr;gap:8px}#compound-life-review .cl-fontrow>button{grid-column:auto}#compound-life-review .cl-reviewbar{padding:10px}#compound-life-review .cl-reviewbar>span{display:none}#compound-life-review .cl-domaintabs{gap:17px}}
+@media(prefers-reduced-motion:no-preference){#compound-life-review button{transition:background .12s,color .12s}}
+</style>
+<div id="compound-life-review" data-theme="light">
+  <div class="cl-reviewbar" aria-label="设计评审工具">
+    <span>设计预览 · 演示数据 · 2026.11.26</span>
+    <div class="cl-actions">
+      <button class="cl-button" data-action="changes">设计说明</button>
+      <button class="cl-button" data-action="fonts">字体对比 <span id="cl-font-current" class="cl-muted">D</span></button>
+      <button class="cl-button" data-action="reset">重置演示</button>
+    </div>
+  </div>
+  <div class="cl-shell">
+    <aside class="cl-sidebar">
+      <div class="cl-brand">Compound Life</div>
+      <div class="cl-family">示例家庭</div>
+      <nav class="cl-nav" aria-label="主导航">
+        <button data-page="overview" aria-current="page">总览</button>
+        <button data-page="assets">资产</button>
+        <button data-page="invest">投资</button>
+        <button data-page="records">记录</button>
+        <button data-page="review">复盘</button>
+        <button data-page="goals">目标</button>
+      </nav>
+      <div class="cl-sidebar-bottom">
+        <button class="cl-textbutton" data-action="health">数据状态 <span class="cl-badge cl-warning">1</span></button>
+        <button class="cl-textbutton" data-action="settings">设置</button>
+        <span class="cl-muted cl-small">示例家庭 · 所有者</span>
+      </div>
+    </aside>
+    <div class="cl-workspace">
+      <header class="cl-topbar">
+        <span class="cl-crumb" id="cl-crumb">总览</span>
+        <div class="cl-actions">
+          <button class="cl-button cl-search-shortcut" data-action="search"><span>搜索页面</span><kbd>⌘ K</kbd></button>
+          <button class="cl-button" data-action="theme" aria-label="切换深色主题">深色</button>
+          <span class="cl-muted cl-small">示例家庭</span>
+        </div>
+      </header>
+      <main class="cl-main" id="cl-content"></main>
+    </div>
+  </div>
+  <div class="cl-overlay" id="cl-overlay" hidden>
+    <section class="cl-dialog" id="cl-dialog" role="dialog" aria-modal="true" aria-labelledby="cl-dialog-title"></section>
+  </div>
+  <div class="cl-toast" id="cl-toast" role="status" aria-live="polite" hidden></div>
+</div>
+<script>
+(() => {
+  const root = document.getElementById('compound-life-review')
+  const content = root.querySelector('#cl-content')
+  const overlay = root.querySelector('#cl-overlay')
+  const dialog = root.querySelector('#cl-dialog')
+  const toast = root.querySelector('#cl-toast')
+  const fontSystem = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue","Noto Sans",Arial,sans-serif'
+  const fonts = {
+    A: {name:'模板系统字体',sub:'随设备系统变化',css:fontSystem},
+    B: {name:'Inter + 苹方',sub:'英文与金额更规整',css:'"Inter","PingFang SC","Noto Sans SC",sans-serif'},
+    C: {name:'Geist + 苹方',sub:'字形紧凑，偏现代界面',css:'"Geist","PingFang SC","Noto Sans SC",sans-serif'},
+    D: {name:'Inter + Noto Sans SC',sub:'中文使用开源字体，便于跨平台统一',css:'"Inter","Noto Sans SC",sans-serif'},
+  }
+  const pageNames = {overview:'总览',assets:'资产',invest:'投资',records:'记录',review:'复盘',goals:'目标'}
+  const periods = {
+    month:{label:'本月',range:'11.01—11.26',start:1800000,flow:50000,gain:10000,twr:.0055},
+    week:{label:'本周',range:'11.23—11.26',start:1838000,flow:20000,gain:2000,twr:.0011},
+    quarter:{label:'本季',range:'10.01—11.26',start:1720000,flow:100000,gain:40000,twr:.0229},
+  }
+  const holdings = [
+    {id:'home',name:'自住房产',symbol:'HOME-01',cls:'房产',account:'家庭房产',value:3140000,cost:3000000,daily:null,source:'手动估值',date:'11.01',qty:'1套'},
+    {id:'cash',name:'人民币现金',symbol:'CNY',cls:'现金',account:'银行账户',value:500000,cost:500000,daily:null,source:'现金面值',date:'11.26',qty:'500,000.00'},
+    {id:'global',name:'全球股票指数基金',symbol:'示例基金 A',cls:'基金',account:'基金账户',value:450000,cost:470000,daily:-975,source:'官方净值',date:'11.25',qty:'180,000.00'},
+    {id:'etf',name:'沪深300ETF',symbol:'510300',cls:'ETF',account:'证券账户',value:400000,cost:380000,daily:1860,source:'实时行情',date:'11.26',qty:'100,000'},
+    {id:'bond',name:'中短债基金',symbol:'示例基金 B',cls:'基金',account:'基金账户',value:350000,cost:345000,daily:45,source:'官方净值',date:'11.25',qty:'300,000.00',stale:true},
+    {id:'gold',name:'黄金积存',symbol:'AU9999',cls:'黄金',account:'黄金账户',value:152000,cost:140000,daily:356.32,source:'实时行情',date:'11.26',qty:'152.00克'},
+  ]
+  const initialTransactions = [
+    {date:'2026-11-25',type:'买入',asset:'全球股票指数基金',account:'基金账户',amount:5000,status:'份额待确认'},
+    {date:'2026-11-24',type:'买入',asset:'沪深300ETF',account:'证券账户',amount:12000,status:'已记录'},
+    {date:'2026-11-23',type:'转入',asset:'人民币现金',account:'银行账户',amount:20000,status:'已记录'},
+    {date:'2026-11-20',type:'买入',asset:'中短债基金',account:'基金账户',amount:3000,status:'份额待确认'},
+    {date:'2026-11-18',type:'分红',asset:'沪深300ETF',account:'证券账户',amount:680,status:'已记录'},
+  ]
+  const state = {page:'overview',period:'month',font:'D',assetClass:'全部',assetSearch:'',sort:'value',sortDir:-1,recordType:'全部',recordSearch:'',reviewStep:0,assetView:'holdings',reviewNotes:['','',''],transactions:initialTransactions.map(x=>({...x})),monthly:2000,rate:4,target:3000000}
+  let toastTimer, returnFocus, dialogKind = ''
+  const money = (n,sign=false) => (n<0?'−':sign?'+':'')+'¥'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})
+  const pct = n => (n>=0?'+':'−')+(Math.abs(n)*100).toFixed(2)+'%'
+  const tone = n => n<0?'cl-down':'cl-up'
+  const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+  function notify(message){clearTimeout(toastTimer);toast.textContent=message;toast.hidden=false;toastTimer=setTimeout(()=>toast.hidden=true,3500)}
+  function heading(title,action=true){return `<div class="cl-heading"><div class="cl-titlegroup"><h1>${title}</h1><span class="cl-badge">演示</span><span class="cl-muted cl-small">2026.11.26</span></div>${action?'<button class="cl-button cl-primary" data-action="entry">＋ 录入流水</button>':''}</div>`}
+  function segments(){return `<div class="cl-segments" aria-label="投资表现周期">${[['week','本周'],['month','本月'],['quarter','本季']].map(([key,label])=>`<button data-period="${key}" aria-pressed="${state.period===key}">${label}</button>`).join('')}</div>`}
+  function performance(showControls=true){const p=periods[state.period];return `<section class="cl-panel cl-performance"><div class="cl-sectionhead"><div class="cl-actions"><h2>${p.label}投资表现</h2><small>可投资组合</small></div><div class="cl-actions"><small>${p.range}</small>${showControls?segments():''}</div></div><div class="cl-metrics"><div><span class="cl-label">投资收益</span><div class="cl-metricvalue cl-number cl-up">${money(p.gain,true)}</div></div><div><span class="cl-label">净投入 <button class="cl-help" data-info="flow" aria-label="了解净投入">i</button></span><div class="cl-metricvalue cl-number">${money(p.flow,true)}</div></div><div><span class="cl-label">组合收益率 <span class="cl-small">TWR</span></span><div class="cl-metricvalue cl-number cl-up">${pct(p.twr)}</div></div></div><div class="cl-bridge" aria-label="可投资资产期初期末对账"><span><em>期初</em><b class="cl-number">${money(p.start)}</b></span><em>＋</em><span><em>净投入</em><b class="cl-number">${money(p.flow)}</b></span><em>＋</em><span><em>投资收益</em><b class="cl-number">${money(p.gain)}</b></span><em>＝</em><span><em>期末</em><b class="cl-number">${money(1860000)}</b></span></div></section>`}
+  function chart(kind='wealth'){
+    const daily=kind==='daily', values=daily?[0,210,-140,430,360,720,520,1120,950,1286.32]:[396,393,399,405,401,409,411,405,402,413,416,420,426,423,428]
+    const yMax=daily?1500:440,yMin=daily?-500:380,w=620,h=230,left=42,right=18,top=15,bottom=35
+    const X=i=>left+i*(w-left-right)/(values.length-1),Y=v=>top+(yMax-v)/(yMax-yMin)*(h-top-bottom)
+    const ticks=daily?[-500,0,500,1000,1500]:[380,400,420,440]
+    const labels=daily?['09:30','10:30','11:30','13:30','15:00']:['6月','7月','8月','9月','10月','11月']
+    return `<svg class="cl-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="${daily?'演示当日盈亏分时曲线，非真实行情':'演示净资产轨迹，单位万元，末值428万元'}">${ticks.map(v=>`<line class="cl-grid" x1="${left}" y1="${Y(v)}" x2="${w-right}" y2="${Y(v)}"/><text x="${left-9}" y="${Y(v)+4}" text-anchor="end">${v}</text>`).join('')}<polyline class="cl-curve" points="${values.map((v,i)=>`${X(i)},${Y(v)}`).join(' ')}"/>${values.map((v,i)=>`<circle cx="${X(i)}" cy="${Y(v)}" r="5" fill="transparent"><title>${daily?'当日盈亏 '+money(v,true):'净资产 '+v+'万元'}</title></circle>`).join('')}<circle cx="${X(values.length-1)}" cy="${Y(values.at(-1))}" r="3" fill="var(--cl-ink)"/>${labels.map((label,i)=>`<text x="${left+i*(w-left-right)/(labels.length-1)}" y="${h-8}" text-anchor="${i===0?'start':i===labels.length-1?'end':'middle'}">${label}</text>`).join('')}</svg>`
+  }
+  function taskList(){return `<div><button class="cl-task" data-action="fund"><span>基金份额待确认</span><span>2笔　›</span></button><button class="cl-task" data-action="plans"><span>定投记录待核对</span><span>3项　›</span></button><button class="cl-task" data-action="reconcile"><span>账户待对账</span><span>1个　›</span></button></div>`}
+  function overview(){return `${heading('总览')}<section class="cl-summary" aria-label="家庭财富概况"><div><span class="cl-label">净资产 <button class="cl-help" data-info="networth" aria-label="了解净资产">i</button></span><div class="cl-value cl-number">${money(4280000)}</div><small class="cl-muted cl-small">总资产减负债</small></div><div><span class="cl-label">可投资资产 <button class="cl-help" data-info="investable" aria-label="了解可投资资产">i</button></span><div class="cl-value cl-number">${money(1860000)}</div><small class="cl-muted cl-small">含在途 ${money(8000)}</small></div><div><span class="cl-label">负债</span><div class="cl-value cl-number">${money(720000)}</div><button class="cl-textbutton cl-small" data-action="liabilities">查看明细 ›</button></div></section><div class="cl-evidence"><button class="cl-textbutton" data-action="health"><span class="cl-badge cl-warning">可投资资产估值覆盖 98.6% · 1项待更新</span></button><span>估值截至 11.26</span></div>${performance()}<div class="cl-support"><section class="cl-panel"><div class="cl-sectionhead"><h2>净资产走势</h2><small>近6个月 · 万元</small></div>${chart()}</section><section class="cl-panel"><div class="cl-sectionhead"><h2>待核对</h2><small>6项</small></div>${taskList()}<div class="cl-foot"><button class="cl-textbutton" data-page="review">进入本月复盘 ›</button></div></section></div>`}
+  function assetRows(){let rows=holdings.filter(h=>(state.assetClass==='全部'||h.cls===state.assetClass)&&(`${h.name} ${h.symbol} ${h.account}`).toLowerCase().includes(state.assetSearch.toLowerCase()));return rows.sort((a,b)=>state.sortDir*(state.sort==='name'?a.name.localeCompare(b.name,'zh-CN'):a.value-b.value))}
+  function holdingTable(){const rows=assetRows();return `<div class="cl-tablewrap"><table aria-label="持仓明细"><thead><tr><th aria-sort="${state.sort==='name'?(state.sortDir===1?'ascending':'descending'):'none'}"><button data-sort="name">资产 ↕</button></th><th>账户</th><th class="cl-alignright" aria-sort="${state.sort==='value'?(state.sortDir===1?'ascending':'descending'):'none'}"><button data-sort="value">市值（元） ${state.sort==='value'?(state.sortDir===1?'↑':'↓'):'↕'}</button></th><th class="cl-alignright">未实现盈亏</th><th>估值来源 / 日期</th></tr></thead><tbody>${rows.length?rows.map(h=>`<tr><td class="cl-assetname"><button data-asset="${h.id}">${h.name}</button><small>${h.symbol} · ${h.cls}</small></td><td>${h.account}</td><td class="cl-number cl-alignright">${money(h.value)}</td><td class="cl-alignright cl-number ${h.value===h.cost?'':tone(h.value-h.cost)}">${h.value===h.cost?'—':money(h.value-h.cost,true)}</td><td><span>${h.source}</span><div class="cl-muted cl-small">${h.date}${h.stale?' <span class="cl-badge cl-warning">待更新</span>':''}</div></td></tr>`).join(''):'<tr><td colspan="5" class="cl-empty">没有匹配的持仓 <button class="cl-textbutton" data-action="clear-assets">清除筛选</button></td></tr>'}</tbody></table></div><div class="cl-foot"><span>共 ${rows.length} 项 · 点击资产名称查看明细</span><span>持仓市值不含在途资金</span></div>`}
+  function assets(){return `${heading('资产')}<div class="cl-domaintabs" aria-label="资产视图">${[['holdings','持仓明细'],['composition','资产配置'],['accounts','账户与负债']].map(([key,name])=>`<button data-asset-view="${key}" aria-pressed="${state.assetView===key}">${name}</button>`).join('')}</div>${state.assetView==='holdings'?`<div class="cl-metrics"><div><span class="cl-label">持仓总市值 <button class="cl-help" data-info="holdings" aria-label="了解持仓总市值">i</button></span><div class="cl-metricvalue cl-number">${money(4992000)}</div><small class="cl-muted cl-small">含房产 · 不含在途</small></div><div><span class="cl-label">可投资资产</span><div class="cl-metricvalue cl-number">${money(1860000)}</div><small class="cl-muted cl-small">含在途 ${money(8000)}</small></div><div><span class="cl-label">未实现盈亏</span><div class="cl-metricvalue cl-number cl-up">${money(157000,true)}</div><small class="cl-muted cl-small">持仓市值减剩余成本</small></div></div><div class="cl-toolbar"><div class="cl-actions"><label><span class="cl-small cl-muted">类型 </span><select id="cl-asset-class" class="cl-field" aria-label="资产类型">${['全部','股票','基金','ETF','现金','黄金','房产'].map(c=>`<option${state.assetClass===c?' selected':''}>${c}</option>`).join('')}</select></label><input id="cl-asset-search" class="cl-field cl-search" type="search" aria-label="搜索持仓" placeholder="资产、代码或账户" value="${esc(state.assetSearch)}"></div><button class="cl-button" data-action="export">导出 CSV</button></div><div id="cl-holdings-table">${holdingTable()}</div><div class="cl-foot"><button class="cl-textbutton" data-action="fund">在途资金 ${money(8000)} · 2笔待确认 ›</button></div>`:state.assetView==='composition'?`<section class="cl-panel"><div class="cl-sectionhead"><h2>可投资资产配置</h2><small>含在途 · 按当前市值</small></div><div class="cl-minirows">${[['现金',500000],['ETF',400000],['股票基金',450000],['债券基金',350000],['黄金',152000],['在途',8000]].map(([n,v])=>`<div><span>${n}</span><span class="cl-number">${money(v)}　${(v/1860000*100).toFixed(1)}%</span></div>`).join('')}</div><p class="cl-muted cl-small">房产不计入可投资资产配置。</p></section>`:`<section class="cl-panel"><div class="cl-sectionhead"><h2>账户与负债</h2><small>人民币折算</small></div><div class="cl-minirows">${[['银行账户',500000],['证券账户',400000],['基金账户',808000],['黄金账户',152000],['家庭房产',3140000]].map(([n,v])=>`<div><span>${n}</span><span class="cl-number">${money(v)}</span></div>`).join('')}<div><span>房贷余额</span><span class="cl-number">${money(720000)}</span></div></div></section>`}`}
+  function invest(){return `${heading('投资',false)}<div class="cl-domaintabs"><button aria-pressed="true">今日</button><button data-action="return-history">收益历史</button></div><section class="cl-panel cl-performance"><div class="cl-sectionhead"><div><span class="cl-label">当日盈亏</span><div class="cl-value cl-up cl-number">${money(1286.32,true)}</div></div><span class="cl-badge cl-warning">实时估算 · 行情覆盖 96.4%</span></div><div class="cl-foot" style="margin-bottom:16px"><span>北京归属日 2026.11.26 · 可投资组合</span><span>更新于 15:02</span></div>${chart('daily')}</section><section class="cl-panel"><div class="cl-sectionhead"><h2>持仓贡献</h2><small>元</small></div><div class="cl-minirows">${holdings.filter(h=>h.daily!==null).sort((a,b)=>b.daily-a.daily).map(h=>`<div><button class="cl-textbutton" data-asset="${h.id}">${h.name}</button><span class="cl-number ${tone(h.daily)}">${money(h.daily,true)}</span></div>`).join('')}</div><p class="cl-small cl-muted">盘中金额为估算，历史收益按所属日期回看。</p></section>`}
+  function recordTable(){const rows=state.transactions.filter(t=>(state.recordType==='全部'||t.type===state.recordType)&&(`${t.asset} ${t.account}`).includes(state.recordSearch));return `<div class="cl-tablewrap"><table aria-label="交易流水"><thead><tr><th>日期</th><th>类型</th><th>资产 / 账户</th><th class="cl-alignright">金额（元）</th><th>状态</th></tr></thead><tbody>${rows.length?rows.map((t,i)=>`<tr><td class="cl-number">${t.date}</td><td>${t.type}</td><td class="cl-assetname">${esc(t.asset)}<small>${t.account}</small></td><td class="cl-number cl-alignright">${money(t.amount)}</td><td><span class="cl-badge ${t.status==='份额待确认'?'cl-warning':''}">${t.status}</span></td></tr>`).join(''):'<tr><td colspan="5" class="cl-empty">没有匹配的流水</td></tr>'}</tbody></table></div><div class="cl-foot"><span>共 ${rows.length} 笔 · 演示记录</span><span>流水金额不等于组合净投入</span></div>`}
+  function records(){return `${heading('交易流水')}<div class="cl-domaintabs"><button aria-pressed="true">交易流水</button><button data-action="plans">定投核对</button><button data-action="cash-calendar">资金日历</button><button data-action="imports">导入记录</button></div><div class="cl-toolbar"><div class="cl-actions"><select id="cl-record-type" class="cl-field" aria-label="流水类型">${['全部','买入','卖出','转入','分红'].map(t=>`<option${state.recordType===t?' selected':''}>${t}</option>`).join('')}</select><input id="cl-record-search" class="cl-field cl-search" type="search" aria-label="搜索流水" placeholder="搜索资产或账户" value="${esc(state.recordSearch)}"></div><span class="cl-muted cl-small">2026年11月</span></div><div id="cl-record-table">${recordTable()}</div>`}
+  function review(){const p=periods[state.period];const step=state.reviewStep;return `${heading('组合复盘',false)}<div class="cl-sectionhead"><span class="cl-muted">${p.range} · 可投资组合</span>${segments()}</div><div class="cl-steps" aria-label="复盘步骤">${['结果','归因','风险','笔记'].map((n,i)=>`<button data-review-step="${i}" aria-pressed="${step===i}">${i+1}　${n}</button>`).join('')}</div><div class="cl-reviewcontent">${step===0?performance(false):step===1?`<section class="cl-panel"><div class="cl-sectionhead"><h2>收益贡献</h2><small>本月演示</small></div><div class="cl-minirows">${[['沪深300ETF',8500],['黄金积存',3500],['中短债基金',1000],['全球股票指数基金',-3000]].map(([n,v])=>`<div><span>${n}</span><span class="cl-number ${tone(v)}">${money(v,true)}</span></div>`).join('')}</div><p class="cl-small cl-muted">合计投资收益 ${money(10000)}。${state.period!=='month'?'此明细为本月演示，其他周期待细化。':''}</p></section>`:step===2?`<section class="cl-panel"><div class="cl-sectionhead"><h2>风险与数据状态</h2></div><div class="cl-minirows"><div><span>可投资资产估值覆盖</span><span>98.6%</span></div><div><span>待更新估值</span><button class="cl-textbutton" data-action="health">1项 ›</button></div><div><span>基金申购在途</span><span class="cl-number">${money(8000)}</span></div><div><span>最大单项可投资资产</span><span>现金 · 26.9%</span></div></div></section>`:`<section class="cl-panel"><div class="cl-notegrid">${['已确认事实','我的判断','下期验证'].map((n,i)=>`<label>${n}<textarea class="cl-field" data-note="${i}" placeholder="填写${n}">${esc(state.reviewNotes[i])}</textarea></label>`).join('')}<div class="cl-actions"><button class="cl-button cl-primary" data-action="save-notes">保存草稿</button><small class="cl-muted">仅保留在此设计预览中</small></div></div></section>`}</div>`}
+  function goalMonths(rate){const r=rate/1200;let capital=1860000;for(let m=0;m<=1200;m++){if(capital>=state.target)return m;capital=capital*(1+r)+state.monthly}return null}
+  function goalResult(rate){const months=goalMonths(rate);if(months===null)return '100年内未达成';const date=new Date(Date.UTC(2026,10+months,26));return `${date.getUTCFullYear()}年${date.getUTCMonth()+1}月`}
+  function goalNumbers(){return `<div><span class="cl-label">预计达成</span><div class="cl-value">${goalResult(state.rate)}</div><small class="cl-muted">按当前试算参数</small></div><div class="cl-minirows"><div><span>保守 · 年化2%</span><span>${goalResult(2)}</span></div><div><span>基准 · 年化4%</span><span>${goalResult(4)}</span></div><div><span>乐观 · 年化6%</span><span>${goalResult(6)}</span></div></div><p class="cl-muted cl-small">固定回报假设下的示例，不代表收益承诺或达成概率。</p>`}
+  function goals(){return `${heading('目标测算',false)}<div class="cl-goalgrid"><section class="cl-panel"><div class="cl-sectionhead"><h2>目标与投入</h2><span class="cl-badge">临时试算</span></div><div class="cl-formgrid"><label class="cl-full">目标金额（元）<input class="cl-field cl-number" id="cl-goal-target" type="number" min="1860000" step="10000" value="${state.target}"></label><label class="cl-full">每月投入（元）<input class="cl-field cl-number" id="cl-goal-monthly" type="number" min="0" step="500" value="${state.monthly}"></label><label class="cl-full">假设年化回报（%）<input class="cl-field cl-number" id="cl-goal-rate" type="number" min="0" max="15" step=".5" value="${state.rate}"></label></div><div class="cl-foot" style="margin-top:20px"><span>当前资本 ${money(1860000)} · 可投资资产</span></div></section><section class="cl-panel" id="cl-goal-result">${goalNumbers()}</section></div>`}
+  function render(){content.innerHTML=({overview,assets,invest,records,review,goals}[state.page])();root.querySelector('#cl-crumb').textContent=pageNames[state.page];root.querySelectorAll('.cl-nav button').forEach(b=>{if(b.dataset.page===state.page)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});applyFont(false)}
+  function applyFont(save=true){root.style.setProperty('--cl-font',fonts[state.font].css);root.querySelector('#cl-font-current').textContent=state.font;if(save)persist();if(dialogKind==='fonts')dialog.querySelectorAll('[data-font-choice]').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.fontChoice===state.font));b.textContent=b.dataset.fontChoice===state.font?'已应用':'应用'})}
+  function persist(){if(window.openai?.setWidgetState)window.openai.setWidgetState({modelContent:{font:state.font,fontName:fonts[state.font].name,page:pageNames[state.page]},privateContent:{theme:root.dataset.theme}}).catch(()=>{})}
+  function openDialog(title,body,{wide=false,kind='info'}={}){returnFocus=document.activeElement;dialogKind=kind;dialog.classList.toggle('cl-dialog-wide',wide);dialog.innerHTML=`<div class="cl-sectionhead"><h2 id="cl-dialog-title">${title}</h2><button class="cl-button" data-action="close" aria-label="关闭对话框">关闭</button></div>${body}`;overlay.hidden=false;root.querySelector('.cl-shell').inert=true;dialog.querySelector('input,select,button,textarea')?.focus()}
+  function closeDialog(){overlay.hidden=true;dialogKind='';root.querySelector('.cl-shell').inert=false;if(returnFocus?.isConnected)returnFocus.focus()}
+  function assetDialog(id){const h=holdings.find(x=>x.id===id);openDialog(h.name,`<span class="cl-muted cl-small">${h.symbol} · ${h.account}</span><div class="cl-details"><div><span class="cl-label">市值</span><div class="cl-metricvalue cl-number">${money(h.value)}</div></div><div><span class="cl-label">未实现盈亏</span><div class="cl-metricvalue cl-number ${tone(h.value-h.cost)}">${money(h.value-h.cost,true)}</div></div><div><span class="cl-label">剩余成本</span><span class="cl-number">${money(h.cost)}</span></div><div><span class="cl-label">数量 / 份额</span><span class="cl-number">${h.qty}</span></div><div><span class="cl-label">估值来源</span><span>${h.source}</span></div><div><span class="cl-label">估值日期</span><span>2026.${h.date} ${h.stale?'<span class="cl-badge cl-warning">待更新</span>':''}</span></div></div><p>${h.cls==='房产'?'房产计入净资产，不计入可投资资产。':'未实现盈亏为当前市值减剩余成本，不含已实现盈亏。'}</p><div class="cl-dialogfooter"><button class="cl-button" data-action="close">返回持仓</button><button class="cl-button cl-primary" data-action="asset-records" data-id="${h.id}">查看流水</button></div>`)}
+  const actions={
+    close:closeDialog,
+    changes:()=>openDialog('设计思路与改进',`<p>从手绘装饰转向中性、清晰的长期使用界面。保留原有六项任务和财务口径，优先改善阅读与核对效率。</p>${[
+      ['减少装饰，建立稳定层级','原版：胶带、虚线、彩色偏移与大标题同时争夺注意。','新版：黑白灰、细分隔线、常规字重，强调只留给操作与数据状态。'],
+      ['让持仓更早进入首屏','原版：摘要、说明与筛选占据大半屏，明细位置靠后。','新版：统计压缩为一行，筛选贴近表格；名称、来源和异常仍可查看。'],
+      ['短文案保留准确口径','原版：说明较长，部分金额使用不同名称。','新版：统一净资产、可投资资产、投资收益、净投入；复杂定义收进说明。'],
+      ['把证据放在受影响的数字旁','原版：来源说明与金额分散，需上下寻找。','新版：可投资资产旁标覆盖；持仓现价旁标来源与日期；在途单列。'],
+      ['从视觉图变成可操作的设计稿','前稿：仅能比较静态图片。','此稿：六页导航、周期、筛选、排序、明细、演示录入与核对、主题和字体可操作。'],
+    ].map(([t,old,n],i)=>`<div class="cl-change"><span class="cl-muted">${i+1}</span><div><h3>${t}</h3><div class="cl-old">${old}</div><p>${n}</p></div></div>`).join('')}<p>这是设计评审原型。数据为虚构样本，录入、确认和保存只演示交互，不写入正式账本。</p>`,{wide:true}),
+    fonts:()=>{openDialog('字体对比',`<p>同样的字号与字重，比较中文、英文和金额；点击“应用”可切换整页。B / C 的苹方依赖 Apple 设备，其他设备会回退至 Noto Sans SC。</p><div id="cl-font-status" class="cl-foot" role="status">正在检查字体载入…</div>${Object.entries(fonts).map(([key,f])=>`<div class="cl-fontrow"><div><h3>${key} · ${f.name}</h3><small>${f.sub}</small></div><div class="cl-fontsample" style="font-family:${f.css.replaceAll('"',"'")}"><div>Compound Life · 净资产</div><strong class="cl-number">¥1,860,000.00</strong><small>投资收益 +¥10,000.00　−0.55%</small></div><button class="cl-button" data-font-choice="${key}" aria-pressed="${state.font===key}">${state.font===key?'已应用':'应用'}</button></div>`).join('')}<div class="cl-dialogfooter"><button class="cl-button cl-primary" data-action="close">返回页面</button></div>`,{wide:true,kind:'fonts'});Promise.all(['Inter','Geist','Noto Sans SC'].map(f=>document.fonts.load(`400 16px "${f}"`))).then(v=>{const el=root.querySelector('#cl-font-status');if(el)el.textContent=v.every(x=>x.length)?'Inter / Geist / Noto Sans SC 已载入；A 为当前设备系统字体。':'部分字体未载入，当前可能显示回退字体。'}).catch(()=>{const el=root.querySelector('#cl-font-status');if(el)el.textContent='字体载入失败，当前为系统回退字体。'})},
+    entry:()=>openDialog('录入流水',`<p>按已发生的交易记录。本稿新增记录仅用于交互演示。</p><form id="cl-entry-form" style="margin-top:20px"><div class="cl-formgrid"><label>交易类型<select name="type" class="cl-field"><option>买入</option><option>卖出</option><option>分红</option><option>转入</option></select></label><label>日期<input class="cl-field" name="date" type="date" value="2026-11-26" max="2026-11-26" required></label><label class="cl-full">资产<select class="cl-field" name="asset">${holdings.filter(h=>h.cls!=='房产').map(h=>`<option value="${h.id}"${h.id==='etf'?' selected':''}>${h.name}</option>`).join('')}</select></label><label>金额（元）<input class="cl-field" name="amount" type="number" min=".01" step=".01" placeholder="0.00" required></label><label>费用（元）<input class="cl-field" name="fee" type="number" min="0" step=".01" value="0" required></label></div><div class="cl-error" id="cl-entry-error" role="alert"></div><div class="cl-dialogfooter"><button type="button" class="cl-button" data-action="close">取消</button><button class="cl-button cl-primary" type="submit">保存演示记录</button></div></form>`,{kind:'entry'}),
+    fund:()=>openDialog('基金份额确认',`<div class="cl-minirows"><div><span>全球股票指数基金</span><span class="cl-number">¥5,000.00</span></div><div><span>中短债基金</span><span class="cl-number">¥3,000.00</span></div></div><p>先核对平台确认的净值与份额，再确认。以下体验第一笔的核对流程。</p><form id="cl-fund-form" style="margin-top:16px"><div class="cl-formgrid"><label>成交净值<input name="nav" class="cl-field" type="number" min=".0001" step=".0001" value="2.5000" required></label><label>平台确认份额<input name="shares" class="cl-field" type="number" min=".01" step=".01" value="2000.00" required></label></div><div class="cl-error" id="cl-fund-error" role="alert"></div><div class="cl-dialogfooter"><button type="button" class="cl-button" data-action="close">取消</button><button type="submit" class="cl-button cl-primary">体验确认</button></div></form>`,{kind:'fund'}),
+    plans:()=>openDialog('定投核对',`<p>到期未记录的计划需要核对，不能直接认定为未执行。</p><div class="cl-minirows">${['11.23 全球股票指数基金','11.24 中短债基金','11.25 全球股票指数基金'].map((n,i)=>`<div><span>${n}</span><select class="cl-field" aria-label="${n}执行结果"><option>待核对</option><option>已买入</option><option>未买入</option></select></div>`).join('')}</div><div class="cl-dialogfooter"><button class="cl-button" data-action="close">取消</button><button class="cl-button cl-primary" data-action="plan-confirm">体验保存</button></div>`),
+    'plan-confirm':()=>{const values=[...dialog.querySelectorAll('select')].map(s=>s.value);if(values.every(v=>v==='待核对')){notify('请先选择至少一项执行结果');return}closeDialog();notify('已演示核对流程，计划与正式账本未变')},
+    reconcile:()=>openDialog('账户对账',`<p>比较同一日期的账本金额与平台凭证。</p><div class="cl-minirows"><div><span>账户</span><span>银行账户</span></div><div><span>对账日期</span><span>2026.11.26</span></div><div><span>账本金额</span><span class="cl-number">${money(500000)}</span></div></div><label style="display:grid;gap:8px">平台金额（元）<input class="cl-field" id="cl-reconcile-value" type="number" value="500000" step=".01"></label><div class="cl-dialogfooter"><button class="cl-button" data-action="close">返回</button><button class="cl-button cl-primary" data-action="reconcile-check">比较差额</button></div>`),
+    'reconcile-check':()=>{const v=Number(dialog.querySelector('#cl-reconcile-value').value);notify(Number.isFinite(v)?`与账本差额 ${money(v-500000,true)}`:'请输入有效金额')},
+    health:()=>openDialog('估值状态',`<p>可投资资产估值覆盖 98.6%，仍有1项待更新。覆盖范围不包含房产。</p><div class="cl-minirows"><div><span>中短债基金</span><span class="cl-badge cl-warning">待更新</span></div><div><span>最新估值日</span><span>2026.11.25</span></div><div><span>估值来源</span><span>官方净值</span></div><div><span>在途资金</span><span class="cl-number">${money(8000)}</span></div></div><p>更新后才撤下状态提示，不用按钮点击时间替代估值日期。</p><div class="cl-dialogfooter"><button class="cl-button" data-action="close">返回</button><button class="cl-button" data-action="mock-refresh">体验更新失败</button></div>`),
+    'mock-refresh':()=>notify('暂未取得新净值，保留原值与待更新状态'),
+    liabilities:()=>{state.page='assets';state.assetView='accounts';render()},
+    settings:()=>openDialog('显示设置',`<div class="cl-minirows"><div><span>字体</span><button class="cl-button" data-action="fonts">选择字体</button></div><div><span>主题</span><button class="cl-button" data-action="theme">切换浅色 / 深色</button></div></div><p>当前用户：所有者。正式应用的成员与权限流程不在此处改动。</p>`),
+    theme:()=>{root.dataset.theme=root.dataset.theme==='light'?'dark':'light';root.querySelector('[aria-label^="切换"]').setAttribute('aria-label',root.dataset.theme==='light'?'切换深色主题':'切换浅色主题');root.querySelector('[aria-label^="切换"]').textContent=root.dataset.theme==='light'?'深色':'浅色';persist()},
+    search:()=>openDialog('前往页面',`<input id="cl-page-search" class="cl-field" style="width:100%;margin-bottom:16px" type="search" aria-label="搜索页面" placeholder="总览、持仓、流水、复盘…"><div id="cl-page-results">${Object.entries(pageNames).map(([key,n])=>`<button class="cl-task" data-page="${key}"><span>${n}</span><span>进入 ›</span></button>`).join('')}</div>`,{kind:'search'}),
+    'return-history':()=>openDialog('收益历史',`${performance()}<p>历史收益按所选区间计算；不将当前持仓盈亏当作历史投资收益。</p>`,{wide:true}),
+    'cash-calendar':()=>openDialog('资金日历',`<div class="cl-minirows"><div><span>11.24 实际买入</span><span class="cl-number">${money(12000)}</span></div><div><span>11.25 实际买入</span><span class="cl-number">${money(5000)}</span></div></div><p>此视图仅展示账本实际活动，不把定投计划混入实际投入。</p>`),
+    imports:()=>openDialog('导入记录',`<p>CSV 导入先预览、核对重复和异常，再明确确认入账。本稿保留该流程入口，文件上传与正式入账将在实施时接入。</p>`),
+    'save-notes':()=>{persist();notify('草稿已保留在本次演示中')},
+    'clear-assets':()=>{state.assetClass='全部';state.assetSearch='';render()},
+    export:()=>{const rows=[['资产','代码','账户','币种','市值','未实现盈亏','估值来源','估值日期'],...assetRows().map(h=>[h.name,h.symbol,h.account,'CNY',h.value.toFixed(2),(h.value-h.cost).toFixed(2),h.source,'2026.'+h.date])];const csv='\uFEFF'+rows.map(row=>row.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='compound-life-demo-holdings.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('已导出筛选后的演示持仓，不含在途资金')},
+    reset:()=>{state.period='month';state.assetClass='全部';state.assetSearch='';state.sort='value';state.sortDir=-1;state.recordType='全部';state.recordSearch='';state.reviewStep=0;state.assetView='holdings';state.reviewNotes=['','',''];state.transactions=initialTransactions.map(x=>({...x}));state.monthly=2000;state.rate=4;state.target=3000000;state.page='overview';closeDialog();render();notify('已恢复初始演示数据')},
+  }
+  root.addEventListener('click',event=>{
+    const b=event.target.closest('button');if(!b||!root.contains(b))return
+    if(b.dataset.page){closeDialog();state.page=b.dataset.page;render();persist();return}
+    if(b.dataset.period){state.period=b.dataset.period;if(dialogKind==='info'&&!overlay.hidden){actions['return-history']()}else render();return}
+    if(b.dataset.assetView){state.assetView=b.dataset.assetView;render();return}
+    if(b.dataset.asset){assetDialog(b.dataset.asset);return}
+    if(b.dataset.sort){if(state.sort===b.dataset.sort)state.sortDir*=-1;else{state.sort=b.dataset.sort;state.sortDir=b.dataset.sort==='name'?1:-1}root.querySelector('#cl-holdings-table').innerHTML=holdingTable();return}
+    if(b.dataset.reviewStep){state.reviewStep=Number(b.dataset.reviewStep);render();return}
+    if(b.dataset.fontChoice){state.font=b.dataset.fontChoice;applyFont();return}
+    if(b.dataset.info){const info={networth:['净资产','全部资产减全部负债，包含房产和长期资产。'],investable:['可投资资产','现金、基金、ETF、股票、黄金及在途资金。不含房产和长期持股。'],flow:['净投入','所选区间内组合外部资金流入减流出，不含内部买卖和结算。'],holdings:['持仓总市值','当前持仓市值合计。此视图包含房产，不含在途资金；与可投资资产的范围不同。']}[b.dataset.info];openDialog(info[0],`<p>${info[1]}</p>`);return}
+    if(b.dataset.action==='asset-records'){const h=holdings.find(x=>x.id===b.dataset.id);closeDialog();state.page='records';state.recordSearch=h.name;render();return}
+    if(b.dataset.action)actions[b.dataset.action]?.()
+  })
+  root.addEventListener('input',event=>{
+    const el=event.target
+    if(el.id==='cl-asset-search'){state.assetSearch=el.value;root.querySelector('#cl-holdings-table').innerHTML=holdingTable()}
+    if(el.id==='cl-record-search'){state.recordSearch=el.value;root.querySelector('#cl-record-table').innerHTML=recordTable()}
+    if(el.id==='cl-page-search'){const q=el.value.trim();root.querySelector('#cl-page-results').innerHTML=Object.entries(pageNames).filter(([k,n])=>(n+({assets:'持仓账户配置',records:'交易流水定投',invest:'看盘行情收益'}[k]||'')).includes(q)).map(([k,n])=>`<button class="cl-task" data-page="${k}"><span>${n}</span><span>进入 ›</span></button>`).join('')||'<div class="cl-empty">没有匹配的页面</div>'}
+    if(el.dataset.note!==undefined)state.reviewNotes[Number(el.dataset.note)]=el.value
+    const goalFields={'cl-goal-target':'target','cl-goal-monthly':'monthly','cl-goal-rate':'rate'}
+    if(goalFields[el.id]){if(!el.value||!el.validity.valid){el.setAttribute('aria-invalid','true');return}el.removeAttribute('aria-invalid');state[goalFields[el.id]]=Number(el.value);root.querySelector('#cl-goal-result').innerHTML=goalNumbers()}
+  })
+  root.addEventListener('change',event=>{
+    const el=event.target
+    if(el.id==='cl-asset-class'){state.assetClass=el.value;root.querySelector('#cl-holdings-table').innerHTML=holdingTable()}
+    if(el.id==='cl-record-type'){state.recordType=el.value;root.querySelector('#cl-record-table').innerHTML=recordTable()}
+  })
+  root.addEventListener('submit',event=>{
+    event.preventDefault();const form=event.target
+    if(form.id==='cl-entry-form'){
+      const amount=Number(form.elements.amount.value),fee=Number(form.elements.fee.value)
+      if(!Number.isFinite(amount)||amount<=0||!Number.isFinite(fee)||fee<0){root.querySelector('#cl-entry-error').textContent='请输入有效金额，费用不能为负数。';return}
+      const h=holdings.find(x=>x.id===form.elements.asset.value)
+      if(h.cls==='现金'&&['买入','卖出','分红'].includes(form.elements.type.value)){root.querySelector('#cl-entry-error').textContent='现金不能录为买卖或分红，请选择交易资产。';return}
+      if(h.cls!=='现金'&&form.elements.type.value==='转入'){root.querySelector('#cl-entry-error').textContent='此演示的转入用于现金，请选择人民币现金。';return}
+      state.transactions.unshift({date:form.elements.date.value,type:form.elements.type.value,asset:h.name,account:h.account,amount,status:'演示录入'})
+      closeDialog();state.page='records';state.recordType='全部';state.recordSearch='';render();notify('已加入本页演示记录，资产汇总未变')
+    }
+    if(form.id==='cl-fund-form'){
+      const nav=Number(form.elements.nav.value),shares=Number(form.elements.shares.value)
+      if(!Number.isFinite(nav)||!Number.isFinite(shares)||nav<=0||shares<=0||Math.abs(nav*shares-5000)>.02){root.querySelector('#cl-fund-error').textContent='份额与金额不匹配，请核对平台净值和确认份额。';return}
+      closeDialog();notify('已完成确认流程演示，未写入正式账本')
+    }
+  })
+  root.addEventListener('keydown',event=>{
+    if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();actions.search();return}
+    if(overlay.hidden)return
+    if(event.key==='Escape'){event.preventDefault();closeDialog()}
+    if(event.key==='Tab'){const list=[...dialog.querySelectorAll('button:not([disabled]),input,select,textarea,a[href]')].filter(el=>!el.hidden);if(!list.length)return;const first=list[0],last=list.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}
+  })
+  overlay.addEventListener('click',e=>{if(e.target===overlay)closeDialog()})
+  const saved=window.openai?.widgetState
+  if(saved?.modelContent?.font&&fonts[saved.modelContent.font])state.font=saved.modelContent.font
+  if(saved?.privateContent?.theme)root.dataset.theme=saved.privateContent.theme
+  window.addEventListener('openai:set_globals',event=>{const saved=event.detail?.globals?.widgetState;if(saved?.modelContent?.font&&fonts[saved.modelContent.font]){state.font=saved.modelContent.font;applyFont(false)}})
+  render()
+})()
+</script>

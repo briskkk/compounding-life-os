@@ -16,12 +16,12 @@ export const WEALTH_SCOPES = {
     detail: '全部资产市值合计，未扣除负债',
   },
   PORTFOLIO_ASSETS: {
-    label: '投资组合总资产',
+    label: '持仓总市值',
     badge: '含房产 · 未扣负债',
     detail: '组合类资产（现金、基金、ETF、股票、黄金、房产）市值合计；不含华为长期持股，未扣负债',
   },
   PORTFOLIO_ASSETS_LIVE: {
-    label: '投资组合总市值',
+    label: '组合实时估值',
     badge: '实时 · 含在途',
     detail: '按最新报价实时汇总，含房产与在途资金，随行情刷新',
   },
@@ -32,12 +32,12 @@ export const WEALTH_SCOPES = {
   },
   PERIOD_START_INVESTABLE: {
     label: '期初可投资资产',
-    badge: '复盘口径',
+    badge: '所选区间',
     detail: '所选周期期初时点，按历史估值重放，与当前实时口径不同',
   },
   PERIOD_END_INVESTABLE: {
     label: '期末可投资资产',
-    badge: '复盘口径',
+    badge: '所选区间',
     detail: '所选周期期末时点，按历史估值重放，与当前实时口径不同',
   },
   IN_TRANSIT: {
@@ -46,8 +46,8 @@ export const WEALTH_SCOPES = {
     detail: '由账本派生的在途金额，已计入可投资资产，但不计入行情盈亏',
   },
   MARKET_DAY_PNL: {
-    label: '可投资组合当日行情盈亏',
-    badge: '仅可投资组合',
+    label: '当日盈亏',
+    badge: '可投资组合',
     detail: '只统计可投资组合（现金、基金、ETF、股票、黄金与在途资金）按最新报价的当日行情涨跌，不含房产与长期持股，不代表家庭净资产的当日变化',
   },
 } as const

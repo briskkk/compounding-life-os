@@ -76,7 +76,7 @@ test('总览、看盘与账户的今日盈亏使用同一交易日口径', async
   await page.route('**/api/prices?**', (route) => route.fulfill({ json: prices }))
   await page.route('**/api/intraday?**', (route) => route.fulfill({ json: { asOf: new Date().toISOString(), series: {} } }))
 
-  await page.goto('/')
+  await page.goto('/?view=investment')
   const overviewAmount = await page.getByTestId('overview-today-pnl').getAttribute('data-amount')
 
   await page.goto('/watch')

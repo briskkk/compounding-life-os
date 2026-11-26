@@ -1,10 +1,12 @@
-# Compounding Life OS · 复利生活
+# Compound Life · 复利生活
 
 可自托管的家庭财富工作台。以交易流水为账本，追踪家庭净资产、投资表现与退休目标。
 
 [快速开始](#快速开始) · [项目文档](context/README.md) · [部署指南](DEPLOY-TENCENT-CLOUD.md)
 
-![家庭财富总览，包含资产与负债、投资表现、财富轨迹和待办（演示数据）](docs/screenshots/overview.png)
+![Compound Life 家庭资产总览（演示数据）](docs/screenshots/compound-life-household.jpg)
+
+[查看投资表现总览（演示数据）](docs/screenshots/compound-life-investment.jpg)
 
 - **看清家底**：汇总多账户、多币种的资产与负债，分别查看家庭净资产和可自由投资资产。持仓与成本可追溯到交易流水。
 - **复盘投资**：查看市场行情、基金净值和收益日历，按自定义分组拆解收益贡献，用 TWR 和 XIRR 观察组合表现。

@@ -119,7 +119,7 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
       <div className="goal-scenario-body">
         <div className="goal-scenario-copy">
           <span className="goal-status">当前目标</span>
-          <h3>改变投入，看看时间怎么变</h3>
+          <h3>投入与期限</h3>
           <p>试算沿用当前目标与账本资本，只有确认保存后才更新计划。</p>
           <button
             type="button"
@@ -159,7 +159,7 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
                 {pending ? '保存中…' : changed ? '保存到主目标' : '试算未变化'}
               </button>
             ) : (
-              <span className="text-[12px] text-ink-faint">只读成员可以试算预览；保存到主目标需要家庭 OWNER 权限。</span>
+              <span className="text-[12px] text-ink-faint">只读成员可以试算预览；保存需家庭所有者权限。</span>
             )}
           </div>
         </div>

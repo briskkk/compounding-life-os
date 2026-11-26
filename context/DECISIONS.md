@@ -15,6 +15,7 @@ last_verified: 2026-10-10
 | 维持双财富口径 | 净资产包含长期资产并扣负债；可自由投资排除房产、手动非黄金资产、华为员工持股 | [ADR-003](../docs/adr/003-dual-wealth-scopes.md) |
 | 默认使用账本驱动的目标测算 | 复杂 FIRE 假设进入高级压力测试，临时试算不自动保存 | [ADR-033](../docs/adr/033-ledger-driven-goal-calculator.md) |
 | Web 使用家庭财富工作台并按六项任务导航 | 默认浅色；总览、资产、投资、记录、复盘、目标为一级入口；低频治理保留搜索与深链 | [ADR-035](../docs/adr/035-family-wealth-workspace-ui.md) |
+| Web 采用 Compound Life 中性工作台与 D 字体 | 默认品牌 Compound Life；Inter + Noto Sans SC 本地托管，细线与中性色替代手绘装饰；财务与导航规则不变 | [ADR-046](../docs/adr/046-compound-life-workspace.md) |
 | FIRE 纳入家庭净资产 | 退休目标纳入员工持股、房产等长期资产并扣除负债；使用综合资产手工假设，不改变可投资组合口径 | [ADR-034](../docs/adr/034-fire-includes-household-net-worth.md) |
 | 生产不伪造行情 | 默认真实 provider chain，模拟源只能显式启用 | [ADR-004](../docs/adr/004-real-market-data-only.md) |
 | 基金估算与官方净值隔离 | 官方历史进 PriceBar；盘中估算进 FundEstimate，不能覆盖官方值 | [ADR-005](../docs/adr/005-separate-fund-estimates.md) |

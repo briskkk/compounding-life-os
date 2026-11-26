@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 const routes = [
-  '/', '/positions', '/positions?view=composition', '/accounts', '/allocation',
+  '/', '/?view=investment', '/positions', '/positions?view=composition', '/accounts', '/allocation',
   '/watch', '/review/returns', '/review/groups', '/transactions', '/investment-plans',
   '/transactions/imports', '/review', '/review/history', '/review/decisions',
   '/month-close', '/goals', '/health', '/health/market', '/reconciliation',
@@ -10,17 +10,46 @@ const routes = [
 
 const widths = [1280, 1440, 1600, 1920] as const
 
+test('品牌与D字体由应用托管，主要金额使用等宽数字', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.goto('/')
+  await expect(page).toHaveTitle('Compound Life')
+  await expect(page.locator('.terminal-brand-copy strong')).toHaveText('Compound Life')
+  const font = await page.evaluate(async () => {
+    const [latin, chinese] = await Promise.all([
+      document.fonts.load('400 14px "Inter Variable"', 'Compound Life 123'),
+      document.fonts.load('400 14px "Noto Sans SC Variable"', '净资产'),
+    ])
+    const amount = document.querySelector('[data-testid="overview-net-worth"]')!
+    return {
+      body: getComputedStyle(document.body).fontFamily,
+      numbers: getComputedStyle(amount).fontVariantNumeric,
+      loaded: latin.length > 0 && chinese.length > 0,
+      externalFonts: performance.getEntriesByType('resource')
+        .map((entry) => entry.name)
+        .filter((url) => /fonts\.(googleapis|gstatic)\.com/.test(url)),
+    }
+  })
+  expect(font.loaded).toBe(true)
+  expect(font.body).toContain('Inter Variable')
+  expect(font.body).toContain('Noto Sans SC Variable')
+  expect(font.numbers).toContain('tabular-nums')
+  expect(font.externalFonts).toEqual([])
+  await page.goto('/positions')
+  expect(await page.locator('.positions-table').evaluate((element) => element.getBoundingClientRect().top)).toBeLessThan(540)
+})
+
 test('主题偏好刷新后保留，窄屏支持键盘打开搜索与导航', async ({ page }) => {
   await page.setViewportSize({ width: 560, height: 900 })
   await page.goto('/')
   const html = page.locator('html')
-  const darkToggle = page.getByRole('button', { name: '切换到深色皮肤' })
+  const darkToggle = page.getByRole('button', { name: '切换到深色主题' })
   await darkToggle.focus()
   await darkToggle.press('Space')
   await expect(html).toHaveAttribute('data-theme', 'dark')
   await page.reload()
   await expect(html).toHaveAttribute('data-theme', 'dark')
-  await expect(page.getByRole('region', { name: '家庭财富三个口径' })).toHaveCSS('border-top-style', 'dashed')
+  await expect(page.getByRole('region', { name: '家庭资产摘要' })).toHaveCSS('border-top-style', 'solid')
 
   const search = page.getByRole('button', { name: '打开页面搜索' })
   await search.focus()
@@ -39,7 +68,7 @@ test('主题偏好刷新后保留，窄屏支持键盘打开搜索与导航', as
   await expect(menu).toHaveAttribute('aria-expanded', 'false')
   await expect(nav).toBeHidden()
 
-  await page.getByRole('button', { name: '切换到浅色皮肤' }).click()
+  await page.getByRole('button', { name: '切换到浅色主题' }).click()
   await page.reload()
   await expect(html).toHaveAttribute('data-theme', 'light')
 })
@@ -58,15 +87,19 @@ for (const route of routes) {
           const controls = [...document.querySelectorAll('.terminal-search-trigger, .terminal-top-actions > *')]
             .map((element) => element.getBoundingClientRect())
             .filter(({ width, height }) => width > 0 && height > 0)
+          const topbar = document.querySelector('.terminal-topbar')!.getBoundingClientRect()
+          const search = controls[0]
           return {
             overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
             background: getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim().toLowerCase(),
             toolbarOverlap: controls.some(({ left }, index) => index > 0 && left < controls[index - 1].right - 1),
+            searchOffset: Math.abs((search.left + search.right - topbar.left - topbar.right) / 2),
           }
         })
         expect(state.overflow, `${route} ${theme} @${width}px 溢出 ${state.overflow}px`).toBeLessThanOrEqual(1)
         expect(state.toolbarOverlap, `${route} ${theme} @${width}px 工具栏控件重叠`).toBe(false)
-        expect(state.background).toBe(theme === 'light' ? '#fffef5' : '#201d19')
+        expect(state.searchOffset, `${route} ${theme} @${width}px 搜索未在工作区居中`).toBeLessThanOrEqual(1)
+        expect(state.background).toBe(theme === 'light' ? '#fafafa' : '#121315')
       }
     }
   })

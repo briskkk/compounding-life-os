@@ -11,7 +11,7 @@ test('资产域：持仓默认表格优先，二级视图保持路由与证据',
   const nav = page.getByRole('navigation', { name: '资产视图' })
   await expect(nav.getByRole('link')).toHaveCount(4)
   await expect(nav.getByRole('link', { name: /持仓明细/ })).toHaveAttribute('aria-current', 'page')
-  await expect(page.getByRole('heading', { level: 1, name: '资产与持仓' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '资产' })).toBeVisible()
   await expect(page.getByRole('region', { name: '资产概况' })).toContainText('可投资资产')
   await expect(page.getByRole('region', { name: '持仓明细表' })).toBeVisible()
   await expect(page.getByRole('region', { name: '在途资金' })).toBeVisible()

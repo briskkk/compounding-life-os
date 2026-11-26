@@ -5,6 +5,7 @@ import { expect, test } from '@playwright/test'
 
 const PAGES = [
   ['/', '总览'],
+  ['/?view=investment', '总览投资表现'],
   ['/positions', '持仓'],
   ['/positions?view=composition', '资产结构'],
   ['/watch', '今日投资'],
