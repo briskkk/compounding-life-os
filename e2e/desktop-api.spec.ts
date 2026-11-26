@@ -14,9 +14,10 @@ test('桌面接口 Cookie 契约及禁止全局 Key', async ({ request, playwrig
     })
   }
   const anonymous = await playwright.request.newContext({ baseURL: 'http://localhost:3200', storageState: { cookies: [], origins: [] } })
+  const headerCases: Record<string, string>[] = [{}, { authorization: 'Bearer e2e-test-key' }, { authorization: 'Bearer invalid-session' }]
   try {
     for (const route of routes) {
-      for (const headers of [{}, { authorization: 'Bearer e2e-test-key' }, { authorization: 'Bearer invalid-session' }]) {
+      for (const headers of headerCases) {
         const response = await anonymous.get(route, { headers })
         expect(response.status()).toBe(401)
         expect(response.headers()['cache-control']).toBe('private, no-store')
