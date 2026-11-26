@@ -1,5 +1,6 @@
 // 输入校验 schema（server actions 与客户端共用）
 import { z } from 'zod'
+import { dateKeyAt } from '@/lib/engine/watch-market'
 
 const txTypes = [
   'BUY',
@@ -48,10 +49,12 @@ export const txInputSchema = z
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: '待确认基金申购必须只填正数金额和成交净值日', path: ['navSource'] })
       }
     }
-    if (v.settlementDate && v.settlementDate.getTime() < new Date(v.occurredAt).setHours(0, 0, 0, 0)) {
+    // 日期字段按北京时间自然日比较，避免服务器时区把同日零点误判为前一天。
+    const orderDay = dateKeyAt(v.occurredAt)
+    if (v.settlementDate && dateKeyAt(v.settlementDate) < orderDay) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: '预计到账日不能早于成交日', path: ['settlementDate'] })
     }
-    if (v.navDate && v.navDate.getTime() < new Date(v.occurredAt).setHours(0, 0, 0, 0)) {
+    if (v.navDate && dateKeyAt(v.navDate) < orderDay) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: '成交净值日不能早于下单日', path: ['navDate'] })
     }
   })
