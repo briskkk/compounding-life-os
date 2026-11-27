@@ -5,7 +5,6 @@ import { loadEngineState } from '@/lib/queries'
 import { prisma } from '@/lib/db'
 import { scopedDb } from '@/lib/scoped'
 import { Empty, PageHeader, Panel, SetupScreen, Tag, ScopeLabel } from '@/components/ui'
-import { ValuationToggle } from '@/components/valuation-toggle'
 import { groupByTag, parseTags, UNTAGGED } from '@/lib/engine/groups'
 import { groupByMarket, groupByStyle, sumByKey, UNCLASSIFIED_STYLE_KEY } from '@/lib/engine/composition'
 import { buildPositionTable, POSITION_CLASSES } from '@/lib/engine/position-table'
@@ -19,7 +18,7 @@ import { holdingAriaSort } from '@/lib/engine/holding-sort'
 import { PositionSortHeader } from '@/components/position-sort-header'
 import { isInvestableAsset, isPortfolioAssetClass } from '@/lib/asset-classification'
 import { marketGroupLabel } from '@/lib/engine/market-group'
-import { TableScroll } from '@/components/table-scroll'
+import { PositionTableScroll } from '@/components/position-table-scroll'
 import { AssetDomainNav } from '@/components/asset-domain-nav'
 import { AssetClassificationEditor, type ClassificationRow } from '@/components/asset-classification-editor'
 import { strategyName, UNASSIGNED_STRATEGY } from '@/lib/engine/strategy-allocation'
@@ -247,13 +246,12 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
             <Empty action={{ href: '/transactions#new-entry', label: '录入流水' }}>暂无持仓 — 先录入流水</Empty>
           ) : (
             <>
-              <ValuationToggle
+              <PositionTableScroll
                 assets={manualAssets.map((a) => {
                   const pos = state.valued.find((v) => v.assetId === a.id)
                   return { id: a.id, name: a.name, accountId: pos?.accountId ?? '', current: pos?.value ?? null }
                 })}
-              />
-              <TableScroll label="持仓明细表">
+              >
               <table className="positions-table w-full text-[14px] whitespace-nowrap">
               <thead>
                 <tr className="border-b border-line text-left text-[12px] tracking-wider text-ink-faint">
@@ -357,7 +355,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
                 })}
               </tbody>
               </table>
-              </TableScroll>
+              </PositionTableScroll>
             </>
           )}
         </Panel>

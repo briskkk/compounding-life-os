@@ -329,7 +329,6 @@ export function ReviewClient({ data, initialStep }: { data: ReviewPageData; init
       <header className="review-header">
         <div>
           <h1 className="page-title" title="按结果、归因、行为与风险、结论四步完成一次复盘；所选周期与证据状态在四步之间保持可见">周期复盘</h1>
-          <p className="page-description">四步完成一次复盘，所选周期与证据状态全程可见。</p>
         </div>
         <div className="review-range-controls">
           <div className="review-periods" aria-label="复盘周期">
@@ -443,15 +442,6 @@ export function ReviewClient({ data, initialStep }: { data: ReviewPageData; init
           <span className="num">基准 {fmtPct(result.benchmarkPct, { sign: true })}</span>
           <span className={cx('num', tone(result.alphaPct))}>超额 {fmtPct(result.alphaPct, { sign: true })}</span>
         </div>
-        <div className="review-outcome-status" aria-label="结果可用性">
-          <span>收益对账 <b>{reconciliation.label}</b></span>
-          <span>估值覆盖 <b className="num">{fmtPct(result.valuationCoverage)}</b></span>
-          <span>基金在途 <b className="num">{fmtCNY(data.inTransit)}</b></span>
-          <span>{pendingFundEventCount > 0 ? `${pendingFundEventCount} 笔等待确认` : '没有待确认事项'}</span>
-        </div>
-        <p className="review-outcome-next">
-          <button type="button" onClick={() => selectStep('attribution')}>下一步：这些收益由谁贡献 →</button>
-        </p>
       </section>
 
       <section id="attribution-contribution" className="section-panel review-section" hidden={step !== 'attribution' || attributionView !== 'contribution'}>

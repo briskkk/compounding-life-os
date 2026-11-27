@@ -9,17 +9,17 @@ body { font-family: var(--font-sans); letter-spacing: 0; }
 button, input, select, textarea { font-family: inherit; }
 
 .terminal-sidebar {
-  padding: 22px 12px 16px;
+  padding: 24px 12px 16px;
   background: var(--color-panel);
 }
 
-.terminal-brand { gap: 6px; padding: 0 4px 18px; }
+.terminal-brand { gap: 8px; padding: 0 4px 20px; }
 .terminal-brand-mark.wealth-brand-mark { display: none; }
 .terminal-brand-copy strong { font-size: 19px; font-weight: 500; letter-spacing: -0.04em; }
-.terminal-brand-copy small { margin-top: 7px; font-size: var(--font-size-micro); color: var(--color-ink-faint); }
-.terminal-collapse { width: 28px; height: 30px; border: 0; }
+.terminal-brand-copy small { margin-top: 8px; font-size: var(--font-size-micro); color: var(--color-ink-faint); }
+.terminal-collapse { width: 28px; height: 32px; border: 0; }
 .terminal-nav-group > p { margin: 12px 12px 10px; font-weight: 400; letter-spacing: 0; }
-.terminal-nav-item { min-height: 42px; margin-block: 4px; gap: 12px; font-size: 14px; font-weight: 400; }
+.terminal-nav-item { min-height: 44px; margin-block: 4px; gap: 12px; font-size: 14px; font-weight: 400; }
 .terminal-nav-item:hover { background: var(--color-panel2); }
 .terminal-nav-item.is-active { background: var(--color-accent); color: var(--color-on-accent); font-weight: 500; }
 .terminal-nav-item.is-active svg { color: currentColor; }
@@ -54,7 +54,7 @@ button, input, select, textarea { font-family: inherit; }
 .terminal-top-actions { gap: 8px; }
 
 .terminal-main { width: min(100% - 56px, var(--workspace-content)); }
-.terminal-main > .page-shell { gap: 20px; padding-block: 26px 48px; }
+.terminal-main > .page-shell { gap: 20px; padding-block: 24px 48px; }
 .terminal-main .page-header { min-height: 0; padding: 0; align-items: center; gap: 12px 20px; }
 .terminal-main :is(h1.page-title, .overview-page-header h1, .goal-page-header h1) {
   margin: 0;
@@ -65,7 +65,7 @@ button, input, select, textarea { font-family: inherit; }
   letter-spacing: -0.02em;
 }
 .terminal-main :is(h2, h3, h4, strong, b) { font-weight: 500; }
-.terminal-main .page-description { max-width: 56rem; margin-top: 7px; font-size: 13px; line-height: 1.65; }
+.terminal-main .page-description { max-width: 56rem; margin-top: 8px; font-size: 13px; line-height: 1.65; }
 .terminal-main :is(.page-kicker, .eyebrow) { font-weight: 400; letter-spacing: 0; }
 .terminal-main .section-panel { padding: 16px 20px 0; background: var(--color-panel); }
 .terminal-main .section-panel > header { min-height: 36px; padding-bottom: 12px; flex-wrap: wrap; }
@@ -138,7 +138,7 @@ button, input, select, textarea { font-family: inherit; }
 .overview-balance-card small,
 .overview-balance-primary small { color: var(--color-ink-faint); font-size: var(--font-size-micro); }
 .overview-balance-metrics { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.1fr) minmax(0, .55fr); gap: 12px; }
-.overview-balance-metrics > div { display: grid; gap: 3px; align-content: start; }
+.overview-balance-metrics > div { display: grid; gap: 4px; align-content: start; }
 .overview-balance-metrics strong { font-size: clamp(14px, 1.35vw, 20px); overflow-wrap: anywhere; }
 .overview-book-trend [aria-label='净资产走势区间'] { margin-top: 4px; font-size: 13px; }
 .overview-book-trend [aria-label='净资产走势区间'] button { padding: 5px 8px; }
@@ -276,10 +276,21 @@ button, input, select, textarea { font-family: inherit; }
 .terminal-main .workflow-domain-nav a strong { font-weight: 400; }
 .terminal-main .workflow-domain-nav a.is-active { background: var(--color-panel2); color: var(--color-ink); }
 .positions-shell .valuation-tools { margin-top: -4px; }
-.positions-shell .valuation-tools > button { min-height: 34px; padding: 6px 12px; color: var(--color-ink-dim); font-size: 13px; }
+.positions-shell .valuation-tools-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; }
+.positions-shell .valuation-tools-heading > button { min-height: 36px; width: auto; justify-content: flex-start; gap: 12px; padding: 8px 12px; color: var(--color-ink-dim); font-size: 13px; }
 .positions-shell .positions-table td:first-child { min-width: 220px; max-width: 340px; white-space: normal; }
 .positions-shell .positions-table td:first-child > div { align-items: flex-start; }
 .positions-shell .positions-table td:first-child i { flex: 0 0 auto; margin-top: 8px; }
+.position-table-workspace { min-width: 0; }
+.position-table-controls { display: flex; align-items: center; justify-content: flex-end; gap: 8px; color: var(--color-ink-dim); font-size: var(--font-size-micro); }
+.position-table-controls[hidden] { display: none; }
+.position-table-controls button { width: 32px; min-height: 32px; border: 1px solid var(--color-line); border-radius: var(--radius-sm); color: var(--color-ink); }
+.position-table-controls button:hover:not(:disabled) { background: var(--color-panel2); }
+.position-table-controls button:disabled { opacity: .4; cursor: default; }
+.positions-shell .position-table-scroll :is(th, td):first-child { position: sticky; left: 0; z-index: 2; background: var(--color-panel); }
+.positions-shell .position-table-scroll th:first-child { z-index: 3; }
+.position-table-workspace[data-scrolled] :is(th, td):first-child { border-right: 1px solid var(--color-line); }
+.positions-shell .position-table-scroll tr:hover td:first-child { background: var(--color-panel2); }
 .terminal-main .asset-in-transit { min-height: 0; padding: 16px 20px; background: var(--color-panel); }
 .terminal-main :is(.operations-summary, .investment-plan-console, .investment-plan-ledger, .investment-plan-editor, .investment-plan-quick-entry) { background: var(--color-panel); box-shadow: none; }
 .terminal-main :is(.investment-plan-console, .investment-plan-ledger, .investment-plan-editor) > header { padding: 16px 20px; }
@@ -299,6 +310,25 @@ button, input, select, textarea { font-family: inherit; }
 .terminal-main .goal-summary { padding: 20px; gap: 20px; background: var(--color-panel); }
 .terminal-main .goal-answer-grid > div { min-height: 0; padding: 12px 0; background: transparent; }
 .terminal-main .goal-answer-grid > div + div { padding-left: 16px; border-left: 1px solid var(--color-line); }
+.terminal-main .goal-answer-grid strong { font-size: 20px; }
+.terminal-main .goal-answer-grid .is-primary strong { font-size: clamp(24px, 2vw, 28px); }
+.terminal-main .goal-scenario-body { grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 12px; padding: 16px 0; border-radius: 0; background: transparent; }
+.terminal-main .goal-scenario-results { margin-top: 0; padding-top: 16px; gap: 20px; }
+.goal-scenario-status { color: var(--color-ink-dim); font-size: var(--font-size-micro); }
+.goal-scenario-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.goal-scenario-actions > :last-child { margin-left: auto; }
+.terminal-main .review-header { align-items: center; gap: 16px; }
+.terminal-main .review-range-controls { display: flex; width: auto; max-width: 100%; flex-wrap: wrap; align-items: center; gap: 12px; }
+.terminal-main .review-range-controls .review-periods { width: auto; gap: 4px; }
+.terminal-main .review-month-control { min-width: 200px; }
+.terminal-main .review-workflow-nav { background: var(--color-bg); backdrop-filter: none; }
+.terminal-main .review-workflow-nav button { min-height: 52px; padding: 8px 12px; }
+.terminal-main .review-outcome { gap: 24px; padding: 24px; border-color: var(--color-line); background: var(--color-panel); }
+.terminal-main .review-outcome-main > strong { margin-top: 8px; font-size: clamp(32px, 3vw, 44px); }
+.terminal-main .review-return-pills { margin-top: 12px; gap: 8px 16px; }
+.terminal-main .review-return-pills span { border: 0; border-radius: 0; padding: 0; }
+.terminal-main .review-benchmark { justify-content: flex-start; padding-top: 16px; gap: 12px; border-color: var(--color-line); }
+.terminal-main .review-step-footer button:last-child:not(:disabled) { background: var(--color-accent); color: var(--color-on-accent); }
 .terminal-main .goal-answer-block { background: var(--color-panel); }
 .terminal-main .governance-overview { background: var(--color-panel); }
 .terminal-main .review-status-chip.eligible { color: var(--color-info); border-color: var(--color-info); background: color-mix(in srgb, var(--color-info) 7%, transparent); }
@@ -339,6 +369,10 @@ button, input, select, textarea { font-family: inherit; }
 }
 
 @media (max-width: 760px) {
+  .positions-shell .position-table-scroll :is(th, td):first-child { position: static; }
+  .terminal-main .goal-answer-grid > div + div { padding-left: 0; border-left: 0; }
+  .terminal-main .review-range-controls { width: 100%; }
+  .terminal-main .review-outcome { padding: 16px; }
   .terminal-main { width: min(100% - 32px, var(--workspace-content)); }
   .terminal-topbar { gap: 6px; padding-inline: 12px; }
   .terminal-breadcrumb > a { display: none; }

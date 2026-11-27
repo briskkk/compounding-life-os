@@ -97,22 +97,6 @@
   white-space: nowrap;
 }
 
-/* 结果步末尾的连续前进入口：四步工作台不靠滚动找下一步。 */
-.review-outcome-next {
-  margin-top: 1rem;
-}
-
-.review-outcome-next button {
-  min-height: 44px;
-  padding: 0.5rem 0;
-  color: var(--color-accent);
-  font-size: 13px;
-}
-
-.review-outcome-next button:hover {
-  text-decoration: underline;
-}
-
 @media (max-width: 1180px) {
   .review-context {
     grid-template-columns: minmax(0, 1fr) auto;

@@ -114,11 +114,8 @@ export default async function GoalsPage() {
   return (
     <div className="page-shell goals-page goal-simple-page">
       <header className="goal-page-header">
-        <div>
-          <h1>目标测算</h1>
-          <p>基于账本测算达成时间与所需月投入</p>
-        </div>
-        <Tag tone={primary ? 'info' : 'amber'}>{primary ? '1 个主目标' : '尚未保存目标'}</Tag>
+        <h1>目标测算</h1>
+        {!primary && <Tag tone="amber">尚未保存目标</Tag>}
       </header>
 
       {readOnly && <ReadOnlyNotice what="可以查看目标测算、情景假设与高级压力测试，但不能新建、修改或保存目标" />}
@@ -128,7 +125,7 @@ export default async function GoalsPage() {
           <section className="goal-summary" aria-labelledby="goal-summary-title">
             <div className="goal-summary-head">
               <div>
-                <Tag tone="info">主目标 · {goalKind(primary)}</Tag>
+                <Tag tone="info">{goalKind(primary)}</Tag>
                 <h2 id="goal-summary-title">{primary.name}</h2>
                 <p>{fmtDate(primary.targetDate)} · 目标金额按今日购买力记录</p>
               </div>
@@ -136,16 +133,16 @@ export default async function GoalsPage() {
             </div>
 
             <div className="goal-answer-grid">
+              <div className="is-primary"><span>按当前投入预计达成</span><strong>{monthFrom(now, primary.projection.estimatedFireMonths)}</strong><small>当前计划投入 {fmtCNY(primary.monthlyContribution)} / 月</small></div>
+              <div className="is-primary"><span>目标日所需月投入</span><strong>{fmtCNY(primary.projection.requiredMonthly)}</strong><small>{primary.projection.requiredMonthly <= primary.monthlyContribution ? '当前计划投入可以覆盖' : `还需增加 ${fmtCNY(primary.projection.requiredMonthly - primary.monthlyContribution)} / 月`}</small></div>
               <div><span>可用于目标的当前资产</span><strong>{fmtCNY(primary.current)}</strong><small>{primary.metric === 'INVESTABLE' ? '可自由投资口径，含在途资产' : primary.mode === 'STREAM' ? '家庭净资产，含长期资产并扣负债' : '家庭净资产口径'}</small></div>
               <div><span>目标金额</span><strong>{fmtCNY(primary.targetAmount)}</strong><small>目标日通胀调整后 {fmtCNY(targetAtDate)}</small></div>
-              <div><span>按当前投入预计达成</span><strong>{monthFrom(now, primary.projection.estimatedFireMonths)}</strong><small>当前计划投入 {fmtCNY(primary.monthlyContribution)} / 月</small></div>
-              <div><span>目标日所需月投入</span><strong>{fmtCNY(primary.projection.requiredMonthly)}</strong><small>{primary.projection.requiredMonthly <= primary.monthlyContribution ? '当前计划投入可以覆盖' : `还需增加 ${fmtCNY(primary.projection.requiredMonthly - primary.monthlyContribution)} / 月`}</small></div>
             </div>
 
             <div className="goal-summary-progress" role="progressbar" aria-label={`${primary.name} 当前完成度`} aria-valuenow={Math.min(100, Math.max(0, Math.round(primary.projection.fundedRatio * 100)))} aria-valuemin={0} aria-valuemax={100}>
               <i style={{ width: `${Math.min(100, Math.max(0, primary.projection.fundedRatio * 100))}%` }} />
             </div>
-            <p className="goal-summary-caption">当前资本相当于今日目标的 {fmtPct(primary.projection.fundedRatio)}；计划与账本流水保持分离。</p>
+            <p className="goal-summary-caption">当前资本相当于今日目标的 {fmtPct(primary.projection.fundedRatio)}</p>
             {primary.capitalScopeAdjusted && <p className="goal-scope-warning">退休目标已改用家庭净资产；保存后可同步修正口径。</p>}
           </section>
 
@@ -157,7 +154,6 @@ export default async function GoalsPage() {
             savingsEvidenceMonths={savings.recordedMonths}
             projectedMedian={primary.projection.projectedMedian}
             fireNumberAtRetirement={primary.projection.fireNumberAtRetirement}
-            accumulationSuccessProbability={primary.projection.accumulationSuccessProb}
             requiredMonthly={primary.projection.requiredMonthly}
             estimatedFireMonths={primary.projection.estimatedFireMonths}
             projectionInput={primary.projectionInput}

@@ -1,11 +1,17 @@
 // 北京归属口径（ADR-027）：美股美东 D 日的行情记进北京 D+1 格
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { PrismaClient } from '@prisma/client'
 import path from 'node:path'
 import { rebuildSnapshots } from '@/lib/snapshots'
 import { monthDailyPoints } from '@/lib/engine/returns-calendar'
 import { buildAssetPerformanceSeries, toAssetNavPoint } from '@/lib/engine/asset-performance'
 import type { PerformancePoint } from '@/lib/engine/period-performance'
+
+// 本组只验证交易场次归属，汇率保持固定，不依赖其它测试留下的 RateBar 或外部网络。
+vi.mock('@/lib/market/fx', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/lib/market/fx')>(),
+  fxRateAtFactory: async () => (currency: string) => currency === 'USD' ? 7.2 : 1,
+}))
 
 const base = new PrismaClient({ datasourceUrl: `file:${path.resolve('prisma/test.db')}` })
 

@@ -2,7 +2,7 @@
 
 // 临时试算始终交回服务端同一投影引擎；只有点击保存并确认后才改写主目标。
 import { useNavigateAfterWrite } from '@/lib/write-navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { applyGoalScenario, previewGoalScenario } from '@/lib/actions'
 import { FormMsg, btnCls, btnGhostCls } from './fields'
 import { useConfirm } from '@/components/confirm-dialog'
@@ -12,7 +12,6 @@ interface GoalScenarioLabProps {
   monthlyContribution: number
   sustainableMonthlySavings: number
   savingsEvidenceMonths: number
-  accumulationSuccessProbability: number
   projectedMedian: number
   fireNumberAtRetirement: number
   requiredMonthly: number
@@ -33,6 +32,13 @@ interface GoalScenarioLabProps {
   }
 }
 
+interface ScenarioPreview {
+  projectedMedian: number
+  fireNumberAtRetirement: number
+  requiredMonthly: number
+  estimatedFireMonths: number | null
+}
+
 const money = (value: number) => `¥${Math.round(Math.max(0, value)).toLocaleString('zh-CN')}`
 
 function monthAfter(months: number | null): string {
@@ -50,37 +56,44 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
   const [monthly, setMonthly] = useState(props.monthlyContribution)
   const [delayMonths, setDelayMonths] = useState(0)
   const [pending, setPending] = useState(false)
-  const [computing, setComputing] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string; tone?: 'ok' | 'warn' | 'error' } | null>(null)
-  const [preview, setPreview] = useState({
-    accumulationSuccessProb: props.accumulationSuccessProbability,
-    projectedMedian: props.projectedMedian,
-    fireNumberAtRetirement: props.fireNumberAtRetirement,
-    requiredMonthly: props.requiredMonthly,
-    estimatedFireMonths: props.estimatedFireMonths,
-  })
-  const base = props.projectionInput
-  const requestId = useRef(0)
+  const [attempt, setAttempt] = useState(0)
+  const [result, setResult] = useState<{ key: string; attempt: number; data: ScenarioPreview | null; error: string | null } | null>(null)
+  const changed = monthly !== props.monthlyContribution || delayMonths !== 0
+  const requestKey = JSON.stringify({ monthlyContribution: monthly, delayMonths, base: props.projectionInput })
+  const currentResult = result?.key === requestKey && result.attempt === attempt ? result : null
+  const computing = changed && currentResult == null
+  // 未调整时直接使用同源的服务端结果；请求失败或尚未返回时不冒用上一次的试算。
+  const preview: ScenarioPreview | null = changed ? currentResult?.data ?? null : props
+  const error = changed ? currentResult?.error : null
 
   useEffect(() => {
-    const id = requestId.current + 1
-    requestId.current = id
-    setComputing(true)
+    if (!changed) return
+    let cancelled = false
     const timer = setTimeout(async () => {
-      const res = await previewGoalScenario({ monthlyContribution: monthly, delayMonths, base })
-      if (requestId.current !== id) return
-      setComputing(false)
-      if (res.ok && res.data) setPreview(res.data)
-      else if (!res.ok) setMsg({ ok: false, tone: 'error', text: res.error })
+      try {
+        const response = await previewGoalScenario(JSON.parse(requestKey))
+        if (!cancelled) setResult({
+          key: requestKey,
+          attempt,
+          data: response.ok ? response.data ?? null : null,
+          error: response.ok ? response.data ? null : '试算未返回结果，请重新试算' : response.error,
+        })
+      } catch {
+        if (!cancelled) setResult({ key: requestKey, attempt, data: null, error: '试算暂时无法完成，请重新试算' })
+      }
     }, 180)
-    return () => clearTimeout(timer)
-  }, [monthly, delayMonths, base])
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [requestKey, changed, attempt])
 
   const maxMonthly = Math.max(15000, Math.ceil(Math.max(props.monthlyContribution, props.sustainableMonthlySavings, props.requiredMonthly) * 1.6 / 500) * 500)
-  const gap = Math.max(0, preview.fireNumberAtRetirement - preview.projectedMedian)
-  const changed = monthly !== props.monthlyContribution || delayMonths !== 0
+  const gap = preview ? Math.max(0, preview.fireNumberAtRetirement - preview.projectedMedian) : null
 
   async function apply() {
+    if (!preview || computing || !changed || pending) return
     const confirmed = await confirm({
       title: '保存到主目标？',
       description: '临时试算本身不会写入；确认后才更新主目标。',
@@ -117,51 +130,53 @@ export function GoalScenarioLab(props: GoalScenarioLabProps) {
         <span>调整不会自动保存</span>
       </div>
       <div className="goal-scenario-body">
-        <div className="goal-scenario-copy">
-          <span className="goal-status">当前目标</span>
-          <h3>投入与期限</h3>
-          <p>试算沿用当前目标与账本资本，只有确认保存后才更新计划。</p>
+        <div className="goal-scenario-controls">
+          <label>
+            <span>每月投入 <strong>{money(monthly)}</strong></span>
+            <input type="range" min="0" max={maxMonthly} step="500" value={monthly} disabled={pending} onChange={(event) => {
+              setMonthly(Number(event.target.value))
+              setMsg(null)
+            }} />
+          </label>
+          <label>
+            <span>目标日期 <strong>{delayMonths > 0 ? `延后 ${delayMonths} 个月` : '不变'}</strong></span>
+            <input type="range" min="0" max="36" step="6" value={delayMonths} disabled={pending} onChange={(event) => {
+              setDelayMonths(Number(event.target.value))
+              setMsg(null)
+            }} />
+          </label>
+        </div>
+
+        <div className="goal-scenario-results" aria-live="polite" aria-busy={computing}>
+          <div><span>预计达成</span><strong>{preview ? monthAfter(preview.estimatedFireMonths) : '—'}</strong></div>
+          <div><span>目标日预计资产</span><strong>{preview ? money(preview.projectedMedian) : '—'}</strong></div>
+          <div><span>目标日资金缺口</span><strong>{gap == null ? '—' : money(gap)}</strong></div>
+        </div>
+        <p className="goal-scenario-status" role="status">
+          {computing ? '引擎重算中…' : preview ? `按此期限需投入 ${money(preview.requiredMonthly)} / 月` : '当前试算未完成'}
+        </p>
+        <FormMsg msg={error ? { ok: false, text: error } : msg} />
+        <div className="goal-scenario-actions">
           <button
             type="button"
             className={btnGhostCls}
-            disabled={!hasSavingsEvidence || !canWrite}
+            disabled={!hasSavingsEvidence || !canWrite || pending}
             title={hasSavingsEvidence ? (canWrite ? undefined : '只读成员不能把储蓄参考写入试算') : `目前只有 ${props.savingsEvidenceMonths} 个月有效收支记录，至少需要 3 个月`}
-            onClick={() => setMonthly(Math.max(0, Math.round(props.sustainableMonthlySavings / 500) * 500))}
+            onClick={() => {
+              setMonthly(Math.max(0, Math.round(props.sustainableMonthlySavings / 500) * 500))
+              setMsg(null)
+            }}
           >
             {hasSavingsEvidence ? `采用储蓄参考 ${money(props.sustainableMonthlySavings)}` : '储蓄能力证据不足'}
           </button>
-        </div>
-
-        <div>
-          <div className="goal-scenario-controls">
-            <label>
-              <span>每月投入 <strong>{money(monthly)}</strong></span>
-              <input type="range" min="0" max={maxMonthly} step="500" value={monthly} onChange={(event) => setMonthly(Number(event.target.value))} />
-            </label>
-            <label>
-              <span>目标日期 <strong>{delayMonths > 0 ? `延后 ${delayMonths} 个月` : '不变'}</strong></span>
-              <input type="range" min="0" max="36" step="6" value={delayMonths} onChange={(event) => setDelayMonths(Number(event.target.value))} />
-            </label>
-          </div>
-
-          <div className="goal-scenario-results" aria-live="polite">
-            <div><span>预计达成</span><strong>{monthAfter(preview.estimatedFireMonths)}</strong></div>
-            <div><span>目标日预计资产</span><strong>{money(preview.projectedMedian)}</strong></div>
-            <div><span>目标日资金缺口</span><strong>{money(gap)}</strong></div>
-          </div>
-          <p className="mt-3 text-[12px] text-ink-faint">
-            {computing ? '引擎重算中…' : `同一组合模型 · 当前反解所需投入 ${money(preview.requiredMonthly)} / 月`}
-          </p>
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-            <FormMsg msg={msg} />
-            {canWrite ? (
-              <button type="button" onClick={apply} disabled={pending || !changed} className={btnCls}>
-                {pending ? '保存中…' : changed ? '保存到主目标' : '试算未变化'}
-              </button>
-            ) : (
-              <span className="text-[12px] text-ink-faint">只读成员可以试算预览；保存需家庭所有者权限。</span>
-            )}
-          </div>
+          {error && <button type="button" className={btnGhostCls} onClick={() => setAttempt((value) => value + 1)}>重新试算</button>}
+          {canWrite ? (
+            <button type="button" onClick={apply} disabled={pending || !changed || !preview || computing} className={btnCls}>
+              {pending ? '保存中…' : changed ? '保存到主目标' : '试算未变化'}
+            </button>
+          ) : (
+            <span className="text-[12px] text-ink-faint">只读成员可以试算预览；保存需家庭所有者权限。</span>
+          )}
         </div>
       </div>
     </section>

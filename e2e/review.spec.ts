@@ -6,7 +6,12 @@ test('组合复盘：归因切换、周期深链与草稿保存', async ({ page 
   await expect(page.getByRole('heading', { level: 1, name: '周期复盘' })).toBeVisible()
   await expect(page.getByText('本月投资收益')).toBeVisible()
   await expect(page.getByRole('heading', { name: '收益归因' })).toBeHidden()
-  await expect(page.getByLabel('结果可用性')).toContainText('收益对账')
+  await expect(page.getByLabel('复盘上下文')).toContainText('收益对账')
+  await expect(page.getByLabel('结果可用性')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '下一步', exact: true })).toHaveCount(1)
+  await page.getByRole('button', { name: '下一步', exact: true }).click()
+  await expect(page).toHaveURL(/step=attribution/)
+  await page.getByRole('navigation', { name: '复盘步骤' }).getByRole('button', { name: /1 · 结果/ }).click()
 
   // 四步复盘：默认先看结果，再进入归因证据
   const workflow = page.getByRole('navigation', { name: '复盘步骤' })

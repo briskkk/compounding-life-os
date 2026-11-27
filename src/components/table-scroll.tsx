@@ -3,15 +3,17 @@
 // 宽表格在窄屏需要横向滚动，但原生 overflow 容器不可聚焦，键盘用户无法滚动看到右侧列。
 // 这里统一用 role="region" + tabIndex={0} + aria-label 暴露给键盘与读屏；
 // 表头粘性由 .table-scroll 的 CSS 统一处理（见 globals.css）。
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 
-export function TableScroll({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
+export function TableScroll({ label, children, className, ref, descriptionId }: { label: string; children: ReactNode; className?: string; ref?: Ref<HTMLDivElement>; descriptionId?: string }) {
   return (
     <div
       className={className ? `table-scroll ${className}` : 'table-scroll'}
       role="region"
       aria-label={label}
+      aria-describedby={descriptionId}
       tabIndex={0}
+      ref={ref}
     >
       {children}
     </div>

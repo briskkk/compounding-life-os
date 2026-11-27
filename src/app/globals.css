@@ -5545,22 +5545,6 @@ nav[aria-label="主导航"] a {
   color: var(--color-ink);
 }
 
-.review-outcome-status {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid color-mix(in srgb, var(--color-accent) 12%, transparent);
-  color: var(--color-ink-faint);
-  font-size: 12px;
-}
-
-.review-outcome-status b {
-  color: var(--color-ink-dim);
-  font-weight: 500;
-}
-
 .review-section {
   scroll-margin-top: 64px;
 }

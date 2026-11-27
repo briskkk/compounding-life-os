@@ -1,6 +1,7 @@
 // 校验错误转写：Zod 内置英文消息不能直接暴露给用户
 // 作者在 schema 里手写的中文 message 原样透出；内置约束按字段与类型改写成中文
 import { ZodError, type ZodIssue } from 'zod'
+import { ASSET_CLASS_LABEL } from './labels'
 
 /** 字段路径 → 中文标签（按最后一段匹配，覆盖各表单主要字段） */
 const FIELD_LABELS: Record<string, string> = {
@@ -35,6 +36,13 @@ const FIELD_LABELS: Record<string, string> = {
   inflationRate: '通胀率',
   metric: '口径',
   monthlyContribution: '每月投入',
+  delayMonths: '目标延期月数',
+  current: '当前资本',
+  fireNumberToday: '今日目标金额',
+  monthsToRetirement: '目标期限',
+  retirementYears: '退休年数',
+  annualReturn: '预期年化收益率',
+  portfolioWeights: '组合权重',
   expectedReturn: '期望年化',
   volatility: '波动率',
   month: '月份',
@@ -77,10 +85,16 @@ function hasCjk(text: string): boolean {
 
 /** 只返回已知标签；未知字段不拼英文 key，避免把内部字段名暴露给用户 */
 function labelOf(path: (string | number)[]): string | null {
+  const weightsAt = path.indexOf('portfolioWeights')
+  if (weightsAt >= 0) {
+    const key = path[weightsAt + 1]
+    const assetClass = typeof key === 'string' ? ASSET_CLASS_LABEL[key as keyof typeof ASSET_CLASS_LABEL] : null
+    return assetClass ? `${assetClass}组合权重` : '组合权重'
+  }
   for (let i = path.length - 1; i >= 0; i -= 1) {
     const key = path[i]
     if (typeof key !== 'string') continue
-    return FIELD_LABELS[key] ?? null
+    if (FIELD_LABELS[key]) return FIELD_LABELS[key]
   }
   return null
 }

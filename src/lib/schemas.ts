@@ -242,7 +242,8 @@ export const goalScenarioPreviewSchema = z.object({
     annualReturn: z.number().min(-0.5).max(0.5),
     volatility: z.number().min(0).max(1),
     seed: z.number().int(),
-    portfolioWeights: z.record(z.string(), z.number().min(0).max(1)).optional(),
+    // 与协方差引擎保持一致：相对权重可以是资产金额，由采样器按合计归一化。
+    portfolioWeights: z.record(z.string(), z.number().finite().nonnegative()).optional(),
   }),
 })
 

@@ -47,6 +47,13 @@ describe('校验错误转写', () => {
     expect(text).not.toContain('someInternalField')
   })
 
+  it('嵌套字段未登记时使用已知父级标签', () => {
+    const schema = z.object({ portfolioWeights: z.record(z.string(), z.number().nonnegative()) })
+    const { text } = describeZodError(parseErrorOf(schema, { portfolioWeights: { unknown: -1 } }))
+    expect(text).toBe('组合权重不能小于 0')
+    expect(text).not.toContain('unknown')
+  })
+
   it('超过上限的条目折叠为一项提示', () => {
     const schema = z.object({ a: z.number(), b: z.number(), c: z.number(), d: z.number() })
     const error = parseErrorOf(schema, { a: 'x', b: 'x', c: 'x', d: 'x' })
