@@ -111,6 +111,7 @@ Web 投资日报与 CLO Desk 共用的只读图片数据，不新增账本或 sc
 ## 联调
 
 生产主入口：[https://huayanpei.com](https://huayanpei.com)。是否已上线必须以本次交付记录和部署后探测为准。
+2026-11-27：日报接口已部署，真实 Cookie/Bearer 公网请求 200，匿名/撤销会话 401；[发布记录](../releases/2026-11-27-investment-daily.md)。
 本机开发使用 `npm run dev -- --port 3000`，E2E 使用独立 3200，不复用生产数据库。
 
 ```sh
