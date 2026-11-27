@@ -1,6 +1,6 @@
 # CLO Desk 服务端契约
 
-2026-11-20。两个接口均为动态 GET，所有响应（包括 401/500）带
+更新于 2026-11-27。三个接口均为动态 GET，所有响应（包括 401/500）带
 `Cache-Control: private, no-store` 和 `Vary: Cookie, Authorization`。
 
 ## 身份与家庭
@@ -60,6 +60,37 @@ VIEWER 可读。
 
 实现只加载现有引擎状态与家庭名称。不调用 mobile summary、账户明细、目标/FIRE、历史收益或快照装配；没有新增账本写入、schema 或迁移。原有引擎的 SWR 行情读取与后台刷新行为保留，不额外拉取行情填元数据。
 
+## GET /api/desktop/daily-report
+
+Web 投资日报与 CLO Desk 共用的只读图片数据，不新增账本或 schema。
+
+```ts
+{
+  ok: true,
+  scope: { userId: string, familyId: string, familyName?: string },
+  report: {
+    date: string, // 北京当天 YYYY-MM-DD
+    pnl: number | null,
+    pct: number | null, // 1 = 1%，与 glance 相同基准
+    valuation: { /* 与 glance 的 valuation 相同 */ },
+    leaders: Array<{ assetId: string, name: string, pnl: number, pct: number | null }>,
+    remainingPnl: number | null,
+    curve: Array<{ t: number, pnl: number }>, // t 为毫秒时间戳
+    curveStatus: 'AVAILABLE' | 'UNAVAILABLE',
+    operations: Array<{ name: string, side: 'BUY' | 'SELL', amount: number, pending: boolean }>,
+    simulated: boolean,
+  },
+}
+```
+
+- 金额均为 CNY。汇总直接复用 glance；正收益跨账户合并后按收益金额降序最多五项，余项与汇总分币对账。无当日收益证据返回 null，不补零或示例。
+- 分时复用现有市场/基金分钟源和看盘曲线引擎，不持久化估值。仅匹配当前报价场次，末点与汇总对账；未取得曲线或不能对账则空数组和 UNAVAILABLE。缺分钟成员的常量贡献沿用看盘语义，不能把图解释成全部资产的逐分钟实测。
+- operations 为截至响应生成时刻、北京当天的有效 BUY/SELL，排除冲正、内部腿、关联结算腿；未知份额标 pending。不输出账户、份额、成本和操作时间。
+- `simulated` 显示开发模拟源状态，客户端应标注模拟行情；新增字段向后兼容，旧客户端可忽略未知字段。正式接口不输出 demo。
+- 身份、scope、VIEWER、401、缓存策略与其它桌面接口相同；Web 导出前通过轻量 tasks 再核对 scope，不重新拉行情拼接另一快照。
+
+页面与图片细节见 [投资日报](../investment-daily.md)。
+
 ## GET /api/desktop/tasks
 
 成功契约新增 scope，其余保持原值：
@@ -73,7 +104,7 @@ VIEWER 可读。
 
 ## 会话复用
 
-- `POST /api/auth/logout` + Bearer：删除对应服务端 Session，并清 Cookie；后续两个 GET 均 401。无会话时幂等返回 `{ok:true}`。
+- `POST /api/auth/logout` + Bearer：删除对应服务端 Session，并清 Cookie；后续三个 GET 均 401。无会话时幂等返回 `{ok:true}`。
 - `POST /api/family/switch` + Bearer + JSON `{familyId}`：只能切到此用户已有成员关系的家庭，成功 `{ok:true,familyId}`，越权 403；同一 token 后续响应反映新 scope，其他会话不切换。
 - 两个 POST 已存在，本次无需另建会话接口。Cookie 与 Bearer 同时存在时遵循原有 Cookie 优先策略，原生轮询应只发送 Bearer。
 

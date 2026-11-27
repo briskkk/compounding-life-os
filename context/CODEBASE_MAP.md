@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: project-maintainers
-last_verified: 2026-11-26
+last_verified: 2026-11-27
 ---
 
 # 代码地图
@@ -35,6 +35,7 @@ last_verified: 2026-11-26
 - `src/components/governance-nav.tsx`、`src/app/governance-workspace.css`：数据健康、行情质量、账户对账、审计之间的二级导航、异常提示与窄屏布局。
 - `src/components/holding-filter-bar.tsx`、`src/lib/engine/watch-filter.ts`：看盘实时估值表的搜索 / 大类 / 未计入筛选条与筛选取值解析（解析必须是纯模块，`'use client'` 导出无法被服务端组件调用）。
 - `src/components/sort-header.tsx`、`src/components/position-sort-header.tsx`、`src/lib/engine/holding-sort.ts`：看盘与持仓共用的列头排序控件；排序键、升降序切换、`aria-sort` 与无障碍文案的唯一来源都在引擎里（持仓页按 URL 服务端排序，看盘页客户端排序）。
+- `src/components/position-table-scroll.tsx`：持仓宽表的溢出检测、左右按钮和固定资产列，复用 `table-scroll.tsx` 并与 `valuation-toggle.tsx` 共用工具栏；金额、排序与表格行仍由服务端装配。
 - `src/lib/engine/intraday.ts`：`buildIntradayCurves` 返回组合曲线与逐标的当日盈亏序列（看盘行 ↔ 曲线联动），`buildPortfolioCurve` 是它的薄包装。
 - `src/components/terminal-icon.tsx`：壳层和主导航共用的线性 SVG 图标集。
 - `src/app/globals.css`、`src/app/themes.css`、`src/app/compound-workspace.css`：Compound Life 中性工作台、主题与共享控件；`layout.tsx` 导入本地托管的 Inter Variable 与 Noto Sans SC Variable 字体；财务方向、估值和告警继续使用各自的语义色。视觉约定见 [design.md](../design.md)。
@@ -55,6 +56,8 @@ Route Handlers：
 - `src/app/api/mobile/summary/route.ts`：移动端总览/账户/FIRE 数据包。
 - `src/app/api/desktop/glance/route.ts`：真实用户会话的轻量摘要，复用引擎资产与 Web 当日损益；时间与覆盖契约见 `docs/desktop/API.md`。
 - `src/app/api/desktop/tasks/route.ts`：真实用户会话的总览待办，附用户/家庭 scope；不加载持仓或行情。
+- `src/app/api/desktop/daily-report/route.ts`、`src/lib/engine/daily-report.ts`、`src/lib/services/daily-report-series.ts`：真实会话投资日报快照，复用当日收益与分钟源，前五/余项/末点对账；契约见 `docs/desktop/API.md`。
+- `src/app/watch/daily/page.tsx`、`src/components/investment-daily-report.tsx`、`src/lib/daily-report-contract.ts`、`src/lib/investment-daily-renderer.ts`：投资日报入口、Zod 校验、会话绑定预览、Canvas PNG/剪贴板；本地宋体后备只由日报路由加载。
 - `src/app/api/mobile/returns-calendar/route.ts`：与 Web 看盘同源的日/月/年收益日历、估值缺口和当日流水。
 - `src/app/api/transactions/route.ts`：移动端流水幂等写入（`Idempotency-Key`）与游标分页列表。
 - `src/app/api/reviews/route.ts`、`reviews/current/route.ts`：已保存复盘游标列表、复盘证据包与笔记写入；月度证据支持 `month=YYYY-MM` 历史自然月深链。

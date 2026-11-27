@@ -14,7 +14,7 @@ import { ConfirmProvider } from '@/components/confirm-dialog'
 import { TerminalIcon, type TerminalIconName } from '@/components/terminal-icon'
 import { ROLE_LABEL } from '@/lib/labels'
 
-const PAGE_NAMES: Array<[string, string]> = [
+const PAGE_NAMES: [string, string][] = [
   ['/investment-plans', '定投'],
   ['/month-close', '月结'],
   ['/fund-confirmations', '基金确认'],
@@ -23,6 +23,7 @@ const PAGE_NAMES: Array<[string, string]> = [
   ['/transactions/imports', '导入记录'],
   ['/transactions', '流水'],
   ['/positions', '持仓'],
+  ['/watch/daily', '投资日报'],
   ['/watch', '看盘'],
   ['/review/returns', '收益历史'],
   ['/review/history', '长期复盘'],
@@ -68,6 +69,7 @@ const WORKFLOW_LINKS: Array<{ href: string; label: string; icon: TerminalIconNam
   { href: '/fund-operations', label: '基金规则', icon: 'settings', aliases: '申购费率 赎回费率 暂停申购' },
   { href: '/allocation', label: '配置目标', icon: 'target', aliases: '资产配置 偏离 目标权重' },
   { href: '/review/returns', label: '收益历史', icon: 'review', aliases: '历史曲线 收益日历 基准对比' },
+  { href: '/watch/daily', label: '投资日报', icon: 'review', aliases: '复利生活 截图 分享 导图 PNG 图片' },
   { href: '/review/history', label: '长期复盘', icon: 'review', aliases: '历史收益 长期绩效 XIRR' },
   { href: '/review/decisions', label: '交易决策', icon: 'activity', aliases: '买卖决策 行为复盘' },
   { href: '/health', label: '数据健康', icon: 'shield', aliases: '数据状态 估值缺口' },

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { PrismaClient } from '@prisma/client'
 import path from 'node:path'
 
-const routes = ['/api/desktop/glance', '/api/desktop/tasks']
+const routes = ['/api/desktop/glance', '/api/desktop/tasks', '/api/desktop/daily-report']
 
 test('桌面接口 Cookie 契约及禁止全局 Key', async ({ request, playwright }) => {
   for (const route of routes) {

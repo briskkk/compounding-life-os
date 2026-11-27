@@ -1,11 +1,12 @@
 import Link from 'next/link'
 import { cx } from '@/lib/format'
 
-export type InvestmentDomainView = 'today' | 'history'
+export type InvestmentDomainView = 'today' | 'history' | 'daily'
 
 const INVESTMENT_DOMAIN_VIEWS: Array<{ key: InvestmentDomainView; href: string; label: string }> = [
   { key: 'today', href: '/watch', label: '今日' },
   { key: 'history', href: '/review/returns', label: '历史' },
+  { key: 'daily', href: '/watch/daily', label: '投资日报' },
 ]
 
 export function InvestmentDomainNav({ active }: { active: InvestmentDomainView }) {
