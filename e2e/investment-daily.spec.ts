@@ -25,7 +25,9 @@ test('投资日报：入口、真实会话数据与只读导图契约', async ({
 })
 
 test('投资日报：保存1080×1440 PNG，复制同一快照，图片无操作时间', async ({ page }, testInfo) => {
-  await mockReport(page)
+  const report = dailyReportFixture()
+  report.operations[0].pending = true
+  await mockReport(page, report)
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
       write: async (items: ClipboardItem[]) => {
@@ -56,7 +58,8 @@ test('投资日报：保存1080×1440 PNG，复制同一快照，图片无操作
   expect(await page.evaluate(() => (window as unknown as { dailyCopiedImage: unknown }).dailyCopiedImage)).toEqual({ type: 'image/png', width: 1080, height: 1440 })
   const description = await page.locator('.daily-report-preview .sr-only').textContent()
   expect(description).toContain('演示数据')
-  expect(description).not.toMatch(/09:30|15:30|份额|成本|账户|净资产/)
+  expect(description).toContain('今日操作 · 买入 500.00 元')
+  expect(description).not.toMatch(/待确认|09:30|15:30|份额|成本|账户|净资产/)
   await page.screenshot({ path: testInfo.outputPath('daily-report-page.png'), fullPage: true })
 })
 
@@ -69,7 +72,8 @@ test('投资日报：长名称和多笔操作增加图高，保留最后一笔',
   await expect(page.getByRole('button', { name: '保存 PNG' })).toBeEnabled()
   expect(await page.locator('canvas').evaluate((canvas) => (canvas as HTMLCanvasElement).height)).toBeGreaterThan(1440)
   await expect(page.locator('.daily-report-preview .sr-only')).toContainText('第30笔需要完整保留的基金操作')
-  await expect(page.locator('.daily-report-preview .sr-only')).toContainText('待确认')
+  await expect(page.locator('.daily-report-preview .sr-only')).toContainText('今日操作 · 买入 3,435.00 元')
+  await expect(page.locator('.daily-report-preview .sr-only')).not.toContainText('待确认')
   for (const width of [560, 1280, 1440, 1600, 1920]) {
     await page.setViewportSize({ width, height: 900 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1)

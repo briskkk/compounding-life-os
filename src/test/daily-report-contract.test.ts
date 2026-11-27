@@ -16,9 +16,24 @@ describe('日报导图契约', () => {
       operations: [{ ...report.operations[0], account: '不应展示的账户', cost: 99, time: '10:11:12' }],
     })
     const description = describeDailyReport(parsed)
-    expect(description).toContain('买入 测试基金 500.00元 待确认')
-    expect(description).not.toMatch(/不应展示|123456|10:11:12/)
+    expect(description).toContain('今日操作 · 买入 500.00 元')
+    expect(description).toContain('买入 测试基金 500.00元')
+    expect(description).not.toMatch(/待确认|不应展示|123456|10:11:12/)
     expect(parsed.operations[0]).not.toHaveProperty('cost')
+  })
+
+  it('汇总当天记录的买入金额，卖出不冲减买入，空操作不显示买入汇总', () => {
+    const parsed = dailyReportSchema.parse({ ...report, operations: [
+      { name: '基金A', side: 'BUY', amount: 100.1, pending: true },
+      { name: '基金B', side: 'BUY', amount: 200.2, pending: false },
+      { name: '基金C', side: 'SELL', amount: 99, pending: false },
+    ] })
+    expect(describeDailyReport(parsed)).toContain('今日操作 · 买入 300.30 元')
+    expect(describeDailyReport(parsed)).not.toContain('待确认')
+    const empty = describeDailyReport({ ...parsed, operations: [] })
+    expect(empty).toContain('今日无操作')
+    expect(empty).not.toContain('今日操作 · 买入')
+    expect(describeDailyReport({ ...parsed, operations: [parsed.operations[2]] })).not.toContain('今日操作 · 买入')
   })
 
   it('收益缺失与真实零收益保持区分', () => {

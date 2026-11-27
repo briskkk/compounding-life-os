@@ -11,6 +11,14 @@ export const reportAmount = (value: number | null, signed = true) => value == nu
 const tone = (value: number | null) => value == null || value === 0 ? COLOR.ink : value > 0 ? COLOR.up : COLOR.down
 const clean = (text: string) => text.replace(/[\u0000-\u001f\u007f]/g, ' ').trim()
 
+export function reportBuySummary(report: DailyReport): string {
+  const buys = report.operations.filter((row) => row.side === 'BUY')
+  if (!buys.length) return ''
+  const total = buys.reduce((sum, row) => sum + row.amount, 0)
+  if (!Number.isFinite(total)) throw new DailyReportRenderError('买入金额过大，暂时无法生成日报')
+  return `买入 ${reportAmount(total, false)} 元`
+}
+
 export function reportValuationLabel(report: DailyReport): string {
   const labels = { LIVE: '实时', ESTIMATED: '估算', SETTLED: '官方净值', PARTIAL: '估值不完整', UNAVAILABLE: '暂无当日收益' }
   const pieces: string[] = [labels[report.valuation.status]]
@@ -51,7 +59,7 @@ export function renderInvestmentDaily(canvas: HTMLCanvasElement, report: DailyRe
     return lines
   }
   const leaders = report.leaders.map((row) => ({ ...row, lines: split(row.name, 442) }))
-  const operations = report.operations.map((row) => ({ ...row, lines: split(row.name + (row.pending ? '（待确认）' : ''), 590) }))
+  const operations = report.operations.map((row) => ({ ...row, lines: split(row.name, 590) }))
   const leaderHeight = leaders.length ? leaders.reduce((h, row) => h + Math.max(56, row.lines.length * 34 + 20), 0) : 62
   const operationHeight = operations.length ? operations.reduce((h, row) => h + Math.max(62, row.lines.length * 34 + 20), 0) : 62
   const height = Math.max(1440, 1036 + leaderHeight + operationHeight)
@@ -135,6 +143,7 @@ export function renderInvestmentDaily(canvas: HTMLCanvasElement, report: DailyRe
   line(y + 26)
   y += 96
   text('今日操作', 70, y, 42, { weight: 600 })
+  fitText(reportBuySummary(report), 300, y, 28, { color: COLOR.muted })
   text('金额（元）', 1010, y, 28, { align: 'right' })
   y += 30
   line(y)
@@ -207,7 +216,7 @@ export function describeDailyReport(report: DailyReport): string {
   const pct = (value: number | null) => value == null ? '—' : `${reportAmount(value)}%`
   return ['复利生活 投资日报', report.date, `当日盈亏 ${reportAmount(report.pnl)} 元，收益率 ${pct(report.pct)}`,
     '收益TOP5', ...report.leaders.map((r) => `${r.name} ${reportAmount(r.pnl)}元 ${pct(r.pct)}`),
-    `其余持仓 ${reportAmount(report.remainingPnl)}元`, '今日操作',
-    ...(report.operations.length ? report.operations.map((r) => `${r.side === 'BUY' ? '买入' : '卖出'} ${r.name} ${reportAmount(r.amount, false)}元${r.pending ? ' 待确认' : ''}`) : ['今日无操作']),
+    `其余持仓 ${reportAmount(report.remainingPnl)}元`, ['今日操作', reportBuySummary(report)].filter(Boolean).join(' · '),
+    ...(report.operations.length ? report.operations.map((r) => `${r.side === 'BUY' ? '买入' : '卖出'} ${r.name} ${reportAmount(r.amount, false)}元`) : ['今日无操作']),
     reportValuationLabel(report)].join('\n')
 }
