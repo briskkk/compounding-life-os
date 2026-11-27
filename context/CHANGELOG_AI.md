@@ -6,6 +6,11 @@ last_verified: 2026-11-27
 
 # AI 工作变更记录
 
+## 2026-11-27 · 精简日报操作并汇总买入
+
+- 用户明确要求图片不体现“待确认”；只移除渲染与无障碍描述中的标注，保留 API/账本 pending。标题旁显示当日买入合计，不扣减卖出，没有买入时省略汇总；原操作明细完整保留。
+- 751 项单测、生产构建、207 项完整 E2E 与远端 CI 四项门禁通过；前后完整图/操作区细节已并置核对。提交 `191843d` 已上线，公网日报脚本确认含买入汇总且无旧标注；Cookie/Bearer 200、匿名/撤销 401、收益对账和页面样式通过，临时会话注销，账本未改。备份和回滚镜像保留，详细记录见 `docs/releases/2026-11-27-investment-daily.md`。
+
 ## 2026-11-27 · Web 投资日报图片与共享数据接口
 
 - 接手 CLO Desk 协作的日报汇总接口，复用 `buildDesktopGlance` / `observeLivePortfolio` / `buildIntradayCurves` 与现有分钟源；真实 Cookie/Bearer、家庭作用域、VIEWER、private/no-store，无全局 Key、schema、账本或快照写入。正收益最多五项跨账户合并，余项和曲线末点与总收益对账，操作来自北京当天有效买卖。

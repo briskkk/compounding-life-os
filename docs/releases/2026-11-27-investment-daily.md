@@ -28,3 +28,11 @@
 - 没有重置密码或放宽登录保护，没有账本写入；流水与资产数量部署前后未变。
 
 生产浏览器未复用到现成登录态，因此没有新建网页登录；浏览器绘制、下载和复制已在同版代码的隔离环境验证，线上核验为真实会话 HTTP/页面与资源检查。Mac 原生保存面板/剪贴板不属于本次 Web 验收范围。
+
+## 后续发布：今日操作精简
+
+- 用户要求删除操作中的“待确认”，标题旁显示买入合计。Web 图片和无障碍描述已调整；合计包含已记录的待确认买入金额，不扣卖出，原有操作仍完整展示；API 和账本状态保持不变。
+- 应用提交：`191843dfba679d840aceabcc61e3189d05a717bc`。本机 751 项单测、207 项完整浏览器回归及生产构建通过；[远端 CI](https://github.com/briskkk/compounding-life-os/actions/runs/46013788524) 四项门禁全部通过。
+- 新运行镜像：`sha256:8d13bc3acee6d6a8180e6032d2c3f2d162acc97ec1cb66daf362ebc3e4d2caac`。备份位于 `/opt/backups/release-20261127-221112/`，旧镜像为 `family-wealth-os-app:rollback-20261127-221112`；服务器运维补丁原样保留，无数据库迁移。
+- 公网实际下载的日报页面脚本确认包含买入汇总逻辑、不含旧“（待确认）”标注；真实 Cookie/Bearer 日报 200、匿名与撤销会话 401、scope/收益对账和相关页面/样式通过。临时真实会话已注销，账本数量未变。
+- 视觉证据：`outputs/investment-daily-2026-11-27/daily-report-summary-demo.png`、`summary-comparison-full.png`、`summary-comparison-detail.png`；见根目录 `design-qa.md`。部署后的本段等纯文档补记不改变已验证镜像。
