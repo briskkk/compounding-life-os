@@ -74,7 +74,8 @@ test('creator 不接受已有Web Cookie或全局只读Key，错误响应也禁�
   expect((await request.get(url('2026-11-20'))).status()).toBe(401)
   const client = await playwright.request.newContext({ baseURL: 'http://localhost:3200', storageState: { cookies: [], origins: [] } })
   try {
-    for (const headers of [{}, { authorization: 'Bearer e2e-test-key' }]) {
+    const headerCases: Record<string, string>[] = [{}, { authorization: 'Bearer e2e-test-key' }]
+    for (const headers of headerCases) {
       const response = await client.get(url('2026-11-20'), { headers })
       expect(response.status()).toBe(401)
       expect(response.headers()['cache-control']).toBe('private, no-store')

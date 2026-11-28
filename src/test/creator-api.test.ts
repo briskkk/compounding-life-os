@@ -2,16 +2,19 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { createHash } from 'node:crypto'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import { creatorConfigSchema } from '@/lib/creator-export-contract'
 import { authenticateCreator } from '@/lib/services/creator-export'
 
+// Long read transactions must not hold locks against other suites' shared SQLite writers.
+const isolated = vi.hoisted(() => ({
+  directory: `${process.env.TMPDIR ?? '/tmp'}/creator-api-${process.pid}-${Date.now()}`,
+}))
 vi.mock('@/lib/db', async () => {
   const { PrismaClient } = await import('@prisma/client')
-  const path = await import('node:path')
-  return { prisma: new PrismaClient({ datasourceUrl: `file:${path.resolve('prisma/test.db')}` }) }
+  return { prisma: new PrismaClient({ datasourceUrl: `file:${isolated.directory}/test.db` }) }
 })
 import { prisma } from '@/lib/db'
 import { GET } from '@/app/api/creator/v1/daily-snapshots/route'
@@ -19,8 +22,8 @@ import { GET } from '@/app/api/creator/v1/daily-snapshots/route'
 const token = 'creator-test-read-only-credential-00000001'
 const otherToken = 'creator-test-read-only-credential-00000002'
 const hash = (value: string) => createHash('sha256').update(value).digest('hex')
-const base = new PrismaClient({ datasourceUrl: `file:${path.resolve('prisma/test.db')}` })
-let directory: string
+const base = new PrismaClient({ datasourceUrl: `file:${isolated.directory}/test.db` })
+const directory = isolated.directory
 let familyId: string
 let otherFamilyId: string
 let userId: string
@@ -36,7 +39,15 @@ async function get(query = 'profile=demo&date=2026-11-20', credential: string | 
 }
 
 beforeAll(async () => {
-  directory = await mkdtemp(path.join(tmpdir(), 'creator-api-'))
+  await mkdir(directory, { recursive: true })
+  const schema = (await readFile('prisma/schema.prisma', 'utf8'))
+    .replace('file:./dev.db', `file:${directory}/test.db`)
+  const schemaPath = path.join(directory, 'schema.prisma')
+  await writeFile(schemaPath, schema)
+  await writeFile(path.join(directory, 'test.db'), '')
+  execFileSync(process.execPath, [
+    path.resolve('node_modules/prisma/build/index.js'), 'db', 'push', '--schema', schemaPath, '--skip-generate',
+  ], { stdio: 'pipe', timeout: 30000 })
   process.env.CREATOR_EXPORT_CONFIG_PATH = path.join(directory, 'config.json')
   const family = await base.familySpace.create({ data: { name: 'creator 测试甲家' } })
   familyId = family.id
@@ -64,9 +75,8 @@ beforeAll(async () => {
 afterAll(async () => {
   if (originalConfigPath == null) delete process.env.CREATOR_EXPORT_CONFIG_PATH
   else process.env.CREATOR_EXPORT_CONFIG_PATH = originalConfigPath
-  await base.familySpace.deleteMany({ where: { id: { in: [familyId, otherFamilyId] } } })
-  await base.user.deleteMany({ where: { id: userId } })
-  await Promise.all([base.$disconnect(), prisma.$disconnect(), rm(directory, { recursive: true, force: true })])
+  await Promise.all([base.$disconnect(), prisma.$disconnect()])
+  await rm(directory, { recursive: true, force: true })
 })
 
 describe('creator API 只读凭证与家庭边界', () => {
