@@ -146,6 +146,15 @@ export function foldTransactions(txs: LedgerTx[], upTo?: Date): Position[] {
   const cutoff = upTo ? endOfDay(upTo).getTime() : null
   // 可用份额口径：历史回放按回放日，实时状态按当前时间
   const asOfMs = cutoff ?? endOfDay(new Date()).getTime()
+  return replayTransactions(txs, cutoff, asOfMs)
+}
+
+/** 精确时点重放：调用方显式给定带时区的截点，不经过宿主时区的日终扩展。 */
+export function foldTransactionsAt(txs: LedgerTx[], cutoffAt: Date): Position[] {
+  return replayTransactions(txs, cutoffAt.getTime(), cutoffAt.getTime())
+}
+
+function replayTransactions(txs: LedgerTx[], cutoff: number | null, asOfMs: number): Position[] {
   const sorted = txs
     .filter((t) => !t.voidedAt && (cutoff === null ? true : t.occurredAt.getTime() <= cutoff))
     .sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime())

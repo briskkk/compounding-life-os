@@ -1,0 +1,139 @@
+{
+  "synthetic": true,
+  "baseline": {
+    "profile": "demo",
+    "date": "2026-11-19",
+    "status": "ready",
+    "kind": "baseline",
+    "dayNumber": 1,
+    "currency": "CNY",
+    "accountScopeLabel": "可投资资产",
+    "assetTotal": "999.12",
+    "pnl": null,
+    "netContribution": null,
+    "valuation": {
+      "status": "SETTLED",
+      "asOfDate": "2026-11-19",
+      "cutoffAt": "2026-11-19T23:59:59+08:00"
+    },
+    "operations": [
+      {
+        "side": "BUY",
+        "label": "宽基ETF",
+        "amount": "100.00"
+      }
+    ],
+    "snapshotId": "cs1_b31fa252aec2f5f24776750bdfc714c092f302d82b8ad782d0afa1be8f80e83a"
+  },
+  "daily": {
+    "profile": "demo",
+    "date": "2026-11-20",
+    "status": "ready",
+    "kind": "daily",
+    "dayNumber": 2,
+    "currency": "CNY",
+    "accountScopeLabel": "可投资资产",
+    "assetTotal": "1019.12",
+    "pnl": "20.00",
+    "netContribution": "0.00",
+    "valuation": {
+      "status": "SETTLED",
+      "asOfDate": "2026-11-20",
+      "cutoffAt": "2026-11-20T23:59:59+08:00"
+    },
+    "operations": [],
+    "snapshotId": "cs1_a3a48682676a46405dc008ab0d4ed193c5171dbd1e41042713c48ae560f1d3f3"
+  },
+  "dailyWithOperations": {
+    "profile": "demo",
+    "date": "2026-11-20",
+    "status": "ready",
+    "kind": "daily",
+    "dayNumber": 2,
+    "currency": "CNY",
+    "accountScopeLabel": "可投资资产",
+    "assetTotal": "1019.00",
+    "pnl": "19.88",
+    "netContribution": "0.00",
+    "valuation": {
+      "status": "SETTLED",
+      "asOfDate": "2026-11-20",
+      "cutoffAt": "2026-11-20T23:59:59+08:00"
+    },
+    "operations": [
+      {
+        "side": "BUY",
+        "label": "宽基ETF",
+        "amount": "24.00"
+      }
+    ],
+    "snapshotId": "cs1_4ad59efda2a7d1e9a7c5642eae05ac20390d5dabe1db0697bed12ad216a8a2b9"
+  },
+  "noOperations": {
+    "profile": "demo",
+    "date": "2026-11-20",
+    "status": "ready",
+    "kind": "daily",
+    "dayNumber": 2,
+    "currency": "CNY",
+    "accountScopeLabel": "可投资资产",
+    "assetTotal": "1019.12",
+    "pnl": "20.00",
+    "netContribution": "0.00",
+    "valuation": {
+      "status": "SETTLED",
+      "asOfDate": "2026-11-20",
+      "cutoffAt": "2026-11-20T23:59:59+08:00"
+    },
+    "operations": [],
+    "snapshotId": "cs1_a3a48682676a46405dc008ab0d4ed193c5171dbd1e41042713c48ae560f1d3f3"
+  },
+  "historicalReplay": {
+    "profile": "demo",
+    "date": "2026-11-20",
+    "status": "ready",
+    "kind": "daily",
+    "dayNumber": 2,
+    "currency": "CNY",
+    "accountScopeLabel": "可投资资产",
+    "assetTotal": "1019.12",
+    "pnl": "20.00",
+    "netContribution": "0.00",
+    "valuation": {
+      "status": "SETTLED",
+      "asOfDate": "2026-11-20",
+      "cutoffAt": "2026-11-20T23:59:59+08:00"
+    },
+    "operations": [],
+    "snapshotId": "cs1_a3a48682676a46405dc008ab0d4ed193c5171dbd1e41042713c48ae560f1d3f3"
+  },
+  "pending": {
+    "profile": "demo",
+    "date": "2026-11-23",
+    "status": "pending"
+  },
+  "noSession": {
+    "profile": "demo",
+    "date": "2026-11-21",
+    "status": "no_session"
+  },
+  "corrected": {
+    "profile": "demo",
+    "date": "2026-11-20",
+    "status": "ready",
+    "kind": "daily",
+    "dayNumber": 2,
+    "currency": "CNY",
+    "accountScopeLabel": "可投资资产",
+    "assetTotal": "1020.12",
+    "pnl": "21.00",
+    "netContribution": "0.00",
+    "valuation": {
+      "status": "SETTLED",
+      "asOfDate": "2026-11-20",
+      "cutoffAt": "2026-11-20T23:59:59+08:00"
+    },
+    "operations": [],
+    "snapshotId": "cs1_089dd08c610bed9cc68655ae3c3cb200d8fb636316df7a913941d11371063f30"
+  }
+}

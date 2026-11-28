@@ -57,6 +57,7 @@ Route Handlers：
 - `src/app/api/desktop/glance/route.ts`：真实用户会话的轻量摘要，复用引擎资产与 Web 当日损益；时间与覆盖契约见 `docs/desktop/API.md`。
 - `src/app/api/desktop/tasks/route.ts`：真实用户会话的总览待办，附用户/家庭 scope；不加载持仓或行情。
 - `src/app/api/desktop/daily-report/route.ts`、`src/lib/engine/daily-report.ts`、`src/lib/services/daily-report-series.ts`：真实会话投资日报快照，复用当日收益与分钟源，前五/余项/末点对账；契约见 `docs/desktop/API.md`。
+- `src/app/api/creator/v1/daily-snapshots/route.ts`、`src/lib/creator-export-contract.ts`、`src/lib/engine/creator-snapshot.ts`、`src/lib/services/creator-export.ts`：独立导出配置/可撤销只读凭证、固定账户可投资范围、北京日期的正式历史日终重放与稳定内容版本；缺证据 pending。契约与虚构联调响应见 `docs/creator-daily-snapshots.md`，默认关闭，无财务写入。
 - `src/app/watch/daily/page.tsx`、`src/components/investment-daily-report.tsx`、`src/lib/daily-report-contract.ts`、`src/lib/investment-daily-renderer.ts`：投资日报入口、Zod 校验、会话绑定预览、Canvas PNG/剪贴板；本地宋体后备只由日报路由加载。
 - `src/app/api/mobile/returns-calendar/route.ts`：与 Web 看盘同源的日/月/年收益日历、估值缺口和当日流水。
 - `src/app/api/transactions/route.ts`：移动端流水幂等写入（`Idempotency-Key`）与游标分页列表。

@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test'
+import path from 'node:path'
 
 // `npm run test:e2e` 会先生成独立的 .next-e2e，并使用专用种子数据库。
 export default defineConfig({
@@ -17,7 +18,10 @@ export default defineConfig({
     timeout: 120_000,
     // App 专用 API 要求 Bearer 认证；e2e-test-key 仅供测试环境，与生产密钥无关。
     // e2e 走 http，Secure cookie 不会被浏览器发送，需显式关闭。
-    env: { ...process.env, PORTFOLIO_API_KEY: 'e2e-test-key', DISABLE_SECURE_COOKIE: 'true' },
+    env: {
+      ...process.env, PORTFOLIO_API_KEY: 'e2e-test-key', DISABLE_SECURE_COOKIE: 'true',
+      CREATOR_EXPORT_CONFIG_PATH: path.resolve('outputs/e2e-creator-export.json'),
+    },
   },
   projects: [
     // 登录 setup 先行：种子账号走 /login 保存 storageState
