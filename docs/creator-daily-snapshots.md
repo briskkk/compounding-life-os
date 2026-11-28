@@ -1,6 +1,6 @@
 # 躺平居士交易日快照接口
 
-状态：已实现，真实导出默认关闭；未部署或配置生产凭证。开发请求来源为 `CLOWEB-development-request.md`，开发日期 2026-11-28。
+状态：2026-11-28 已部署并验证，真实导出配置仍关闭，未签发生产凭证；详见[发布记录](releases/2026-11-28-creator-daily-snapshots.md)。开发请求来源为 `CLOWEB-development-request.md`。
 
 ## 需求评审
 
